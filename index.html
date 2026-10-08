@@ -175,20 +175,30 @@
     function hideSplash() {
       if (splashHidden) return;
       splashHidden = true;
-      setTimeout(() => {
-        const splash = document.getElementById('splash-screen');
-        if (splash) splash.classList.add('hidden');
-      }, 500);
+      const splash = document.getElementById('splash-screen');
+      if (splash) {
+        splash.style.transition = 'opacity 0.3s ease';
+        splash.style.opacity = '0';
+        splash.style.pointerEvents = 'none';
+        setTimeout(() => {
+          splash.style.display = 'none';
+          if (splash.parentNode) splash.parentNode.removeChild(splash);
+        }, 300);
+      }
     }
 
     function onIframeLoad() {
       hideSplash();
     }
 
-    // ระบบ Safety Timeout ป้องกันหน้าค้างหากเครือข่ายโหลด iframe ช้า
+    // Safety Timeout ป้องกันค้าง (ปลดล็อกอัตโนมัติภายใน 1.5 วินาที)
     setTimeout(() => {
       hideSplash();
-    }, 4500);
+    }, 1500);
+
+    // แตะหน้าจอเพื่อเปิดเข้าสู่ระบบได้ทันที (Tap to Dismiss Fallback)
+    window.addEventListener('click', () => hideSplash(), { once: true, passive: true });
+    window.addEventListener('touchstart', () => hideSplash(), { once: true, passive: true });
 
     // ลงทะเบียน Service Worker
     if ('serviceWorker' in navigator) {
@@ -227,9 +237,18 @@
       }
     }
 
-    // รับคำสั่งคลิกปุ่มติดตั้ง PWA จากหน้า Welcome (Single Install Button)
+    // รับคำสั่งสื่อสารจากหน้า Portal ภายใน Iframe
     window.addEventListener('message', async (e) => {
-      if (e.data && e.data.action === 'TRIGGER_PWA_INSTALL') {
+      if (!e.data) return;
+
+      // 1. ปลดหน้าจอ Splash Screen ทันทีที่ Portal เริ่มทำงาน
+      if (e.data.action === 'PORTAL_READY' || e.data.action === 'HIDE_SPLASH') {
+        hideSplash();
+        return;
+      }
+
+      // 2. รับคำสั่งคลิกปุ่มติดตั้ง PWA จากหน้า Welcome (Single Install Button)
+      if (e.data.action === 'TRIGGER_PWA_INSTALL') {
         console.log('Received TRIGGER_PWA_INSTALL from portal. deferredPrompt ready:', !!deferredPrompt);
         if (isInStandaloneMode()) {
           showPwaGuide(
