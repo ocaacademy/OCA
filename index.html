@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <title>Oriental Culture Academy</title>
+  <title>Oriental Culture Academy (東方文化書院)</title>
   
   <!-- Viewport & Mobile Standalone -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -158,7 +158,7 @@
   <iframe 
     id="app-frame" 
     src="https://script.google.com/macros/s/AKfycbxkC3uubyG3GELrSRW-DEGTH3gHWyM5oyJXUTAD1Dio__ItmwCkm-rwxGtOFNpSkH04WQ/exec"
-    allow="camera; microphone; geolocation; fullscreen; accelerometer; gyroscope"
+    allow="camera *; microphone *; geolocation *; fullscreen; display-capture *"
     onload="onIframeLoad()"
   ></iframe>
 
@@ -168,6 +168,50 @@
     <div id="pwa-guide-body" style="font-size: 0.86rem; color: #A7F3D0; line-height: 1.6; text-align: left; margin: 10px 0;"></div>
     <button onclick="document.getElementById('pwa-guide-modal').classList.remove('show')" style="margin-top: 10px; background: rgba(229, 204, 162, 0.2); border: 1px solid rgba(229, 204, 162, 0.4); padding: 8px 24px; border-radius: 12px; font-size: 0.85rem; color: #FAF0D7; cursor: pointer; font-family: inherit; font-weight: 600;">รับทราบ</button>
   </div>
+
+  <!-- High-Fidelity Camera Viewfinder Modal (Bypasses GAS Iframe sandbox) -->
+  <div id="oca-camera-modal" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(1,35,28,0.92); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); flex-direction:column; align-items:center; justify-content:center; padding:16px;">
+    <div style="background:#03332A; border:1.5px solid #D7A600; border-radius:20px; width:100%; max-width:440px; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,0.8), 0 0 30px rgba(215,166,0,0.25); display:flex; flex-direction:column;">
+      
+      <!-- Modal Header -->
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 18px; border-bottom:1px solid rgba(229,204,162,0.2); background:rgba(1,35,28,0.5);">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="display:inline-flex; width:32px; height:32px; border-radius:50%; background:rgba(215,166,0,0.2); align-items:center; justify-content:center; color:#D7A600; font-size:16px;">📷</span>
+          <div>
+            <div style="font-size:15px; font-weight:700; color:#FAF0D7;">ถ่ายภาพนักศึกษา (OCA Camera)</div>
+            <div style="font-size:11px; color:#A7F3D0;">จัดตำแหน่งศีรษะให้อยู่ในกรอบวงรี</div>
+          </div>
+        </div>
+        <button id="btnModalCloseCam" style="background:none; border:none; color:#FAF0D7; font-size:22px; cursor:pointer; padding:4px 8px; line-height:1;" title="ปิดกล้อง">✕</button>
+      </div>
+
+      <!-- Viewfinder Box (3:4 aspect ratio with oval guide) -->
+      <div style="position:relative; width:100%; padding-top:125%; background:#000; overflow:hidden;">
+        <video id="oca-top-video" autoplay playsinline muted style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;"></video>
+        
+        <!-- Oval Portrait Guide Overlay -->
+        <div style="position:absolute; top:10%; bottom:10%; left:14%; right:14%; border:2px dashed rgba(215,166,0,0.8); border-radius:50%; pointer-events:none; box-shadow:0 0 0 9999px rgba(0,0,0,0.38);">
+          <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:rgba(255,255,255,0.75); font-size:12px; font-weight:600; text-align:center; text-shadow:0 1px 3px rgba(0,0,0,0.9); pointer-events:none; width:100%;">
+            จัดใบหน้าในกรอบวงรี
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div style="padding:14px 18px; display:flex; gap:10px; align-items:center; justify-content:center; background:#01231C; border-top:1px solid rgba(229,204,162,0.15);">
+        <!-- Switch Camera (Mobile) -->
+        <button id="btnModalSwitchCam" type="button" style="background:rgba(255,255,255,0.08); border:1px solid rgba(229,204,162,0.4); color:#FAF0D7; padding:10px 14px; border-radius:12px; font-size:13px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px; font-family:inherit;">
+          🔄 สลับกล้อง
+        </button>
+
+        <!-- Shutter Button -->
+        <button id="btnModalSnap" type="button" style="flex:1; background:linear-gradient(135deg, #D7A600 0%, #B8860B 100%); border:none; color:#01231C; padding:11px 18px; border-radius:12px; font-size:14px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 15px rgba(215,166,0,0.4); font-family:inherit;">
+          📸 ถ่ายภาพ
+        </button>
+      </div>
+    </div>
+  </div>
+  <canvas id="oca-top-canvas" style="display:none;"></canvas>
 
   <script>
     // ซ่อนหน้า Splash เมื่อ Iframe โหลดเสร็จ หรือ Safety Timeout
@@ -237,6 +281,110 @@
       }
     }
 
+    // ===== TOP-LEVEL CAMERA BRIDGE (Bypasses Google Apps Script iframe restrictions) =====
+    let topCameraStream = null;
+    let currentFacingMode = 'user'; // 'user' (กล้องหน้า) หรือ 'environment' (กล้องหลัง)
+
+    async function startTopCamera(facingMode = 'user') {
+      currentFacingMode = facingMode;
+      const modal = document.getElementById('oca-camera-modal');
+      const video = document.getElementById('oca-top-video');
+      
+      if (topCameraStream) {
+        topCameraStream.getTracks().forEach(t => t.stop());
+        topCameraStream = null;
+      }
+
+      try {
+        const constraints = {
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 960 }
+          },
+          audio: false
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        topCameraStream = stream;
+        video.srcObject = stream;
+        video.style.transform = (facingMode === 'user') ? 'scaleX(-1)' : 'none';
+        modal.style.display = 'flex';
+        await video.play();
+      } catch (err) {
+        console.warn('Top camera start error:', err);
+        alert('ไม่สามารถเปิดกล้องได้: ' + (err.message || 'กรุณาอนุญาตสิทธิ์การเข้าถึงกล้องในเบราว์เซอร์'));
+        stopTopCamera();
+      }
+    }
+
+    function stopTopCamera() {
+      if (topCameraStream) {
+        topCameraStream.getTracks().forEach(t => t.stop());
+        topCameraStream = null;
+      }
+      const modal = document.getElementById('oca-camera-modal');
+      if (modal) modal.style.display = 'none';
+      const video = document.getElementById('oca-top-video');
+      if (video) video.srcObject = null;
+    }
+
+    function captureTopPhoto() {
+      const video = document.getElementById('oca-top-video');
+      const canvas = document.getElementById('oca-top-canvas');
+      if (!video || !canvas) return;
+
+      const vw = video.videoWidth || 640;
+      const vh = video.videoHeight || 480;
+
+      // Crop to 3:4 portrait ratio
+      let cropW, cropH, startX, startY;
+      const targetRatio = 3 / 4;
+      const videoRatio = vw / vh;
+
+      if (videoRatio > targetRatio) {
+        cropH = vh;
+        cropW = Math.round(vh * targetRatio);
+        startX = Math.round((vw - cropW) / 2);
+        startY = 0;
+      } else {
+        cropW = vw;
+        cropH = Math.round(vw / targetRatio);
+        startX = 0;
+        startY = Math.round((vh - cropH) / 2);
+      }
+
+      canvas.width = 480;
+      canvas.height = 640;
+      const ctx = canvas.getContext('2d');
+
+      if (currentFacingMode === 'user') {
+        // Mirror horizontally
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+      }
+
+      ctx.drawImage(video, startX, startY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+      const dataUri = canvas.toDataURL('image/jpeg', 0.90);
+
+      // Send photo to inner iframe (GAS portal)
+      const appFrame = document.getElementById('app-frame');
+      if (appFrame && appFrame.contentWindow) {
+        appFrame.contentWindow.postMessage({
+          action: 'OCA_CAMERA_PHOTO_CAPTURED',
+          dataUri: dataUri
+        }, '*');
+      }
+
+      stopTopCamera();
+    }
+
+    // Modal Events
+    document.getElementById('btnModalCloseCam')?.addEventListener('click', stopTopCamera);
+    document.getElementById('btnModalSnap')?.addEventListener('click', captureTopPhoto);
+    document.getElementById('btnModalSwitchCam')?.addEventListener('click', () => {
+      startTopCamera(currentFacingMode === 'user' ? 'environment' : 'user');
+    });
+
     // รับคำสั่งสื่อสารจากหน้า Portal ภายใน Iframe
     window.addEventListener('message', async (e) => {
       if (!e.data) return;
@@ -247,7 +395,17 @@
         return;
       }
 
-      // 2. รับคำสั่งคลิกปุ่มติดตั้ง PWA จากหน้า Welcome (Single Install Button)
+      // 2. รับคำสั่งเปิดกล้องสดระดับ HD จาก Portal ภายใน Iframe
+      if (e.data.action === 'OCA_REQUEST_CAMERA') {
+        const appFrame = document.getElementById('app-frame');
+        if (appFrame && appFrame.contentWindow) {
+          appFrame.contentWindow.postMessage({ action: 'OCA_CAMERA_ACK' }, '*');
+        }
+        startTopCamera('user');
+        return;
+      }
+
+      // 3. รับคำสั่งคลิกปุ่มติดตั้ง PWA จากหน้า Welcome (Single Install Button)
       if (e.data.action === 'TRIGGER_PWA_INSTALL') {
         console.log('Received TRIGGER_PWA_INSTALL from portal. deferredPrompt ready:', !!deferredPrompt);
         if (isInStandaloneMode()) {
