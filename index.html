@@ -20,9 +20,10 @@
   <link rel="icon" type="image/x-icon" href="./favicon.ico">
   <link rel="manifest" href="./manifest.json">
   
-  <!-- Google Fonts & FontAwesome -->
+  <!-- Google Fonts & FontAwesome & jsQR -->
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   
   <style>
     * {
@@ -176,23 +177,52 @@
       <!-- Modal Header -->
       <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 18px; border-bottom:1px solid rgba(229,204,162,0.2); background:rgba(1,35,28,0.5);">
         <div style="display:flex; align-items:center; gap:10px;">
-          <span style="display:inline-flex; width:32px; height:32px; border-radius:50%; background:rgba(215,166,0,0.2); align-items:center; justify-content:center; color:#D7A600; font-size:16px;">📷</span>
+          <span id="oca-modal-icon" style="display:inline-flex; width:32px; height:32px; border-radius:50%; background:rgba(215,166,0,0.2); align-items:center; justify-content:center; color:#D7A600; font-size:16px;">📷</span>
           <div>
-            <div style="font-size:15px; font-weight:700; color:#FAF0D7;">ถ่ายภาพนักศึกษา (OCA Camera)</div>
-            <div style="font-size:11px; color:#A7F3D0;">จัดตำแหน่งศีรษะให้อยู่ในกรอบวงรี</div>
+            <div id="oca-modal-title" style="font-size:15px; font-weight:700; color:#FAF0D7;">ถ่ายภาพนักศึกษา (OCA Camera)</div>
+            <div id="oca-modal-subtitle" style="font-size:11px; color:#A7F3D0;">จัดศีรษะและหัวไหล่ในกรอบ (หน้าตรงครึ่งตัว)</div>
           </div>
         </div>
         <button id="btnModalCloseCam" style="background:none; border:none; color:#FAF0D7; font-size:22px; cursor:pointer; padding:4px 8px; line-height:1;" title="ปิดกล้อง">✕</button>
       </div>
 
-      <!-- Viewfinder Box (3:4 aspect ratio with oval guide) -->
+      <!-- Viewfinder Box (3:4 aspect ratio with bust shot or QR guide) -->
       <div style="position:relative; width:100%; padding-top:125%; background:#000; overflow:hidden;">
         <video id="oca-top-video" autoplay playsinline muted style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;"></video>
         
-        <!-- Oval Portrait Guide Overlay -->
-        <div style="position:absolute; top:10%; bottom:10%; left:14%; right:14%; border:2px dashed rgba(215,166,0,0.8); border-radius:50%; pointer-events:none; box-shadow:0 0 0 9999px rgba(0,0,0,0.38);">
-          <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:rgba(255,255,255,0.75); font-size:12px; font-weight:600; text-align:center; text-shadow:0 1px 3px rgba(0,0,0,0.9); pointer-events:none; width:100%;">
-            จัดใบหน้าในกรอบวงรี
+        <!-- Mode 1: Full Bust Shot (Head & Shoulders) Silhouette Guide -->
+        <div id="oca-guide-oval" style="position:absolute; inset:0; pointer-events:none;">
+          <svg viewBox="0 0 300 400" style="width:100%; height:100%; display:block;" preserveAspectRatio="none">
+            <!-- Semi-transparent Vignette Mask -->
+            <defs>
+              <mask id="portrait-mask">
+                <rect width="300" height="400" fill="white"/>
+                <!-- Head cutout -->
+                <ellipse cx="150" cy="130" rx="55" ry="75" fill="black"/>
+                <!-- Neck & Shoulders cutout -->
+                <path d="M 120 195 C 105 225, 40 250, 10 305 L 10 400 L 290 400 L 290 305 C 260 250, 195 225, 180 195 Z" fill="black"/>
+              </mask>
+            </defs>
+            <rect width="300" height="400" fill="rgba(0,0,0,0.35)" mask="url(#portrait-mask)"/>
+
+            <!-- Head outline (Gold dashed) -->
+            <ellipse cx="150" cy="130" rx="55" ry="75" fill="none" stroke="#D7A600" stroke-width="2.5" stroke-dasharray="6,4"/>
+            <!-- Eye level guide line -->
+            <line x1="115" y1="125" x2="185" y2="125" stroke="rgba(229,204,162,0.4)" stroke-width="1.5" stroke-dasharray="3,3"/>
+            <!-- Shoulders & Upper Chest outline (Gold dashed) -->
+            <path d="M 120 195 C 105 225, 40 250, 10 305 L 10 400 M 180 195 C 195 225, 260 250, 290 305 L 290 400" fill="none" stroke="#D7A600" stroke-width="2.5" stroke-dasharray="6,4"/>
+            <!-- Text label -->
+            <text x="150" y="380" fill="#FAF0D7" font-size="12" font-weight="700" text-anchor="middle" style="text-shadow:0 1px 4px rgba(0,0,0,0.9); font-family:sans-serif;">
+              รูปถ่ายหน้าตรง ครึ่งตัว (ศีรษะถึงระดับอก/ไหล่)
+            </text>
+          </svg>
+        </div>
+
+        <!-- Mode 2: Square QR Scanner Reticle Overlay -->
+        <div id="oca-guide-qr" style="display:none; position:absolute; top:18%; bottom:18%; left:12%; right:12%; border:2px solid #10B981; border-radius:16px; pointer-events:none; box-shadow:0 0 0 9999px rgba(0,0,0,0.45);">
+          <div style="position:absolute; inset:0; border:2px dashed rgba(255,255,255,0.35); border-radius:14px;"></div>
+          <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#FAF0D7; font-size:12px; font-weight:700; text-align:center; text-shadow:0 1px 4px rgba(0,0,0,0.9); width:100%;">
+            ส่องกล้องไปที่ QR บนใบเสร็จ
           </div>
         </div>
       </div>
@@ -204,7 +234,7 @@
           🔄 สลับกล้อง
         </button>
 
-        <!-- Shutter Button -->
+        <!-- Shutter Button (Visible in photo mode) -->
         <button id="btnModalSnap" type="button" style="flex:1; background:linear-gradient(135deg, #D7A600 0%, #B8860B 100%); border:none; color:#01231C; padding:11px 18px; border-radius:12px; font-size:14px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 15px rgba(215,166,0,0.4); font-family:inherit;">
           📸 ถ่ายภาพ
         </button>
@@ -281,24 +311,75 @@
       }
     }
 
-    // ===== TOP-LEVEL CAMERA BRIDGE (Bypasses Google Apps Script iframe restrictions) =====
+    // ===== TOP-LEVEL CAMERA & QR SCANNER BRIDGE =====
     let topCameraStream = null;
-    let currentFacingMode = 'user'; // 'user' (กล้องหน้า) หรือ 'environment' (กล้องหลัง)
+    let cameraRequester = null;
+    let cameraPort = null;
+    let currentCameraMode = 'photo'; // 'photo' หรือ 'qr'
+    let currentFacingMode = 'user';
+    let qrScanAnimationId = null;
 
-    async function startTopCamera(facingMode = 'user') {
-      currentFacingMode = facingMode;
+    function playBeepSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        gain.gain.value = 0.25;
+        osc.start();
+        setTimeout(() => { osc.stop(); ctx.close(); }, 120);
+      } catch (_) {}
+    }
+
+    async function startTopCamera(mode = 'photo', facingMode = null) {
+      currentCameraMode = mode;
+      currentFacingMode = facingMode || (mode === 'qr' ? 'environment' : 'user');
+
       const modal = document.getElementById('oca-camera-modal');
       const video = document.getElementById('oca-top-video');
-      
+      const titleEl = document.getElementById('oca-modal-title');
+      const subtitleEl = document.getElementById('oca-modal-subtitle');
+      const iconEl = document.getElementById('oca-modal-icon');
+      const ovalGuide = document.getElementById('oca-guide-oval');
+      const qrGuide = document.getElementById('oca-guide-qr');
+      const snapBtn = document.getElementById('btnModalSnap');
+
+      if (mode === 'qr') {
+        if (titleEl) titleEl.textContent = 'สแกนเนอร์รับตำราเรียน (Textbook QR Scanner)';
+        if (subtitleEl) subtitleEl.textContent = 'ส่องกล้องไปที่ QR Code บนใบเสร็จ';
+        if (iconEl) iconEl.textContent = '📱';
+        if (ovalGuide) ovalGuide.style.display = 'none';
+        if (qrGuide) qrGuide.style.display = 'block';
+        if (snapBtn) snapBtn.style.display = 'none';
+      } else {
+        if (titleEl) titleEl.textContent = 'ถ่ายภาพนักศึกษา (OCA Camera)';
+        if (subtitleEl) subtitleEl.textContent = 'จัดตำแหน่งศีรษะให้อยู่ในกรอบวงรี';
+        if (iconEl) iconEl.textContent = '📷';
+        if (ovalGuide) ovalGuide.style.display = 'block';
+        if (qrGuide) qrGuide.style.display = 'none';
+        if (snapBtn) {
+          snapBtn.style.display = 'flex';
+          snapBtn.innerHTML = '📸 ถ่ายภาพ';
+          snapBtn.style.background = 'linear-gradient(135deg, #D7A600 0%, #B8860B 100%)';
+        }
+      }
+
       if (topCameraStream) {
         topCameraStream.getTracks().forEach(t => t.stop());
         topCameraStream = null;
+      }
+      if (qrScanAnimationId) {
+        cancelAnimationFrame(qrScanAnimationId);
+        qrScanAnimationId = null;
       }
 
       try {
         const constraints = {
           video: {
-            facingMode: { ideal: facingMode },
+            facingMode: { ideal: currentFacingMode },
             width: { ideal: 1280 },
             height: { ideal: 960 }
           },
@@ -307,9 +388,13 @@
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         topCameraStream = stream;
         video.srcObject = stream;
-        video.style.transform = (facingMode === 'user') ? 'scaleX(-1)' : 'none';
+        video.style.transform = (currentFacingMode === 'user') ? 'scaleX(-1)' : 'none';
         modal.style.display = 'flex';
         await video.play();
+
+        if (mode === 'qr') {
+          scanQrLoop();
+        }
       } catch (err) {
         console.warn('Top camera start error:', err);
         alert('ไม่สามารถเปิดกล้องได้: ' + (err.message || 'กรุณาอนุญาตสิทธิ์การเข้าถึงกล้องในเบราว์เซอร์'));
@@ -322,21 +407,98 @@
         topCameraStream.getTracks().forEach(t => t.stop());
         topCameraStream = null;
       }
+      if (qrScanAnimationId) {
+        cancelAnimationFrame(qrScanAnimationId);
+        qrScanAnimationId = null;
+      }
       const modal = document.getElementById('oca-camera-modal');
       if (modal) modal.style.display = 'none';
       const video = document.getElementById('oca-top-video');
       if (video) video.srcObject = null;
     }
 
+    // QR Detection Loop (Textbooks Module)
+    let qrDetectorInstance = null;
+    if ('BarcodeDetector' in window) {
+      try {
+        qrDetectorInstance = new BarcodeDetector({ formats: ['qr_code'] });
+      } catch (_) {}
+    }
+
+    async function scanQrLoop() {
+      if (!topCameraStream || currentCameraMode !== 'qr') return;
+      const video = document.getElementById('oca-top-video');
+      if (!video || video.readyState < 2) {
+        qrScanAnimationId = requestAnimationFrame(scanQrLoop);
+        return;
+      }
+
+      let detectedValue = null;
+
+      // 1. Try Native BarcodeDetector (Chrome/Edge/Android)
+      if (qrDetectorInstance) {
+        try {
+          const codes = await qrDetectorInstance.detect(video);
+          if (codes && codes.length > 0 && codes[0].rawValue) {
+            detectedValue = codes[0].rawValue;
+          }
+        } catch (_) {}
+      }
+
+      // 2. Fallback to jsQR
+      if (!detectedValue && typeof jsQR !== 'undefined') {
+        const canvas = document.getElementById('oca-top-canvas');
+        if (canvas) {
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 480;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imgData.data, imgData.width, imgData.height);
+          if (code && code.data) detectedValue = code.data;
+        }
+      }
+
+      if (detectedValue) {
+        playBeepSound();
+        const subtitleEl = document.getElementById('oca-modal-subtitle');
+        if (subtitleEl) {
+          subtitleEl.innerHTML = `<span style="color:#10B981; font-weight:700;">✅ สแกนสำเร็จ: ${detectedValue}</span>`;
+        }
+
+        // Send token to portal via MessageChannel port & e.source
+        if (cameraPort) {
+          cameraPort.postMessage({ action: 'OCA_QR_SCANNED', token: detectedValue });
+        }
+        if (cameraRequester && typeof cameraRequester.postMessage === 'function') {
+          try {
+            cameraRequester.postMessage({ action: 'OCA_QR_SCANNED', token: detectedValue }, '*');
+          } catch (_) {}
+        }
+        const appFrame = document.getElementById('app-frame');
+        if (appFrame && appFrame.contentWindow) {
+          try {
+            appFrame.contentWindow.postMessage({ action: 'OCA_QR_SCANNED', token: detectedValue }, '*');
+          } catch (_) {}
+        }
+
+        setTimeout(() => stopTopCamera(), 400);
+        return;
+      }
+
+      qrScanAnimationId = requestAnimationFrame(scanQrLoop);
+    }
+
+    // Photo Snap Capture (Student Registration)
     function captureTopPhoto() {
       const video = document.getElementById('oca-top-video');
       const canvas = document.getElementById('oca-top-canvas');
+      const snapBtn = document.getElementById('btnModalSnap');
       if (!video || !canvas) return;
 
       const vw = video.videoWidth || 640;
       const vh = video.videoHeight || 480;
 
-      // Crop to 3:4 portrait ratio
       let cropW, cropH, startX, startY;
       const targetRatio = 3 / 4;
       const videoRatio = vw / vh;
@@ -358,7 +520,6 @@
       const ctx = canvas.getContext('2d');
 
       if (currentFacingMode === 'user') {
-        // Mirror horizontally
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
       }
@@ -366,23 +527,45 @@
       ctx.drawImage(video, startX, startY, cropW, cropH, 0, 0, canvas.width, canvas.height);
       const dataUri = canvas.toDataURL('image/jpeg', 0.90);
 
-      // Send photo to inner iframe (GAS portal)
-      const appFrame = document.getElementById('app-frame');
-      if (appFrame && appFrame.contentWindow) {
-        appFrame.contentWindow.postMessage({
-          action: 'OCA_CAMERA_PHOTO_CAPTURED',
-          dataUri: dataUri
-        }, '*');
+      // Visual feedback: green confirmation
+      if (snapBtn) {
+        snapBtn.innerHTML = '✅ บันทึกภาพเรียบร้อย';
+        snapBtn.style.background = '#10B981';
       }
 
-      stopTopCamera();
+      // Send to portal via MessageChannel port & e.source
+      if (cameraPort) {
+        cameraPort.postMessage({
+          action: 'OCA_CAMERA_PHOTO_CAPTURED',
+          dataUri: dataUri
+        });
+      }
+      if (cameraRequester && typeof cameraRequester.postMessage === 'function') {
+        try {
+          cameraRequester.postMessage({
+            action: 'OCA_CAMERA_PHOTO_CAPTURED',
+            dataUri: dataUri
+          }, '*');
+        } catch (_) {}
+      }
+      const appFrame = document.getElementById('app-frame');
+      if (appFrame && appFrame.contentWindow) {
+        try {
+          appFrame.contentWindow.postMessage({
+            action: 'OCA_CAMERA_PHOTO_CAPTURED',
+            dataUri: dataUri
+          }, '*');
+        } catch (_) {}
+      }
+
+      setTimeout(() => stopTopCamera(), 350);
     }
 
     // Modal Events
     document.getElementById('btnModalCloseCam')?.addEventListener('click', stopTopCamera);
     document.getElementById('btnModalSnap')?.addEventListener('click', captureTopPhoto);
     document.getElementById('btnModalSwitchCam')?.addEventListener('click', () => {
-      startTopCamera(currentFacingMode === 'user' ? 'environment' : 'user');
+      startTopCamera(currentCameraMode, currentFacingMode === 'user' ? 'environment' : 'user');
     });
 
     // รับคำสั่งสื่อสารจากหน้า Portal ภายใน Iframe
@@ -395,13 +578,19 @@
         return;
       }
 
-      // 2. รับคำสั่งเปิดกล้องสดระดับ HD จาก Portal ภายใน Iframe
+      // 2. รับคำสั่งเปิดกล้องถ่ายภาพนักศึกษา
       if (e.data.action === 'OCA_REQUEST_CAMERA') {
-        const appFrame = document.getElementById('app-frame');
-        if (appFrame && appFrame.contentWindow) {
-          appFrame.contentWindow.postMessage({ action: 'OCA_CAMERA_ACK' }, '*');
-        }
-        startTopCamera('user');
+        cameraRequester = e.source;
+        cameraPort = (e.ports && e.ports[0]) || null;
+        startTopCamera('photo', 'user');
+        return;
+      }
+
+      // 3. รับคำสั่งเปิดกล้องสแกนเนอร์รับตำราเรียน
+      if (e.data.action === 'OCA_REQUEST_QR_SCANNER') {
+        cameraRequester = e.source;
+        cameraPort = (e.ports && e.ports[0]) || null;
+        startTopCamera('qr', 'environment');
         return;
       }
 
