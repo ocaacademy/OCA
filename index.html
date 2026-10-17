@@ -187,9 +187,12 @@
       </div>
 
       <!-- Viewfinder Box (3:4 aspect ratio with bust shot or QR guide) -->
-      <div style="position:relative; width:100%; padding-top:125%; background:#000; overflow:hidden;">
+      <div style="position:relative; width:100%; padding-top:133.33%; background:#000; overflow:hidden;">
         <video id="oca-top-video" autoplay playsinline muted style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;"></video>
         
+        <!-- Shutter Flash Effect -->
+        <div id="oca-shutter-flash" style="position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; transition:opacity 0.12s ease-out; z-index:10;"></div>
+
         <!-- Mode 1: Full Bust Shot (Head & Shoulders) Silhouette Guide -->
         <div id="oca-guide-oval" style="position:absolute; inset:0; pointer-events:none;">
           <svg viewBox="0 0 300 400" style="width:100%; height:100%; display:block;" preserveAspectRatio="none">
@@ -198,22 +201,30 @@
               <mask id="portrait-mask">
                 <rect width="300" height="400" fill="white"/>
                 <!-- Head cutout -->
-                <ellipse cx="150" cy="130" rx="55" ry="75" fill="black"/>
+                <ellipse cx="150" cy="135" rx="56" ry="74" fill="black"/>
                 <!-- Neck & Shoulders cutout -->
-                <path d="M 120 195 C 105 225, 40 250, 10 305 L 10 400 L 290 400 L 290 305 C 260 250, 195 225, 180 195 Z" fill="black"/>
+                <path d="M 122 205 C 100 235, 45 265, 10 320 L 10 400 L 290 400 L 290 320 C 255 265, 200 235, 178 205 Z" fill="black"/>
               </mask>
             </defs>
-            <rect width="300" height="400" fill="rgba(0,0,0,0.35)" mask="url(#portrait-mask)"/>
+            <rect width="300" height="400" fill="rgba(0,0,0,0.38)" mask="url(#portrait-mask)"/>
 
             <!-- Head outline (Gold dashed) -->
-            <ellipse cx="150" cy="130" rx="55" ry="75" fill="none" stroke="#D7A600" stroke-width="2.5" stroke-dasharray="6,4"/>
+            <ellipse cx="150" cy="135" rx="56" ry="74" fill="none" stroke="#D7A600" stroke-width="2.5" stroke-dasharray="6,4"/>
+            
             <!-- Eye level guide line -->
-            <line x1="115" y1="125" x2="185" y2="125" stroke="rgba(229,204,162,0.4)" stroke-width="1.5" stroke-dasharray="3,3"/>
+            <line x1="110" y1="135" x2="190" y2="135" stroke="rgba(229,204,162,0.6)" stroke-width="1.5" stroke-dasharray="3,3"/>
+            <text x="150" y="128" fill="#E5CCA2" font-size="10" font-weight="600" text-anchor="middle" style="text-shadow:0 1px 3px rgba(0,0,0,0.9); font-family:sans-serif;">ระดับสายตา</text>
+
+            <!-- Collar & Tie V-Guide -->
+            <path d="M 130 220 L 150 255 L 170 220" fill="none" stroke="rgba(229,204,162,0.6)" stroke-width="1.5" stroke-dasharray="4,3"/>
+
             <!-- Shoulders & Upper Chest outline (Gold dashed) -->
-            <path d="M 120 195 C 105 225, 40 250, 10 305 L 10 400 M 180 195 C 195 225, 260 250, 290 305 L 290 400" fill="none" stroke="#D7A600" stroke-width="2.5" stroke-dasharray="6,4"/>
-            <!-- Text label -->
-            <text x="150" y="380" fill="#FAF0D7" font-size="12" font-weight="700" text-anchor="middle" style="text-shadow:0 1px 4px rgba(0,0,0,0.9); font-family:sans-serif;">
-              รูปถ่ายหน้าตรง ครึ่งตัว (ศีรษะถึงระดับอก/ไหล่)
+            <path d="M 122 205 C 100 235, 45 265, 10 320 L 10 400 M 178 205 C 200 235, 255 265, 290 320 L 290 400" fill="none" stroke="#D7A600" stroke-width="2.5" stroke-dasharray="6,4"/>
+            
+            <!-- Guidance Badge -->
+            <rect x="30" y="362" width="240" height="26" rx="13" fill="rgba(1,35,28,0.85)" stroke="#D7A600" stroke-width="1.2"/>
+            <text x="150" y="379" fill="#FAF0D7" font-size="11" font-weight="700" text-anchor="middle" style="text-shadow:0 1px 4px rgba(0,0,0,0.9); font-family:sans-serif;">
+              รูปถ่ายหน้าตรง ครึ่งตัว (อกและหัวไหล่)
             </text>
           </svg>
         </div>
@@ -356,7 +367,7 @@
         if (snapBtn) snapBtn.style.display = 'none';
       } else {
         if (titleEl) titleEl.textContent = 'ถ่ายภาพนักศึกษา (OCA Camera)';
-        if (subtitleEl) subtitleEl.textContent = 'รูปถ่ายหน้าตรง ครึ่งตัว (ศีรษะถึงระดับอก/ไหล่)';
+        if (subtitleEl) subtitleEl.textContent = 'รูปถ่ายหน้าตรง ครึ่งตัว (ติดบัตรนักศึกษา CR80)';
         if (iconEl) iconEl.textContent = '📷';
         if (ovalGuide) ovalGuide.style.display = 'block';
         if (qrGuide) qrGuide.style.display = 'none';
@@ -445,13 +456,13 @@
         } catch (_) {}
       }
 
-      // 2. Fallback to jsQR
+      // 2. Fallback to jsQR with willReadFrequently: true
       if (!detectedValue && typeof jsQR !== 'undefined') {
         const canvas = document.getElementById('oca-top-canvas');
         if (canvas) {
           canvas.width = video.videoWidth || 640;
           canvas.height = video.videoHeight || 480;
-          const ctx = canvas.getContext('2d');
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(imgData.data, imgData.width, imgData.height);
@@ -466,9 +477,11 @@
           subtitleEl.innerHTML = `<span style="color:#10B981; font-weight:700;">✅ สแกนสำเร็จ: ${detectedValue}</span>`;
         }
 
-        // Send token to portal via MessageChannel port & e.source
+        // Send token to portal via MessageChannel port, e.source, and frames
         if (cameraPort) {
-          cameraPort.postMessage({ action: 'OCA_QR_SCANNED', token: detectedValue });
+          try {
+            cameraPort.postMessage({ action: 'OCA_QR_SCANNED', token: detectedValue });
+          } catch (_) {}
         }
         if (cameraRequester && typeof cameraRequester.postMessage === 'function') {
           try {
@@ -479,6 +492,11 @@
         if (appFrame && appFrame.contentWindow) {
           try {
             appFrame.contentWindow.postMessage({ action: 'OCA_QR_SCANNED', token: detectedValue }, '*');
+          } catch (_) {}
+          try {
+            for (let i = 0; i < appFrame.contentWindow.frames.length; i++) {
+              appFrame.contentWindow.frames[i].postMessage({ action: 'OCA_QR_SCANNED', token: detectedValue }, '*');
+            }
           } catch (_) {}
         }
 
@@ -494,7 +512,14 @@
       const video = document.getElementById('oca-top-video');
       const canvas = document.getElementById('oca-top-canvas');
       const snapBtn = document.getElementById('btnModalSnap');
+      const flash = document.getElementById('oca-shutter-flash');
       if (!video || !canvas) return;
+
+      // Shutter Flash Visual Feedback
+      if (flash) {
+        flash.style.opacity = '0.9';
+        setTimeout(() => { flash.style.opacity = '0'; }, 130);
+      }
 
       const vw = video.videoWidth || 640;
       const vh = video.videoHeight || 480;
@@ -517,7 +542,7 @@
 
       canvas.width = 480;
       canvas.height = 640;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
       if (currentFacingMode === 'user') {
         ctx.translate(canvas.width, 0);
@@ -533,12 +558,14 @@
         snapBtn.style.background = '#10B981';
       }
 
-      // Send to portal via MessageChannel port & e.source
+      // Send to portal via MessageChannel port, e.source, and child frames
       if (cameraPort) {
-        cameraPort.postMessage({
-          action: 'OCA_CAMERA_PHOTO_CAPTURED',
-          dataUri: dataUri
-        });
+        try {
+          cameraPort.postMessage({
+            action: 'OCA_CAMERA_PHOTO_CAPTURED',
+            dataUri: dataUri
+          });
+        } catch (_) {}
       }
       if (cameraRequester && typeof cameraRequester.postMessage === 'function') {
         try {
@@ -556,9 +583,18 @@
             dataUri: dataUri
           }, '*');
         } catch (_) {}
+        try {
+          for (let i = 0; i < appFrame.contentWindow.frames.length; i++) {
+            appFrame.contentWindow.frames[i].postMessage({
+              action: 'OCA_CAMERA_PHOTO_CAPTURED',
+              dataUri: dataUri
+            }, '*');
+          }
+        } catch (_) {}
       }
 
-      setTimeout(() => stopTopCamera(), 350);
+      // Smooth, deliberate close so user sees capture confirmation (600ms)
+      setTimeout(() => stopTopCamera(), 600);
     }
 
     // Modal Events
