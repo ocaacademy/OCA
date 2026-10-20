@@ -2862,6 +2862,9 @@
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
                   กดถ่ายภาพ
                 </button>
+                <button type="button" class="oca-menu-item-btn" style="width:auto; padding:10px 14px; border:1px solid var(--border-card); display:none;" id="btnFlipEnrollCam" onclick="switchEnrollCameraFacing()" title="สลับกล้องหน้า/หลัง">
+                  <i class="fa-solid fa-camera-rotate"></i> สลับกล้อง
+                </button>
                 <button type="button" class="oca-menu-item-btn" style="width:auto; padding:10px 14px; border:1px solid var(--border-card); display:none;" id="btnRetake" onclick="retakePhoto()">
                   ถ่ายใหม่
                 </button>
@@ -7249,6 +7252,84 @@
         return { success: true };
       }
 
+      // --- 19. SEND RECEIPT VIA EMAIL (E-RECEIPT DELIVERY) ---
+      if (action === 'sendReceiptEmail') {
+          const rcptNo = (params.receiptNo || '').toString().trim();
+          const targetEmail = (params.email || '').toString().trim();
+          
+          if (!targetEmail || targetEmail.indexOf('@') === -1) {
+            return { success: false, message: 'กรุณากรอกอีเมลผู้รับที่ถูกต้อง' };
+          }
+
+          let rcpt = null;
+          if (_supabase) {
+            try {
+              const { data } = await _supabase.from('receipts')
+                .select('*')
+                .eq('receipt_no', rcptNo)
+                .maybeSingle();
+              rcpt = data;
+            } catch(e) {
+              console.warn('Fetch receipt for email error:', e);
+            }
+          }
+
+          const buyerName = (rcpt && rcpt.buyer_name) || params.buyerName || 'ผู้สมัครเรียน';
+          const studentId = (rcpt && rcpt.student_id) || params.studentId || '-';
+          const courseName = (rcpt && rcpt.item_name) || params.courseName || '-';
+          const scheduleName = (rcpt && rcpt.schedule) || params.schedule || '-';
+          const grandTotal = Number((rcpt && rcpt.grand_total) || params.grandTotal || 0).toLocaleString();
+          const claimToken = (rcpt && rcpt.claim_token) || params.claimToken || '-';
+          const claimStatus = (rcpt && rcpt.claim_status) || 'พร้อมรับตำราเรียน';
+          const paymentMethod = (rcpt && rcpt.payment_method) || 'โอนเงิน';
+
+          const subject = `[ใบเสร็จรับเงินอิเล็กทรอนิกส์] Oriental Culture Academy (東方文化書院) - เลขที่ ${rcptNo}`;
+          const bodyText = `เรียน คุณ ${buyerName}\n\nสถาบันภาษาและวัฒนธรรมตะวันออก (Oriental Culture Academy - 東方文化書院)\nขอส่งใบเสร็จรับเงินอิเล็กทรอนิกส์ (E-Receipt) สำหรับการลงทะเบียนเรียน ดังรายละเอียดต่อไปนี้:\n\n` +
+            `==================================================\n` +
+            `เลขที่ใบเสร็จ: ${rcptNo}\n` +
+            `รหัสนักศึกษา: ${studentId}\n` +
+            `ชื่อผู้เรียน: ${buyerName}\n` +
+            `หลักสูตร: ${courseName}\n` +
+            `รอบวัน-เวลาเรียน: ${scheduleName}\n` +
+            `ยอดชำระสุทธิ: ${grandTotal} บาท (${paymentMethod})\n` +
+            `สิทธิ์รับตำราเรียน: ${claimStatus} (Token: ${claimToken})\n` +
+            `==================================================\n\n` +
+            `ขอบพระคุณที่ร่วมเรียนรู้และพัฒนาทักษะภาษาจีนกับ Oriental Culture Academy\n` +
+            `หากมีข้อสงสัยประการใด สามารถติดต่อแผนกทะเบียนและธุรการสถาบันได้ทุกวันทำการ\n\n` +
+            `Oriental Culture Academy (東方文化書院)\n` +
+            `โทร: 02-214-5555\n` +
+            `เว็บไซต์: https://ocaacademy.github.io/OCA/`;
+
+          const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(targetEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+          const mailtoUrl = `mailto:${encodeURIComponent(targetEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+
+          // Update receipts table in Supabase
+          if (_supabase) {
+            try {
+              await _supabase.from('receipts')
+                .update({ email: targetEmail, email_status: 'SENT' })
+                .eq('receipt_no', rcptNo);
+                
+              await _supabase.from('security_audit_logs').insert([{
+                action: 'RECEIPT_EMAIL_SENT',
+                details: `ส่งใบเสร็จ ${rcptNo} ไปยัง ${targetEmail}`,
+                device_id: (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : 'OCA-CLIENT'
+              }]);
+            } catch(e) {
+              console.warn('Update receipt email status notice:', e);
+            }
+          }
+
+          return {
+            success: true,
+            message: `จัดเตรียมใบเสร็จรับเงินส่งไปยัง ${targetEmail} เรียบร้อยแล้ว`,
+            gmailUrl,
+            mailtoUrl,
+            subject,
+            bodyText
+          };
+      }
+
       // Supabase Client Availability Check for database operations
       if (!_supabase) {
         console.warn('Supabase not ready for action:', action);
@@ -7420,12 +7501,13 @@
             citizen_id: params.citizenId || '',
             prefix: params.prefix || '',
             full_name: params.fullName || '',
-            phone_number: params.phone || '',
+            phone_number: params.phoneNumber || params.phone || '',
             address: params.address || '',
             line_id: params.lineId || '',
             current_course: params.course || '',
             current_schedule: params.schedule || '',
             smart_card_uid: params.smartCardUid || '',
+            photo_url: params.photoBase64 || params.photo || params.photoDataUri || '',
             status: 'ACTIVE'
           };
 
@@ -7733,14 +7815,14 @@
 
         // --- 19. GOOGLE FORMS & GMAIL LEGACY DECOUPLED STUBS ---
         // Completely decoupled from Google Sheets/GAS
+        // --- 20. GOOGLE FORMS LEGACY DECOUPLED STUBS ---
         if (
           action === 'createGoogleFormAuto' || 
           action === 'ensureAllFormTriggers' || 
           action === 'syncGoogleFormResponses' || 
           action === 'getGoogleFormConfig' || 
           action === 'saveGoogleFormConfig' || 
-          action === 'getGoogleFormRecentSyncLogs' || 
-          action === 'sendReceiptEmail'
+          action === 'getGoogleFormRecentSyncLogs'
         ) {
           console.log(`[Decoupled] Legacy Google action '${action}' completed via Supabase architecture.`);
           return { 
@@ -7979,57 +8061,25 @@
     let cameraBridgeAckTimer = null;
     let cameraBridgeReady = false;
 
+    let currentEnrollFacing = 'user';
+
+    function switchEnrollCameraFacing() {
+      currentEnrollFacing = currentEnrollFacing === 'user' ? 'environment' : 'user';
+      if (cameraActive) {
+        shutWebcam();
+        launchWebcam();
+      }
+    }
+
     function launchWebcam() {
       const vid = document.getElementById('liveWebcam');
       const placeholder = document.getElementById('camPlaceholder');
       const snapBtn = document.getElementById('btnSnapPhoto');
       const toggleText = document.getElementById('btnCamText');
-
-      // 1. หากรันอยู่ภายใน Iframe (เช่นบน GitHub Pages ocaacademy.github.io)
-      // ให้ส่งคำขอเปิด Top-Level Camera Modal ของหน้าแม่ (window.top) พร้อม MessageChannel
-      if (window.top && window.top !== window) {
-        console.log('Requesting top-level camera from window.top with MessageChannel...');
-        showRightToast('เปิดกล้องถ่ายภาพ', 'เปิดหน้าต่างกล้องสดระดับ HD เรียบร้อย', '📷');
-        window.ocaActiveCameraChannel = new MessageChannel();
-        window.ocaActiveCameraChannel.port1.onmessage = (event) => {
-          if (event.data && event.data.action === 'OCA_CAMERA_PHOTO_CAPTURED' && event.data.dataUri) {
-            applyCapturedPhoto(event.data.dataUri, 'รับภาพถ่ายจากกล้องเรียบร้อย');
-          }
-        };
-        try {
-          window.top.postMessage({ action: 'OCA_REQUEST_CAMERA' }, '*', [window.ocaActiveCameraChannel.port2]);
-        } catch (_) {
-          window.top.postMessage({ action: 'OCA_REQUEST_CAMERA' }, '*');
-        }
-        return;
-      }
+      const flipBtn = document.getElementById('btnFlipEnrollCam');
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showRightToast('ระบบเปิดกล้องอุปกรณ์', 'เบราว์เซอร์ไม่รองรับกล้องสด กำลังเปิดกล้องถ่ายภาพบนอุปกรณ์...', '📷');
-        triggerDeviceCamera();
-        return;
-      }
-
-      // ตรวจสอบ Permissions Policy ล่วงหน้าเพื่อป้องกันเบราว์เซอร์โยน Violation Warning ใน Console
-      let isCameraBlockedByPolicy = false;
-      try {
-        const policy = document.permissionsPolicy || document.featurePolicy;
-        if (policy && typeof policy.allowsFeature === 'function') {
-          if (!policy.allowsFeature('camera')) {
-            isCameraBlockedByPolicy = true;
-          }
-        }
-      } catch (_) {}
-
-      if (isCameraBlockedByPolicy) {
-        console.info('Permissions policy does not allow WebRTC camera in this sandboxed frame. Opening native device camera...');
-        if (placeholder) {
-          placeholder.innerHTML =
-            '<i class="fa-solid fa-camera-rotate" style="font-size:32px; color:var(--color-gold); margin-bottom:8px; display:inline-block;"></i>' +
-            '<div style="font-size:13px; font-weight:700; color:#ffffff;">กล้องสดถูกจำกัดสิทธิ์ใน iframe</div>' +
-            '<div style="font-size:12px; color:var(--color-gold-light); margin-top:4px; line-height:1.4;">ระบบกำลังเปิดกล้องถ่ายภาพบนอุปกรณ์ของคุณ...</div>';
-        }
-        showRightToast('เปิดกล้องถ่ายภาพบนอุปกรณ์', 'กำลังเปิดกล้องถ่ายภาพบนอุปกรณ์ของคุณ...', '📷');
+        showRightToast('ไม่พบอุปกรณ์กล้อง', 'กำลังเปิดกล้องถ่ายภาพจากอุปกรณ์/มือถือของคุณ...', '📷');
         triggerDeviceCamera();
         return;
       }
@@ -8057,13 +8107,16 @@
               snapBtn.style.display = 'inline-flex';
               snapBtn.disabled = false;
             }
+            const flipBtn = document.getElementById('btnFlipEnrollCam');
+            if (flipBtn) flipBtn.style.display = 'inline-flex';
+            if (flipBtn) flipBtn.style.display = 'inline-flex';
             if (toggleText) toggleText.textContent = 'ปิดกล้อง (Close Camera)';
             showRightToast('กล้องพร้อมใช้งาน', 'โหมดส่องกระจกเสมือน (Mirrored View)', '📷');
           });
       };
 
       // พยายามเปิดกล้องหน้าก่อน หาก Overconstrained จึงถอยไปใช้ generic video: true
-      startStream({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } })
+      startStream({ video: { facingMode: currentEnrollFacing, width: { ideal: 1280 }, height: { ideal: 720 } } })
         .catch(err => {
           // หากเกิดจากสิทธิ์เบราว์เซอร์หรือ Permissions Policy ใน iframe ห้าม retry ให้ fallback ทันที
           const isPolicyOrPermission = err.name === 'NotAllowedError' || err.name === 'SecurityError' ||
@@ -8113,6 +8166,10 @@
         snapBtn.disabled = true;
         snapBtn.style.display = 'none';
       }
+      const flipBtn = document.getElementById('btnFlipEnrollCam');
+      if (flipBtn) flipBtn.style.display = 'none';
+      const flipBtn = document.getElementById('btnFlipEnrollCam');
+      if (flipBtn) flipBtn.style.display = 'none';
       if (toggleText) toggleText.textContent = 'เปิดกล้องสด';
     }
 
@@ -13167,7 +13224,12 @@
           }
           if (res && res.success) {
             closeSendReceiptEmailModal();
-            showToast('ส่งอีเมลสำเร็จ!', 'จัดส่งใบเสร็จเลขที่ ' + toArabicDigits(rcptNo) + ' ไปยัง ' + email, '✓');
+            showToast('ส่งอีเมลสำเร็จ!', 'จัดเตรียมส่งใบเสร็จรับเงิน ' + toArabicDigits(rcptNo) + ' ไปยัง ' + email, '🎉');
+            if (res.gmailUrl) {
+              try { window.open(res.gmailUrl, '_blank'); } catch(_) {}
+            } else if (res.mailtoUrl) {
+              try { window.location.href = res.mailtoUrl; } catch(_) {}
+            }
             loadReceiptsHistoryTable();
           } else {
             if (boxAlert) {
