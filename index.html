@@ -2842,10 +2842,25 @@
               </div>
 
               <!-- Camera Screen (CSS transform: scaleX(-1)) -->
-              <div class="oca-cam-screen">
+              <div class="oca-cam-screen" style="position:relative; overflow:hidden;">
                 <video id="liveWebcam" autoplay playsinline muted></video>
                 <img id="capturedPreview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" alt="Portrait">
                 <canvas id="snapCanvas" style="display:none;"></canvas>
+
+                <!-- Floating Luxury Zoom Controller Bar -->
+                <div id="camZoomControls" style="display:none; position:absolute; bottom:12px; left:50%; transform:translateX(-50%); background:rgba(1, 35, 28, 0.90); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(215, 166, 0, 0.65); border-radius:30px; padding:5px 14px; align-items:center; gap:8px; z-index:10; box-shadow:0 8px 24px rgba(0,0,0,0.65);">
+                  <button type="button" onclick="adjustCameraZoom(-0.2)" title="ซูมออก (Zoom Out)" style="width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.08); border:1px solid rgba(215,166,0,0.35); color:#E5CCA2; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:12px; transition:transform 0.15s;">
+                    <i class="fa-solid fa-magnifying-glass-minus"></i>
+                  </button>
+                  <input type="range" id="rngCamZoom" min="1.0" max="3.0" step="0.1" value="1.0" oninput="setCameraZoom(this.value)" style="width:90px; accent-color:#D7A600; cursor:pointer; height:4px;">
+                  <button type="button" onclick="adjustCameraZoom(0.2)" title="ซูมเข้า (Zoom In)" style="width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.08); border:1px solid rgba(215,166,0,0.35); color:#E5CCA2; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:12px; transition:transform 0.15s;">
+                    <i class="fa-solid fa-magnifying-glass-plus"></i>
+                  </button>
+                  <span id="lblCamZoomVal" style="font-family:monospace; font-weight:800; color:#D7A600; font-size:12px; min-width:32px; text-align:center;">1.0x</span>
+                  <button type="button" onclick="resetCameraZoom()" title="รีเซ็ตเป็น 1.0x" style="font-size:11px; font-weight:700; color:#cbd5e1; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15); border-radius:10px; cursor:pointer; padding:2px 8px;">
+                    1x
+                  </button>
+                </div>
 
                 <div id="camPlaceholder" style="text-align:center; padding:20px; color:var(--text-muted);">
                   <svg class="oca-svg" style="width:36px; height:36px; stroke:var(--color-gold); margin-bottom:8px;" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
@@ -8141,6 +8156,55 @@
     let cameraBridgeReady = false;
 
     let currentEnrollFacing = 'user';
+    let currentCameraZoom = 1.0;
+
+    function applyCameraZoom(val) {
+      currentCameraZoom = Math.max(1.0, Math.min(3.0, parseFloat(val) || 1.0));
+      
+      const slider = document.getElementById('rngCamZoom');
+      const label = document.getElementById('lblCamZoomVal');
+      if (slider) slider.value = currentCameraZoom.toFixed(1);
+      if (label) label.textContent = `${currentCameraZoom.toFixed(1)}x`;
+
+      // Hardware PTZ Zoom (if supported)
+      if (mediaStream) {
+        const videoTrack = mediaStream.getVideoTracks()[0];
+        if (videoTrack && typeof videoTrack.getCapabilities === 'function') {
+          const capabilities = videoTrack.getCapabilities();
+          if (capabilities && capabilities.zoom) {
+            try {
+              const minZoom = capabilities.zoom.min || 1;
+              const maxZoom = capabilities.zoom.max || 3;
+              const targetZoom = minZoom + (currentCameraZoom - 1.0) * ((maxZoom - minZoom) / 2.0);
+              videoTrack.applyConstraints({
+                advanced: [{ zoom: Math.min(maxZoom, Math.max(minZoom, targetZoom)) }]
+              }).catch(() => {});
+            } catch (_) {}
+          }
+        }
+      }
+
+      // Universal CSS Digital Zoom (Preserving Mirror View scaleX(-1))
+      const vid = document.getElementById('liveWebcam');
+      if (vid) {
+        vid.style.transform = `scaleX(-1) scale(${currentCameraZoom})`;
+        vid.style.webkitTransform = `scaleX(-1) scale(${currentCameraZoom})`;
+        vid.style.transformOrigin = 'center center';
+      }
+    }
+
+    function setCameraZoom(val) {
+      applyCameraZoom(val);
+    }
+
+    function adjustCameraZoom(delta) {
+      applyCameraZoom(currentCameraZoom + delta);
+    }
+
+    function resetCameraZoom() {
+      applyCameraZoom(1.0);
+    }
+
 
     function switchEnrollCameraFacing() {
       currentEnrollFacing = currentEnrollFacing === 'user' ? 'environment' : 'user';
@@ -8187,6 +8251,9 @@
             const flipBtnEl = document.getElementById('btnFlipEnrollCam');
             if (flipBtnEl) flipBtnEl.style.display = 'inline-flex';
             if (toggleText) toggleText.textContent = 'ปิดกล้อง (Close Camera)';
+            const zoomBox = document.getElementById('camZoomControls');
+            if (zoomBox) zoomBox.style.display = 'flex';
+            applyCameraZoom(1.0);
             showRightToast('กล้องพร้อมใช้งาน', 'โหมดส่องกระจกเสมือน (Mirrored View)', '📷');
           });
       };
@@ -8244,6 +8311,9 @@
       }
       const flipBtnEl = document.getElementById('btnFlipEnrollCam');
       if (flipBtnEl) flipBtnEl.style.display = 'none';
+      const zoomBox = document.getElementById('camZoomControls');
+      if (zoomBox) zoomBox.style.display = 'none';
+      applyCameraZoom(1.0);
       if (toggleText) toggleText.textContent = 'เปิดกล้องสด';
     }
 
@@ -8260,9 +8330,19 @@
       // Mirror horizontally
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
-      ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
 
-      photoDataUri = canvas.toDataURL('image/jpeg', 0.85);
+      // Digital Center Crop Zoom for 100% fidelity matching the viewfinder
+      const z = Math.max(1.0, currentCameraZoom || 1.0);
+      const vw = vid.videoWidth || 640;
+      const vh = vid.videoHeight || 480;
+      const sw = vw / z;
+      const sh = vh / z;
+      const sx = (vw - sw) / 2;
+      const sy = (vh - sh) / 2;
+
+      ctx.drawImage(vid, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+      photoDataUri = canvas.toDataURL('image/jpeg', 0.88);
       applyCapturedPhoto(photoDataUri);
     }
 
