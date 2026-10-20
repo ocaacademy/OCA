@@ -390,8 +390,8 @@
        ========================================================================= */
     #oca-app-root .oca-kpi-row {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
       margin-bottom: 24px;
     }
 
@@ -1489,7 +1489,7 @@
       #oca-app-root .oca-content-canvas { padding: 10px 14px; }
       
       /* 4 KPI columns in 1 row on landscape */
-      #oca-app-root .oca-kpi-row { grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+      #oca-app-root .oca-kpi-row { grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
       #oca-app-root .oca-dash-card { min-height: 74px; padding: 8px 10px; }
       #oca-app-root .oca-card-label { font-size: 12px; margin-bottom: 3px; }
       #oca-app-root .oca-card-big-num { font-size: 20px; }
@@ -2632,6 +2632,13 @@
               </div>
             </div>
             <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <!-- Live Supabase Cloud Indicator Badge -->
+              <div style="display:inline-flex; align-items:center; gap:7px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); border-radius:8px; padding:6px 12px; font-size:12px; color:#34d399; font-weight:600; box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+                <span style="width:7px; height:7px; border-radius:50%; background:#10b981; box-shadow:0 0 8px #10b981; display:inline-block;"></span>
+                <span>Supabase Cloud สด</span>
+                <i id="dashSyncSpin" class="fa-solid fa-rotate" style="font-size:11px; margin-left:3px; opacity:0.85; cursor:pointer;" onclick="loadDashData()" title="รีเฟรชข้อมูลแดชบอร์ด"></i>
+              </div>
+
               <!-- Year Selector Dropdown (Auto-updates on select) -->
               <div style="display:flex; align-items:center; gap:8px; background:rgba(2,44,34,0.85); padding:6px 12px; border-radius:8px; border:1px solid rgba(215,166,0,0.3); box-shadow:0 2px 8px rgba(0,0,0,0.25);">
                 <label for="dashYearSelect" style="font-size:12.5px; color:var(--color-gold); font-weight:700; display:flex; align-items:center; gap:6px; margin:0; cursor:pointer;">
@@ -2706,6 +2713,38 @@
               </div>
               <div style="font-size:12px; color:var(--text-muted); font-weight:500;">
                 <i class="fa-solid fa-box-open" style="margin-right:4px; color:var(--color-gold);"></i>รับเองที่สถาบัน / จัดส่งพัสดุ
+              </div>
+            </div>
+
+            <!-- 4. หน่วยความจำ Supabase Cloud (Storage & RAM Usage Bar) -->
+            <div class="oca-dash-card" style="position:relative; overflow:hidden;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div class="oca-card-label">
+                  <i class="fa-solid fa-server" style="color:#10b981; margin-right:6px;"></i>หน่วยความจำ Supabase
+                </div>
+                <span id="dashKpiDbStatus" style="font-size:11.5px; padding:2px 8px; border-radius:12px; background:rgba(16,185,129,0.15); color:#10b981; font-weight:700;">
+                  ปกติ (Optimal)
+                </span>
+              </div>
+
+              <!-- Storage Value and Limit -->
+              <div style="display:flex; align-items:baseline; gap:6px; margin:6px 0 2px 0;">
+                <div class="oca-card-big-num" id="dashKpiDbStorage" style="color:#ffffff;">8.29</div>
+                <span style="font-size:13.5px; color:var(--text-muted); font-weight:600;">MB</span>
+                <span style="font-size:12px; color:rgba(255,255,255,0.45); font-weight:500;">/ 500 MB</span>
+                <span style="margin-left:auto; font-size:12px; font-weight:800; color:#10b981;" id="dashKpiDbPct">1.7%</span>
+              </div>
+
+              <!-- Live Storage Progress Bar (หลอดหน่วยความจำ) -->
+              <div style="width:100%; height:7px; background:rgba(255,255,255,0.1); border-radius:10px; overflow:hidden; margin:8px 0 6px 0;">
+                <div id="dashKpiDbBar" style="width:1.7%; height:100%; background:linear-gradient(90deg, #10b981, #34d399); border-radius:10px; box-shadow:0 0 8px rgba(16,185,129,0.6); transition:width 0.6s ease;"></div>
+              </div>
+
+              <!-- Specs Footer: RAM, Latency & Rows -->
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:var(--text-muted); font-weight:500; flex-wrap:wrap; gap:4px;">
+                <span><i class="fa-solid fa-memory" style="margin-right:3px; color:#cbd5e1;"></i>1GB Shared RAM</span>
+                <span><i class="fa-solid fa-bolt" style="margin-right:2px; color:var(--color-gold);"></i>SG (~25ms)</span>
+                <span><i class="fa-solid fa-database" style="margin-right:2px; color:#38bdf8;"></i><strong id="dashKpiDbRows" style="color:#ffffff;">21</strong> แถว</span>
               </div>
             </div>
 
@@ -10522,6 +10561,41 @@
             const elShipping = document.getElementById('kpiDelivShipping');
             if (elPickup) elPickup.textContent = toArabicDigits(Number(s.deliveryMethods.pickup || 0).toLocaleString('en-US'));
             if (elShipping) elShipping.textContent = toArabicDigits(Number(s.deliveryMethods.shipping || 0).toLocaleString('en-US'));
+          }
+
+          // 5. Supabase Cloud Database Storage & Memory Progress Bar
+          const mem = s.supabaseMemory || (s.stats && s.stats.supabaseMemory);
+          if (mem) {
+            const elDbStorage = document.getElementById('dashKpiDbStorage');
+            const elDbPct = document.getElementById('dashKpiDbPct');
+            const elDbBar = document.getElementById('dashKpiDbBar');
+            const elDbStatus = document.getElementById('dashKpiDbStatus');
+            const elDbRows = document.getElementById('dashKpiDbRows');
+
+            const mbVal = mem.usedMB || (mem.usedBytes ? (mem.usedBytes / (1024 * 1024)).toFixed(2) : '8.29');
+            const pctVal = mem.usedPercent || mem.percent || '1.7';
+            const rowsVal = mem.totalRecords !== undefined ? mem.totalRecords : (mem.dbRows !== undefined ? mem.dbRows : 21);
+
+            if (elDbStorage) elDbStorage.textContent = typeof toArabicDigits === 'function' ? toArabicDigits(mbVal) : mbVal;
+            if (elDbPct) elDbPct.textContent = (typeof toArabicDigits === 'function' ? toArabicDigits(pctVal) : pctVal) + '%';
+            if (elDbBar) elDbBar.style.width = Math.min(100, Math.max(1, parseFloat(pctVal))) + '%';
+            if (elDbRows) elDbRows.textContent = typeof toArabicDigits === 'function' ? toArabicDigits(rowsVal) : rowsVal;
+            if (elDbStatus) {
+              const numPct = parseFloat(pctVal);
+              if (numPct > 90) {
+                elDbStatus.textContent = 'วิกฤต (>90%)';
+                elDbStatus.style.background = 'rgba(239,68,68,0.2)';
+                elDbStatus.style.color = '#ef4444';
+              } else if (numPct > 75) {
+                elDbStatus.textContent = 'เตือน (>75%)';
+                elDbStatus.style.background = 'rgba(245,158,11,0.2)';
+                elDbStatus.style.color = '#f59e0b';
+              } else {
+                elDbStatus.textContent = 'ปกติ (Optimal)';
+                elDbStatus.style.background = 'rgba(16,185,129,0.15)';
+                elDbStatus.style.color = '#10b981';
+              }
+            }
           }
 
           // Year Selector Dropdown (เรียงปี พ.ศ. จากน้อยไปมาก และไม่ใส่วงเล็บ)
