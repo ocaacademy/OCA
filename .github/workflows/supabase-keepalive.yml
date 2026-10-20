@@ -1,0 +1,33 @@
+name: Supabase Keep Alive (Auto-Wakeup)
+
+# ตั้งเวลาทำงานอัตโนมัติบน Cloud
+on:
+  schedule:
+    # รันอัตโนมัติทุกๆ 2 วัน เวลา 04:00 UTC (11:00 น. ตามเวลาประเทศไทย)
+    - cron: '0 4 */2 * *'
+  workflow_dispatch: # เปิดให้สามารถกดปุ่ม "Run workflow" ทดสอบได้ด้วยตนเอง
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Database
+        run: |
+          echo "=== Starting Supabase Keep-Alive Ping ==="
+          echo "Triggered at: $(date -u)"
+          
+          # ยิง HTTP Request ไปที่ Supabase REST API ดึงข้อมูลสั้นๆ 1 รายการ
+          HTTP_STATUS=$(curl -s -o response.txt -w "%{http_code}" \
+            -H "apikey: sb_publishable_LLxdgD2RTMYpl8ygAK3v9w_vRAbqpWQ" \
+            -H "Authorization: Bearer sb_publishable_LLxdgD2RTMYpl8ygAK3v9w_vRAbqpWQ" \
+            "https://bapsvgjgexjhqnykilse.supabase.co/rest/v1/students?select=id&limit=1")
+
+          echo "HTTP Response Status: $HTTP_STATUS"
+          echo "Response Body: $(cat response.txt)"
+
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "SUCCESS: Supabase is awake and active!"
+          else
+            echo "WARNING: Unexpected HTTP status $HTTP_STATUS"
+            exit 1
+          fi
