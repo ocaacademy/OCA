@@ -9404,21 +9404,46 @@
         }
 
         if (action === 'logSecurityAudit') {
-          await _supabase.from('security_audit_logs').insert([{
-            action: params.action || 'AUTH_EVENT',
-            details: params.details || '',
-            device_id: params.deviceId || 'OCA-BROWSER-SECURE',
-            operator_name: params.operator || 'ADMIN'
-          }]);
-          return { success: true };
+          try {
+            const auditRow = {
+              action: params.action || 'AUTH_EVENT',
+              details: params.details || '',
+              device_id: params.deviceId || (typeof getOrCreateDeviceId === 'function' ? getOrCreateDeviceId() : 'OCA-BROWSER-SECURE'),
+              username: params.staffUser || params.username || params.operator || 'Staff/Registrar',
+              full_name: params.operator || params.staffUser || (window.currentUser && window.currentUser.name) || 'Staff/Registrar',
+              role: params.role || (window.currentUser && window.currentUser.role) || 'Staff',
+              records: Number(params.recordCount || params.records || 1),
+              status: params.status || 'SUCCESS'
+            };
+            const { error: insertErr } = await _supabase.from('security_audit_logs').insert([auditRow]);
+            if (insertErr) {
+              console.warn('logSecurityAudit insert warning:', insertErr.message);
+              return { success: false, error: insertErr.message };
+            }
+            return { success: true };
+          } catch(err) {
+            console.warn('logSecurityAudit telemetry error:', err);
+            return { success: false, message: err.message };
+          }
         }
 
         if (action === 'getSecurityAuditLogs') {
-          const { data } = await _supabase.from('security_audit_logs')
+          const { data, error: qErr } = await _supabase.from('security_audit_logs')
             .select('*')
             .order('created_at', { ascending: false })
             .limit(50);
-          return { success: true, logs: data || [] };
+          if (qErr) {
+            console.warn('getSecurityAuditLogs error:', qErr.message);
+            return { success: false, logs: [], message: qErr.message };
+          }
+          const mappedLogs = (data || []).map(row => ({
+            ...row,
+            timestamp: row.created_at || row.timestamp,
+            fullName: row.full_name || row.fullName || row.username,
+            deviceId: row.device_id || row.deviceId,
+            deviceInfo: row.device_info || row.deviceInfo
+          }));
+          return { success: true, logs: mappedLogs };
         }
 
         if (action === 'pruneAuditLogs' || action === 'logoutStaff') {
