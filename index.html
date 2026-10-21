@@ -2599,7 +2599,7 @@
        PWA OFFLINE CACHE & STATUS BADGE STYLING
        ========================================================================= */
     .oca-pwa-status-pill {
-      display: inline-flex;
+      display: none !important;
       align-items: center;
       gap: 7px;
       padding: 6px 14px;
@@ -2826,7 +2826,7 @@
           </a>
 
           <!-- PWA Offline & Cloud Status Pill -->
-          <div id="btnPwaOfflineStatus" class="oca-pwa-status-pill online" onclick="openOfflineQueueModal()" title="คลิกเพื่อดูรายการบันทึกออฟไลน์และซิงก์ข้อมูล">
+          <div id="btnPwaOfflineStatus" class="oca-pwa-status-pill online" onclick="openOfflineQueueModal()" title="คลิกเพื่อดูรายการบันทึกออฟไลน์และซิงก์ข้อมูล" style="display:none !important;">
             <span class="oca-pwa-status-dot"></span>
             <span id="txtPwaStatusLabel">ออนไลน์ (Cloud)</span>
             <span id="badgeOfflineQueueCount" class="oca-pwa-badge" style="display:none;">0</span>
@@ -7014,11 +7014,16 @@
               </div>
 
               <!-- Fixed Modal Footer -->
-              <div style="padding:16px 32px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:flex-end; align-items:center; gap:12px; background:rgba(0,0,0,0.35); flex-shrink:0;">
-                <button type="button" class="oca-btn-cancel-custom" onclick="closeEditStudentModal()">ยกเลิก</button>
-                <button type="submit" id="btnSubmitEditStudent" class="oca-btn-gold-submit" style="padding:9px 24px; font-size:13.5px; display:inline-flex; align-items:center; gap:6px;">
-                  <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลนักเรียน
+              <div style="padding:16px 32px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; gap:12px; background:rgba(0,0,0,0.35); flex-shrink:0;">
+                <button type="button" class="oca-btn-action-del" style="padding:8px 14px; font-size:13px; background:rgba(239,68,68,0.18); border:1px solid #ef4444; color:#f87171; border-radius:8px; display:inline-flex; align-items:center; gap:5px; cursor:pointer;" onclick="confirmDeleteStudentFromEditModal()">
+                  <i class="fa-solid fa-trash-can"></i> ลบข้อมูลนักเรียน
                 </button>
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <button type="button" class="oca-btn-cancel-custom" onclick="closeEditStudentModal()">ยกเลิก</button>
+                  <button type="submit" id="btnSubmitEditStudent" class="oca-btn-gold-submit" style="padding:9px 24px; font-size:13.5px; display:inline-flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลนักเรียน
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -7534,9 +7539,121 @@
       if (typeof supabase !== 'undefined' && supabase.createClient) {
         _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         console.log('🚀 OCA Pure Supabase Cloud Connected (PostgreSQL Singapore ~25ms)');
+        initOcaRealtimeEngine();
       }
     } catch(e) {
       console.warn('Supabase init notice:', e);
+    }
+
+    // =========================================================================
+    // OCA 100% SUPABASE REALTIME STREAMING & BACKGROUND SYNC ENGINE
+    // =========================================================================
+    let _ocaRealtimeChannel = null;
+    let _realtimePulseTimer = null;
+
+    function initOcaRealtimeEngine() {
+      if (!_supabase || _ocaRealtimeChannel) return;
+      try {
+        _ocaRealtimeChannel = _supabase.channel('oca-global-realtime-sync')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
+            console.log('[Realtime DB Event] Students updated:', payload.eventType);
+            handleRealtimeBroadcast('students', payload);
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'receipts' }, (payload) => {
+            console.log('[Realtime DB Event] Receipts updated:', payload.eventType);
+            handleRealtimeBroadcast('receipts', payload);
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, (payload) => {
+            console.log('[Realtime DB Event] Courses updated:', payload.eventType);
+            handleRealtimeBroadcast('courses', payload);
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'fee_settings' }, (payload) => {
+            console.log('[Realtime DB Event] Fee / Textbooks updated:', payload.eventType);
+            handleRealtimeBroadcast('fee_settings', payload);
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, (payload) => {
+            console.log('[Realtime DB Event] Schedules updated:', payload.eventType);
+            handleRealtimeBroadcast('schedules', payload);
+          })
+          .subscribe((status, err) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('[Realtime DB Engine] 100% Live Realtime Subscriptions Active');
+            } else if (err) {
+              console.warn('[Realtime DB Engine] Subscription Notice:', status, err);
+            }
+          });
+
+        // Background Pulse Timer (Every 15s) to guarantee real-time updates across multiple tabs/devices
+        if (_realtimePulseTimer) clearInterval(_realtimePulseTimer);
+        _realtimePulseTimer = setInterval(() => {
+          if (!document.hidden && navigator.onLine) {
+            triggerRealtimeSilentRefresh();
+          }
+        }, 15000);
+
+        // Immediate sync on window / tab focus
+        window.addEventListener('focus', () => {
+          if (navigator.onLine) triggerRealtimeSilentRefresh();
+        });
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden && navigator.onLine) triggerRealtimeSilentRefresh();
+        });
+
+      } catch (e) {
+        console.warn('Realtime engine init notice:', e);
+      }
+    }
+
+    /**
+     * ดำเนินการอัปเดตหน้าจอแบบ Realtime ตามตารางฐานข้อมูลที่เปลี่ยนแปลง
+     */
+    function handleRealtimeBroadcast(table, payload) {
+      // 1. อัปเดตสถิติ Dashboard และ Storage เสมอ
+      try {
+        if (typeof loadDashData === 'function') loadDashData();
+      } catch (_) {}
+
+      // 2. ดำเนินการอัปเดตโมดูลที่เกี่ยวข้องทันที
+      if (table === 'students') {
+        if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus(true);
+        if (typeof loadRecentStudentsForCard === 'function') loadRecentStudentsForCard();
+        if (typeof loadStudentReport === 'function') loadStudentReport(true);
+      } else if (table === 'receipts') {
+        if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable();
+        if (typeof loadShippingOrders === 'function') loadShippingOrders(true);
+        if (typeof loadTextbookClaimLogs === 'function') loadTextbookClaimLogs();
+        if (typeof loadFinancialReport === 'function') loadFinancialReport(true);
+      } else if (table === 'courses') {
+        if (typeof loadCoursesManager === 'function') loadCoursesManager(false);
+        if (typeof loadReceiptCoursesDropdown === 'function') loadReceiptCoursesDropdown();
+      } else if (table === 'fee_settings') {
+        if (typeof loadTextbooksData === 'function') loadTextbooksData();
+        if (typeof loadReceiptBooksDropdown === 'function') loadReceiptBooksDropdown();
+      } else if (table === 'schedules') {
+        if (typeof loadCoursesManager === 'function') loadCoursesManager(false);
+      }
+    }
+
+    /**
+     * รีเฟรชข้อมูลหน้าจอที่กำลังเปิดอยู่อย่างเงียบๆ เบื้องหลัง
+     */
+    function triggerRealtimeSilentRefresh() {
+      const activeTab = document.querySelector('.oca-view-tab.active');
+      const tabId = activeTab ? activeTab.id : 'tabDashboard';
+
+      if (tabId === 'tabDashboard') {
+        if (typeof loadDashData === 'function') loadDashData();
+      } else if (tabId === 'tabCourses') {
+        if (typeof loadCoursesManager === 'function') loadCoursesManager(true);
+      } else if (tabId === 'tabTextbooks' || tabId === 'tabInventory') {
+        if (typeof loadTextbooksData === 'function') loadTextbooksData();
+      } else if (tabId === 'tabReceipts') {
+        if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable();
+      } else if (tabId === 'tabShipping') {
+        if (typeof loadShippingOrders === 'function') loadShippingOrders(true);
+      } else if (tabId === 'tabSearch') {
+        if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus(true);
+      }
     }
 
     async function callSupabaseApi(action, params = {}, method = 'GET', isDirectSync = false) {
@@ -9655,6 +9772,7 @@
 
             document.getElementById('enrollForm').reset();
             if (typeof initAcademicYearSelect === 'function') initAcademicYearSelect();
+            try { loadDashData(); } catch(_) {}
             const houseNoEl = document.getElementById('addrHouseNo'); if (houseNoEl) houseNoEl.value = '';
             const mooEl = document.getElementById('addrMoo'); if (mooEl) mooEl.value = '';
             const villageEl = document.getElementById('addrVillage'); if (villageEl) villageEl.value = '';
@@ -10852,6 +10970,42 @@
     function closeEditStudentModal() {
       const modal = document.getElementById('modalEditStudent');
       if (modal) modal.classList.remove('active');
+    }
+
+    function confirmDeleteStudentFromEditModal() {
+      const studentId = (document.getElementById('inpEditStudentId')?.value || '').trim();
+      const fullName = (document.getElementById('inpEditFullName')?.value || '').trim();
+      if (!studentId) return;
+
+      showConfirmModal({
+        title: 'ยืนยันการลบข้อมูลนักเรียน',
+        message: 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนักเรียน "' + fullName + '" (รหัส: ' + studentId + ') ออกจากฐานข้อมูล Supabase?',
+        icon: 'fa-trash',
+        iconColor: '#ef4444',
+        iconBg: 'rgba(239,68,68,0.18)',
+        iconBorder: '#ef4444',
+        confirmText: 'ลบข้อมูลนักเรียน',
+        confirmBg: '#dc2626',
+        confirmBorder: '#ef4444',
+        onConfirm: () => {
+          showToast('กำลังลบข้อมูลนักเรียน...', '', '🗑️');
+          callGasApi('deleteStudent', { studentId })
+            .then(res => {
+              if (res && res.success) {
+                showToast('ลบข้อมูลนักเรียนเรียบร้อย', res.message || '', '✅');
+                closeEditStudentModal();
+                closeStudentDetailCard();
+                loadAllStudentsStatus(true);
+                try { loadDashData(); } catch(_) {}
+              } else {
+                showToast('ไม่สามารถลบข้อมูลได้', res?.message || '', '❌');
+              }
+            })
+            .catch(err => {
+              showToast('เกิดข้อผิดพลาดในการลบ', err.message || '', '❌');
+            });
+        }
+      });
     }
 
     /**
@@ -14062,6 +14216,7 @@
 
             loadReceiptsHistoryTable();
             loadTextbookClaimLogs();
+            try { loadDashData(); } catch(_) {}
           } else {
             setButtonLoading(btnSave, false);
             showToast('เกิดข้อผิดพลาดในการบันทึก', res?.message || '', '❌');
@@ -19338,7 +19493,11 @@
       await OcaOfflineDB.updateUIBadge();
 
       if (successCount > 0) {
-        showToast('ซิงก์ออฟไลน์สำเร็จ', `ซิงก์ข้อมูล ${successCount} รายการขึ้น Supabase เรียบร้อยแล้ว`, '✓');
+        if (isManual) {
+          showToast('ซิงก์ข้อมูลสำเร็จ', `ซิงก์ข้อมูล ${successCount} รายการขึ้น Supabase เรียบร้อยแล้ว`, '✓');
+        } else {
+          console.log(`[Silent Background Sync] ${successCount} items synced to Supabase`);
+        }
         try { loadDashData(); } catch(_) {}
       }
       renderOfflineQueueList();
@@ -19485,7 +19644,7 @@
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
-      navigator.serviceWorker.register('./sw.js?v=10').then(function(reg) {
+      navigator.serviceWorker.register('./sw.js?v=11').then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
