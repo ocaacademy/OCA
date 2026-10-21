@@ -8243,13 +8243,16 @@
             prefix: params.prefix || '',
             full_name: cleanName,
             phone_number: params.phoneNumber || params.phone || '',
+            email: (params.email || '').toString().trim(),
             address: params.address || '',
             line_id: params.lineId || '',
+            language_level: params.level || '',
             current_course: params.course || '',
             current_schedule: params.schedule || '',
             smart_card_uid: params.smartCardUid || '',
             photo_url: params.photoBase64 || params.photo || params.photoDataUri || '',
-            status: 'ACTIVE'
+            status: params.status || 'ACTIVE',
+            notes: params.notes || ''
           };
 
           // Optimistic Concurrency Retry Loop (Solves Scenarios 6 & 23)
@@ -8521,13 +8524,23 @@
         }
 
         if (action === 'updateStudentProfile') {
+          const updateData = {};
+          if (params.fullName !== undefined) updateData.full_name = params.fullName;
+          if (params.prefix !== undefined) updateData.prefix = params.prefix;
+          if (params.phone !== undefined || params.phoneNumber !== undefined) updateData.phone_number = params.phone || params.phoneNumber;
+          if (params.email !== undefined) updateData.email = (params.email || '').toString().trim();
+          if (params.lineId !== undefined) updateData.line_id = params.lineId;
+          if (params.address !== undefined) updateData.address = params.address;
+          if (params.citizenId !== undefined && params.citizenId) updateData.citizen_id = params.citizenId;
+          if (params.course !== undefined) updateData.current_course = params.course;
+          if (params.schedule !== undefined) updateData.current_schedule = params.schedule;
+          if (params.level !== undefined) updateData.language_level = params.level;
+          if (params.status !== undefined) updateData.status = params.status;
+          if (params.notes !== undefined) updateData.notes = params.notes;
+          if (params.smartCardUid !== undefined) updateData.smart_card_uid = params.smartCardUid;
+
           const { error } = await _supabase.from('students')
-            .update({
-              full_name: params.fullName,
-              phone_number: params.phone,
-              address: params.address,
-              line_id: params.lineId
-            })
+            .update(updateData)
             .eq('student_id', params.studentId);
           return { success: !error };
         }
