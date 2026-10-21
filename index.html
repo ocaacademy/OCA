@@ -2682,6 +2682,32 @@
       box-shadow: 0 1px 0 rgba(215, 166, 0, 0.2);
     }
 
+
+    /* Textbook Catalog Table Scrollbar and Sticky Header */
+    #boxTextbooksTableWrap::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    #boxTextbooksTableWrap::-webkit-scrollbar-track {
+      background: rgba(1, 35, 28, 0.6);
+      border-radius: 4px;
+    }
+    #boxTextbooksTableWrap::-webkit-scrollbar-thumb {
+      background: rgba(215, 166, 0, 0.35);
+      border-radius: 4px;
+      border: 1px solid rgba(215, 166, 0, 0.2);
+    }
+    #boxTextbooksTableWrap::-webkit-scrollbar-thumb:hover {
+      background: var(--color-gold);
+    }
+    #tblTextbooksCatalog thead th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: #022a21 !important;
+      box-shadow: 0 1px 0 rgba(215, 166, 0, 0.2);
+    }
+
 </style>
 </head>
 <body>
@@ -5100,20 +5126,30 @@
 
           <!-- Textbook Inventory & Catalog Table -->
           <div class="oca-table-card" style="width:100%;">
-            <div class="oca-table-header-row">
-              <div>
-                <div class="oca-table-title">รายชื่อตำราเรียนและราคาจำหน่าย</div>
+            <div class="oca-table-header-row" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div class="oca-table-title" style="margin-bottom:0;">รายชื่อตำราเรียนและราคาจำหน่าย</div>
+                <span id="textbooksCountBadge" class="oca-badge-status-active" style="font-size:12px;">0 รายการ</span>
+              </div>
+
+              <!-- Search Box for Textbooks -->
+              <div style="display:flex; align-items:center; gap:6px; flex:1; max-width:320px; position:relative; min-width:200px;">
+                <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:rgba(215,166,0,0.65); font-size:12px; pointer-events:none;"></i>
+                <input type="text" id="inpSearchTextbooks" class="oca-input" placeholder="ค้นหารหัสตำรา, ชื่อตำรา..." oninput="filterTextbooksCatalog(this.value)" style="height:32px; font-size:12px; padding-left:30px; padding-right:28px; border-radius:6px; background:rgba(0,0,0,0.25); border:1px solid rgba(215,166,0,0.3); width:100%;">
+                <button type="button" id="btnClearSearchTextbooks" onclick="document.getElementById('inpSearchTextbooks').value=''; filterTextbooksCatalog(''); this.style.display='none';" style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px; padding:2px;" title="ล้างการค้นหา">✕</button>
               </div>
             </div>
-            <div style="overflow-x:auto;">
-              <table class="oca-live-table" id="tblTextbooksCatalog">
+
+            <!-- Scrollable Container with Sticky Header -->
+            <div id="boxTextbooksTableWrap" style="max-height:480px; overflow-y:auto; overflow-x:auto; border-radius:6px; border:1px solid rgba(215,166,0,0.18); background:rgba(0,0,0,0.12);">
+              <table class="oca-live-table" id="tblTextbooksCatalog" style="width:100%; border-collapse:collapse;">
                 <thead>
                   <tr>
-                    <th>รหัสตำรา</th>
+                    <th style="width:120px;">รหัสตำรา</th>
                     <th>ชื่อตำราเรียน</th>
-                    <th>ราคาจำหน่าย</th>
-                    <th>หน่วยนับ</th>
-                    <th>จัดการ</th>
+                    <th style="width:140px;">ราคาจำหน่าย</th>
+                    <th style="width:100px;">หน่วยนับ</th>
+                    <th style="width:120px; text-align:center;">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody id="tbodyTextbooksCatalog">
@@ -14868,32 +14904,87 @@
       loadTextbookClaimLogs();
     }
 
+    function filterTextbooksCatalog(query) {
+      const q = (query || '').trim().toLowerCase();
+      const btnClear = document.getElementById('btnClearSearchTextbooks');
+      if (btnClear) btnClear.style.display = q ? 'block' : 'none';
+
+      if (!Array.isArray(receiptBooksList)) return;
+      if (!q) {
+        renderTextbooksCatalogTable(receiptBooksList);
+        return;
+      }
+      const filtered = receiptBooksList.filter(b => {
+        const id = (b.id || '').toLowerCase();
+        const code = (b.code || '').toLowerCase();
+        const title = (b.title || '').toLowerCase();
+        const price = String(b.price || '');
+        const unit = (b.unit || '').toLowerCase();
+        return id.includes(q) || code.includes(q) || title.includes(q) || price.includes(q) || unit.includes(q);
+      });
+      renderTextbooksCatalogTable(filtered, q);
+    }
+
+    function renderTextbooksCatalogTable(books, searchQuery = '') {
+      const tbody = document.getElementById('tbodyTextbooksCatalog');
+      const badge = document.getElementById('textbooksCountBadge');
+      if (!tbody) return;
+
+      const totalCount = Array.isArray(receiptBooksList) ? receiptBooksList.length : (books ? books.length : 0);
+
+      if (!books || books.length === 0) {
+        if (searchQuery) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px 15px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px; color:var(--color-gold);"></i>ไม่พบตำราเรียนที่ตรงกับคำค้นหา "<span style="color:#FAF0D7;">' + escapeHtml(searchQuery) + '</span>"</td></tr>';
+          if (badge) badge.textContent = '0 / ' + toArabicDigits(totalCount) + ' รายการ';
+        } else {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">ยังไม่มีตำราเรียนในคลัง</td></tr>';
+          if (badge) badge.textContent = '0 รายการ';
+        }
+        return;
+      }
+
+      if (badge) {
+        if (searchQuery) {
+          badge.textContent = toArabicDigits(books.length) + ' / ' + toArabicDigits(totalCount) + ' รายการ';
+        } else {
+          badge.textContent = toArabicDigits(books.length) + ' รายการ';
+        }
+      }
+
+      tbody.innerHTML = books.map(b =>
+        '<tr>' +
+          '<td style="font-family:monospace; font-weight:700; color:var(--color-gold);">' + toArabicDigits(b.id) + '</td>' +
+          '<td><strong>' + escapeHtml(b.title) + '</strong></td>' +
+          '<td style="font-weight:700; color:#10B981;">฿' + toArabicDigits(Number(b.price || 0).toLocaleString('en-US')) + '</td>' +
+          '<td>' + escapeHtml(b.unit || 'เล่ม') + '</td>' +
+          '<td>' +
+            '<div class="oca-table-actions">' +
+              '<button type="button" class="oca-btn-action-edit" onclick="openAddTextbookModal(\'' + escapeHtml(b.id) + '\')"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>' +
+              '<button type="button" class="oca-btn-action-del" onclick="deleteTextbook(\'' + escapeHtml(b.id) + '\')"><i class="fa-solid fa-trash-can"></i> ลบ</button>' +
+            '</div>' +
+          '</td>' +
+        '</tr>'
+      ).join('');
+    }
+
     function loadTextbooksData() {
       callGasApi('getTextbooksAndInventory')
         .then(res => {
-          const tbody = document.getElementById('tbodyTextbooksCatalog');
-          if (!tbody) return;
-          tbody.innerHTML = '';
-          if (res && res.success && Array.isArray(res.textbooks) && res.textbooks.length > 0) {
+          if (res && res.success && Array.isArray(res.textbooks)) {
             receiptBooksList = res.textbooks;
-            res.textbooks.forEach(b => {
-              const tr = document.createElement('tr');
-              tr.innerHTML =
-                '<td style="font-family:monospace; font-weight:700; color:var(--color-gold);">' + toArabicDigits(b.id) + '</td>' +
-                '<td><strong>' + b.title + '</strong></td>' +
-                '<td style="font-weight:700; color:#10B981;">฿' + toArabicDigits(Number(b.price).toLocaleString()) + '</td>' +
-                '<td>' + (b.unit || 'เล่ม') + '</td>' +
-                '<td>' +
-                  '<div class="oca-table-actions">' +
-                    '<button class="oca-btn-action-edit" onclick="openAddTextbookModal(\'' + b.id + '\')">แก้ไข</button>' +
-                    '<button class="oca-btn-action-del" onclick="deleteTextbook(\'' + b.id + '\')">ลบ</button>' +
-                  '</div>' +
-                '</td>';
-              tbody.appendChild(tr);
-            });
+            const q = (document.getElementById('inpSearchTextbooks')?.value || '').trim();
+            if (q) {
+              filterTextbooksCatalog(q);
+            } else {
+              renderTextbooksCatalogTable(receiptBooksList);
+            }
           } else {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">ยังไม่มีตำราเรียนในคลัง</td></tr>';
+            renderTextbooksCatalogTable([]);
           }
+        })
+        .catch(err => {
+          console.warn('loadTextbooksData error:', err);
+          renderTextbooksCatalogTable([]);
         });
     }
 
@@ -19378,7 +19469,7 @@
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
-      navigator.serviceWorker.register('./sw.js?v=8').then(function(reg) {
+      navigator.serviceWorker.register('./sw.js?v=9').then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
