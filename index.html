@@ -4768,11 +4768,11 @@
                   <div class="oca-input-group" style="margin-bottom:0;">
                     <label class="oca-label" for="selRcptTerm" style="font-size:12px; margin-bottom:2px;">ภาคเรียน (Term)</label>
                     <select id="selRcptTerm" class="oca-input" onchange="onReceiptTermOrYearChange()" style="height:34px; font-size:12.5px; padding:4px 8px;">
-                      <option value="1">ภาคเรียนที่ 1 (01)</option>
-                      <option value="2">ภาคเรียนที่ 2 (02)</option>
-                      <option value="3">ภาคเรียนที่ 3 (03)</option>
-                      <option value="4">ภาคเรียนที่ 4 (04)</option>
-                      <option value="5" selected>ภาคเรียนที่ 5 (05)</option>
+                      <option value="1">ภาคเรียนที่ 1</option>
+                      <option value="2">ภาคเรียนที่ 2</option>
+                      <option value="3">ภาคเรียนที่ 3</option>
+                      <option value="4">ภาคเรียนที่ 4</option>
+                      <option value="5" selected>ภาคเรียนที่ 5</option>
                     </select>
                   </div>
                 </div>
@@ -4807,7 +4807,10 @@
                       <label class="oca-label" for="txtRcptRoom" style="font-size:12px; margin-bottom:2px;">
                         <i class="fa-solid fa-door-open" style="color:var(--color-gold); margin-right:4px;"></i>ห้องเรียน (Room)
                       </label>
-                      <input type="text" id="txtRcptRoom" class="oca-input" placeholder="เช่น 401 หรือ Online" oninput="updateReceiptLivePreview()" style="height:34px; font-size:12.5px; padding:4px 8px;">
+                      <input type="text" id="txtRcptRoom" class="oca-input" placeholder="เช่น 401 หรือ Online (เว้นว่างได้)" oninput="updateReceiptLivePreview()" style="height:34px; font-size:12.5px; padding:4px 8px;">
+                      <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">
+                        * หากไม่ได้ระบุ จะพิมพ์ต่อท้ายอัตโนมัติ: <em>"(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)"</em>
+                      </div>
                     </div>
                   </div>
 
@@ -5178,6 +5181,7 @@
                 <div id="boxPrevReceiptRemarks" style="background:#f8fafc; border:1px solid #bae6fd; border-radius:4px; padding:6px 12px; margin:6px 0 8px 0; font-size:12px; color:#1e293b;">
                   <strong>หมายเหตุ:</strong> กำหนดวันเปิดเรียน วันที่ <strong class="oca-receipt-blue" id="lblPrevOpenDate">-</strong>
                   <span id="boxPrevRoomWrap"> &nbsp;|&nbsp; ห้องเรียน: <strong class="oca-receipt-blue" id="lblPrevRoom">-</strong></span>
+                  <span id="boxPrevNoRoomWrap" style="display:none; color:#0284c7; font-weight:600;"> (ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)</span>
                 </div>
 
                 <!-- Notice & Textbook Delivery Box -->
@@ -15178,6 +15182,7 @@
         const elRoom = document.getElementById('lblPrevRoom');
         const elRemarksBox = document.getElementById('boxPrevReceiptRemarks');
         const elRoomWrap = document.getElementById('boxPrevRoomWrap');
+        const elNoRoomWrap = document.getElementById('boxPrevNoRoomWrap');
         const inOpen = (document.getElementById('txtRcptOpenDate')?.value || '').trim();
         const inRoom = (document.getElementById('txtRcptRoom')?.value || '').trim();
         if (elOpen) elOpen.textContent = inOpen ? toArabicDigits(inOpen) : '-';
@@ -15185,7 +15190,9 @@
         if (elRemarksBox) {
           if (inOpen && inOpen !== '-') {
             elRemarksBox.style.display = 'block';
-            if (elRoomWrap) elRoomWrap.style.display = (inRoom && inRoom !== '-') ? 'inline' : 'none';
+            const hasRoom = (inRoom && inRoom !== '-');
+            if (elRoomWrap) elRoomWrap.style.display = hasRoom ? 'inline' : 'none';
+            if (elNoRoomWrap) elNoRoomWrap.style.display = hasRoom ? 'none' : 'inline';
           } else {
             elRemarksBox.style.display = 'none';
           }
@@ -15582,11 +15589,20 @@
       const courseName = document.getElementById('selRcptCourse')?.value || document.getElementById('lblPrevItemDesc')?.textContent || '';
       const total = document.getElementById('lblRcptNetTotalSummary')?.textContent || '0.00';
       const openDate = document.getElementById('txtRcptOpenDate')?.value.trim() || '';
+      const room = document.getElementById('txtRcptRoom')?.value.trim() || '';
+      let openDateLine = '';
+      if (openDate) {
+        if (room && room !== '-') {
+          openDateLine = '• กำหนดเปิดเรียน: ' + openDate + ' (ห้องเรียน: ' + room + ')\n';
+        } else {
+          openDateLine = '• กำหนดเปิดเรียน: ' + openDate + ' (ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)\n';
+        }
+      }
       const textToCopy = '【 ใบเสร็จรับเงิน สถาบันภาษาและวัฒนธรรมตะวันออก (OCA) 】\n' +
                          '• เลขที่ใบเสร็จ: ' + rcpt + '\n' +
                          '• ผู้เรียน: ' + buyerName + '\n' +
                          '• หลักสูตร: ' + courseName + '\n' +
-                         (openDate ? ('• กำหนดเปิดเรียน: ' + openDate + '\n') : '') +
+                         openDateLine +
                          '• ยอดชำระ: ฿' + total + '\n' +
                          '• สถานะ: ชำระเรียบร้อยแล้ว ✅\n' +
                          '— ขอบพระคุณที่ไว้วางใจเรียนกับสถาบัน OCA —';
@@ -16205,6 +16221,7 @@
               const elRoom = document.getElementById('lblPrevRoom');
               const elRemarksBox = document.getElementById('boxPrevReceiptRemarks');
               const elRoomWrap = document.getElementById('boxPrevRoomWrap');
+              const elNoRoomWrap = document.getElementById('boxPrevNoRoomWrap');
               const openVal = (item.openDate || '').toString().trim();
               const roomVal = (item.room || '').toString().trim();
               if (elOpen) elOpen.textContent = openVal ? toArabicDigits(openVal) : '-';
@@ -16212,7 +16229,9 @@
               if (elRemarksBox) {
                 if (openVal && openVal !== '-') {
                   elRemarksBox.style.display = 'block';
-                  if (elRoomWrap) elRoomWrap.style.display = (roomVal && roomVal !== '-') ? 'inline' : 'none';
+                  const hasRoom = (roomVal && roomVal !== '-');
+                  if (elRoomWrap) elRoomWrap.style.display = hasRoom ? 'inline' : 'none';
+                  if (elNoRoomWrap) elNoRoomWrap.style.display = hasRoom ? 'none' : 'inline';
                 } else {
                   elRemarksBox.style.display = 'none';
                 }
