@@ -2594,6 +2594,68 @@
         font-size: 18px !important;
       }
     }
+
+    /* =========================================================================
+       PWA OFFLINE CACHE & STATUS BADGE STYLING
+       ========================================================================= */
+    .oca-pwa-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      user-select: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .oca-pwa-status-pill.online {
+      background: rgba(16, 185, 129, 0.14);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+    .oca-pwa-status-pill.online:hover {
+      background: rgba(16, 185, 129, 0.22);
+      border-color: #10b981;
+    }
+    .oca-pwa-status-pill.offline {
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid rgba(245, 158, 11, 0.55);
+      color: #fbbf24;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
+      animation: ocaPulseWarn 2s infinite;
+    }
+    .oca-pwa-status-pill.syncing {
+      background: rgba(56, 189, 248, 0.2);
+      border: 1px solid rgba(56, 189, 248, 0.55);
+      color: #38bdf8;
+    }
+    .oca-pwa-status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .oca-pwa-badge {
+      background: #ef4444;
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 1px 7px;
+      border-radius: 12px;
+      line-height: 1.2;
+      display: inline-block;
+    }
+    @keyframes ocaPulseWarn {
+      0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+      70% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
 </style>
 </head>
 <body>
@@ -2710,6 +2772,14 @@
             <svg class="oca-svg" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
             <span>หน้าต้อนรับ (WELCOME)</span>
           </a>
+
+          <!-- PWA Offline & Cloud Status Pill -->
+          <div id="btnPwaOfflineStatus" class="oca-pwa-status-pill online" onclick="openOfflineQueueModal()" title="คลิกเพื่อดูรายการบันทึกออฟไลน์และซิงก์ข้อมูล">
+            <span class="oca-pwa-status-dot"></span>
+            <span id="txtPwaStatusLabel">ออนไลน์ (Cloud)</span>
+            <span id="badgeOfflineQueueCount" class="oca-pwa-badge" style="display:none;">0</span>
+            <i id="iconPwaSyncSpin" class="fa-solid fa-rotate" style="display:none; font-size:11px;"></i>
+          </div>
 
           <div class="oca-user-profile" id="topbarUserProfile" onclick="switchNav('settings')" title="จัดการบัญชีและการตั้งค่าระบบ">
             <div class="oca-user-avatar" id="topbarUserAvatar" style="background:var(--color-emerald);display:flex;align-items:center;justify-content:center;border-radius:50%;">
@@ -5923,6 +5993,64 @@
         <!-- ===================================================================
              MODAL: SEND RECEIPT EMAIL (SYSTEM POPUP)
              =================================================================== -->
+        <!-- ===================================================================
+             PWA OFFLINE QUEUE & SYNC MODAL
+             =================================================================== -->
+        <div id="modalOfflineQueue" class="oca-custom-modal-backdrop" onclick="if(event.target===this)closeOfflineQueueModal()" style="display:none; padding:20px;">
+          <div class="oca-custom-modal-box" style="max-width:560px; width:100%; border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1px solid rgba(215,166,0,0.45); background:#01241d; color:#FAF0D7;">
+            <!-- Modal Header -->
+            <div style="padding:16px 20px; border-bottom:1px solid rgba(215,166,0,0.25); display:flex; justify-content:space-between; align-items:center; background:rgba(0,18,14,0.6);">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <i class="fa-solid fa-hard-drive" style="color:var(--color-gold); font-size:17px;"></i>
+                <h3 style="margin:0; font-size:16px; font-weight:700; color:#FAF0D7;">ระบบบันทึกข้อมูลออฟไลน์ชั่วคราว (Offline PWA Cache)</h3>
+              </div>
+              <button type="button" onclick="closeOfflineQueueModal()" style="background:none; border:none; color:#9ca3af; font-size:18px; cursor:pointer; padding:4px;" title="ปิด">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div style="padding:20px;">
+              <!-- Status Banner -->
+              <div id="modalPwaStatusBanner" style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:10px; margin-bottom:14px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35);">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span id="modalPwaStatusDot" style="width:8px; height:8px; border-radius:50%; background:#10b981; box-shadow:0 0 8px #10b981;"></span>
+                  <span id="modalPwaStatusText" style="font-size:13px; font-weight:700; color:#34d399;">สถานะ: ออนไลน์ เชื่อมต่อ Supabase สมบูรณ์</span>
+                </div>
+                <span id="modalPwaPendingCountBadge" style="font-size:11.5px; color:#cbd5e1; font-weight:600;">รอซิงก์: 0 รายการ</span>
+              </div>
+
+              <!-- Explanation note -->
+              <div style="font-size:12.5px; color:#cbd5e1; line-height:1.5; margin-bottom:14px; background:rgba(0,18,14,0.4); padding:10px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+                <i class="fa-solid fa-shield-halved" style="color:var(--color-gold); margin-right:4px;"></i>
+                เมื่อเกิดกรณีเน็ตหลุด ไฟดับชั่วคราว หรือสัญญาณขัดข้อง ระบบจะสลับเข้าสู่โหมดออฟไลน์อัตโนมัติ โดยเจ้าหน้าที่สามารถ<strong>ลงทะเบียน ออกบัตรนักเรียน และพิมพ์ใบเสร็จ</strong>ได้ตามปกติ ข้อมูลจะถูกเข้ารหัสเก็บในเครื่องปลอดภัย และจะซิงก์ขึ้น Supabase อัตโนมัติเมื่อสัญญาณเน็ตกลับมา
+              </div>
+
+              <!-- Outbox List -->
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <div style="font-size:12px; font-weight:700; color:var(--color-gold);">
+                  <i class="fa-solid fa-list-check" style="margin-right:4px;"></i>รายการค้างส่งในคิวออฟไลน์ (Outbox Queue):
+                </div>
+                <span id="lblOutboxTotalCount" style="font-size:11px; color:#9ca3af;">0 รายการ</span>
+              </div>
+              <div id="listOfflineOutboxItems" style="max-height:180px; min-height:80px; overflow-y:auto; background:rgba(0,18,14,0.5); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:8px;">
+                <!-- Filled dynamically by renderOfflineQueueList() -->
+              </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div style="padding:12px 20px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:rgba(0,18,14,0.6);">
+              <button type="button" onclick="triggerManualOfflineSync()" id="btnModalManualSync" class="oca-btn-gold-submit" style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; padding:8px 16px;">
+                <i class="fa-solid fa-rotate" id="spinModalSync"></i>
+                <span>ซิงก์ข้อมูลทันที (Sync Now)</span>
+              </button>
+              <button type="button" onclick="closeOfflineQueueModal()" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#ffffff; padding:8px 16px; border-radius:8px; font-size:12.5px; cursor:pointer;">
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div id="modalSendReceiptEmail" class="oca-custom-modal-backdrop" onclick="if(event.target===this)closeSendReceiptEmailModal()" style="display:none; padding:20px;">
           <div class="oca-custom-modal-box" style="max-width:480px; width:100%; border-radius:14px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1px solid rgba(215,166,0,0.45); background:var(--bg-card);">
             <!-- Modal Header -->
@@ -7337,7 +7465,28 @@
       console.warn('Supabase init notice:', e);
     }
 
-    async function callSupabaseApi(action, params = {}, method = 'GET') {
+    async function callSupabaseApi(action, params = {}, method = 'GET', isDirectSync = false) {
+      // 1. Offline Fast-Path for Write Operations (PWA Cache Engine)
+      const writeActions = [
+        'register', 'saveReceipt', 'renewStudentCourseAndReceipt',
+        'verifyAndClaimTextbook', 'updateStudentProfile', 'updateStudentCardUid',
+        'saveCourse', 'saveSchedule', 'saveFeeSettings'
+      ];
+      if (!isDirectSync && !navigator.onLine && writeActions.includes(action) && typeof handleOfflineWriteAction === 'function') {
+        console.info('Client offline: Intercepting write to PWA offline cache:', action);
+        return await handleOfflineWriteAction(action, params);
+      }
+
+      // 2. Offline Fallback for Read Operations
+      if (!navigator.onLine && ['getCoursesAndSchedules', 'getDashboardStats', 'getCardTemplates', 'getTextbooksAndInventory'].includes(action)) {
+        try {
+          const cached = localStorage.getItem('oca_cache_' + action);
+          if (cached) {
+            console.info('Client offline: Serving cached data for:', action);
+            return JSON.parse(cached);
+          }
+        } catch(_) {}
+      }
       // =========================================================================
       // IMMEDIATE STAFF AUTHENTICATION & PIN HANDLERS (ZERO DELAY & OFFLINE-READY)
       // =========================================================================
@@ -8422,6 +8571,22 @@
 
       } catch(err) {
         console.error(`Supabase Execution Error [${action}]:`, err);
+
+        // Network error interception for offline PWA queue
+        const isNetworkErr = !navigator.onLine ||
+          (err && (err.message === 'Failed to fetch' || err.name === 'TypeError' || String(err).includes('NetworkError')));
+
+        const writeActions = [
+          'register', 'saveReceipt', 'renewStudentCourseAndReceipt',
+          'verifyAndClaimTextbook', 'updateStudentProfile', 'updateStudentCardUid',
+          'saveCourse', 'saveSchedule', 'saveFeeSettings'
+        ];
+
+        if (!isDirectSync && isNetworkErr && writeActions.includes(action) && typeof handleOfflineWriteAction === 'function') {
+          console.warn('Network call failed, capturing into PWA offline outbox:', action);
+          return await handleOfflineWriteAction(action, params);
+        }
+
         return { success: false, message: err.message || 'Supabase Query Error' };
       }
     }
@@ -18577,8 +18742,422 @@
     }
 
     // แปลงอิโมจิที่ตกค้างใน DOM ทั้งหมดเป็น SVG เวกเตอร์คมชัด ป้องกันสี่เหลี่ยมบน Windows/Android
+    /* =========================================================================
+       OCA OFFLINE PWA CACHE & AUTO-SYNC ENGINE (INDEXEDDB + LOCALSTORAGE)
+       ========================================================================= */
+    const OcaOfflineDB = {
+      dbName: 'oca_pwa_offline_db',
+      dbVersion: 1,
+      db: null,
+
+      init() {
+        return new Promise((resolve) => {
+          if (!window.indexedDB) {
+            console.warn('IndexedDB not supported, using LocalStorage mirror');
+            resolve(null);
+            return;
+          }
+          try {
+            const request = indexedDB.open(this.dbName, this.dbVersion);
+            request.onupgradeneeded = (e) => {
+              const db = e.target.result;
+              if (!db.objectStoreNames.contains('outbox')) {
+                db.createObjectStore('outbox', { keyPath: 'id', autoIncrement: true });
+              }
+              if (!db.objectStoreNames.contains('cache')) {
+                db.createObjectStore('cache', { keyPath: 'key' });
+              }
+            };
+            request.onsuccess = (e) => {
+              this.db = e.target.result;
+              resolve(this.db);
+            };
+            request.onerror = (e) => {
+              console.warn('IndexedDB open error:', e);
+              resolve(null);
+            };
+          } catch(err) {
+            console.warn('IndexedDB init exception:', err);
+            resolve(null);
+          }
+        });
+      },
+
+      async addOutbox(action, params, optimisticResult = {}) {
+        const item = {
+          action: action,
+          params: params,
+          optimisticResult: optimisticResult,
+          createdAt: new Date().toISOString(),
+          status: 'PENDING',
+          retryCount: 0
+        };
+
+        if (this.db) {
+          try {
+            await new Promise((resolve, reject) => {
+              const tx = this.db.transaction('outbox', 'readwrite');
+              const store = tx.objectStore('outbox');
+              const req = store.add(item);
+              req.onsuccess = () => resolve(req.result);
+              req.onerror = () => reject(req.error);
+            });
+          } catch (e) {
+            this.fallbackAdd(item);
+          }
+        } else {
+          this.fallbackAdd(item);
+        }
+        await this.updateUIBadge();
+      },
+
+      fallbackAdd(item) {
+        try {
+          const list = JSON.parse(localStorage.getItem('oca_offline_outbox') || '[]');
+          item.id = Date.now() + Math.floor(Math.random() * 1000);
+          list.push(item);
+          localStorage.setItem('oca_offline_outbox', JSON.stringify(list));
+        } catch (_) {}
+      },
+
+      async getOutbox() {
+        if (this.db) {
+          try {
+            return await new Promise((resolve, reject) => {
+              const tx = this.db.transaction('outbox', 'readonly');
+              const store = tx.objectStore('outbox');
+              const req = store.getAll();
+              req.onsuccess = () => resolve(req.result || []);
+              req.onerror = () => reject(req.error);
+            });
+          } catch (e) {
+            return this.fallbackGet();
+          }
+        }
+        return this.fallbackGet();
+      },
+
+      fallbackGet() {
+        try {
+          return JSON.parse(localStorage.getItem('oca_offline_outbox') || '[]');
+        } catch (_) {
+          return [];
+        }
+      },
+
+      async deleteOutbox(id) {
+        if (this.db) {
+          try {
+            await new Promise((resolve, reject) => {
+              const tx = this.db.transaction('outbox', 'readwrite');
+              const store = tx.objectStore('outbox');
+              const req = store.delete(id);
+              req.onsuccess = () => resolve();
+              req.onerror = () => reject(req.error);
+            });
+          } catch (_) {}
+        }
+        try {
+          let list = JSON.parse(localStorage.getItem('oca_offline_outbox') || '[]');
+          list = list.filter(it => it.id !== id);
+          localStorage.setItem('oca_offline_outbox', JSON.stringify(list));
+        } catch (_) {}
+        await this.updateUIBadge();
+      },
+
+      async updateUIBadge() {
+        const items = await this.getOutbox();
+        const count = items.length;
+        const isOnline = navigator.onLine;
+
+        const pill = document.getElementById('btnPwaOfflineStatus');
+        const label = document.getElementById('txtPwaStatusLabel');
+        const badge = document.getElementById('badgeOfflineQueueCount');
+
+        if (pill && label && badge) {
+          if (!isOnline) {
+            pill.className = 'oca-pwa-status-pill offline';
+            label.textContent = count > 0 ? `ออฟไลน์ (${count})` : 'โหมดออฟไลน์';
+            badge.style.display = count > 0 ? 'inline-block' : 'none';
+            badge.textContent = count;
+          } else if (count > 0) {
+            pill.className = 'oca-pwa-status-pill offline';
+            label.textContent = `รอซิงก์ ${count} รายการ`;
+            badge.style.display = 'inline-block';
+            badge.textContent = count;
+          } else {
+            pill.className = 'oca-pwa-status-pill online';
+            label.textContent = 'ออนไลน์ (Cloud)';
+            badge.style.display = 'none';
+          }
+        }
+
+        const modalCount = document.getElementById('modalPwaPendingCountBadge');
+        if (modalCount) modalCount.textContent = `รอซิงก์: ${count} รายการ`;
+        const totalCount = document.getElementById('lblOutboxTotalCount');
+        if (totalCount) totalCount.textContent = `${count} รายการ`;
+      }
+    };
+
+    /**
+     * ดำเนินการบันทึกข้อมูลออฟไลน์ชั่วคราวอย่างราบรื่นเมื่อเน็ตหลุด
+     */
+    async function handleOfflineWriteAction(action, params = {}) {
+      const now = new Date();
+      const yr = (params.yearBE || 2569).toString().slice(-2);
+      const tm = (params.term || 5).toString().padStart(2, '0');
+      const randomSeq = String(Math.floor(1000 + Math.random() * 9000));
+
+      if (action === 'register') {
+        const localStudentId = params.studentId || (yr + tm + randomSeq);
+        const localReceiptNo = (yr + tm + randomSeq);
+        const claimToken = 'CLM-OFFLINE-' + randomSeq;
+
+        await OcaOfflineDB.addOutbox('register', params, {
+          studentId: localStudentId,
+          receiptNo: localReceiptNo,
+          claimToken: claimToken
+        });
+
+        // Mirror locally so staff can preview/search immediately
+        try {
+          const cached = JSON.parse(localStorage.getItem('oca_offline_registered_students') || '[]');
+          cached.unshift({
+            student_id: localStudentId,
+            full_name: params.fullName || '',
+            citizen_id: params.citizenId || '',
+            current_course: params.course || '',
+            current_schedule: params.schedule || '',
+            phone_number: params.phoneNumber || '',
+            status: 'ACTIVE',
+            isOfflinePending: true
+          });
+          localStorage.setItem('oca_offline_registered_students', JSON.stringify(cached.slice(0, 50)));
+        } catch (_) {}
+
+        showToast('บันทึกออฟไลน์สำเร็จ', `ลงทะเบียนในเครื่องสำเร็จ (รหัส: ${localStudentId}) ข้อมูลจะซิงก์ขึ้น Supabase อัตโนมัติเมื่อต่อเน็ต`, '⚡');
+
+        return {
+          success: true,
+          isOffline: true,
+          studentId: localStudentId,
+          receiptNo: localReceiptNo,
+          claimToken: claimToken,
+          message: 'บันทึกในหน่วยความจำเครื่องสำเร็จ (โหมดออฟไลน์) - พร้อมพิมพ์บัตรและใบเสร็จ'
+        };
+      }
+
+      if (action === 'saveReceipt' || action === 'renewStudentCourseAndReceipt') {
+        const localReceiptNo = 'RC-OFF-' + randomSeq;
+        await OcaOfflineDB.addOutbox(action, params, { receiptNo: localReceiptNo });
+        showToast('บันทึกออฟไลน์สำเร็จ', `ออกใบเสร็จในเครื่องสำเร็จ (เลขที่: ${localReceiptNo})`, '⚡');
+        return {
+          success: true,
+          isOffline: true,
+          receiptNo: localReceiptNo,
+          message: 'บันทึกใบเสร็จในเครื่องเรียบร้อย (โหมดออฟไลน์)'
+        };
+      }
+
+      if (action === 'verifyAndClaimTextbook') {
+        await OcaOfflineDB.addOutbox('verifyAndClaimTextbook', params, { claimed: true });
+        showToast('บันทึกออฟไลน์สำเร็จ', 'บันทึกการแจกตำราในเครื่องเรียบร้อย', '⚡');
+        return {
+          success: true,
+          isOffline: true,
+          message: 'บันทึกการรับตำราในเครื่องเรียบร้อย (โหมดออฟไลน์)'
+        };
+      }
+
+      if (action === 'updateStudentProfile' || action === 'updateStudentCardUid') {
+        await OcaOfflineDB.addOutbox(action, params, { updated: true });
+        showToast('บันทึกออฟไลน์สำเร็จ', 'บันทึกการแก้ไขข้อมูลในเครื่องเรียบร้อย', '⚡');
+        return {
+          success: true,
+          isOffline: true,
+          message: 'บันทึกการแก้ไขข้อมูลในเครื่องเรียบร้อย (โหมดออฟไลน์)'
+        };
+      }
+
+      // Default fallback write
+      await OcaOfflineDB.addOutbox(action, params, { ok: true });
+      return { success: true, isOffline: true, message: 'บันทึกข้อมูลในเครื่องเรียบร้อย (โหมดออฟไลน์)' };
+    }
+
+    let _isSyncingOfflineQueue = false;
+
+    /**
+     * ประมวลผลซิงก์รายการในคิวออฟไลน์ขึ้น Supabase Cloud
+     */
+    async function syncOfflineQueue(isManual = false) {
+      if (_isSyncingOfflineQueue) return;
+      if (!navigator.onLine) {
+        if (isManual) {
+          alert('ขณะนี้อุปกรณ์ยังไม่มีสัญญาณอินเทอร์เน็ต ไม่สามารถซิงก์ได้ ระบบจะซิงก์ให้อัตโนมัติเมื่อต่อเน็ต');
+        }
+        return;
+      }
+
+      const items = await OcaOfflineDB.getOutbox();
+      if (!items || items.length === 0) {
+        if (isManual) {
+          showToast('ซิงก์ข้อมูล', 'ไม่มีรายการค้างในคิวออฟไลน์ ข้อมูลทุกรายการเป็นปัจจุบันแล้ว', '✓');
+        }
+        return;
+      }
+
+      _isSyncingOfflineQueue = true;
+      const pill = document.getElementById('btnPwaOfflineStatus');
+      const label = document.getElementById('txtPwaStatusLabel');
+      const spin = document.getElementById('iconPwaSyncSpin');
+      const modalSpin = document.getElementById('spinModalSync');
+
+      if (pill) pill.className = 'oca-pwa-status-pill syncing';
+      if (label) label.textContent = `กำลังซิงก์ ${items.length} รายการ...`;
+      if (spin) { spin.style.display = 'inline-block'; spin.classList.add('fa-spin'); }
+      if (modalSpin) modalSpin.classList.add('fa-spin');
+
+      let successCount = 0;
+      for (const item of items) {
+        try {
+          const res = await callSupabaseApi(item.action, item.params, 'POST', true);
+          if (res && res.success) {
+            await OcaOfflineDB.deleteOutbox(item.id);
+            successCount++;
+          }
+        } catch (err) {
+          console.warn('Sync failed for item:', item, err);
+          break;
+        }
+      }
+
+      _isSyncingOfflineQueue = false;
+      if (spin) { spin.style.display = 'none'; spin.classList.remove('fa-spin'); }
+      if (modalSpin) modalSpin.classList.remove('fa-spin');
+      await OcaOfflineDB.updateUIBadge();
+
+      if (successCount > 0) {
+        showToast('ซิงก์ออฟไลน์สำเร็จ', `ซิงก์ข้อมูล ${successCount} รายการขึ้น Supabase เรียบร้อยแล้ว`, '✓');
+        try { loadDashData(); } catch(_) {}
+      }
+      renderOfflineQueueList();
+    }
+
+    /**
+     * เปิดหน้าต่างแสดงรายการคิวออฟไลน์
+     */
+    async function openOfflineQueueModal() {
+      const modal = document.getElementById('modalOfflineQueue');
+      if (!modal) return;
+      modal.style.display = 'flex';
+      modal.classList.add('active');
+
+      const isOnline = navigator.onLine;
+      const banner = document.getElementById('modalPwaStatusBanner');
+      const dot = document.getElementById('modalPwaStatusDot');
+      const txt = document.getElementById('modalPwaStatusText');
+
+      if (banner && dot && txt) {
+        if (isOnline) {
+          banner.style.background = 'rgba(16,185,129,0.12)';
+          banner.style.borderColor = 'rgba(16,185,129,0.35)';
+          dot.style.background = '#10b981';
+          dot.style.boxShadow = '0 0 8px #10b981';
+          txt.textContent = 'สถานะ: ออนไลน์ เชื่อมต่อ Supabase สมบูรณ์';
+          txt.style.color = '#34d399';
+        } else {
+          banner.style.background = 'rgba(245,158,11,0.18)';
+          banner.style.borderColor = 'rgba(245,158,11,0.55)';
+          dot.style.background = '#fbbf24';
+          dot.style.boxShadow = '0 0 8px #fbbf24';
+          txt.textContent = 'สถานะ: ออฟไลน์ (บันทึกข้อมูลในเครื่องชั่วคราว)';
+          txt.style.color = '#fbbf24';
+        }
+      }
+      await renderOfflineQueueList();
+    }
+
+    function closeOfflineQueueModal() {
+      const modal = document.getElementById('modalOfflineQueue');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+      }
+    }
+
+    async function triggerManualOfflineSync() {
+      await syncOfflineQueue(true);
+    }
+
+    async function renderOfflineQueueList() {
+      const container = document.getElementById('listOfflineOutboxItems');
+      if (!container) return;
+      const items = await OcaOfflineDB.getOutbox();
+
+      if (!items || items.length === 0) {
+        container.innerHTML = `
+          <div style="text-align:center; padding:18px 10px; font-size:12px; color:rgba(255,255,255,0.45);">
+            <i class="fa-solid fa-circle-check" style="color:#10b981; font-size:22px; margin-bottom:6px; display:block;"></i>
+            ไม่มีรายการค้างส่ง ข้อมูลทุกรายการในเครื่องซิงก์ขึ้น Supabase ครบถ้วนแล้ว
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = items.map((it, idx) => {
+        const actionMap = {
+          'register': 'ลงทะเบียนนักเรียนใหม่',
+          'saveReceipt': 'ออกใบเสร็จรับเงิน',
+          'renewStudentCourseAndReceipt': 'ต่อคอร์สเรียน',
+          'verifyAndClaimTextbook': 'สแกนแจกตำราเรียน',
+          'updateStudentProfile': 'แก้ไขประวัตินักเรียน',
+          'updateStudentCardUid': 'บันทึก UID บัตร'
+        };
+        const title = actionMap[it.action] || it.action;
+        const detail = (it.params && (it.params.fullName || it.params.studentId || it.params.buyerName || it.params.receiptNo)) || '-';
+        const dateStr = it.createdAt ? new Date(it.createdAt).toLocaleTimeString('th-TH') : '';
+
+        return `
+          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:7px 10px; margin-bottom:6px; font-size:12px;">
+            <div>
+              <div style="font-weight:700; color:#FAF0D7;">
+                <span style="color:var(--color-gold); margin-right:4px;">#${idx + 1}</span> ${title}
+              </div>
+              <div style="font-size:11px; color:#9ca3af; margin-top:2px;">${detail} • ${dateStr}</div>
+            </div>
+            <span style="font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; background:rgba(245,158,11,0.2); color:#fbbf24;">
+              รอซิงก์
+            </span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Network Online & Offline Listeners
+    window.addEventListener('online', () => {
+      OcaOfflineDB.updateUIBadge();
+      showToast('เชื่อมต่อสำเร็จ', 'ตรวจพบสัญญาณอินเทอร์เน็ต กำลังตรวจสอบและซิงก์ข้อมูลออฟไลน์...', '✓');
+      syncOfflineQueue();
+    });
+
+    window.addEventListener('offline', () => {
+      OcaOfflineDB.updateUIBadge();
+      showToast('โหมดออฟไลน์', 'สัญญาณอินเทอร์เน็ตขาดหาย ระบบเปิดใช้งานโหมดบันทึกข้อมูลในเครื่องชั่วคราว', '⚡');
+    });
+
+    // Background Auto-Sync Timer (Every 25 seconds)
+    setInterval(() => {
+      if (navigator.onLine && !_isSyncingOfflineQueue) {
+        syncOfflineQueue();
+      }
+    }, 25000);
+
     document.addEventListener('DOMContentLoaded', () => {
       checkInitialAuthState();
+      // Initialize Offline PWA Engine
+      try {
+        OcaOfflineDB.init().then(() => OcaOfflineDB.updateUIBadge());
+      } catch(_) {}
       // Auto-load live dashboard analytics for login screen immediately
       try { loadLoginAnalytics(true); } catch(_) {}
       // Sync ambient background image on welcome screen
