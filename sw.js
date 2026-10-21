@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oca-pwa-v33';
+const CACHE_NAME = 'oca-pwa-v34';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const ASSETS_TO_CACHE = [
   './apple-touch-icon.png',
   './favicon.png',
   './favicon.ico',
+  './oca_logo.png',
   'https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
 ];
