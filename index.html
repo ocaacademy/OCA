@@ -37,6 +37,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <!-- html2pdf.js Bundle: Client-Side Vector PDF Engine for Official Reports & Course Rosters -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <style>
     /* =========================================================================
@@ -4621,6 +4622,9 @@
               <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">แบบฟอร์มใบเสร็จกระดาษต่อเนื่อง พร้อม QR Code รับตำรา และส่งอีเมลอัตโนมัติ</div>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button type="button" class="oca-btn-gold-submit" style="padding:10px 18px; font-size:13.5px; background:linear-gradient(135deg, #0284c7 0%, #0369a1 100%); border-color:#38bdf8; color:#ffffff; display:inline-flex; align-items:center; gap:6px;" onclick="exportReceiptAsImage()">
+                <i class="fa-solid fa-image"></i> บันทึกเป็นรูปภาพ (Export PNG)
+              </button>
               <button type="button" class="oca-btn-gold-submit" id="btnSendRcptEmail" style="padding:10px 18px; font-size:13.5px; background:rgba(2, 132, 199, 0.2); border:1px solid #0284c7; color:#38bdf8; display:inline-flex; align-items:center; gap:6px;" onclick="sendCurrentReceiptEmail()">
                 <i class="fa-solid fa-envelope-open-text"></i>
                 ส่งอีเมลซ้ำ (Resend Email)
@@ -15586,7 +15590,7 @@
       container.appendChild(img);
     }
 
-    function saveReceiptForm() {
+    async function saveReceiptForm() {
       const buyerName = document.getElementById('txtRcptBuyerName')?.value.trim();
       if (!buyerName) {
         showToast('กรุณาระบุชื่อผู้เรียน/ผู้ชำระเงิน', '', '⚠️');
@@ -15815,6 +15819,48 @@
           setButtonLoading(btnSave, false);
           showToast('บันทึกไม่สำเร็จ', err.message || '', '❌');
         });
+    }
+
+    /**
+     * บันทึกหรือส่งออกใบเสร็จรับเงินเป็นรูปภาพ PNG ความละเอียดสูง (2x) ตามแบบภาพในระบบ 100%
+     */
+    async function exportReceiptAsImage() {
+      const receiptEl = document.getElementById('viewContinuousReceipt');
+      if (!receiptEl) {
+        showToast('ไม่พบใบเสร็จรับเงิน', '', '⚠️');
+        return null;
+      }
+
+      const rcNo = (receiptCurrentOfficialNo && receiptCurrentOfficialNo !== '-') ? receiptCurrentOfficialNo : 'Preview';
+      showToast('กำลังประมวลผลรูปภาพใบเสร็จ...', 'ความละเอียดสูง 2x คมชัดพิเศษ', '⏳');
+
+      try {
+        if (typeof html2canvas === 'undefined') {
+          throw new Error('ระบบกำลังโหลดโมดูลแปลงรูปภาพ กรุณาลองใหม่อีกครั้ง');
+        }
+
+        const canvas = await html2canvas(receiptEl, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff'
+        });
+
+        const dataUrl = canvas.toDataURL('image/png');
+        const downloadLink = document.createElement('a');
+        downloadLink.href = dataUrl;
+        downloadLink.download = `ใบเสร็จรับเงิน_OCA_${toArabicDigits(rcNo)}.png`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+
+        showToast('ดาวน์โหลดรูปภาพใบเสร็จสำเร็จ!', `บันทึกไฟล์ ใบเสร็จรับเงิน_OCA_${toArabicDigits(rcNo)}.png เรียบร้อย`, '🖼️');
+        return dataUrl;
+      } catch (err) {
+        console.error('Export receipt image error:', err);
+        showToast('ไม่สามารถบันทึกเป็นรูปภาพได้', err.message || '', '❌');
+        return null;
+      }
     }
 
     function printReceipt() {
