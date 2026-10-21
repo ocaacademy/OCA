@@ -4756,7 +4756,7 @@
                   </div>
                   <div class="oca-input-group" style="margin-bottom:0;">
                     <label class="oca-label" for="txtRcptBuyerId" style="font-size:12px; margin-bottom:2px;">รหัสประจำตัว (Student ID)</label>
-                    <input type="text" id="txtRcptBuyerId" class="oca-input" placeholder="เช่น 69050001 หรือ -" oninput="updateReceiptLivePreview()" style="height:34px; font-size:12.5px; padding:4px 8px;">
+                    <input type="text" id="txtRcptBuyerId" class="oca-input" placeholder="เช่น 6940001 หรือ -" oninput="updateReceiptLivePreview()" style="height:34px; font-size:12.5px; padding:4px 8px;">
                   </div>
                   <div class="oca-input-group" style="margin-bottom:0;">
                     <label class="oca-label" for="txtRcptEmail" style="font-size:12px; margin-bottom:2px;"><i class="fa-solid fa-envelope" style="color:var(--color-gold); margin-right:3px;"></i>อีเมลจัดส่งใบเสร็จ *</label>
@@ -8632,11 +8632,11 @@
           };
         }
 
-        // --- 4. GENERATE STUDENT ID ---
+        // --- 4. GENERATE STUDENT ID (7 digits: YY + T + NNNN เช่น 6940001, 6950001) ---
         if (action === 'generateStudentId') {
           const year = params.year || 2569;
-          const term = params.term || 5;
-          const prefix = String(year).slice(-2) + String(term).padStart(2, '0');
+          const term = params.term || 4;
+          const prefix = String(year).slice(-2) + String(term);
           
           // Query all existing student IDs with this prefix (year + term) to fill gaps from deleted IDs
           const { data: existing } = await _supabase.from('students')
@@ -8722,7 +8722,7 @@
 
           const yearBE = Number(params.yearBE) || 2569;
           const termNo = Number(params.term) || 5;
-          const idPrefix = String(yearBE).slice(-2) + String(termNo).padStart(2, '0');
+          const idPrefix = String(yearBE).slice(-2) + String(termNo);
 
           let assignedStudentId = params.studentId || (idPrefix + '0001');
 
@@ -9008,6 +9008,14 @@
                 }
               } catch(_) {}
             }
+            // Auto-link 7-digit student_id (e.g. 6940001) and 8-digit receipt/student variant (e.g. 69040001)
+            const m78 = cleanQ.match(/^(\d{2})0?([1-5])(\d{4})$/);
+            if (m78) {
+              const id7 = m78[1] + m78[2] + m78[3];
+              const id8 = m78[1] + '0' + m78[2] + m78[3];
+              orList.push('student_id.eq.' + id7);
+              orList.push('student_id.eq.' + id8);
+            }
             queryBuilder = queryBuilder.or(orList.join(','));
           }
           const { data: stList } = await queryBuilder.order('created_at', { ascending: false }).limit(20);
@@ -9044,8 +9052,8 @@
             schedule: s.current_schedule || '-',
             yearBE: s.year_be || (s.student_id ? ('25' + String(s.student_id).slice(0, 2)) : 2569),
             latestYearBE: s.year_be || (s.student_id ? ('25' + String(s.student_id).slice(0, 2)) : 2569),
-            term: s.term || (s.student_id ? Number(String(s.student_id).slice(2, 4)) : 4),
-            latestTerm: s.term || (s.student_id ? Number(String(s.student_id).slice(2, 4)) : 4),
+            term: s.term || (s.student_id ? (String(s.student_id).length === 7 ? Number(String(s.student_id).charAt(2)) : Number(String(s.student_id).slice(2, 4))) : 4),
+            latestTerm: s.term || (s.student_id ? (String(s.student_id).length === 7 ? Number(String(s.student_id).charAt(2)) : Number(String(s.student_id).slice(2, 4))) : 4),
             address: s.address || '',
             lineId: s.line_id || '',
             email: s.email || '',
@@ -9071,8 +9079,8 @@
               schedule: st.current_schedule || '-',
               yearBE: st.year_be || (st.student_id ? ('25' + String(st.student_id).slice(0, 2)) : 2569),
               latestYearBE: st.year_be || (st.student_id ? ('25' + String(st.student_id).slice(0, 2)) : 2569),
-              term: st.term || (st.student_id ? Number(String(st.student_id).slice(2, 4)) : 4),
-              latestTerm: st.term || (st.student_id ? Number(String(st.student_id).slice(2, 4)) : 4),
+              term: st.term || (st.student_id ? (String(st.student_id).length === 7 ? Number(String(st.student_id).charAt(2)) : Number(String(st.student_id).slice(2, 4))) : 4),
+              latestTerm: st.term || (st.student_id ? (String(st.student_id).length === 7 ? Number(String(st.student_id).charAt(2)) : Number(String(st.student_id).slice(2, 4))) : 4),
               lineId: st.line_id || '',
               email: st.email || '',
               deliveryMethod: st.delivery_method || (rList && rList.length > 0 ? (rList[0].delivery_method || '-') : '-'),
@@ -9149,7 +9157,7 @@
           const { data: stList } = await qb;
           const mapped = (stList || []).map(s => {
             const y = s.year_be || (s.student_id ? ('25' + String(s.student_id).slice(0, 2)) : 2569);
-            const tm = s.term || (s.student_id ? Number(String(s.student_id).slice(2, 4)) : 4);
+            const tm = s.term || (s.student_id ? (String(s.student_id).length === 7 ? Number(String(s.student_id).charAt(2)) : Number(String(s.student_id).slice(2, 4))) : 4);
             const obj = {
               studentId: s.student_id,
               id: s.student_id,
@@ -9861,14 +9869,14 @@
       });
     }
 
-    // Student ID Generation (YYTTNNNN เช่น 69050001, 69050599)
+    // Student ID Generation (7 digits: YY + T + NNNN เช่น 6940001, 6950001)
     function calcNextStudentId() {
       const selYear = document.getElementById('selYear');
       const selTerm = document.getElementById('selTerm');
       const yearBE = selYear ? selYear.value : '2569';
       const term = selTerm ? selTerm.value : '4';
       const yy = String(yearBE).slice(-2);
-      const tt = ('0' + (parseInt(term, 10) || 4)).slice(-2);
+      const t = String(parseInt(term, 10) || 4);
 
       const txtEl = document.getElementById('txtStudentId');
       const lblPhoto = document.getElementById('lblPhotoName');
@@ -9877,14 +9885,14 @@
         .then(res => {
           const generatedId = (res && (res.studentId || res.nextStudentId || res.id)) ?
             (res.studentId || res.nextStudentId || res.id) :
-            (typeof res === 'string' && res.trim() ? res.trim() : (yy + tt + '0001'));
+            (typeof res === 'string' && res.trim() ? res.trim() : (yy + t + '0001'));
 
           if (txtEl) txtEl.textContent = generatedId;
           if (lblPhoto) lblPhoto.textContent = generatedId + '_photo.jpg';
         })
         .catch(err => {
           console.warn('Failed to fetch next student ID:', err);
-          if (txtEl && !txtEl.textContent) txtEl.textContent = yy + tt + '0001';
+          if (txtEl && !txtEl.textContent) txtEl.textContent = yy + t + '0001';
         });
     }
 
@@ -11537,7 +11545,7 @@
         const course = (rawCourse && rawCourse !== '-' && rawCourse !== 'หลักสูตรทั่วไป') ? rawCourse : 'ยังไม่ลงทะเบียนคอร์ส';
         const schedule = s.schedule || (Array.isArray(s) ? s[5] : '-') || '-';
         const yearBE = s.yearBE || (studentId !== '-' ? ('25' + String(studentId).slice(0, 2)) : '-');
-        const term = s.term || (studentId !== '-' ? Number(String(studentId).slice(2, 4)) : '-');
+        const term = s.term || (studentId !== '-' ? (String(studentId).length === 7 ? Number(String(studentId).charAt(2)) : Number(String(studentId).slice(2, 4))) : '-');
         let status = (s.status || (Array.isArray(s) ? s[7] : 'พร้อมเรียน') || 'พร้อมเรียน').trim();
         if (status.toUpperCase() === 'ACTIVE') status = 'พร้อมเรียน';
 
