@@ -11547,7 +11547,7 @@
     }
 
     function populateGeneralFeeInputs(fees) {
-      if (!fees) return;
+      if (!fees || typeof fees !== 'object') return;
       const rawItems = fees.items || {};
       const keys = ['regFee', 'cardFee', 'otherRegFee', 'discountNormal', 'discountOther'];
       const inputMap = {
@@ -11558,14 +11558,38 @@
         discountOther: 'cfgGeneralDiscountOther'
       };
 
+      const defaultAmounts = {
+        regFee: 100,
+        cardFee: 100,
+        otherRegFee: 0,
+        discountNormal: 240,
+        discountOther: 0
+      };
+
       const normalizedItems = {};
       keys.forEach(k => {
-        const item = rawItems[k] || {
-          amount: fees[k] !== undefined ? fees[k] : (k === 'regFee' || k === 'cardFee' ? 100 : (k === 'discountNormal' ? 240 : 0)),
-          mode: 'always',
-          startDate: '',
-          endDate: ''
-        };
+        let raw = rawItems[k] !== undefined ? rawItems[k] : fees[k];
+        let amount = defaultAmounts[k];
+        let mode = 'always';
+        let startDate = '';
+        let endDate = '';
+
+        if (typeof raw === 'object' && raw !== null) {
+          if (raw.amount !== undefined) {
+            amount = typeof raw.amount === 'number' ? raw.amount : Number(raw.amount);
+          } else {
+            amount = defaultAmounts[k];
+          }
+          mode = typeof raw.mode === 'string' ? raw.mode : 'always';
+          startDate = typeof raw.startDate === 'string' ? raw.startDate : (typeof raw.start_date === 'string' ? raw.start_date : '');
+          endDate = typeof raw.endDate === 'string' ? raw.endDate : (typeof raw.end_date === 'string' ? raw.end_date : '');
+        } else if (typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== '' && !isNaN(Number(raw)))) {
+          amount = Number(raw);
+        }
+
+        if (isNaN(amount)) amount = defaultAmounts[k];
+
+        const item = { amount, mode, startDate, endDate };
         normalizedItems[k] = item;
 
         const inpAmount = document.getElementById(inputMap[k]);
@@ -11574,22 +11598,22 @@
         const inpEnd = document.getElementById(`cfgEnd_${k}`);
         const boxDate = document.getElementById(`boxDateRange_${k}`);
 
-        if (inpAmount) inpAmount.value = item.amount !== undefined ? item.amount : 0;
-        if (selMode) selMode.value = item.mode || 'always';
-        if (inpStart) inpStart.value = item.startDate || '';
-        if (inpEnd) inpEnd.value = item.endDate || '';
+        if (inpAmount) inpAmount.value = amount;
+        if (selMode) selMode.value = mode;
+        if (inpStart) inpStart.value = startDate;
+        if (inpEnd) inpEnd.value = endDate;
         if (boxDate) {
-          boxDate.style.display = item.mode === 'period' ? 'grid' : 'none';
+          boxDate.style.display = mode === 'period' ? 'grid' : 'none';
         }
         updateFeeSettingStatusPreview(k);
       });
 
       globalFeePresets = {
-        regFee: normalizedItems.regFee ? normalizedItems.regFee.amount : (fees.regFee !== undefined ? fees.regFee : 100),
-        cardFee: normalizedItems.cardFee ? normalizedItems.cardFee.amount : (fees.cardFee !== undefined ? fees.cardFee : 100),
-        otherRegFee: normalizedItems.otherRegFee ? normalizedItems.otherRegFee.amount : (fees.otherRegFee !== undefined ? fees.otherRegFee : 0),
-        discountNormal: normalizedItems.discountNormal ? normalizedItems.discountNormal.amount : (fees.discountNormal !== undefined ? fees.discountNormal : 240),
-        discountOther: normalizedItems.discountOther ? normalizedItems.discountOther.amount : (fees.discountOther !== undefined ? fees.discountOther : 0),
+        regFee: normalizedItems.regFee.amount,
+        cardFee: normalizedItems.cardFee.amount,
+        otherRegFee: normalizedItems.otherRegFee.amount,
+        discountNormal: normalizedItems.discountNormal.amount,
+        discountOther: normalizedItems.discountOther.amount,
         items: normalizedItems
       };
 
@@ -11723,7 +11747,12 @@
 
     function parseThaiDateToIso(thaiStr) {
       if (!thaiStr) return '';
-      if (/^\d{4}-\d{2}-\d{2}$/.test(thaiStr)) return thaiStr;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(thaiStr)) {
+        const parts = thaiStr.split('-');
+        let y = parseInt(parts[0], 10);
+        if (y > 2400) y -= 543;
+        return y + '-' + parts[1] + '-' + parts[2];
+      }
       const parts = thaiStr.trim().split(/\s+/);
       if (parts.length >= 3) {
         const day = parseInt(parts[0], 10);
