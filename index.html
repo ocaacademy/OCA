@@ -8047,15 +8047,15 @@
               else modes['Online']++;
             });
           } else {
-            // When no receipts exist yet, fallback delivery & modality to enrolled students count:
-            pickupCount = stCount || 0;
+            // When no receipts exist yet, delivery & modality should be 0 because no student has enrolled or chosen delivery yet
+            pickupCount = 0;
             shippingCount = 0;
-            modes.Online = stCount || 0;
+            modes.Online = 0;
           }
 
-          // Fallback if modes sum to 0
-          if (modes.Online === 0 && modes.Onsite === 0 && modes.Hybrid === 0) {
-            modes.Online = stCount || 0;
+          // Fallback if modes sum to 0 (only if receipts exist)
+          if (rcCount > 0 && modes.Online === 0 && modes.Onsite === 0 && modes.Hybrid === 0) {
+            modes.Online = rcCount || 0;
           }
 
           // Compute live Supabase Database Storage (500 MB) & File Storage (1 GB)
@@ -8311,11 +8311,11 @@
             citizenId: st ? st.citizen_id : '',
             phone: st ? st.phone_number : '',
             phoneNumber: st ? st.phone_number : '',
-            course: st ? (st.current_course || 'หลักสูตรทั่วไป') : '',
+            course: st ? ((st.current_course && st.current_course !== '-') ? st.current_course : '-') : '',
             schedule: st ? (st.current_schedule || '-') : '',
             yearBE: st ? (st.year_be || 2569) : 2569,
             term: st ? (st.term || 4) : 4,
-            deliveryMethod: st ? (st.delivery_method || 'รับเอง') : 'รับเอง',
+            deliveryMethod: st ? (st.delivery_method || '-') : '-',
             smartCardUid: st ? (st.smart_card_uid || '') : '',
             status: st ? (st.status || 'พร้อมเรียน') : '',
             address: st ? (st.address || '') : '',
@@ -8453,8 +8453,8 @@
             phoneNumber: s.phone_number,
             citizenId: s.citizen_id,
             smartCardUid: s.smart_card_uid || '',
-            course: s.current_course || 'หลักสูตรทั่วไป',
-            latestCourse: s.current_course || 'หลักสูตรทั่วไป',
+            course: (s.current_course && s.current_course !== '-') ? s.current_course : '-',
+            latestCourse: (s.current_course && s.current_course !== '-') ? s.current_course : '-',
             schedule: s.current_schedule || '-',
             yearBE: s.year_be || (s.student_id ? ('25' + String(s.student_id).slice(0, 2)) : 2569),
             latestYearBE: s.year_be || (s.student_id ? ('25' + String(s.student_id).slice(0, 2)) : 2569),
@@ -8464,7 +8464,7 @@
             lineId: s.line_id || '',
             email: s.email || '',
             status: s.status || 'พร้อมเรียน',
-            deliveryMethod: s.delivery_method || 'รับเอง',
+            deliveryMethod: s.delivery_method || (rList && rList.length > 0 ? (rList[0].delivery_method || '-') : '-'),
             photoUrl: s.photo_url || ''
           }));
 
@@ -8480,8 +8480,8 @@
               address: st.address || '',
               smartCardUid: st.smart_card_uid || '',
               level: st.language_level || '',
-              course: st.current_course || 'หลักสูตรทั่วไป',
-              latestCourse: st.current_course || 'หลักสูตรทั่วไป',
+              course: (st.current_course && st.current_course !== '-') ? st.current_course : '-',
+              latestCourse: (st.current_course && st.current_course !== '-') ? st.current_course : '-',
               schedule: st.current_schedule || '-',
               yearBE: st.year_be || (st.student_id ? ('25' + String(st.student_id).slice(0, 2)) : 2569),
               latestYearBE: st.year_be || (st.student_id ? ('25' + String(st.student_id).slice(0, 2)) : 2569),
@@ -8489,8 +8489,7 @@
               latestTerm: st.term || (st.student_id ? Number(String(st.student_id).slice(2, 4)) : 4),
               lineId: st.line_id || '',
               email: st.email || '',
-              status: st.status || 'พร้อมเรียน',
-              deliveryMethod: st.delivery_method || 'รับเอง',
+              deliveryMethod: st.delivery_method || (rList && rList.length > 0 ? (rList[0].delivery_method || '-') : '-'),
               photoUrl: st.photo_url || ''
             },
             receipts: rList || [],
@@ -8565,11 +8564,11 @@
               phone: s.phone_number || '',
               phoneNumber: s.phone_number || '',
               lineId: s.line_id || '-',
-              course: s.current_course || 'หลักสูตรทั่วไป',
+              course: (s.current_course && s.current_course !== '-') ? s.current_course : '-',
               schedule: s.current_schedule || '-',
               yearBE: y,
               term: tm,
-              deliveryMethod: s.delivery_method || 'รับเอง',
+              deliveryMethod: s.delivery_method || '-',
               smartCardUid: s.smart_card_uid || '',
               status: s.status || 'พร้อมเรียน',
               address: s.address || '',
@@ -10702,59 +10701,9 @@
           const m = s.deliveryMethod || '';
           const notes = s.notes || '';
           const isDeliv = (m === 'ส่งตำรา' || m === 'ส่งไปตามที่อยู่' || m.indexOf('ส่ง') !== -1 || notes.indexOf('ส่ง') !== -1 || notes.indexOf('พัสดุ') !== -1);
-          if (selDel === 'ส่งตำรา') return isDeliv;
-          if (selDel === 'รับเอง') return !isDeliv;
-          return true;
-        });
-      }
-
-      // 3. กรองตามสถานะ
-      if (selStatus !== 'ALL') {
-        filtered = filtered.filter(s => {
-          const st = (s.status || '').trim();
-          const stUp = st.toUpperCase();
-          if (selStatus === 'พร้อมเรียน') {
-            return st === 'พร้อมเรียน' || st === 'ปกติ' || st === 'ลงทะเบียนเรียบร้อย' || stUp === 'ACTIVE';
-          }
-          return st.indexOf(selStatus) !== -1 || stUp.indexOf(selStatus.toUpperCase()) !== -1;
-        });
-      }
-
-      // 4. กรองตามคำค้นหา (ชื่อ / รหัส / เบอร์โทร / บัตรประชาชน / RFID / คอร์ส / ที่อยู่)
-      if (q) {
-        filtered = filtered.filter(s => {
-          const sId = (s.studentId || '').toLowerCase();
-          const fName = (s.fullName || '').toLowerCase();
-          const rName = (s.rawName || '').toLowerCase();
-          const ph = (s.phone || '').toLowerCase();
-          const cit = (s.citizenId || '').toLowerCase();
-          const card = (s.smartCardUid || '').toLowerCase();
-          const cName = (s.course || '').toLowerCase();
-          const em = (s.email || '').toLowerCase();
-          const addr = (s.address || '').toLowerCase();
-          return (
-            sId.indexOf(q) !== -1 ||
-            fName.indexOf(q) !== -1 ||
-            rName.indexOf(q) !== -1 ||
-            ph.indexOf(q) !== -1 ||
-            cit.indexOf(q) !== -1 ||
-            card.indexOf(q) !== -1 ||
-            cName.indexOf(q) !== -1 ||
-            em.indexOf(q) !== -1 ||
-            addr.indexOf(q) !== -1
-          );
-        });
-      }
-
-      // อัปเดตตัวเลขสถิติ Ribbon
-      let countPickup = 0;
-      let countDelivery = 0;
-      filtered.forEach(s => {
-        const m = s.deliveryMethod || '';
-        const notes = s.notes || '';
-        const isDeliv = (m === 'ส่งตำรา' || m === 'ส่งไปตามที่อยู่' || m.indexOf('ส่ง') !== -1 || notes.indexOf('ส่ง') !== -1 || notes.indexOf('พัสดุ') !== -1);
+        const isPick = (m === 'รับเอง' || m.indexOf('รับ') !== -1);
         if (isDeliv) countDelivery++;
-        else countPickup++;
+        else if (isPick) countPickup++;
       });
 
       const badgeTotal = document.getElementById('badgeSearchTotal');
@@ -10825,7 +10774,8 @@
         const fullName = s.fullName || s.rawName || (Array.isArray(s) ? s[1] : '-') || '-';
         const phone = s.phone || s.phoneNumber || (Array.isArray(s) ? s[3] : '-') || '-';
         const lineId = s.lineId || '-';
-        const course = s.course || (Array.isArray(s) ? s[4] : 'หลักสูตรทั่วไป') || 'หลักสูตรทั่วไป';
+        const rawCourse = s.course || (Array.isArray(s) ? s[4] : '') || '';
+        const course = (rawCourse && rawCourse !== '-' && rawCourse !== 'หลักสูตรทั่วไป') ? rawCourse : 'ยังไม่ลงทะเบียนคอร์ส';
         const schedule = s.schedule || (Array.isArray(s) ? s[5] : '-') || '-';
         const yearBE = s.yearBE || (studentId !== '-' ? ('25' + String(studentId).slice(0, 2)) : '-');
         const term = s.term || (studentId !== '-' ? Number(String(studentId).slice(2, 4)) : '-');
@@ -10833,13 +10783,19 @@
         if (status.toUpperCase() === 'ACTIVE') status = 'พร้อมเรียน';
 
         // วิธีรับตำรา
-        const m = s.deliveryMethod || '';
+        const m = (s.deliveryMethod || '').toString().trim();
         const notes = s.notes || '';
         const isDelivery = (m === 'ส่งตำรา' || m === 'ส่งไปตามที่อยู่' || m.indexOf('ส่ง') !== -1 || notes.indexOf('ส่ง') !== -1 || notes.indexOf('พัสดุ') !== -1);
+        const isPickup = (m === 'รับเอง' || m.indexOf('รับ') !== -1);
 
-        const deliveryBadge = isDelivery
-          ? '<span style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:6px; padding:3px 8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;"><i class="fa-solid fa-truck"></i> ส่งตำรา (ไม่มี QR)</span>'
-          : '<span style="background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); border-radius:6px; padding:3px 8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;"><i class="fa-solid fa-qrcode"></i> รับเอง (มี QR)</span>';
+        let deliveryBadge = '';
+        if (isDelivery) {
+          deliveryBadge = '<span style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:6px; padding:3px 8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;"><i class="fa-solid fa-truck"></i> ส่งตำรา (ไม่มี QR)</span>';
+        } else if (isPickup) {
+          deliveryBadge = '<span style="background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); border-radius:6px; padding:3px 8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;"><i class="fa-solid fa-qrcode"></i> รับเอง (มี QR)</span>';
+        } else {
+          deliveryBadge = '<span style="background:rgba(156,163,175,0.15); color:#9ca3af; border:1px solid rgba(156,163,175,0.3); border-radius:6px; padding:3px 8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;"><i class="fa-solid fa-clock"></i> รอเลือกคอร์ส</span>';
+        }
 
         // ป้ายสถานะ
         let statusBadge = '<span class="oca-badge-status-active" style="font-size:12px; padding:3px 8px;">' + escapeHtml(status) + '</span>';
@@ -10966,7 +10922,9 @@
         if (srImg) srImg.style.display = 'none';
         if (srFallback) srFallback.style.display = 'block';
       }
-      if (elCourse) elCourse.textContent = s.course || 'หลักสูตรทั่วไป';
+      const rawDetailCourse = s.course || '';
+      const hasCourse = Boolean(rawDetailCourse && rawDetailCourse !== '-' && rawDetailCourse !== 'หลักสูตรทั่วไป');
+      if (elCourse) elCourse.textContent = hasCourse ? rawDetailCourse : 'ยังไม่ได้ลงทะเบียนคอร์ส (รอเลือกคอร์ส)';
       if (elYear) elYear.textContent = toArabicDigits(s.yearBE || '-');
       if (elTerm) elTerm.textContent = 'เทอม ' + toArabicDigits(s.term || '-');
       if (elCardUid) elCardUid.textContent = s.smartCardUid ? toArabicDigits(s.smartCardUid) : 'รอออกบัตร';
@@ -10979,9 +10937,10 @@
       if (elNotes) elNotes.textContent = s.notes || '-';
       if (elStatus) elStatus.textContent = s.status || 'พร้อมเรียน';
 
-      const m = s.deliveryMethod || '';
+      const m = (s.deliveryMethod || '').toString().trim();
       const notes = s.notes || '';
       const isDelivery = (m === 'ส่งตำรา' || m === 'ส่งไปตามที่อยู่' || m.indexOf('ส่ง') !== -1 || notes.indexOf('ส่ง') !== -1 || notes.indexOf('พัสดุ') !== -1);
+      const isPickup = (m === 'รับเอง' || m.indexOf('รับ') !== -1);
 
       if (elDeliveryBadge) {
         if (isDelivery) {
@@ -10989,11 +10948,16 @@
           elDeliveryBadge.style.color = '#38bdf8';
           elDeliveryBadge.style.border = '1px solid rgba(56,189,248,0.3)';
           elDeliveryBadge.innerHTML = '<i class="fa-solid fa-truck"></i> จัดส่งตำราทางไปรษณีย์ (ไม่มี QR Code ในใบเสร็จ)';
-        } else {
+        } else if (isPickup) {
           elDeliveryBadge.style.background = 'rgba(16,185,129,0.15)';
           elDeliveryBadge.style.color = '#10b981';
           elDeliveryBadge.style.border = '1px solid rgba(16,185,129,0.3)';
           elDeliveryBadge.innerHTML = '<i class="fa-solid fa-qrcode"></i> รับเองที่สถาบัน (มี QR Code ในใบเสร็จ)';
+        } else {
+          elDeliveryBadge.style.background = 'rgba(156,163,175,0.15)';
+          elDeliveryBadge.style.color = '#9ca3af';
+          elDeliveryBadge.style.border = '1px solid rgba(156,163,175,0.3)';
+          elDeliveryBadge.innerHTML = '<i class="fa-solid fa-clock"></i> ยังไม่ได้เลือกคอร์ส / วิธีรับตำรา';
         }
       }
 
@@ -12577,7 +12541,8 @@
       if (idEl) idEl.textContent = toArabicDigits(st.studentId) || '-';
       if (yearEl) yearEl.textContent = toArabicDigits(st.yearBE) || '-';
       if (termEl) termEl.textContent = 'เทอม ' + (toArabicDigits(st.term) || '-');
-      if (courseEl) courseEl.textContent = 'คอร์ส: ' + (st.course || '-');
+      const cardCourseName = (st.course && st.course !== '-' && st.course !== 'หลักสูตรทั่วไป') ? st.course : 'ยังไม่ลงทะเบียนคอร์ส';
+      if (courseEl) courseEl.textContent = 'คอร์ส: ' + cardCourseName;
 
       if (uidInp) uidInp.value = toArabicDigits(st.smartCardUid) || '';
 
@@ -13390,7 +13355,9 @@
           if (elPhone) elPhone.textContent = student.profile.phone ? toArabicDigits(student.profile.phone) : '-';
 
           const elCourse = document.getElementById('stCardLatestCourse');
-          if (elCourse) elCourse.textContent = student.profile.latestCourse || 'หลักสูตรทั่วไป';
+          const rawRcptCourse = student.profile.latestCourse || student.profile.course || '';
+          const hasRcptCourse = Boolean(rawRcptCourse && rawRcptCourse !== '-' && rawRcptCourse !== 'หลักสูตรทั่วไป');
+          if (elCourse) elCourse.textContent = hasRcptCourse ? rawRcptCourse : 'ยังไม่เคยลงทะเบียนคอร์ส (นักเรียนใหม่)';
 
           const elYearTerm = document.getElementById('stCardLatestYearTerm');
           if (elYearTerm) {
