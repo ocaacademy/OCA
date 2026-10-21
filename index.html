@@ -3704,6 +3704,9 @@
                 <button type="button" class="oca-btn-gold-submit" style="padding:6px 14px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px;" onclick="openEditStudentModalFromCard()">
                   <i class="fa-solid fa-user-pen"></i> แก้ไข
                 </button>
+                <button type="button" class="oca-btn-cancel-custom" style="padding:6px 14px; font-size:12.5px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); color:#f87171; display:inline-flex; align-items:center; gap:6px;" onclick="confirmDeleteStudentFromCard()" title="ลบข้อมูลนักเรียน">
+                  <i class="fa-solid fa-trash-can"></i> ลบนักเรียน
+                </button>
                 <button type="button" class="oca-btn-cancel-custom" style="padding:6px 12px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px;" onclick="prepareReceiptForStudentFromCard()">
                   <i class="fa-solid fa-receipt"></i> ออกใบเสร็จ
                 </button>
@@ -7807,7 +7810,25 @@
         };
       }
 
+      if (action === 'updateSecurityPin') {
+        const newPin = String(params.newPin || '').trim();
+        if (!newPin || newPin.length < 4) {
+          return { success: false, message: 'รหัส PIN ใหม่ต้องมีอย่างน้อย 4 หลัก' };
+        }
+        localStorage.setItem('oca_custom_pin', newPin);
+        return { success: true, message: 'เปลี่ยนรหัส PIN ความปลอดภัยเรียบร้อยแล้ว' };
+      }
+
       if (action === 'verifySecurityPin') {
+        const pin = String(params.pin || '').trim();
+        const customPin = localStorage.getItem('oca_custom_pin');
+        const validPins = [customPin, '1234', 'admin1234', 'OcaAdmin@2026', 'oca@2026', '0000'].filter(Boolean);
+        if (validPins.includes(pin)) {
+          return { success: true };
+        }
+        return { success: false, message: 'รหัส PIN ความปลอดภัยไม่ถูกต้อง (ค่าเริ่มต้น: 1234)' };
+      }
+      if (false && action === '_oldVerifySecurityPin') {
         const pin = String(params.pin || '').trim();
         const validPins = ['1234', 'admin1234', 'OcaAdmin@2026', 'oca@2026', '0000'];
         if (validPins.includes(pin)) {
@@ -10614,7 +10635,9 @@
       const badgeDelivery = document.getElementById('badgeSearchDelivery');
       const badgeCount = document.getElementById('badgeTableRecordCount');
 
-      if (tbody) {
+      const hasExistingRows = cachedSearchStudentsData && cachedSearchStudentsData.length > 0;
+      // Do NOT wipe table or display loading spinner if data is already visible (prevents table blinking)
+      if (tbody && !hasExistingRows && forceRefresh !== 'silent') {
         tbody.innerHTML =
           '<tr><td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted);">' +
           '  <i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:var(--color-gold); margin-bottom:8px;"></i>' +
@@ -10685,7 +10708,7 @@
       const selDel = document.getElementById('selSearchDelivery')?.value || 'ALL';
       const selStatus = document.getElementById('selSearchStatus')?.value || 'ALL';
 
-      let filtered = cachedSearchStudentsData.slice();
+      let filtered = (cachedSearchStudentsData || []).slice();
 
       // 1. กรองตามปีการศึกษา
       if (selYear !== 'ALL') {
@@ -10698,9 +10721,59 @@
       // 2. กรองตามวิธีรับตำราเรียน
       if (selDel !== 'ALL') {
         filtered = filtered.filter(s => {
-          const m = s.deliveryMethod || '';
-          const notes = s.notes || '';
+          const m = (s.deliveryMethod || '').toString().trim();
+          const notes = (s.notes || '').toString();
           const isDeliv = (m === 'ส่งตำรา' || m === 'ส่งไปตามที่อยู่' || m.indexOf('ส่ง') !== -1 || notes.indexOf('ส่ง') !== -1 || notes.indexOf('พัสดุ') !== -1);
+          const isPick = (m === 'รับเอง' || m.indexOf('รับ') !== -1);
+          if (selDel === 'ส่งตำรา') return isDeliv;
+          if (selDel === 'รับเอง') return isPick;
+          if (selDel === 'รอเลือกคอร์ส') return (!isDeliv && !isPick);
+          return true;
+        });
+      }
+
+      // 3. กรองตามสถานะ
+      if (selStatus !== 'ALL') {
+        filtered = filtered.filter(s => {
+          const st = (s.status || '').toString().trim();
+          if (selStatus === 'พร้อมเรียน') {
+            return st === 'พร้อมเรียน' || st === 'ปกติ' || st === 'ACTIVE' || st === 'ลงทะเบียนเรียบร้อย';
+          }
+          return st.indexOf(selStatus) !== -1;
+        });
+      }
+
+      // 4. กรองตามคำค้นหา
+      if (q) {
+        filtered = filtered.filter(s => {
+          const sId = (s.studentId || '').toString().toLowerCase();
+          const fName = (s.fullName || s.rawName || '').toString().toLowerCase();
+          const ph = (s.phone || s.phoneNumber || '').toString().toLowerCase();
+          const cit = (s.citizenId || '').toString().toLowerCase();
+          const card = (s.smartCardUid || '').toString().toLowerCase();
+          const cName = (s.course || '').toString().toLowerCase();
+          const em = (s.email || '').toString().toLowerCase();
+          const addr = (s.address || '').toString().toLowerCase();
+          return (
+            sId.indexOf(q) !== -1 ||
+            fName.indexOf(q) !== -1 ||
+            ph.indexOf(q) !== -1 ||
+            cit.indexOf(q) !== -1 ||
+            card.indexOf(q) !== -1 ||
+            cName.indexOf(q) !== -1 ||
+            em.indexOf(q) !== -1 ||
+            addr.indexOf(q) !== -1
+          );
+        });
+      }
+
+      // อัปเดต Ribbon สถิติ
+      let countPickup = 0;
+      let countDelivery = 0;
+      filtered.forEach(s => {
+        const m = (s.deliveryMethod || '').toString().trim();
+        const notes = (s.notes || '').toString();
+        const isDeliv = (m === 'ส่งตำรา' || m === 'ส่งไปตามที่อยู่' || m.indexOf('ส่ง') !== -1 || notes.indexOf('ส่ง') !== -1 || notes.indexOf('พัสดุ') !== -1);
         const isPick = (m === 'รับเอง' || m.indexOf('รับ') !== -1);
         if (isDeliv) countDelivery++;
         else if (isPick) countPickup++;
@@ -10849,6 +10922,9 @@
           '      </button>' +
           '      <button type="button" class="oca-btn-cancel-custom" style="padding:4px 6px; font-size:12px; display:inline-flex; align-items:center; gap:3px;" onclick="viewStudentDetailFromSearch(\'' + escapeHtml(studentId) + '\')">' +
           '        <i class="fa-solid fa-eye"></i> ดู' +
+          '      </button>' +
+          '      <button type="button" class="oca-btn-cancel-custom" style="padding:4px 6px; font-size:12px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); color:#f87171; display:inline-flex; align-items:center; gap:3px;" onclick="confirmDeleteStudent(\'' + escapeHtml(studentId) + '\', \'' + escapeHtml(fullName) + '\')" title="ลบข้อมูลนักเรียน">' +
+          '        <i class="fa-solid fa-trash-can"></i> ลบ' +
           '      </button>' +
           '    </div>' +
           '  </td>' +
@@ -11096,6 +11172,47 @@
     function closeEditStudentModal() {
       const modal = document.getElementById('modalEditStudent');
       if (modal) modal.classList.remove('active');
+    }
+
+    function confirmDeleteStudent(studentId, fullName) {
+      if (!studentId) return;
+
+      showConfirmModal({
+        title: 'ยืนยันการลบข้อมูลนักเรียน',
+        message: 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนักเรียน "' + (fullName || '') + '" (รหัส: ' + studentId + ') ออกจากระบบอย่างถาวร?\n\n⚠️ ข้อมูลในฐานข้อมูล Supabase จะถูกลบอย่างถาวรและไม่สามารถกู้คืนได้',
+        icon: 'fa-trash-can',
+        iconColor: '#ef4444',
+        iconBg: 'rgba(239,68,68,0.18)',
+        iconBorder: '#ef4444',
+        confirmText: 'ยืนยันการลบนักเรียน',
+        confirmBg: '#dc2626',
+        confirmBorder: '#ef4444',
+        onConfirm: () => {
+          showToast('กำลังลบข้อมูลนักเรียน...', '', '🗑️');
+          callGasApi('deleteStudent', { studentId })
+            .then(res => {
+              if (res && res.success) {
+                showToast('ลบข้อมูลนักเรียนเรียบร้อย', res.message || '', '✅');
+                closeEditStudentModal();
+                closeStudentDetailCard();
+                cachedSearchStudentsData = [];
+                loadAllStudentsStatus(true);
+                try { loadDashData(); } catch(_) {}
+              } else {
+                showToast('ไม่สามารถลบข้อมูลได้', res?.message || '', '❌');
+              }
+            })
+            .catch(err => {
+              showToast('เกิดข้อผิดพลาดในการลบ', err.message || '', '❌');
+            });
+        }
+      });
+    }
+
+    function confirmDeleteStudentFromCard() {
+      if (activeSearchStudent && activeSearchStudent.studentId) {
+        confirmDeleteStudent(activeSearchStudent.studentId, activeSearchStudent.fullName || activeSearchStudent.rawName || '');
+      }
     }
 
     function confirmDeleteStudentFromEditModal() {
