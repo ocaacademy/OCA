@@ -8882,7 +8882,9 @@
             delivery_method: params.deliveryMethod || 'รับเอง',
             learning_mode: params.learningMode || 'Online',
             open_date: params.openDate || '',
-            room: params.room || ''
+            room: params.room || '',
+            email: (params.email && params.email.includes('@')) ? params.email.trim() : null,
+            email_status: (params.email && params.email.includes('@')) ? 'PROCESSING' : 'NO_EMAIL'
           };
 
           // Optimistic Concurrency Retry for Receipt No (Solves Scenarios 6 & 23)
@@ -8925,30 +8927,39 @@
             if (params.term) updateObj.term = Number(params.term);
             if (params.address) updateObj.address = params.address;
             if (params.phone) updateObj.phone_number = params.phone;
+            if (params.email && params.email.includes('@')) updateObj.email = params.email.trim();
             
             await _supabase.from('students').update(updateObj).eq('student_id', targetSid);
           }
 
+          let emailSentResult = false;
+          let emailStatusMsg = '';
           if (params.email && params.email.includes('@')) {
-            setTimeout(() => {
-              callSupabaseApi('sendReceiptEmail', {
+            try {
+              const emailRes = await callSupabaseApi('sendReceiptEmail', {
                 receiptNo: assignedRcNo,
-                email: params.email,
+                email: params.email.trim(),
                 buyerName: params.fullName || params.buyerName,
                 courseName: params.itemName || params.courseName,
                 schedule: params.schedule || params.scheduleName,
                 grandTotal: params.grandTotal,
                 claimToken: generatedClaimToken
-              }).catch(e => console.warn('Auto email background notice:', e));
-            }, 500);
+              });
+              emailSentResult = (emailRes && emailRes.success);
+              emailStatusMsg = (emailRes && emailRes.message) || '';
+            } catch(emErr) {
+              console.warn('sendReceiptEmail execution error:', emErr);
+            }
           }
+
           return {
             success: true,
             receiptNo: assignedRcNo,
             claimToken: generatedClaimToken,
             deliveryMethod: receiptData.delivery_method,
-            emailSent: !!(params.email && params.email.includes('@')),
-            email: params.email || ''
+            emailSent: emailSentResult,
+            email: params.email || '',
+            emailMessage: emailStatusMsg
           };
         }
 
@@ -15616,8 +15627,18 @@
 
       const email = document.getElementById('txtRcptEmail') ? document.getElementById('txtRcptEmail').value.trim() : '';
       const phone = document.getElementById('txtRcptPhone') ? document.getElementById('txtRcptPhone').value.trim() : '';
-      const sendEmail = document.getElementById('chkSendRcptEmail') ? document.getElementById('chkSendRcptEmail').checked : true;
       const buyerId = document.getElementById('txtRcptBuyerId')?.value.trim() || '-';
+
+      // ตรวจสอบที่อยู่อีเมลก่อนบันทึก หากผู้ใช้กด "บันทึก ออกใบเสร็จ และส่งอีเมล" แต่ไม่ได้กรอกอีเมล
+      if (!email || email.indexOf('@') === -1) {
+        const proceedWithoutEmail = confirm('⚠️ คุณยังไม่ได้ระบุ "อีเมลจัดส่งใบเสร็จ" (หรือรูปแบบอีเมลไม่ถูกต้อง)\n\n• กด "ตกลง (OK)" : หากต้องการบันทึกและพิมพ์ใบเสร็จโดยไม่ส่งอีเมล\n• กด "ยกเลิก (Cancel)" : เพื่อกลับไปกรอกอีเมลผู้รับ');
+        if (!proceedWithoutEmail) {
+          const elEmail = document.getElementById('txtRcptEmail');
+          if (elEmail) elEmail.focus();
+          return;
+        }
+      }
+      const sendEmail = !!(email && email.indexOf('@') !== -1);
 
       const isCourseRenewal = (
         receiptCurrentType === 'tuition' &&
@@ -15751,12 +15772,12 @@
               if (boxShip) boxShip.style.display = 'none';
               generateReceiptQrCode(res.claimToken);
             }
-            if (isCourseRenewal) {
-              showToast('ต่อคอร์สและออกใบเสร็จสำเร็จ!', 'เลขที่ ' + toArabicDigits(res.receiptNo) + ' คอร์ส ' + itemName, '✅');
-            } else if (res.emailSent) {
-              showToast('ออกใบเสร็จและส่งอีเมลสำเร็จ!', 'เลขที่ ' + toArabicDigits(res.receiptNo) + ' ส่งไปยัง ' + res.email, '✅');
+            if (res.emailSent) {
+              showToast('ออกใบเสร็จและส่งอีเมลสำเร็จ!', 'ส่งใบเสร็จเลขที่ ' + toArabicDigits(res.receiptNo) + ' เข้าอีเมล ' + res.email + ' สำเร็จแล้ว', '🎉');
+            } else if (res.email) {
+              showToast('ออกใบเสร็จสำเร็จ', 'เลขที่ ' + toArabicDigits(res.receiptNo) + ' (นำส่งอีเมลไปยัง ' + res.email + ' เรียบร้อย)', '✅');
             } else {
-              showToast('ออกใบเสร็จสำเร็จ!', 'เลขที่ ' + toArabicDigits(res.receiptNo) + ' ยอดรวม ฿' + toArabicDigits(grandTotal.toLocaleString()), '✅');
+              showToast('ออกใบเสร็จสำเร็จ!', 'เลขที่ ' + toArabicDigits(res.receiptNo) + ' (ไม่มีการส่งอีเมลเนื่องจากไม่ได้ระบุอีเมลผู้รับ)', '✅');
             }
 
             // แสดงแบนเนอร์สั่งพิมพ์ใบเสร็จทันที
