@@ -7939,10 +7939,26 @@
           const totalDbMB = 500;
           const usedDbPercent = ((baseDbBytes / (totalDbMB * 1024 * 1024)) * 100).toFixed(1);
 
-          // File & Object Storage (Supabase Storage - 1GB Quota)
+          // File & Object Storage (Live Query from Supabase Storage Buckets - 1GB Quota)
+          let fileSizeBytes = 0;
+          try {
+            if (_supabase && _supabase.storage) {
+              const { data: buckets } = await _supabase.storage.listBuckets();
+              if (Array.isArray(buckets) && buckets.length > 0) {
+                for (const b of buckets) {
+                  const { data: files } = await _supabase.storage.from(b.name).list();
+                  if (Array.isArray(files)) {
+                    files.forEach(f => {
+                      fileSizeBytes += (f.metadata && f.metadata.size) || (f.size || 0);
+                    });
+                  }
+                }
+              }
+            }
+          } catch (_) {}
           const totalFileMB = 1000;
-          const usedFileMB = '0.00';
-          const usedFilePercent = '0.0';
+          const usedFileMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+          const usedFilePercent = ((fileSizeBytes / (totalFileMB * 1024 * 1024)) * 100).toFixed(1);
 
           const supabaseMemory = {
             usedBytes: baseDbBytes,
@@ -19469,7 +19485,7 @@
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
-      navigator.serviceWorker.register('./sw.js?v=9').then(function(reg) {
+      navigator.serviceWorker.register('./sw.js?v=10').then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
