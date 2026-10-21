@@ -8365,9 +8365,27 @@
 
       try {
         // --- 1. COURSES & SCHEDULES ---
-        if (action === 'getCoursesAndSchedules' || action === 'syncOfficialCourses' || action === 'syncOfficialSchedules') {
+        if (action === 'syncOfficialSchedules') {
+          try {
+            await _supabase.from('schedules').delete().neq('id', 'placeholder');
+            const { data, error } = await _supabase.from('schedules').insert(OFFICIAL_DEFAULT_SCHEDULES.map(s => ({
+              id: s.id,
+              name: s.name,
+              day_time: s.day_time || s.name,
+              learning_mode: s.learning_mode || 'Hybrid',
+              is_active: true
+            }))).select().order('id', { ascending: true });
+            if (error) throw error;
+            return { success: true, schedules: data || OFFICIAL_DEFAULT_SCHEDULES };
+          } catch(e) {
+            console.warn('syncOfficialSchedules error:', e);
+            return { success: true, schedules: OFFICIAL_DEFAULT_SCHEDULES };
+          }
+        }
+
+        if (action === 'getCoursesAndSchedules' || action === 'syncOfficialCourses') {
           const { data: courses } = await _supabase.from('courses').select('*').eq('is_active', true).order('id', { ascending: true });
-          const { data: schedules } = await _supabase.from('schedules').select('*').eq('is_active', true);
+          const { data: schedules } = await _supabase.from('schedules').select('*').eq('is_active', true).order('id', { ascending: true });
           const { data: fees } = await _supabase.from('fee_settings').select('*');
           
           const mappedCourses = (courses || []).map(c => ({
@@ -12430,7 +12448,7 @@
         .then(res => {
           if (!res) return;
           cachedCoursesList = res.courses || [];
-          if (Array.isArray(res.schedules) && res.schedules.length >= 8 && !res.schedules.some(s => s.name && s.name.includes('Flexible'))) {
+          if (Array.isArray(res.schedules) && res.schedules.length > 0) {
             cachedSchedulesList = res.schedules;
           } else {
             cachedSchedulesList = OFFICIAL_DEFAULT_SCHEDULES.map(s => ({ ...s }));
@@ -14725,7 +14743,7 @@
             }
             const selSch = document.getElementById('selRcptSchedule');
             if (selSch) {
-              const scheds = (Array.isArray(res.schedules) && res.schedules.length >= 8 && !res.schedules.some(s => s.name && s.name.includes('Flexible')))
+              const scheds = (Array.isArray(res.schedules) && res.schedules.length > 0)
                 ? res.schedules
                 : OFFICIAL_DEFAULT_SCHEDULES;
               selSch.innerHTML = '<option value="">-- เลือกรอบเวลาเรียนที่สะดวก --</option>';
