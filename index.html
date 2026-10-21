@@ -6900,6 +6900,50 @@
             <form id="formEditStudent" onsubmit="submitEditStudentForm(event)" style="display:flex; flex-direction:column; flex:1; min-height:0; margin:0;">
               <div style="padding:24px 32px; overflow-y:auto; flex:1; box-sizing:border-box;">
                 
+                <!-- Section 0: รูปถ่ายประจำตัวนักเรียน (แก้ไข / ถ่ายใหม่) -->
+                <div style="background:rgba(215,166,0,0.06); border:1px solid rgba(215,166,0,0.25); border-radius:12px; padding:16px 20px; margin-bottom:20px; display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+                  <div style="position:relative; width:92px; height:92px; border-radius:50%; border:2.5px solid var(--color-gold); overflow:hidden; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 4px 16px rgba(0,0,0,0.4);">
+                    <img id="imgEditStudentPhoto" src="" style="width:100%; height:100%; object-fit:cover; display:none;" alt="Student Photo">
+                    <i id="iconEditStudentPhotoFallback" class="fa-solid fa-user-graduate" style="font-size:36px; color:var(--color-gold);"></i>
+                  </div>
+                  
+                  <div style="flex:1; min-width:240px;">
+                    <div style="font-size:14px; font-weight:700; color:var(--color-gold-light); display:flex; align-items:center; gap:6px;">
+                      <i class="fa-solid fa-camera"></i> รูปถ่ายประจำตัวนักเรียน
+                    </div>
+                    <div style="font-size:12px; color:var(--text-muted); margin-top:3px; margin-bottom:10px;">
+                      ถ่ายรูปใหม่ด้วยกล้องเว็บแคม หรือเลือกอัปโหลดไฟล์รูปภาพจากอุปกรณ์เพื่อเปลี่ยนรูปประจำตัว
+                    </div>
+                    
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                      <button type="button" class="oca-btn-gold-submit" style="padding:6px 14px; font-size:12px; display:inline-flex; align-items:center; gap:5px;" onclick="toggleEditStudentCamera()">
+                        <i class="fa-solid fa-camera"></i> <span id="lblBtnEditCam">เปิดกล้องถ่ายใหม่</span>
+                      </button>
+                      <button type="button" class="oca-btn-cancel-custom" style="padding:6px 14px; font-size:12px; display:inline-flex; align-items:center; gap:5px;" onclick="document.getElementById('fileEditStudentPhoto').click()">
+                        <i class="fa-solid fa-upload"></i> เลือกไฟล์รูป
+                      </button>
+                      <input type="file" id="fileEditStudentPhoto" accept="image/*" style="display:none;" onchange="handleEditStudentPhotoFile(event)">
+                      <button type="button" id="btnRemoveEditPhoto" class="oca-btn-cancel-custom" style="padding:6px 12px; font-size:12px; color:#f87171; border-color:rgba(239,68,68,0.3); display:none;" onclick="removeEditStudentPhoto()">
+                        <i class="fa-solid fa-trash"></i> ลบรูป
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Live Camera Viewfinder for Edit Modal -->
+                <div id="boxEditCameraViewfinder" style="display:none; background:#000; border:2px solid var(--color-gold); border-radius:12px; padding:12px; margin-bottom:20px; text-align:center;">
+                  <video id="vidEditWebcam" autoplay playsinline muted style="width:100%; max-height:260px; object-fit:cover; border-radius:8px; transform:scaleX(-1); background:#111;"></video>
+                  <canvas id="canvasEditPhoto" style="display:none;"></canvas>
+                  <div style="margin-top:10px; display:flex; justify-content:center; gap:10px;">
+                    <button type="button" class="oca-btn-gold-submit" style="padding:8px 20px; font-size:13px; background:linear-gradient(135deg, #10b981 0%, #059669 100%); border-color:#34d399;" onclick="captureEditStudentPhoto()">
+                      <i class="fa-solid fa-camera-retro" style="margin-right:6px;"></i> กดถ่ายภาพ
+                    </button>
+                    <button type="button" class="oca-btn-cancel-custom" style="padding:8px 16px; font-size:13px;" onclick="stopEditStudentCamera()">
+                      <i class="fa-solid fa-xmark" style="margin-right:6px;"></i> ปิดกล้อง
+                    </button>
+                  </div>
+                </div>
+                
                 <!-- Section 1: ข้อมูลระบุตัวตน & รหัส -->
                 <div style="font-size:12px; font-weight:700; color:var(--color-gold); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
                   <i class="fa-solid fa-id-card"></i> ข้อมูลพื้นฐาน &amp; รหัสประจำตัว
@@ -8190,17 +8234,27 @@
           const term = params.term || 5;
           const prefix = String(year).slice(-2) + String(term).padStart(2, '0');
           
-          const { data: latest } = await _supabase.from('students')
+          // Query all existing student IDs with this prefix (year + term) to fill gaps from deleted IDs
+          const { data: existing } = await _supabase.from('students')
             .select('student_id')
-            .like('student_id', `${prefix}%`)
-            .order('student_id', { ascending: false })
-            .limit(1);
+            .like('student_id', `${prefix}%`);
 
-          let seq = 1;
-          if (latest && latest.length > 0 && latest[0].student_id) {
-            const num = parseInt(latest[0].student_id.slice(-4), 10);
-            if (!isNaN(num)) seq = num + 1;
+          const usedNumbers = new Set();
+          if (Array.isArray(existing)) {
+            existing.forEach(r => {
+              if (r.student_id && String(r.student_id).startsWith(prefix)) {
+                const num = parseInt(String(r.student_id).slice(-4), 10);
+                if (!isNaN(num) && num > 0) usedNumbers.add(num);
+              }
+            });
           }
+
+          // Find lowest available sequence number (allows reusing deleted numbers)
+          let seq = 1;
+          while (usedNumbers.has(seq)) {
+            seq++;
+          }
+
           const nextStudentId = prefix + String(seq).padStart(4, '0');
           return {
             success: true,
@@ -8569,6 +8623,9 @@
           if (params.status !== undefined) updateData.status = params.status;
           if (params.notes !== undefined) updateData.notes = params.notes;
           if (params.smartCardUid !== undefined) updateData.smart_card_uid = params.smartCardUid;
+          if (params.photoUrl !== undefined || params.photo !== undefined || params.photoBase64 !== undefined) {
+            updateData.photo_url = params.photoUrl || params.photo || params.photoBase64;
+          }
 
           const { error } = await _supabase.from('students')
             .update(updateData)
@@ -11136,6 +11193,132 @@
      * ป้อนค่าเดิมของนักเรียนลงในฟอร์มแก้ไข
      * @param {Object} student ข้อมูลนักเรียน
      */
+    let editStudentPhotoDataUri = '';
+    let editStudentCameraStream = null;
+
+    function stopEditStudentCamera() {
+      if (editStudentCameraStream) {
+        editStudentCameraStream.getTracks().forEach(track => track.stop());
+        editStudentCameraStream = null;
+      }
+      const box = document.getElementById('boxEditCameraViewfinder');
+      if (box) box.style.display = 'none';
+      const lbl = document.getElementById('lblBtnEditCam');
+      if (lbl) lbl.textContent = 'เปิดกล้องถ่ายใหม่';
+    }
+
+    function toggleEditStudentCamera() {
+      if (editStudentCameraStream) {
+        stopEditStudentCamera();
+      } else {
+        startEditStudentCamera();
+      }
+    }
+
+    function startEditStudentCamera() {
+      const vid = document.getElementById('vidEditWebcam');
+      const box = document.getElementById('boxEditCameraViewfinder');
+      const lbl = document.getElementById('lblBtnEditCam');
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('เบราว์เซอร์ไม่รองรับกล้อง', '', '⚠️');
+        return;
+      }
+
+      navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+      })
+      .then(stream => {
+        editStudentCameraStream = stream;
+        if (vid) {
+          vid.srcObject = stream;
+          vid.play();
+        }
+        if (box) box.style.display = 'block';
+        if (lbl) lbl.textContent = 'ปิดกล้อง';
+      })
+      .catch(err => {
+        console.error('Camera error in edit modal:', err);
+        showToast('ไม่สามารถเปิดกล้องได้', err.message || 'โปรดอนุญาตการเข้าถึงกล้อง', '⚠️');
+      });
+    }
+
+    function captureEditStudentPhoto() {
+      const vid = document.getElementById('vidEditWebcam');
+      const canvas = document.getElementById('canvasEditPhoto');
+      if (!vid || !canvas) return;
+
+      canvas.width = vid.videoWidth || 640;
+      canvas.height = vid.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+
+      // Mirror horizontally
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+
+      editStudentPhotoDataUri = canvas.toDataURL('image/jpeg', 0.88);
+      updateEditPhotoPreview(editStudentPhotoDataUri);
+      stopEditStudentCamera();
+      showToast('ถ่ายภาพใหม่เรียบร้อย', 'อย่าลืมกดบันทึกข้อมูลเพื่ออัปเดต', '📸');
+    }
+
+    function handleEditStudentPhotoFile(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const maxDim = 1280;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          editStudentPhotoDataUri = canvas.toDataURL('image/jpeg', 0.88);
+          updateEditPhotoPreview(editStudentPhotoDataUri);
+          showToast('โหลดรูปภาพเรียบร้อย', 'อย่าลืมกดบันทึกข้อมูลเพื่ออัปเดต', '📁');
+        };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function updateEditPhotoPreview(dataUri) {
+      const img = document.getElementById('imgEditStudentPhoto');
+      const icon = document.getElementById('iconEditStudentPhotoFallback');
+      const btnDel = document.getElementById('btnRemoveEditPhoto');
+
+      if (dataUri && (dataUri.startsWith('http') || dataUri.startsWith('data:image/') || dataUri.length > 50)) {
+        if (img) { img.src = dataUri; img.style.display = 'block'; }
+        if (icon) icon.style.display = 'none';
+        if (btnDel) btnDel.style.display = 'inline-flex';
+      } else {
+        if (img) { img.src = ''; img.style.display = 'none'; }
+        if (icon) icon.style.display = 'block';
+        if (btnDel) btnDel.style.display = 'none';
+      }
+    }
+
+    function removeEditStudentPhoto() {
+      editStudentPhotoDataUri = '';
+      updateEditPhotoPreview('');
+      showToast('ลบรูปภาพแล้ว', 'กดบันทึกเพื่อยืนยันการนำรูปออก', '🗑️');
+    }
+
     function populateEditStudentForm(student) {
       const lblName = document.getElementById('lblEditStudentName');
       const inpId = document.getElementById('inpEditStudentId');
@@ -11189,12 +11372,18 @@
       }
 
       if (inpNotes) inpNotes.value = student.notes || '';
+
+      // โหลดรูปภาพถ่ายนักเรียน
+      editStudentPhotoDataUri = student.photoUrl || student.photo || student.photo_url || '';
+      updateEditPhotoPreview(editStudentPhotoDataUri);
+      stopEditStudentCamera();
     }
 
     /**
      * ปิดหน้าต่าง Modal แก้ไขข้อมูลนักเรียน
      */
     function closeEditStudentModal() {
+      stopEditStudentCamera();
       const modal = document.getElementById('modalEditStudent');
       if (modal) modal.classList.remove('active');
     }
@@ -11339,7 +11528,9 @@
         term: term,
         deliveryMethod: deliveryMethod,
         status: status,
-        notes: notes
+        notes: notes,
+        photoUrl: editStudentPhotoDataUri,
+        photo: editStudentPhotoDataUri
       };
 
       callGasApi('updateStudentProfile', payload, 'POST')
@@ -11358,10 +11549,16 @@
           // 1. อัปเดตข้อมูลในหน่วยความจำแคช
           const idx = cachedSearchStudentsData.findIndex(item => item.studentId === studentId);
           if (idx !== -1) {
-            cachedSearchStudentsData[idx] = Object.assign({}, cachedSearchStudentsData[idx], payload);
+            cachedSearchStudentsData[idx] = Object.assign({}, cachedSearchStudentsData[idx], payload, { photoUrl: editStudentPhotoDataUri, photo: editStudentPhotoDataUri });
           } else {
-            cachedSearchStudentsData.unshift(payload);
+            cachedSearchStudentsData.unshift(Object.assign({}, payload, { photoUrl: editStudentPhotoDataUri, photo: editStudentPhotoDataUri }));
           }
+
+          if (activeSearchStudent && activeSearchStudent.studentId === studentId) {
+            activeSearchStudent = Object.assign({}, activeSearchStudent, payload, { photoUrl: editStudentPhotoDataUri, photo: editStudentPhotoDataUri });
+            viewStudentDetailFromSearch(studentId);
+          }
+          filterAndRenderSearchStudents();
 
           // 2. หากการ์ดแสดงรายละเอียดเปิดอยู่ ให้อัปเดตการ์ดด้วย
           if (activeSearchStudent && activeSearchStudent.studentId === studentId) {
