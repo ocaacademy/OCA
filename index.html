@@ -7697,12 +7697,15 @@
         ];
 
         const isMatchAdminPass = validAdminPasswords.includes(p);
+        if (!u || !p) {
+          return { success: false, message: 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน' };
+        }
+
         const isAdminUser = (
           u === 'admin' || 
           u === 'admin@oca.ac.th' || 
           u === 'administrator' || 
-          u === 'superadmin' || 
-          u === ''
+          u === 'superadmin'
         );
 
         // 1. Super Admin Match
@@ -7774,7 +7777,7 @@
               .limit(1)
               .maybeSingle();
 
-            if (dbUser && dbUser.password === p) {
+            if (dbUser && (dbUser.password === p || dbUser.password_hash === p)) {
               let userPerms = allPerms;
               try { 
                 userPerms = typeof dbUser.permissions === 'string' ? JSON.parse(dbUser.permissions) : (dbUser.permissions || allPerms); 
@@ -8200,12 +8203,14 @@
 
           if (cleanCid || cleanName) {
             let dupQuery = _supabase.from('students').select('student_id, full_name, phone_number, citizen_id');
-            if (cleanCid && cleanName) {
-              dupQuery = dupQuery.or(`citizen_id.eq.${cleanCid},full_name.eq.${cleanName}`);
-            } else if (cleanCid) {
-              dupQuery = dupQuery.eq('citizen_id', cleanCid);
-            } else {
-              dupQuery = dupQuery.eq('full_name', cleanName);
+            const safeCid = cleanCid.replace(/[^0-9A-Za-z]/g, '');
+            const safeName = cleanName.replace(/[,()"]/g, ' ').trim();
+            if (safeCid && safeName) {
+              dupQuery = dupQuery.or(`citizen_id.eq.${safeCid},full_name.eq."${safeName}"`);
+            } else if (safeCid) {
+              dupQuery = dupQuery.eq('citizen_id', safeCid);
+            } else if (safeName) {
+              dupQuery = dupQuery.eq('full_name', safeName);
             }
             const { data: dup } = await dupQuery.limit(5);
 
@@ -8272,7 +8277,8 @@
 
         // --- 7. CHECK STATUS / DUPLICATE ---
         if (action === 'checkStatus' || action === 'checkStudentDuplicate') {
-          const q = (params.query || params.citizenId || params.phone || '').trim();
+          const rawQ = (params.query || params.citizenId || params.phone || '').trim();
+          const q = rawQ.replace(/[,()"]/g, ' ').trim();
           if (!q) return { found: false, isDuplicate: false, duplicates: [] };
 
           const { data: found } = await _supabase.from('students')
@@ -8379,16 +8385,17 @@
 
         // --- 10. SEARCH STUDENTS FOR CARD / PROFILE ---
         if (action === 'searchStudentsForCard' || action === 'getStudentProfileAndHistory') {
-          const q = (params.query || params.studentId || '').trim();
+          const rawQ = (params.query || params.studentId || '').trim();
+          const safeQ = rawQ.replace(/[,()"]/g, ' ').trim();
           let queryBuilder = _supabase.from('students').select('*');
           
-          if (q) {
-            queryBuilder = queryBuilder.or(`student_id.ilike.%${q}%,citizen_id.ilike.%${q}%,full_name.ilike.%${q}%,phone_number.ilike.%${q}%`);
+          if (safeQ) {
+            queryBuilder = queryBuilder.or(`student_id.ilike.%${safeQ}%,citizen_id.ilike.%${safeQ}%,full_name.ilike.%${safeQ}%,phone_number.ilike.%${safeQ}%`);
           }
           const { data: stList } = await queryBuilder.limit(10);
 
           if (!stList || stList.length === 0) {
-            return { found: false, students: [] };
+            return { success: true, found: false, students: [] };
           }
 
           const st = stList[0];
@@ -8703,7 +8710,9 @@
 
         // --- 18. STAFF USERS & SECURITY ---
         if (action === 'getUsersList' || action === 'saveUser' || action === 'deleteUser') {
-          const { data } = await _supabase.from('staff_users').select('*');
+          const { data } = await _supabase.from('staff_users')
+            .select('id, username, full_name, email, role, is_active, created_at, permissions')
+            .order('created_at', { ascending: true });
           return { success: true, users: data || [] };
         }
 
@@ -18718,7 +18727,7 @@
         }
       })
       .catch(err => {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:#ef4444;">เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:#ef4444;">เกิดข้อผิดพลาด: ${escapeHtml(err.message || "")}</td></tr>`;
       });
     }
 
@@ -19089,7 +19098,7 @@
         }
       })
       .catch(err => {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:#ef4444;">เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:#ef4444;">เกิดข้อผิดพลาด: ${escapeHtml(err.message || "")}</td></tr>`;
       });
     }
 
@@ -19643,7 +19652,7 @@
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
-      navigator.serviceWorker.register('./sw.js?v=12').then(function(reg) {
+      navigator.serviceWorker.register('./sw.js?v=13').then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
