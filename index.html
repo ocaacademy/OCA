@@ -8287,11 +8287,31 @@
             .limit(5);
 
           const hasMatches = !!(found && found.length > 0);
+          const st = hasMatches ? found[0] : null;
           return {
             found: hasMatches,
             isDuplicate: hasMatches,
             duplicates: found || [],
-            student: hasMatches ? found[0] : null
+            student: st,
+            studentId: st ? st.student_id : '',
+            id: st ? st.student_id : '',
+            prefix: st ? (st.prefix || '') : '',
+            fullName: st ? st.full_name : '',
+            rawName: st ? st.full_name : '',
+            citizenId: st ? st.citizen_id : '',
+            phone: st ? st.phone_number : '',
+            phoneNumber: st ? st.phone_number : '',
+            course: st ? (st.current_course || 'หลักสูตรทั่วไป') : '',
+            schedule: st ? (st.current_schedule || '-') : '',
+            yearBE: st ? (st.year_be || 2569) : 2569,
+            term: st ? (st.term || 4) : 4,
+            deliveryMethod: st ? (st.delivery_method || 'รับเอง') : 'รับเอง',
+            smartCardUid: st ? (st.smart_card_uid || '') : '',
+            status: st ? (st.status || 'พร้อมเรียน') : '',
+            address: st ? (st.address || '') : '',
+            lineId: st ? (st.line_id || '') : '',
+            email: st ? (st.email || '') : '',
+            notes: st ? (st.notes || '') : ''
           };
         }
 
@@ -8392,10 +8412,17 @@
           if (safeQ) {
             queryBuilder = queryBuilder.or(`student_id.ilike.%${safeQ}%,citizen_id.ilike.%${safeQ}%,full_name.ilike.%${safeQ}%,phone_number.ilike.%${safeQ}%`);
           }
-          const { data: stList } = await queryBuilder.limit(10);
+          const { data: stList } = await queryBuilder.order('created_at', { ascending: false }).limit(20);
 
           if (!stList || stList.length === 0) {
-            return { success: true, found: false, students: [] };
+            return {
+              success: true,
+              found: false,
+              students: [],
+              candidates: [],
+              student: null,
+              selectedStudent: null
+            };
           }
 
           const st = stList[0];
@@ -8404,31 +8431,75 @@
             .eq('student_id', st.student_id)
             .order('created_at', { ascending: false });
 
+          const mappedList = stList.map(s => ({
+            studentId: s.student_id,
+            id: s.student_id,
+            fullName: s.full_name,
+            rawName: s.full_name,
+            prefix: s.prefix || '',
+            phone: s.phone_number,
+            phoneNumber: s.phone_number,
+            citizenId: s.citizen_id,
+            smartCardUid: s.smart_card_uid || '',
+            course: s.current_course || 'หลักสูตรทั่วไป',
+            latestCourse: s.current_course || 'หลักสูตรทั่วไป',
+            schedule: s.current_schedule || '-',
+            yearBE: s.year_be || (s.student_id ? ('25' + String(s.student_id).slice(0, 2)) : 2569),
+            latestYearBE: s.year_be || (s.student_id ? ('25' + String(s.student_id).slice(0, 2)) : 2569),
+            term: s.term || (s.student_id ? Number(String(s.student_id).slice(2, 4)) : 4),
+            latestTerm: s.term || (s.student_id ? Number(String(s.student_id).slice(2, 4)) : 4),
+            address: s.address || '',
+            lineId: s.line_id || '',
+            email: s.email || '',
+            status: s.status || 'พร้อมเรียน',
+            deliveryMethod: s.delivery_method || 'รับเอง',
+            photoUrl: s.photo_url || ''
+          }));
+
+          const studentObj = {
+            profile: {
+              studentId: st.student_id,
+              prefix: st.prefix || '',
+              fullName: st.full_name,
+              rawName: st.full_name,
+              citizenId: st.citizen_id,
+              phone: st.phone_number,
+              phoneNumber: st.phone_number,
+              address: st.address || '',
+              smartCardUid: st.smart_card_uid || '',
+              level: st.language_level || '',
+              course: st.current_course || 'หลักสูตรทั่วไป',
+              latestCourse: st.current_course || 'หลักสูตรทั่วไป',
+              schedule: st.current_schedule || '-',
+              yearBE: st.year_be || (st.student_id ? ('25' + String(st.student_id).slice(0, 2)) : 2569),
+              latestYearBE: st.year_be || (st.student_id ? ('25' + String(st.student_id).slice(0, 2)) : 2569),
+              term: st.term || (st.student_id ? Number(String(st.student_id).slice(2, 4)) : 4),
+              latestTerm: st.term || (st.student_id ? Number(String(st.student_id).slice(2, 4)) : 4),
+              lineId: st.line_id || '',
+              email: st.email || '',
+              status: st.status || 'พร้อมเรียน',
+              deliveryMethod: st.delivery_method || 'รับเอง',
+              photoUrl: st.photo_url || ''
+            },
+            receipts: rList || [],
+            courseHistory: (rList || []).filter(r => r.receipt_type === 'tuition').map(r => ({
+              receiptNo: r.receipt_no,
+              courseName: r.item_name,
+              schedule: r.schedule,
+              yearBE: r.year_be,
+              term: r.term,
+              date: r.created_at
+            })),
+            receiptHistory: rList || []
+          };
+
           return {
             success: true,
             found: true,
-            students: stList.map(s => ({
-              studentId: s.student_id,
-              fullName: s.full_name,
-              phone: s.phone_number,
-              citizenId: s.citizen_id,
-              smartCardUid: s.smart_card_uid
-            })),
-            student: {
-              profile: {
-                studentId: st.student_id,
-                prefix: st.prefix,
-                fullName: st.full_name,
-                citizenId: st.citizen_id,
-                phone: st.phone_number,
-                address: st.address,
-                smartCardUid: st.smart_card_uid,
-                level: st.language_level,
-                course: st.current_course,
-                schedule: st.current_schedule
-              },
-              receipts: rList || []
-            }
+            students: mappedList,
+            candidates: mappedList,
+            student: studentObj,
+            selectedStudent: studentObj
           };
         }
 
@@ -8459,18 +8530,45 @@
           if (params.course && params.course !== 'ALL') qb = qb.ilike('current_course', `%${params.course}%`);
           
           const { data: stList } = await qb;
+          const mapped = (stList || []).map(s => {
+            const y = s.year_be || (s.student_id ? ('25' + String(s.student_id).slice(0, 2)) : 2569);
+            const tm = s.term || (s.student_id ? Number(String(s.student_id).slice(2, 4)) : 4);
+            const obj = {
+              studentId: s.student_id,
+              id: s.student_id,
+              prefix: s.prefix || '',
+              fullName: s.full_name || '',
+              rawName: s.full_name || '',
+              citizenId: s.citizen_id || '',
+              phone: s.phone_number || '',
+              phoneNumber: s.phone_number || '',
+              lineId: s.line_id || '-',
+              course: s.current_course || 'หลักสูตรทั่วไป',
+              schedule: s.current_schedule || '-',
+              yearBE: y,
+              term: tm,
+              deliveryMethod: s.delivery_method || 'รับเอง',
+              smartCardUid: s.smart_card_uid || '',
+              status: s.status || 'พร้อมเรียน',
+              address: s.address || '',
+              notes: s.notes || '',
+              email: s.email || '',
+              createdAt: s.created_at || '-'
+            };
+            // Dual compatibility: numeric indices for array callers
+            obj[0] = s.student_id;
+            obj[1] = s.full_name;
+            obj[2] = s.citizen_id;
+            obj[3] = s.phone_number;
+            obj[4] = s.current_course || '-';
+            obj[5] = s.current_schedule || '-';
+            obj[6] = s.created_at || '-';
+            obj[7] = s.status || 'Active';
+            return obj;
+          });
           return {
             success: true,
-            students: (stList || []).map(s => [
-              s.student_id,
-              s.full_name,
-              s.citizen_id,
-              s.phone_number,
-              s.current_course || '-',
-              s.current_schedule || '-',
-              s.created_at || '-',
-              s.status || 'Active'
-            ]),
+            students: mapped,
             availableYears: ['2569', '2568', '2567'],
             availableCourses: ['HSK 1', 'HSK 2', 'HSK 3', 'HSK 4', 'HSK 5', 'HSK 6']
           };
@@ -9748,6 +9846,10 @@
             const savedStudentId = res.studentId || studentId;
             toast('ลงทะเบียนสำเร็จ', 'รหัสนักศึกษา: ' + savedStudentId, '✓');
             hideDuplicateWarningBox();
+            cachedSearchStudentsData = [];
+            if (typeof loadAllStudentsStatus === 'function') {
+              try { loadAllStudentsStatus(true); } catch (_) {}
+            }
 
             // ตรวจสอบตัวเลือก One-Stop Flow
             const chkAuto = document.getElementById('chkAutoOpenReceiptAfterEnroll');
@@ -10564,7 +10666,10 @@
 
       // 1. กรองตามปีการศึกษา
       if (selYear !== 'ALL') {
-        filtered = filtered.filter(s => String(s.yearBE).trim() === selYear);
+        filtered = filtered.filter(s => {
+          const y = String(s.yearBE || (s.studentId ? ('25' + String(s.studentId).slice(0, 2)) : '')).trim();
+          return y === selYear;
+        });
       }
 
       // 2. กรองตามวิธีรับตำราเรียน
@@ -10582,11 +10687,12 @@
       // 3. กรองตามสถานะ
       if (selStatus !== 'ALL') {
         filtered = filtered.filter(s => {
-          const st = s.status || '';
+          const st = (s.status || '').trim();
+          const stUp = st.toUpperCase();
           if (selStatus === 'พร้อมเรียน') {
-            return st === 'พร้อมเรียน' || st === 'ปกติ' || st === 'ลงทะเบียนเรียบร้อย';
+            return st === 'พร้อมเรียน' || st === 'ปกติ' || st === 'ลงทะเบียนเรียบร้อย' || stUp === 'ACTIVE';
           }
-          return st.indexOf(selStatus) !== -1;
+          return st.indexOf(selStatus) !== -1 || stUp.indexOf(selStatus.toUpperCase()) !== -1;
         });
       }
 
@@ -10690,16 +10796,17 @@
       let html = '';
       for (let i = 0; i < students.length; i++) {
         const s = students[i];
-        const studentId = s.studentId || '-';
+        const studentId = s.studentId || (Array.isArray(s) ? s[0] : '-') || '-';
         const prefix = s.prefix || '';
-        const fullName = s.fullName || s.rawName || '-';
-        const phone = s.phone || '-';
+        const fullName = s.fullName || s.rawName || (Array.isArray(s) ? s[1] : '-') || '-';
+        const phone = s.phone || s.phoneNumber || (Array.isArray(s) ? s[3] : '-') || '-';
         const lineId = s.lineId || '-';
-        const course = s.course || 'หลักสูตรทั่วไป';
-        const schedule = s.schedule || '-';
-        const yearBE = s.yearBE || '-';
-        const term = s.term || '-';
-        const status = s.status || 'พร้อมเรียน';
+        const course = s.course || (Array.isArray(s) ? s[4] : 'หลักสูตรทั่วไป') || 'หลักสูตรทั่วไป';
+        const schedule = s.schedule || (Array.isArray(s) ? s[5] : '-') || '-';
+        const yearBE = s.yearBE || (studentId !== '-' ? ('25' + String(studentId).slice(0, 2)) : '-');
+        const term = s.term || (studentId !== '-' ? Number(String(studentId).slice(2, 4)) : '-');
+        let status = (s.status || (Array.isArray(s) ? s[7] : 'พร้อมเรียน') || 'พร้อมเรียน').trim();
+        if (status.toUpperCase() === 'ACTIVE') status = 'พร้อมเรียน';
 
         // วิธีรับตำรา
         const m = s.deliveryMethod || '';
