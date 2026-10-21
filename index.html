@@ -8201,7 +8201,13 @@
             const num = parseInt(latest[0].student_id.slice(-4), 10);
             if (!isNaN(num)) seq = num + 1;
           }
-          return prefix + String(seq).padStart(4, '0');
+          const nextStudentId = prefix + String(seq).padStart(4, '0');
+          return {
+            success: true,
+            studentId: nextStudentId,
+            nextStudentId: nextStudentId,
+            id: nextStudentId
+          };
         }
 
         // --- 5. GENERATE RECEIPT NUMBER ---
@@ -8221,7 +8227,12 @@
             const num = parseInt(latest[0].receipt_no.slice(-4), 10);
             if (!isNaN(num)) seq = num + 1;
           }
-          return prefix + String(seq).padStart(4, '0');
+          const nextReceiptNo = prefix + String(seq).padStart(4, '0');
+          return {
+            success: true,
+            receiptNo: nextReceiptNo,
+            nextReceiptNo: nextReceiptNo
+          };
         }
 
         // --- 6. REGISTER STUDENT (WITH CONCURRENCY RETRY & ENHANCED DUP DETECTION) ---
@@ -9191,21 +9202,28 @@
 
     // Student ID Generation (YYTTNNNN เช่น 69050001, 69050599)
     function calcNextStudentId() {
-      const yearBE = document.getElementById('selYear').value;
-      const term = document.getElementById('selTerm').value;
-      const yy = yearBE.slice(-2);
-      const tt = ('0' + (parseInt(term, 10) || 5)).slice(-2);
-      const studentId = yy + tt + '0001';
+      const selYear = document.getElementById('selYear');
+      const selTerm = document.getElementById('selTerm');
+      const yearBE = selYear ? selYear.value : '2569';
+      const term = selTerm ? selTerm.value : '4';
+      const yy = String(yearBE).slice(-2);
+      const tt = ('0' + (parseInt(term, 10) || 4)).slice(-2);
 
-      document.getElementById('txtStudentId').textContent = studentId;
-      const _lblP1 = document.getElementById('lblPhotoName'); if (_lblP1) _lblP1.textContent = studentId + '_photo.jpg';
+      const txtEl = document.getElementById('txtStudentId');
+      const lblPhoto = document.getElementById('lblPhotoName');
 
       callGasApi('generateStudentId', { year: yearBE, term: term })
         .then(res => {
-          if (res && res.studentId) {
-            document.getElementById('txtStudentId').textContent = res.studentId;
-            const _lblP2 = document.getElementById('lblPhotoName'); if (_lblP2) _lblP2.textContent = res.studentId + '_photo.jpg';
-          }
+          const generatedId = (res && (res.studentId || res.nextStudentId || res.id)) ?
+            (res.studentId || res.nextStudentId || res.id) :
+            (typeof res === 'string' && res.trim() ? res.trim() : (yy + tt + '0001'));
+
+          if (txtEl) txtEl.textContent = generatedId;
+          if (lblPhoto) lblPhoto.textContent = generatedId + '_photo.jpg';
+        })
+        .catch(err => {
+          console.warn('Failed to fetch next student ID:', err);
+          if (txtEl && !txtEl.textContent) txtEl.textContent = yy + tt + '0001';
         });
     }
 
@@ -9960,6 +9978,13 @@
       if (successCard) successCard.style.display = 'none';
       const form = document.getElementById('enrollForm');
       if (form) form.reset();
+      if (typeof initAcademicYearSelect === 'function') initAcademicYearSelect();
+      photoDataUri = '';
+      const preview = document.getElementById('capturedPreview');
+      if (preview) preview.style.display = 'none';
+      const camPlaceholder = document.getElementById('camPlaceholder');
+      if (camPlaceholder) camPlaceholder.style.display = 'block';
+      calcNextStudentId();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
