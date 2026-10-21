@@ -2656,6 +2656,32 @@
       70% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
       100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
     }
+
+    /* Courses Table Scrollbar and Sticky Header */
+    #boxCoursesTableWrap::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    #boxCoursesTableWrap::-webkit-scrollbar-track {
+      background: rgba(1, 35, 28, 0.6);
+      border-radius: 4px;
+    }
+    #boxCoursesTableWrap::-webkit-scrollbar-thumb {
+      background: rgba(215, 166, 0, 0.35);
+      border-radius: 4px;
+      border: 1px solid rgba(215, 166, 0, 0.2);
+    }
+    #boxCoursesTableWrap::-webkit-scrollbar-thumb:hover {
+      background: var(--color-gold);
+    }
+    #tableCourses thead th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: #022a21 !important;
+      box-shadow: 0 1px 0 rgba(215, 166, 0, 0.2);
+    }
+
 </style>
 </head>
 <body>
@@ -4001,23 +4027,35 @@
           <div class="oca-mgmt-grid">
             <!-- Courses List Card -->
             <div class="oca-chart-card">
-              <div class="oca-chart-header" style="display:flex; justify-content:space-between; align-items:center;">
-                <span><i class="fa-solid fa-book-open" style="color:var(--color-gold); margin-right:6px;"></i>คอร์สเรียนทั้งหมด (Courses)</span>
-                <span id="coursesCountBadge" class="oca-badge-status-active" style="font-size:12px;">0 คอร์ส</span>
+              <div class="oca-chart-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-book-open" style="color:var(--color-gold);"></i>
+                  <span style="font-weight:700;">คอร์สเรียนทั้งหมด (Courses)</span>
+                  <span id="coursesCountBadge" class="oca-badge-status-active" style="font-size:12px;">0 คอร์ส</span>
+                </div>
+                
+                <!-- Search Box for Courses -->
+                <div style="display:flex; align-items:center; gap:6px; flex:1; max-width:320px; position:relative; min-width:200px;">
+                  <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:rgba(215,166,0,0.65); font-size:12px; pointer-events:none;"></i>
+                  <input type="text" id="inpSearchCourses" class="oca-input" placeholder="ค้นหารหัสคอร์ส, ชื่อ, อุปกรณ์..." oninput="filterCoursesTable(this.value)" style="height:32px; font-size:12px; padding-left:30px; padding-right:28px; border-radius:6px; background:rgba(0,0,0,0.25); border:1px solid rgba(215,166,0,0.3); width:100%;">
+                  <button type="button" id="btnClearSearchCourses" onclick="document.getElementById('inpSearchCourses').value=''; filterCoursesTable(''); this.style.display='none';" style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px; padding:2px;" title="ล้างการค้นหา">✕</button>
+                </div>
               </div>
-              <div style="overflow-x:auto;">
-                <table class="oca-table" style="width:100%;" id="tableCourses">
+
+              <!-- Scrollable Courses Table Container -->
+              <div id="boxCoursesTableWrap" style="max-height:480px; overflow-y:auto; overflow-x:auto; border-radius:6px; border:1px solid rgba(215,166,0,0.18); background:rgba(0,0,0,0.12);">
+                <table class="oca-table" style="width:100%; border-collapse:collapse;" id="tableCourses">
                   <thead>
                     <tr>
                       <th style="width:90px;">รหัสคอร์ส</th>
                       <th>ชื่อคอร์ส</th>
-                      <th style="width:170px;">อุปกรณ์ที่ได้รับ</th>
+                      <th style="width:180px;">อุปกรณ์ที่ได้รับ</th>
                       <th style="width:110px; text-align:right;">ราคา (บาท)</th>
                       <th style="width:110px; text-align:center;">จัดการ</th>
                     </tr>
                   </thead>
                   <tbody id="tbodyCourses">
-                    <tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">กำลังโหลดข้อมูลคอร์สเรียน...</td></tr>
+                    <tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">กำลังโหลดข้อมูลคอร์สเรียน...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -11852,23 +11890,61 @@
       }
     }
 
-    function renderCoursesTable(courses) {
+    function filterCoursesTable(query) {
+      const q = (query || '').trim().toLowerCase();
+      const btnClear = document.getElementById('btnClearSearchCourses');
+      if (btnClear) btnClear.style.display = q ? 'block' : 'none';
+
+      if (!Array.isArray(cachedCoursesList)) return;
+      if (!q) {
+        renderCoursesTable(cachedCoursesList);
+        return;
+      }
+      const filtered = cachedCoursesList.filter(c => {
+        const id = (c.id || '').toLowerCase();
+        const code = (c.code || '').toLowerCase();
+        const name = (c.name || '').toLowerCase();
+        const desc = (c.desc || '').toLowerCase();
+        const mat = (c.linked_book || c.materialType || '').toLowerCase();
+        const level = (c.level || '').toLowerCase();
+        const price = String(c.price || '');
+        return id.includes(q) || code.includes(q) || name.includes(q) || desc.includes(q) || mat.includes(q) || level.includes(q) || price.includes(q);
+      });
+      renderCoursesTable(filtered, q);
+    }
+
+    function renderCoursesTable(courses, searchQuery = '') {
       const tbody = document.getElementById('tbodyCourses');
       const badge = document.getElementById('coursesCountBadge');
       if (!tbody) return;
 
+      const totalCount = Array.isArray(cachedCoursesList) ? cachedCoursesList.length : (courses ? courses.length : 0);
+
       if (!courses || courses.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">ยังไม่มีคอร์สเรียนในระบบ กรุณากด "+ เพิ่มคอร์สใหม่"</td></tr>';
-        if (badge) badge.textContent = '0 คอร์ส';
+        if (searchQuery) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px 15px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px; color:var(--color-gold);"></i>ไม่พบคอร์สเรียนที่ตรงกับคำค้นหา "<span style="color:#FAF0D7;">' + escapeHtml(searchQuery) + '</span>"</td></tr>';
+          if (badge) badge.textContent = '0 / ' + toArabicDigits(totalCount) + ' คอร์ส';
+        } else {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">ยังไม่มีคอร์สเรียนในระบบ กรุณากด "+ เพิ่มคอร์สใหม่"</td></tr>';
+          if (badge) badge.textContent = '0 คอร์ส';
+        }
         return;
       }
 
-      if (badge) badge.textContent = toArabicDigits(courses.length) + ' คอร์ส';
+      if (badge) {
+        if (searchQuery) {
+          badge.textContent = toArabicDigits(courses.length) + ' / ' + toArabicDigits(totalCount) + ' คอร์ส';
+        } else {
+          badge.textContent = toArabicDigits(courses.length) + ' คอร์ส';
+        }
+      }
+
       tbody.innerHTML = courses.map(c =>
         '<tr>' +
           '<td><strong style="color:var(--color-gold-light); font-family:monospace;">' + escapeHtml(c.id) + '</strong></td>' +
           '<td>' +
             '<div style="font-weight:600; color:#FFFFFF;">' + escapeHtml(c.name) + '</div>' +
+            (c.level ? ('<div style="font-size:11.5px; color:var(--color-gold);">' + escapeHtml(c.level) + '</div>') : '') +
             (c.desc ? ('<div style="font-size:12px; color:var(--text-muted);">' + escapeHtml(c.desc) + '</div>') : '') +
           '</td>' +
           '<td>' +
@@ -19596,7 +19672,7 @@
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
-      navigator.serviceWorker.register('./sw.js?v=6').then(function(reg) {
+      navigator.serviceWorker.register('./sw.js?v=7').then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
