@@ -4640,7 +4640,7 @@
                 <div style="display:flex; gap:8px; align-items:center;">
                   <div style="position:relative; flex:1; min-width:0;">
                     <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--color-gold); font-size:13px; pointer-events:none;"></i>
-                    <input type="text" id="inpRcptStudentSearch" class="oca-input" placeholder="ค้นหานักเรียน (รหัส 8 หลัก, เลขบัตร 13 หลัก, ชื่อ-สกุล)..." oninput="onReceiptStudentSearchInput(this.value)" autocomplete="off" style="width:100%; height:36px; font-size:13px; padding:6px 32px 6px 32px; border:1.5px solid rgba(215,166,0,0.35); border-radius:8px; background:rgba(0,0,0,0.35); box-sizing:border-box;">
+                    <input type="text" id="inpRcptStudentSearch" class="oca-input" placeholder="ค้นหานักเรียน (รหัส 8 หลัก, เลขบัตร 13 หลัก, ชื่อ-สกุล หรือแตะบัตร)..." oninput="onReceiptStudentSearchInput(this.value)" onkeydown="if(event.key==='Enter') onReceiptStudentSearchNow(this.value)" autocomplete="off" style="width:100%; height:36px; font-size:13px; padding:6px 32px 6px 32px; border:1.5px solid rgba(215,166,0,0.35); border-radius:8px; background:rgba(0,0,0,0.35); box-sizing:border-box;">
                     <button type="button" id="btnClearRcptSearch" onclick="clearReceiptStudentSearch()" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:14px; display:none; padding:4px;"><i class="fa-solid fa-xmark"></i></button>
                   </div>
                   <button type="button" class="oca-btn-cancel-custom" style="flex-shrink:0; height:36px; padding:0 12px; font-size:12px; font-weight:600; border:1px solid var(--border-soft); border-radius:8px; background:rgba(255,255,255,0.06); color:var(--text-main); cursor:pointer; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;" onclick="selectReceiptExternalBuyer()">
@@ -8767,9 +8767,22 @@
           const q = rawQ.replace(/[,()"]/g, ' ').trim();
           if (!q) return { found: false, isDuplicate: false, duplicates: [] };
 
+          const cleanQ = q.replace(/[^0-9A-Za-z]/g, '');
+          const orList = [
+            `student_id.eq.${q}`,
+            `citizen_id.eq.${q}`,
+            `phone_number.eq.${q}`,
+            `smart_card_uid.eq.${q}`,
+            `smart_card_uid.ilike.%${q}%`
+          ];
+          if (cleanQ && cleanQ !== q) {
+            orList.push(`smart_card_uid.eq.${cleanQ}`);
+            orList.push(`student_id.eq.${cleanQ}`);
+            orList.push(`citizen_id.eq.${cleanQ}`);
+          }
           const { data: found } = await _supabase.from('students')
             .select('*')
-            .or(`student_id.eq.${q},citizen_id.eq.${q},phone_number.eq.${q}`)
+            .or(orList.join(','))
             .limit(5);
 
           const hasMatches = !!(found && found.length > 0);
@@ -8898,7 +8911,36 @@
           let queryBuilder = _supabase.from('students').select('*');
           
           if (safeQ) {
-            queryBuilder = queryBuilder.or(`student_id.ilike.%${safeQ}%,citizen_id.ilike.%${safeQ}%,full_name.ilike.%${safeQ}%,phone_number.ilike.%${safeQ}%`);
+            const cleanQ = safeQ.replace(/[^0-9A-Za-z]/g, '');
+            const orList = [
+              `student_id.ilike.%${safeQ}%`,
+              `citizen_id.ilike.%${safeQ}%`,
+              `full_name.ilike.%${safeQ}%`,
+              `phone_number.ilike.%${safeQ}%`,
+              `smart_card_uid.ilike.%${safeQ}%`
+            ];
+            if (cleanQ && cleanQ !== safeQ) {
+              orList.push(`smart_card_uid.ilike.%${cleanQ}%`);
+              orList.push(`student_id.ilike.%${cleanQ}%`);
+              orList.push(`citizen_id.ilike.%${cleanQ}%`);
+            }
+            // Auto decimal-to-hex and hex-to-decimal RFID conversion for all USB reader models
+            if (/^\d{7,10}$/.test(cleanQ)) {
+              try {
+                const hexVal = Number(cleanQ).toString(16).toUpperCase();
+                if (hexVal && hexVal.length >= 4) {
+                  orList.push(`smart_card_uid.ilike.%${hexVal}%`);
+                }
+              } catch(_) {}
+            } else if (/^[0-9A-Fa-f]{6,10}$/.test(cleanQ)) {
+              try {
+                const decVal = parseInt(cleanQ, 16).toString();
+                if (decVal && decVal.length >= 7) {
+                  orList.push(`smart_card_uid.ilike.%${decVal}%`);
+                }
+              } catch(_) {}
+            }
+            queryBuilder = queryBuilder.or(orList.join(','));
           }
           const { data: stList } = await queryBuilder.order('created_at', { ascending: false }).limit(20);
 
@@ -9642,6 +9684,56 @@
         }
       }
     }
+
+    // Background RFID Reader / Barcode Scanner Keyboard Wedge Listener
+    let _scannerBuffer = '';
+    let _scannerTimer = null;
+    window.addEventListener('keydown', function(e) {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+        return;
+      }
+      const activeTab = document.querySelector('.oca-view-tab.active');
+      if (!activeTab) return;
+      const tabId = activeTab.id;
+
+      if (e.key === 'Enter') {
+        if (_scannerBuffer.length >= 4) {
+          const scannedVal = _scannerBuffer.trim();
+          _scannerBuffer = '';
+          if (_scannerTimer) clearTimeout(_scannerTimer);
+          
+          if (tabId === 'tabCard') {
+            const inp = document.getElementById('inpCardStudentSearch');
+            if (inp) {
+              inp.value = scannedVal;
+              searchStudentsForCard();
+            }
+          } else if (tabId === 'tabReceipts') {
+            const inp = document.getElementById('inpRcptStudentSearch');
+            if (inp) {
+              inp.value = scannedVal;
+              onReceiptStudentSearchNow(scannedVal);
+            }
+          } else if (tabId === 'tabSearch') {
+            const inp = document.getElementById('inpSearchQuery');
+            if (inp) {
+              inp.value = scannedVal;
+              doSearchStatus();
+            }
+          }
+        }
+        _scannerBuffer = '';
+        return;
+      }
+
+      if (e.key && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        _scannerBuffer += e.key;
+        if (_scannerTimer) clearTimeout(_scannerTimer);
+        _scannerTimer = setTimeout(() => {
+          _scannerBuffer = '';
+        }, 350);
+      }
+    });
 
     // Global Hotkey: กด '/' บนคีย์บอร์ดเพื่อโฟกัสช่องค้นหาหลักของแท็บที่กำลังเปิดอยู่
     document.addEventListener('keydown', function(e) {
@@ -13269,9 +13361,30 @@
           const resultsBox = document.getElementById('cardSearchResultsBox');
           if (!resultsBox) return;
 
-          if (!res || !res.students || res.students.length === 0) {
+          let students = (res && res.students) || [];
+
+          // Local fallback check against cached data (supports offline & real-time cache)
+          if (students.length === 0 && Array.isArray(cachedSearchStudentsData) && cachedSearchStudentsData.length > 0) {
+            const cleanQ = q.replace(/[^0-9A-Za-z]/g, '').toLowerCase();
+            students = cachedSearchStudentsData.filter(s => {
+              const card = (s.smartCardUid || '').replace(/[^0-9A-Za-z]/g, '').toLowerCase();
+              const sid = (s.studentId || '').toLowerCase();
+              const cid = (s.citizenId || '').toLowerCase();
+              const nm = (s.fullName || s.rawName || '').toLowerCase();
+              return (cleanQ && (card === cleanQ || card.indexOf(cleanQ) !== -1 || sid === cleanQ || cid === cleanQ)) || (nm && nm.indexOf(q.toLowerCase()) !== -1);
+            });
+          }
+
+          if (students.length === 0) {
             resultsBox.style.display = 'block';
-            resultsBox.innerHTML = '<div style="padding:12px; text-align:center; color:var(--text-muted); font-size:13px;">ไม่พบข้อมูลนักศึกษาตามเงื่อนไขที่ระบุ</div>';
+            resultsBox.innerHTML = '<div style="padding:12px; text-align:center; color:var(--text-muted); font-size:13px;"><i class="fa-solid fa-triangle-exclamation" style="color:var(--color-gold); margin-right:6px;"></i>ไม่พบข้อมูลนักศึกษาตามเงื่อนไขที่ระบุ (ค้นหาด้วยรหัสนักศึกษา, ชื่อ, บัตรประชาชน หรือแตะบัตร Mifare 1K)</div>';
+            return;
+          }
+
+          // If exact single match found from card tap or search, auto-select immediately!
+          if (students.length === 1) {
+            selectStudentForCard(students[0]);
+            toast('พบข้อมูลนักศึกษา!', (students[0].fullName || students[0].studentId) + ' (เลือกอัตโนมัติ)', '✓');
             return;
           }
 
@@ -14371,6 +14484,38 @@
      * ค้นหาข้อมูลนักเรียนสำหรับออกใบเสร็จและต่อคอร์ส (ไม่ต้องเลือกปีการศึกษา)
      * @param {string} query
      */
+    function onReceiptStudentSearchNow(query) {
+      const q = (query || '').trim();
+      if (!q) return;
+      if (receiptSearchTimer) clearTimeout(receiptSearchTimer);
+      const dropdown = document.getElementById('listRcptSearchResults');
+      if (dropdown) {
+        dropdown.style.display = 'block';
+        dropdown.innerHTML = '<div style="padding:12px; text-align:center; color:var(--text-muted); font-size:12px;">⏳ กำลังค้นหาข้อมูลนักเรียน...</div>';
+      }
+      callGasApi('getStudentProfileAndHistory', { query: q })
+        .then(res => {
+          if (res && res.success && Array.isArray(res.candidates) && res.candidates.length > 0) {
+            if (res.candidates.length === 1) {
+              selectReceiptStudent(res.candidates[0].studentId);
+              if (dropdown) dropdown.style.display = 'none';
+              showToast('พบข้อมูลนักเรียน!', res.candidates[0].fullName + ' (รหัส ' + toArabicDigits(res.candidates[0].studentId) + ')', '✓');
+            } else {
+              renderReceiptSearchResults(res.candidates, q);
+            }
+          } else {
+            if (dropdown) {
+              dropdown.innerHTML = '<div style="padding:12px; text-align:center; color:var(--text-muted); font-size:12px;">ไม่พบข้อมูลนักเรียน</div>';
+            }
+          }
+        })
+        .catch(err => {
+          if (dropdown) {
+            dropdown.innerHTML = '<div style="padding:12px; text-align:center; color:#ef4444; font-size:12px;">เกิดข้อผิดพลาดในการค้นหา</div>';
+          }
+        });
+    }
+
     function onReceiptStudentSearchInput(query) {
       const q = (query || '').trim();
       const btnClear = document.getElementById('btnClearRcptSearch');
