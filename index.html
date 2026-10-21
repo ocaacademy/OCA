@@ -8832,15 +8832,39 @@
 
         // --- 8. SAVE RECEIPT / RENEWAL ---
         if (action === 'saveReceipt' || action === 'renewStudentCourseAndReceipt') {
+          const rcYear = Number(params.yearBE) || 2569;
+          const rcTerm = Number(params.term) || 5;
+          const rcPrefix = String(rcYear).slice(-2) + String(rcTerm).padStart(2, '0');
+
+          let assignedRcNo = (params.receiptNo && String(params.receiptNo).trim() !== '' && params.receiptNo !== '-' && params.receiptNo !== 'null' && params.receiptNo !== 'undefined')
+            ? String(params.receiptNo).trim()
+            : '';
+
+          // If no valid receipt number was provided by client, auto-generate next sequence immediately
+          if (!assignedRcNo) {
+            const { data: latestRc } = await _supabase.from('receipts')
+              .select('receipt_no')
+              .like('receipt_no', `${rcPrefix}%`)
+              .order('receipt_no', { ascending: false })
+              .limit(1);
+            let nextRcSeq = 1;
+            if (latestRc && latestRc.length > 0 && latestRc[0].receipt_no) {
+              const curRcNum = parseInt(latestRc[0].receipt_no.slice(-4), 10);
+              if (!isNaN(curRcNum)) nextRcSeq = curRcNum + 1;
+            }
+            assignedRcNo = rcPrefix + String(nextRcSeq).padStart(4, '0');
+          }
+
+          const generatedClaimToken = params.claimToken || ('CLAIM-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString().slice(-4));
+
           const receiptData = {
-            receipt_no: params.receiptNo,
             receipt_type: params.type || 'tuition',
             student_id: params.studentId || params.buyerId || undefined,
             buyer_name: params.fullName || params.buyerName || '',
             citizen_id: (params.citizenId || '').toString().replace(/[^0-9A-Za-z]/g, '').slice(0, 13),
             address: params.address || '',
-            year_be: Number(params.yearBE) || 2569,
-            term: Number(params.term) || 5,
+            year_be: rcYear,
+            term: rcTerm,
             item_code: params.itemCode || params.courseId || '',
             item_name: params.itemName || params.courseName || '',
             schedule: params.schedule || params.scheduleName || '',
@@ -8852,24 +8876,25 @@
             discount_other: Number(params.discountOther) || 0,
             grand_total: Number(params.grandTotal) || 0,
             payment_method: params.paymentMethod || 'โอนเงิน',
-            claim_token: params.claimToken || '',
+            claim_token: generatedClaimToken,
             claim_status: params.claimStatus || (params.deliveryMethod === 'ส่งตำรา' ? 'จัดส่งตามที่อยู่' : 'PENDING'),
             material_type: params.materialType || 'หนังสือและสมุด',
             delivery_method: params.deliveryMethod || 'รับเอง',
-            learning_mode: params.learningMode || 'Online'
+            learning_mode: params.learningMode || 'Online',
+            open_date: params.openDate || '',
+            room: params.room || ''
           };
 
           // Optimistic Concurrency Retry for Receipt No (Solves Scenarios 6 & 23)
-          let assignedRcNo = params.receiptNo;
-          const rcYear = Number(params.yearBE) || 2569;
-          const rcTerm = Number(params.term) || 5;
-          const rcPrefix = String(rcYear).slice(-2) + String(rcTerm).padStart(2, '0');
-
+          let isInserted = false;
           for (let attempt = 0; attempt < 10; attempt++) {
             const rcPayload = { ...receiptData, receipt_no: assignedRcNo };
             const { error: rcErr } = await _supabase.from('receipts').insert([rcPayload]);
-            if (!rcErr) break;
-            if (rcErr.code === '23505') {
+            if (!rcErr) {
+              isInserted = true;
+              break;
+            }
+            if (rcErr.code === '23505' || rcErr.code === '23502') {
               const { data: latestRc } = await _supabase.from('receipts')
                 .select('receipt_no')
                 .like('receipt_no', `${rcPrefix}%`)
@@ -8886,27 +8911,45 @@
             }
           }
 
-          if (action === 'renewStudentCourseAndReceipt' && params.studentId) {
-            await _supabase.from('students').update({
-              current_course: params.courseName || params.itemName,
-              current_schedule: params.scheduleName || params.schedule
-            }).eq('student_id', params.studentId);
+          if (!isInserted) {
+            throw new Error('ไม่สามารถบันทึกใบเสร็จได้ กรุณาลองใหม่อีกครั้ง');
+          }
+
+          if (action === 'renewStudentCourseAndReceipt' && (params.studentId || params.buyerId)) {
+            const targetSid = params.studentId || params.buyerId;
+            const updateObj = {
+              current_course: params.courseName || params.itemName || '',
+              current_schedule: params.scheduleName || params.schedule || ''
+            };
+            if (params.yearBE) updateObj.year_be = Number(params.yearBE);
+            if (params.term) updateObj.term = Number(params.term);
+            if (params.address) updateObj.address = params.address;
+            if (params.phone) updateObj.phone_number = params.phone;
+            
+            await _supabase.from('students').update(updateObj).eq('student_id', targetSid);
           }
 
           if (params.email && params.email.includes('@')) {
             setTimeout(() => {
               callSupabaseApi('sendReceiptEmail', {
-                receiptNo: params.receiptNo,
+                receiptNo: assignedRcNo,
                 email: params.email,
                 buyerName: params.fullName || params.buyerName,
                 courseName: params.itemName || params.courseName,
                 schedule: params.schedule || params.scheduleName,
                 grandTotal: params.grandTotal,
-                claimToken: params.claimToken
+                claimToken: generatedClaimToken
               }).catch(e => console.warn('Auto email background notice:', e));
             }, 500);
           }
-          return { success: true, receiptNo: params.receiptNo };
+          return {
+            success: true,
+            receiptNo: assignedRcNo,
+            claimToken: generatedClaimToken,
+            deliveryMethod: receiptData.delivery_method,
+            emailSent: !!(params.email && params.email.includes('@')),
+            email: params.email || ''
+          };
         }
 
         // --- 9. GET RECEIPTS LIST ---
@@ -15606,7 +15649,10 @@
 
       const studentPhone = phone || (currentReceiptStudent && currentReceiptStudent.profile ? currentReceiptStudent.profile.phone : '') || '';
 
+            const currentRcNo = (receiptCurrentOfficialNo && receiptCurrentOfficialNo !== '-' && receiptCurrentOfficialNo.trim() !== '') ? receiptCurrentOfficialNo.trim() : undefined;
+
       const payload = isCourseRenewal ? {
+        receiptNo: currentRcNo,
         studentId: buyerId,
         yearBE: yearBE,
         term: term,
@@ -15641,6 +15687,7 @@
         level: currentReceiptStudent.profile.level || '',
         photoUrl: currentReceiptStudent.profile.photoUrl || ''
       } : {
+        receiptNo: currentRcNo,
         type: receiptCurrentType,
         yearBE: yearBE,
         term: term,
