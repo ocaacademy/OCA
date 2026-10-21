@@ -8092,6 +8092,56 @@
       console.warn('Supabase init notice:', e);
     }
 
+        /**
+     * แปลงข้อมูลใบเสร็จจาก Supabase (snake_case) ให้อยู่ในรูปแบบที่ Frontend ทุกโมดูลเรียกใช้งานได้ (ทั้ง camelCase และ snake_case)
+     * @param {Object} r
+     * @return {Object}
+     */
+    function normalizeReceiptObject(r) {
+      if (!r) return {};
+      const copy = Object.assign({}, r);
+      copy.receiptNo = String(r.receiptNo || r.receipt_no || '');
+      copy.buyerId = String(r.buyerId || r.student_id || r.buyer_id || '');
+      copy.buyerName = String(r.buyerName || r.buyer_name || '');
+      copy.citizenId = String(r.citizenId || r.citizen_id || '');
+      copy.phone = String(r.phone || r.phone_number || '');
+      copy.phoneNumber = copy.phone;
+      copy.email = String(r.email || '');
+      copy.emailStatus = String(r.emailStatus || r.email_status || '');
+      copy.address = String(r.address || r.delivery_address || '');
+      copy.deliveryAddress = copy.address;
+      copy.type = String(r.type || r.receipt_type || 'tuition');
+      copy.receiptType = copy.type;
+      copy.yearBe = r.yearBe || r.year_be || 2569;
+      copy.term = r.term !== undefined ? r.term : 1;
+      copy.itemCode = String(r.itemCode || r.item_code || '');
+      copy.itemName = String(r.itemName || r.item_name || '');
+      copy.schedule = String(r.schedule || '');
+      copy.baseAmount = Number(r.baseAmount !== undefined ? r.baseAmount : (r.base_amount || 0));
+      copy.regFee = Number(r.regFee !== undefined ? r.regFee : (r.reg_fee || 0));
+      copy.cardFee = Number(r.cardFee !== undefined ? r.cardFee : (r.card_fee || 0));
+      copy.otherRegFee = Number(r.otherRegFee !== undefined ? r.otherRegFee : (r.other_reg_fee || 0));
+      copy.discountNormal = Number(r.discountNormal !== undefined ? r.discountNormal : (r.discount_normal || 0));
+      copy.discountOther = Number(r.discountOther !== undefined ? r.discountOther : (r.discount_other || 0));
+      copy.grandTotal = Number(r.grandTotal !== undefined ? r.grandTotal : (r.grand_total || 0));
+      copy.paymentMethod = String(r.paymentMethod || r.payment_method || 'โอนเงิน');
+      copy.paymentRef = r.paymentRef || r.payment_ref || null;
+      copy.claimStatus = String(r.claimStatus || r.claim_status || 'PENDING');
+      copy.claimToken = String(r.claimToken || r.claim_token || '');
+      copy.claimedAt = r.claimedAt || r.claimed_at || null;
+      copy.claimedBy = String(r.claimedBy || r.claimed_by || '');
+      copy.materialType = String(r.materialType || r.material_type || '');
+      copy.deliveryMethod = String(r.deliveryMethod || r.delivery_method || 'รับเอง');
+      copy.learningMode = String(r.learningMode || r.learning_mode || '');
+      copy.openDate = String(r.openDate || r.open_date || '');
+      copy.room = String(r.room || '');
+      copy.trackingNumber = String(r.trackingNumber || r.tracking_number || '');
+      copy.editNotes = String(r.editNotes || r.edit_notes || '');
+      copy.createdAt = r.createdAt || r.created_at || '';
+      copy.updatedAt = r.updatedAt || r.updated_at || '';
+      return copy;
+    }
+
     async function callSupabaseApi(action, params = {}, method = 'GET', isDirectSync = false) {
       // 1. Offline Fast-Path for Write Operations (PWA Cache Engine)
       const writeActions = [
@@ -8978,11 +9028,16 @@
 
         // --- 9. GET RECEIPTS LIST ---
         if (action === 'getReceipts') {
-          const { data } = await _supabase.from('receipts')
+          const { data, error } = await _supabase.from('receipts')
             .select('*')
             .order('created_at', { ascending: false })
-            .limit(100);
-          return { success: true, receipts: data || [] };
+            .limit(500);
+          if (error) {
+            console.error('getReceipts Supabase error:', error);
+            return { success: false, message: error.message, logs: [], receipts: [], data: [] };
+          }
+          const mapped = (data || []).map(r => normalizeReceiptObject(r));
+          return { success: true, receipts: mapped, logs: mapped, data: mapped };
         }
 
         // --- 10. SEARCH STUDENTS FOR CARD / PROFILE ---
@@ -9216,14 +9271,31 @@
 
         // --- 13. VERIFY AND CLAIM TEXTBOOK ---
         if (action === 'verifyAndClaimTextbook') {
-          const token = (params.tokenString || '').trim();
-          if (!token) {
+          const rawInput = (params.tokenString || '').trim();
+          if (!rawInput) {
             return { success: false, message: 'กรุณาระบุหรือสแกนรหัส QR Code ให้ถูกต้อง' };
           }
-          const { data: rList } = await _supabase.from('receipts').select('*').eq('claim_token', token);
-          
+          let candidateRcNo = '';
+          if (rawInput.indexOf('OCA-CLAIM://V1:') === 0) {
+            const parts = rawInput.split(':');
+            if (parts.length >= 3) candidateRcNo = parts[2];
+          } else if (/^\d{6,10}$/.test(rawInput)) {
+            candidateRcNo = rawInput;
+          }
+
+          let rList = null;
+          const { data: d1 } = await _supabase.from('receipts').select('*').eq('claim_token', rawInput).limit(1);
+          if (d1 && d1.length > 0) {
+            rList = d1;
+          } else if (candidateRcNo) {
+            const { data: d2 } = await _supabase.from('receipts').select('*').eq('receipt_no', candidateRcNo).limit(1);
+            if (d2 && d2.length > 0) {
+              rList = d2;
+            }
+          }
+
           if (!rList || rList.length === 0) {
-            return { success: false, message: 'ไม่พบสิทธิ์รับตำราเรียนตาม QR Code นี้' };
+            return { success: false, message: 'ไม่พบสิทธิ์รับตำราเรียนตามรหัสใบเสร็จนี้' };
           }
 
           const rcpt = rList[0];
@@ -9239,31 +9311,69 @@
             };
           }
 
+          // Check Delivery vs Onsite
+          const isDelivery = rcpt.delivery_method === 'ส่งไปตามที่อยู่' || rcpt.delivery_method === 'ส่งตำรา';
+          if (isDelivery) {
+            return {
+              success: false,
+              deliveryOrder: true,
+              itemTitle: rcpt.item_name || 'ตำราเรียน',
+              buyerName: rcpt.buyer_name || '',
+              buyerId: rcpt.student_id || '',
+              receiptNo: rcpt.receipt_no || '',
+              address: rcpt.address || '-'
+            };
+          }
+
           // Scenario 5 & 25: Duplicate claim protection
           if (rcpt.claim_status === 'CLAIMED') {
             return {
               success: false,
               alreadyClaimed: true,
-              message: `ตำราเรียนนี้ถูกจ่ายไปแล้วเมื่อ ${rcpt.claimed_at || '-'} โดยเจ้าหน้าที่ ${rcpt.claimed_by || '-'}`
+              itemTitle: rcpt.item_name || 'ตำราเรียน',
+              materialType: rcpt.material_type || 'หนังสือและสมุด',
+              buyerName: rcpt.buyer_name || '',
+              buyerId: rcpt.student_id || '',
+              receiptNo: rcpt.receipt_no || '',
+              claimedAt: formatThaiDateTime(rcpt.claimed_at),
+              claimedBy: rcpt.claimed_by || 'เจ้าหน้าที่',
+              message: 'ตำราเรียนนี้ถูกจ่ายไปแล้วเมื่อ ' + formatThaiDateTime(rcpt.claimed_at) + ' โดยเจ้าหน้าที่ ' + (rcpt.claimed_by || '-')
             };
           }
 
+          const claimNow = new Date().toISOString();
+          const claimOperator = params.operatorName || 'ฝ่ายทะเบียนและตำราเรียน';
           await _supabase.from('receipts').update({
             claim_status: 'CLAIMED',
-            claimed_at: new Date().toISOString(),
-            claimed_by: params.operatorName || 'ฝ่ายทะเบียน'
+            claimed_at: claimNow,
+            claimed_by: claimOperator
           }).eq('id', rcpt.id);
 
-          return { success: true, receipt: rcpt };
+          return {
+            success: true,
+            receipt: rcpt,
+            itemTitle: rcpt.item_name || 'ตำราเรียน',
+            materialType: rcpt.material_type || 'หนังสือและสมุด',
+            buyerName: rcpt.buyer_name || '',
+            buyerId: rcpt.student_id || '',
+            receiptNo: rcpt.receipt_no || '',
+            claimedAt: formatThaiDateTime(claimNow),
+            claimedBy: claimOperator
+          };
         }
 
         if (action === 'getTextbookClaimLogs') {
-          const { data } = await _supabase.from('receipts')
+          const { data, error } = await _supabase.from('receipts')
             .select('*')
             .eq('claim_status', 'CLAIMED')
             .order('claimed_at', { ascending: false })
-            .limit(50);
-          return { success: true, logs: data || [] };
+            .limit(100);
+          if (error) {
+            console.error('getTextbookClaimLogs Supabase error:', error);
+            return { success: false, message: error.message, logs: [], receipts: [], data: [] };
+          }
+          const mapped = (data || []).map(r => normalizeReceiptObject(r));
+          return { success: true, logs: mapped, receipts: mapped, data: mapped };
         }
 
         // --- 14. SHIPPING ORDERS & CARRIER STATUS ---
@@ -16225,8 +16335,9 @@
         .then(res => {
           const tbody = document.getElementById('tbodyReceiptsHistory');
           if (!tbody) return;
-          if (res && res.success && Array.isArray(res.logs)) {
-            receiptHistoryCachedLogs = res.logs;
+          const rawList = (res && res.success) ? (res.logs || res.receipts || res.data || []) : [];
+          if (Array.isArray(rawList)) {
+            receiptHistoryCachedLogs = rawList.map(r => normalizeReceiptObject(r));
           } else {
             receiptHistoryCachedLogs = [];
           }
@@ -16252,7 +16363,9 @@
 
     function filterReceiptHistoryTable() {
       const inp = document.getElementById('inpRcptHistSearch');
-      const q = (inp ? inp.value : '').trim().toLowerCase();
+      const rawQ = (inp ? inp.value : '').trim();
+      const q = rawQ.toLowerCase();
+      const qClean = rawQ.replace(/[^0-9a-zA-Zก-๙]/g, '').toLowerCase();
       const btnClear = document.getElementById('btnClearRcptHistSearch');
       if (btnClear) btnClear.style.display = q ? 'block' : 'none';
 
@@ -16276,17 +16389,44 @@
         const buyerId = (row.buyerId || '').toLowerCase();
         const buyerName = (row.buyerName || '').toLowerCase();
         const itemName = (row.itemName || '').toLowerCase();
-        const phone = (row.phone || '').toLowerCase();
+        const email = (row.email || '').toLowerCase();
+        const phone = (row.phone || '').replace(/[^0-9]/g, '');
         const citizenId = (row.citizenId || citizenMap.get(String(row.buyerId).trim()) || '').toLowerCase();
+        const citizenClean = citizenId.replace(/[^0-9]/g, '');
+        const claimStatus = (row.claimStatus || '').toLowerCase();
+        const deliveryMethod = (row.deliveryMethod || '').toLowerCase();
 
-        return (
-          rcptNo.indexOf(q) !== -1 ||
-          buyerId.indexOf(q) !== -1 ||
-          buyerName.indexOf(q) !== -1 ||
-          citizenId.indexOf(q) !== -1 ||
-          phone.indexOf(q) !== -1 ||
-          itemName.indexOf(q) !== -1
-        );
+        // 1. Direct text search
+        if (
+          rcptNo.includes(q) ||
+          buyerId.includes(q) ||
+          buyerName.includes(q) ||
+          itemName.includes(q) ||
+          citizenId.includes(q) ||
+          email.includes(q)
+        ) {
+          return true;
+        }
+
+        // 2. Numeric / cleaned search (for phone, citizen ID without dashes, student ID)
+        if (qClean) {
+          if (rcptNo.includes(qClean) || buyerId.includes(qClean)) return true;
+          if (citizenClean && citizenClean.includes(qClean)) return true;
+          if (phone && phone.includes(qClean)) return true;
+        }
+
+        // 3. Textbook claim status search: "รับแล้ว", "รอรับ", "ส่งตำรา", "จัดส่ง"
+        if (q.includes('รับแล้ว') || q === 'claimed') {
+          if (claimStatus === 'claimed') return true;
+        }
+        if (q.includes('รอรับ') || q.includes('ยังไม่รับ') || q === 'pending') {
+          if (claimStatus !== 'claimed' && !deliveryMethod.includes('ส่ง')) return true;
+        }
+        if (q.includes('ส่ง') || q.includes('พัสดุ') || q === 'delivery') {
+          if (deliveryMethod.includes('ส่ง') || (row.deliveryMethod && row.deliveryMethod.includes('พัสดุ'))) return true;
+        }
+
+        return false;
       });
 
       renderReceiptsHistoryTable(filtered, q);
@@ -16939,8 +17079,10 @@
           const tbody = document.getElementById('tbodyClaimHistoryLogs');
           if (!tbody) return;
           tbody.innerHTML = '';
-          if (res && res.success && Array.isArray(res.logs) && res.logs.length > 0) {
-            const claimedLogs = res.logs.filter(l => l.claimStatus === 'CLAIMED');
+          const rawLogs = (res && res.success) ? (res.logs || res.receipts || res.data || []) : [];
+          if (Array.isArray(rawLogs) && rawLogs.length > 0) {
+            const mapped = rawLogs.map(r => normalizeReceiptObject(r));
+            const claimedLogs = mapped.filter(l => l.claimStatus === 'CLAIMED');
             if (claimedLogs.length === 0) {
               tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">ยังไม่มีรายการเคลมรับตำราเรียน</td></tr>';
               return;
@@ -16961,6 +17103,13 @@
             });
           } else {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">ยังไม่มีรายการรับตำราเรียนในระบบ</td></tr>';
+          }
+        })
+        .catch(err => {
+          console.error('loadTextbookClaimLogs error:', err);
+          const tbody = document.getElementById('tbodyClaimHistoryLogs');
+          if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#ef4444;">โหลดประวัติการรับตำราไม่สำเร็จ</td></tr>';
           }
         });
     }
@@ -17380,18 +17529,23 @@
       }
 
       if (val.indexOf('OCA-CLAIM://V1:') !== 0) {
+        const fromCache = Array.isArray(receiptHistoryCachedLogs) ? receiptHistoryCachedLogs.find(l => l.receiptNo === val || toArabicDigits(l.receiptNo) === toArabicDigits(val)) : null;
+        if (fromCache && fromCache.claimToken) {
+          handleScannedQrToken(fromCache.claimToken);
+          return;
+        }
         callGasApi('getReceipts')
           .then(res => {
-            if (res && res.success && Array.isArray(res.logs)) {
-              const match = res.logs.find(l => l.receiptNo === val || toArabicDigits(l.receiptNo) === toArabicDigits(val));
-              if (match && match.claimToken) {
-                handleScannedQrToken(match.claimToken);
-              } else {
-                handleScannedQrToken('OCA-CLAIM://V1:' + val + ':DIRECT');
-              }
+            const list = (res && res.success) ? (res.logs || res.receipts || res.data || []) : [];
+            const match = list.find(l => (l.receiptNo === val || l.receipt_no === val || toArabicDigits(l.receiptNo || l.receipt_no) === toArabicDigits(val)));
+            if (match && (match.claimToken || match.claim_token)) {
+              handleScannedQrToken(match.claimToken || match.claim_token);
             } else {
               handleScannedQrToken('OCA-CLAIM://V1:' + val + ':DIRECT');
             }
+          })
+          .catch(() => {
+            handleScannedQrToken('OCA-CLAIM://V1:' + val + ':DIRECT');
           });
       } else {
         handleScannedQrToken(val);
