@@ -8055,6 +8055,7 @@
       } else if (table === 'fee_settings') {
         if (typeof loadTextbooksData === 'function') loadTextbooksData();
         if (typeof loadReceiptBooksDropdown === 'function') loadReceiptBooksDropdown();
+        if (typeof loadCoursesManager === 'function') loadCoursesManager(true);
       } else if (table === 'schedules') {
         if (typeof loadCoursesManager === 'function') loadCoursesManager(false);
       }
@@ -8504,13 +8505,21 @@
           }));
           
           const feeObj = {};
+          const feeNames = {
+            regFee: 'ค่าลงทะเบียนแรกเข้า',
+            cardFee: 'ค่าบัตรนักเรียน Smart Card',
+            otherRegFee: 'ค่าลงทะเบียนอื่นๆ',
+            discountNormal: 'ส่วนลดโปรโมชันปกติ',
+            discountOther: 'ส่วนลดอื่นๆ'
+          };
           if (fees) {
             fees.forEach(f => {
               if (f.key && !f.key.startsWith('tb:')) {
+                const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 feeObj[f.key] = {
                   amount: f.amount,
-                  name: f.name,
-                  mode: f.mode || 'always',
+                  name: f.name || feeNames[f.key] || f.key,
+                  mode: normMode,
                   startDate: f.start_date || '',
                   endDate: f.end_date || ''
                 };
@@ -8518,11 +8527,16 @@
             });
           }
 
+          const fullFeeSettings = {
+            ...feeObj,
+            items: feeObj
+          };
+
           return {
             success: true,
             courses: mappedCourses,
             schedules: schedules || [],
-            feeSettings: feeObj,
+            feeSettings: fullFeeSettings,
             termOpenDates: (() => {
               const termDates = {
                 "1": "1 ม.ค. 2569",
@@ -9436,33 +9450,56 @@
 
         if (action === 'saveFeeSettings') {
           const feeKeys = ['regFee', 'cardFee', 'otherRegFee', 'discountNormal', 'discountOther'];
+          const feeNames = {
+            regFee: 'ค่าลงทะเบียนแรกเข้า',
+            cardFee: 'ค่าบัตรนักเรียน Smart Card',
+            otherRegFee: 'ค่าลงทะเบียนอื่นๆ',
+            discountNormal: 'ส่วนลดโปรโมชันปกติ',
+            discountOther: 'ส่วนลดอื่นๆ'
+          };
           const items = params.items || {};
           const updates = [];
           feeKeys.forEach(k => {
             const it = items[k] || {};
             const amt = it.amount !== undefined ? Number(it.amount) : (params[k] !== undefined ? Number(params[k]) : 0);
+            const m = (it.mode === 'period' || it.mode === 'dateRange') ? 'period' : 'always';
             updates.push({
               key: k,
+              name: feeNames[k] || k,
               amount: amt,
-              mode: it.mode || 'always',
-              start_date: it.startDate || null,
-              end_date: it.endDate || null,
+              mode: m,
+              start_date: (m === 'period' && it.startDate) ? it.startDate : null,
+              end_date: (m === 'period' && it.endDate) ? it.endDate : null,
               updated_at: new Date().toISOString()
             });
           });
 
-          for (const u of updates) {
-            await _supabase.from('fee_settings').upsert([u], { onConflict: 'key' });
+          const { error: upsertErr } = await _supabase.from('fee_settings').upsert(updates, { onConflict: 'key' });
+          if (upsertErr) {
+            console.error('[Supabase saveFeeSettings error]', upsertErr);
           }
 
           const { data: fees } = await _supabase.from('fee_settings').select('*');
           const feeObj = {};
           if (fees) {
             fees.forEach(f => {
-              feeObj[f.key] = { amount: f.amount, name: f.name, mode: f.mode, startDate: f.start_date, endDate: f.end_date };
+              if (f.key && !f.key.startsWith('tb:')) {
+                const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
+                feeObj[f.key] = {
+                  amount: f.amount,
+                  name: f.name || feeNames[f.key] || f.key,
+                  mode: normMode,
+                  startDate: f.start_date || '',
+                  endDate: f.end_date || ''
+                };
+              }
             });
           }
-          return { success: true, feeSettings: feeObj, message: 'บันทึกค่าธรรมเนียมและส่วนลดสำเร็จ' };
+          const fullFeeSettings = {
+            ...feeObj,
+            items: feeObj
+          };
+          return { success: true, feeSettings: fullFeeSettings, message: 'บันทึกค่าธรรมเนียมและส่วนลดสำเร็จ' };
         }
 
         if (action === 'saveTermOpenDates') {
@@ -12741,7 +12778,8 @@
           } else {
             amount = defaultAmounts[k];
           }
-          mode = typeof raw.mode === 'string' ? raw.mode : 'always';
+          const rawMode = typeof raw.mode === 'string' ? raw.mode : 'always';
+          mode = (rawMode === 'period' || rawMode === 'dateRange') ? 'period' : 'always';
           startDate = typeof raw.startDate === 'string' ? raw.startDate : (typeof raw.start_date === 'string' ? raw.start_date : '');
           endDate = typeof raw.endDate === 'string' ? raw.endDate : (typeof raw.end_date === 'string' ? raw.end_date : '');
         } else if (typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== '' && !isNaN(Number(raw)))) {
