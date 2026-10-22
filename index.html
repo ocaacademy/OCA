@@ -8624,6 +8624,85 @@
     }
 
     async function callSupabaseApi(action, params = {}, method = 'GET', isDirectSync = false) {
+      // Internal sanitizers & safe helpers for Supabase operations
+      const extractCleanId = (val) => {
+        if (!val) return '';
+        if (typeof val === 'string') {
+          const s = val.trim();
+          return (s === '[object Object]' || s === 'null' || s === 'undefined') ? '' : s;
+        }
+        if (typeof val === 'number') return String(val).trim();
+        if (typeof val === 'object') {
+          const c = val.studentId || val.receiptNo || val.nextStudentId || val.nextReceiptNo || val.id || val.code || '';
+          if (c && typeof c === 'string') return c.trim();
+          if (c && typeof c === 'number') return String(c).trim();
+          return '';
+        }
+        return String(val).trim();
+      };
+
+      const safeFormatThaiDateTime = (raw) => {
+        if (!raw) return '-';
+        if (typeof formatThaiDateTime === 'function') {
+          try { return formatThaiDateTime(raw); } catch (_) {}
+        }
+        try {
+          const str = String(raw).trim();
+          if (/^\d{1,2}\/\d{1,2}\/\d{4}.*น\./.test(str)) return str;
+          const d = new Date(str);
+          if (isNaN(d.getTime())) return str;
+          const pad = n => String(n).padStart(2, '0');
+          let y = d.getFullYear();
+          if (y < 2400) y += 543;
+          return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${y} ${pad(d.getHours())}:${pad(d.getMinutes())} น.`;
+        } catch (_) {
+          return String(raw);
+        }
+      };
+
+      const safeNormalizeReceipt = (r) => {
+        if (!r) return {};
+        if (typeof safeNormalizeReceipt === 'function') {
+          try { return safeNormalizeReceipt(r); } catch (_) {}
+        }
+        const copy = Object.assign({}, r);
+        copy.receiptNo = String(r.receiptNo || r.receipt_no || '');
+        copy.buyerId = String(r.buyerId || r.student_id || r.buyer_id || '');
+        copy.buyerName = String(r.buyerName || r.buyer_name || '');
+        copy.citizenId = String(r.citizenId || r.citizen_id || '');
+        copy.phone = String(r.phone || r.phone_number || '');
+        copy.phoneNumber = copy.phone;
+        copy.email = String(r.email || '');
+        copy.emailStatus = String(r.emailStatus || r.email_status || '');
+        copy.address = String(r.address || r.delivery_address || '');
+        copy.deliveryAddress = copy.address;
+        copy.type = String(r.type || r.receipt_type || 'tuition');
+        copy.receiptType = copy.type;
+        copy.yearBe = r.yearBe || r.year_be || 2569;
+        copy.term = r.term !== undefined ? r.term : 1;
+        copy.itemCode = String(r.itemCode || r.item_code || '');
+        copy.itemName = String(r.itemName || r.item_name || '');
+        copy.schedule = String(r.schedule || '');
+        copy.baseAmount = Number(r.baseAmount !== undefined ? r.baseAmount : (r.base_amount || 0));
+        copy.regFee = Number(r.regFee !== undefined ? r.regFee : (r.reg_fee || 0));
+        copy.cardFee = Number(r.cardFee !== undefined ? r.cardFee : (r.card_fee || 0));
+        copy.otherRegFee = Number(r.otherRegFee !== undefined ? r.otherRegFee : (r.other_reg_fee || 0));
+        copy.discountNormal = Number(r.discountNormal !== undefined ? r.discountNormal : (r.discount_normal || 0));
+        copy.discountOther = Number(r.discountOther !== undefined ? r.discountOther : (r.discount_other || 0));
+        copy.grandTotal = Number(r.grandTotal !== undefined ? r.grandTotal : (r.grand_total || 0));
+        copy.paymentMethod = String(r.paymentMethod || r.payment_method || 'โอนเงิน');
+        copy.claimToken = String(r.claimToken || r.claim_token || '');
+        copy.claimStatus = String(r.claimStatus || r.claim_status || 'PENDING');
+        copy.materialType = String(r.materialType || r.material_type || 'หนังสือและสมุด');
+        copy.deliveryMethod = String(r.deliveryMethod || r.delivery_method || 'รับเอง');
+        copy.learningMode = String(r.learningMode || r.learning_mode || 'Online');
+        copy.openDate = String(r.openDate || r.open_date || '');
+        copy.room = String(r.room || '');
+        copy.claimedAt = r.claimed_at || r.claimedAt || '';
+        copy.claimedBy = r.claimed_by || r.claimedBy || '';
+        return copy;
+      };
+
       // 1. Offline Fast-Path for Write Operations (PWA Cache Engine)
       const writeActions = [
         'register', 'saveReceipt', 'renewStudentCourseAndReceipt',
@@ -9225,7 +9304,9 @@
             success: true,
             studentId: nextStudentId,
             nextStudentId: nextStudentId,
-            id: nextStudentId
+            id: nextStudentId,
+            toString() { return nextStudentId; },
+            valueOf() { return nextStudentId; }
           };
         }
 
@@ -9250,7 +9331,9 @@
           return {
             success: true,
             receiptNo: nextReceiptNo,
-            nextReceiptNo: nextReceiptNo
+            nextReceiptNo: nextReceiptNo,
+            toString() { return nextReceiptNo; },
+            valueOf() { return nextReceiptNo; }
           };
         }
 
@@ -9285,7 +9368,8 @@
           const termNo = Number(params.term) || 5;
           const idPrefix = String(yearBE).slice(-2) + String(termNo);
 
-          let assignedStudentId = params.studentId || (idPrefix + '0001');
+          const rawPassedSid = extractCleanId(params.studentId);
+          let assignedStudentId = rawPassedSid || (idPrefix + '0001');
 
           const studentData = {
             year_be: yearBE,
@@ -9309,7 +9393,7 @@
           // Optimistic Concurrency Retry Loop (Solves Scenarios 6 & 23)
           let insSuccess = false;
           for (let attempt = 0; attempt < 10; attempt++) {
-            const studentPayload = { ...studentData, student_id: assignedStudentId };
+            const studentPayload = { ...studentData, student_id: String(assignedStudentId).trim() };
             const { error: insErr } = await _supabase.from('students').insert([studentPayload]);
             if (!insErr) {
               insSuccess = true;
@@ -9397,9 +9481,7 @@
           const rcTerm = Number(params.term) || 5;
           const rcPrefix = String(rcYear).slice(-2) + String(rcTerm).padStart(2, '0');
 
-          let assignedRcNo = (params.receiptNo && String(params.receiptNo).trim() !== '' && params.receiptNo !== '-' && params.receiptNo !== 'null' && params.receiptNo !== 'undefined')
-            ? String(params.receiptNo).trim()
-            : '';
+          let assignedRcNo = extractCleanId(params.receiptNo);
 
           // If no valid receipt number was provided by client, auto-generate next sequence immediately
           if (!assignedRcNo) {
@@ -9416,18 +9498,28 @@
             assignedRcNo = rcPrefix + String(nextRcSeq).padStart(4, '0');
           }
 
+          // Foreign Key Safe Check: verify student_id exists in students table
+          const rawSid = extractCleanId(params.studentId || params.buyerId);
+          let validStudentId = null;
+          if (rawSid) {
+            const { data: stCheck } = await _supabase.from('students').select('student_id').eq('student_id', rawSid).limit(1);
+            if (stCheck && stCheck.length > 0) {
+              validStudentId = rawSid;
+            }
+          }
+
           const generatedClaimToken = params.claimToken || ('CLAIM-' + Math.random().toString(36).substring(2, 8).toUpperCase() + '-' + Date.now().toString().slice(-4));
 
           const receiptData = {
             receipt_type: params.type || 'tuition',
-            student_id: params.studentId || params.buyerId || undefined,
+            student_id: validStudentId,
             buyer_name: params.fullName || params.buyerName || '',
             citizen_id: (params.citizenId || '').toString().replace(/[^0-9A-Za-z]/g, '').slice(0, 13),
             address: params.address || '',
             year_be: rcYear,
             term: rcTerm,
             item_code: params.itemCode || params.courseId || '',
-            item_name: params.itemName || params.courseName || '',
+            item_name: params.itemName || params.courseName || params.title || 'ค่าเล่าเรียนและอุปกรณ์',
             schedule: params.schedule || params.scheduleName || '',
             base_amount: Number(params.baseAmount) || 0,
             reg_fee: Number(params.regFee) || 0,
@@ -9478,8 +9570,8 @@
             throw new Error('ไม่สามารถบันทึกใบเสร็จได้ กรุณาลองใหม่อีกครั้ง');
           }
 
-          if (action === 'renewStudentCourseAndReceipt' && (params.studentId || params.buyerId)) {
-            const targetSid = params.studentId || params.buyerId;
+          if (action === 'renewStudentCourseAndReceipt' && validStudentId) {
+            const targetSid = validStudentId;
             const updateObj = {
               current_course: params.courseName || params.itemName || '',
               current_schedule: params.scheduleName || params.schedule || ''
@@ -9516,6 +9608,7 @@
           return {
             success: true,
             receiptNo: assignedRcNo,
+            studentId: validStudentId,
             claimToken: generatedClaimToken,
             deliveryMethod: receiptData.delivery_method,
             emailSent: emailSentResult,
@@ -9534,7 +9627,7 @@
             console.error('getReceipts Supabase error:', error);
             return { success: false, message: error.message, logs: [], receipts: [], data: [] };
           }
-          const mapped = (data || []).map(r => normalizeReceiptObject(r));
+          const mapped = (data || []).map(r => safeNormalizeReceipt(r));
           return { success: true, receipts: mapped, logs: mapped, data: mapped };
         }
 
@@ -9602,7 +9695,7 @@
             .select('*')
             .eq('student_id', st.student_id)
             .order('created_at', { ascending: false });
-          const rList = (rawRList || []).map(r => normalizeReceiptObject(r));
+          const rList = (rawRList || []).map(r => safeNormalizeReceipt(r));
 
           const mappedList = stList.map(s => ({
             studentId: s.student_id,
@@ -9678,7 +9771,7 @@
         // --- 11. UPDATE STUDENT PROFILE & CARD UID ---
         if (action === 'updateStudentCardUid') {
           const targetUid = (params.smartCardUid || params.cardUid || '').trim().toUpperCase();
-          const targetId = (params.studentId || '').trim();
+          const targetId = extractCleanId(params.studentId);
           if (!targetId) return { success: false, message: 'ไม่พบรหัสนักศึกษา' };
           const { error } = await _supabase.from('students')
             .update({ smart_card_uid: targetUid, updated_at: new Date().toISOString() })
@@ -9711,7 +9804,7 @@
 
           const { error } = await _supabase.from('students')
             .update(updateData)
-            .eq('student_id', params.studentId);
+            .eq('student_id', extractCleanId(params.studentId));
           return { success: !error };
         }
 
@@ -9834,9 +9927,9 @@
               buyerName: rcpt.buyer_name || '',
               buyerId: rcpt.student_id || '',
               receiptNo: rcpt.receipt_no || '',
-              claimedAt: formatThaiDateTime(rcpt.claimed_at),
+              claimedAt: safeFormatThaiDateTime(rcpt.claimed_at),
               claimedBy: rcpt.claimed_by || 'เจ้าหน้าที่',
-              message: 'ตำราเรียนนี้ถูกจ่ายไปแล้วเมื่อ ' + formatThaiDateTime(rcpt.claimed_at) + ' โดยเจ้าหน้าที่ ' + (rcpt.claimed_by || '-')
+              message: 'ตำราเรียนนี้ถูกจ่ายไปแล้วเมื่อ ' + safeFormatThaiDateTime(rcpt.claimed_at) + ' โดยเจ้าหน้าที่ ' + (rcpt.claimed_by || '-')
             };
           }
 
@@ -9856,7 +9949,7 @@
             buyerName: rcpt.buyer_name || '',
             buyerId: rcpt.student_id || '',
             receiptNo: rcpt.receipt_no || '',
-            claimedAt: formatThaiDateTime(claimNow),
+            claimedAt: safeFormatThaiDateTime(claimNow),
             claimedBy: claimOperator
           };
         }
@@ -9871,7 +9964,7 @@
             console.error('getTextbookClaimLogs Supabase error:', error);
             return { success: false, message: error.message, logs: [], receipts: [], data: [] };
           }
-          const mapped = (data || []).map(r => normalizeReceiptObject(r));
+          const mapped = (data || []).map(r => safeNormalizeReceipt(r));
           return { success: true, logs: mapped, receipts: mapped, data: mapped };
         }
 
@@ -10015,7 +10108,7 @@
 
         // --- 15.5 DELETE STUDENT (WITH FINANCIAL INTEGRITY PRESERVATION) ---
         if (action === 'deleteStudent') {
-          const sId = (params.studentId || '').trim();
+          const sId = extractCleanId(params.studentId);
           if (!sId) return { success: false, message: 'กรุณาระบุรหัสนักเรียน' };
 
           const { data: st } = await _supabase.from('students').select('*').eq('student_id', sId).limit(1);
@@ -10157,7 +10250,7 @@
 
         // --- 18. UPDATE RECEIPT (COURSE CHANGE & EDIT INTEGRITY) ---
         if (action === 'updateReceipt') {
-          const rcNo = params.receiptNo;
+          const rcNo = extractCleanId(params.receiptNo);
           if (!rcNo) return { success: false, message: 'ไม่พบเลขที่ใบเสร็จ' };
 
           const { data: existing } = await _supabase.from('receipts').select('*').eq('receipt_no', rcNo).limit(1);
