@@ -5172,15 +5172,15 @@
             <div style="min-width:0;">
               <div class="no-print" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
                 <div style="display:inline-flex; background:rgba(0,0,0,0.35); padding:3px; border-radius:8px; border:1px solid var(--border-soft);">
-                  <button type="button" id="btnToggleRcptDigital" class="oca-type-toggle-btn active" onclick="switchReceiptPreviewMode('digital')" style="padding:5px 14px; font-size:12px; border-radius:6px; font-weight:700; cursor:pointer;">
-                    <i class="fa-solid fa-mobile-screen" style="margin-right:5px; color:var(--color-gold);"></i> ใบเสร็จอิเล็กทรอนิกส์ (E-Receipt)
+                  <button type="button" id="btnToggleRcptContinuous" class="oca-type-toggle-btn active" onclick="switchReceiptPreviewMode('continuous')" style="padding:5px 14px; font-size:12px; border-radius:6px; font-weight:700; cursor:pointer;">
+                    <i class="fa-solid fa-print" style="margin-right:5px; color:var(--color-gold);"></i> กระดาษต่อเนื่อง (Dot-Matrix)
                   </button>
-                  <button type="button" id="btnToggleRcptContinuous" class="oca-type-toggle-btn" onclick="switchReceiptPreviewMode('continuous')" style="padding:5px 14px; font-size:12px; border-radius:6px; font-weight:700; cursor:pointer;">
-                    <i class="fa-solid fa-print" style="margin-right:5px;"></i> กระดาษต่อเนื่อง (Dot-Matrix)
+                  <button type="button" id="btnToggleRcptDigital" class="oca-type-toggle-btn" onclick="switchReceiptPreviewMode('digital')" style="padding:5px 14px; font-size:12px; border-radius:6px; font-weight:700; cursor:pointer;">
+                    <i class="fa-solid fa-mobile-screen" style="margin-right:5px;"></i> ใบเสร็จอิเล็กทรอนิกส์ (E-Receipt)
                   </button>
                 </div>
                 <div style="font-size:11.5px; color:var(--color-gold); display:inline-flex; align-items:center; gap:4px;">
-                  <i class="fa-solid fa-circle-check" style="color:#10b981;"></i> แบบ E-Receipt เป็นแบบเดียวกับที่จัดส่งเข้าอีเมล 100%
+                  <i class="fa-solid fa-circle-check" style="color:#10b981;"></i> แบบกระดาษต่อเนื่อง Dot-Matrix เป็นแบบทางการที่จัดส่งเข้าอีเมลนักเรียน 100% พร้อม QR Code สแกนรับตำรา
                 </div>
               </div>
 
@@ -5278,7 +5278,7 @@
               </div>
 
               <!-- VIEW B: Live Dot-Matrix Continuous Form Receipt Preview (Matching Image) -->
-              <div id="receiptPrintArea" style="display:none; overflow-x:auto; padding:4px;">
+              <div id="receiptPrintArea" style="display:block; overflow-x:auto; padding:4px;">
                 <div class="oca-continuous-receipt" id="viewContinuousReceipt">
                 <!-- Tractor feed margin holes (left & right) -->
                 <div class="oca-receipt-tractor left"></div>
@@ -6590,7 +6590,7 @@
                 </div>
                 <div>
                   <div style="font-size:15px; font-weight:700; color:#ffffff;">ส่งอีเมลใบเสร็จรับเงิน</div>
-                  <div style="font-size:12px; color:var(--text-muted);">E-Receipt Delivery (System Popup)</div>
+                  <div style="font-size:12px; color:var(--text-muted);">ส่งใบเสร็จรับเงินกระดาษต่อเนื่อง (Dot-Matrix Paper Receipt) เข้าอีเมลนักเรียน</div>
                 </div>
               </div>
               <button type="button" style="background:transparent; border:none; color:var(--text-muted); font-size:18px; cursor:pointer;" onclick="closeSendReceiptEmailModal()">
@@ -6617,7 +6617,7 @@
                 </label>
                 <input type="email" id="inpModalSendRcptEmail" class="oca-input" style="height:42px; font-size:13.5px;" placeholder="example@gmail.com" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmSendReceiptEmail();}">
                 <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">
-                  * ระบบจะจัดส่งใบเสร็จรับเงินฉบับสมบูรณ์พร้อม QR Code และลิงก์ไปยังอีเมลนี้
+                  * ระบบจะจัดส่งใบเสร็จรับเงินกระดาษต่อเนื่อง Dot-Matrix พร้อม QR Code สแกนรับตำราเรียน ไปยังอีเมลนี้
                 </div>
               </div>
 
@@ -8876,7 +8876,7 @@
         return { success: true };
       }
 
-      // --- 19. SEND RECEIPT VIA EMAIL (BREVO AUTO DISPATCH 300/DAY) ---
+      // --- 19. SEND RECEIPT VIA EMAIL (OFFICIAL CONTINUOUS DOT-MATRIX PAPER FORMAT) ---
       if (action === 'sendReceiptEmail') {
         const rcptNo = (params.receiptNo || '').toString().trim();
         const targetEmail = (params.email || '').toString().trim();
@@ -8902,77 +8902,230 @@
         const studentId = (rcpt && rcpt.student_id) || params.studentId || '-';
         const courseName = (rcpt && rcpt.item_name) || params.courseName || '-';
         const scheduleName = (rcpt && rcpt.schedule) || params.schedule || '-';
-        const grandTotal = Number((rcpt && rcpt.grand_total) || params.grandTotal || 0).toLocaleString();
+        const rawGrandTotal = Number((rcpt && rcpt.grand_total) || params.grandTotal || 0);
+        const grandTotalFormatted = rawGrandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const rawBaseAmount = Number((rcpt && rcpt.amount) || params.baseAmount || rawGrandTotal);
+        const baseAmountFormatted = rawBaseAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const regFee = Number((rcpt && rcpt.reg_fee) || params.regFee || 0);
+        const cardFee = Number((rcpt && rcpt.card_fee) || params.cardFee || 0);
+        const otherFee = Number((rcpt && rcpt.other_fee) || params.otherRegFee || 0);
+        const discount = Number((rcpt && rcpt.discount) || params.discount || 0);
+        const subTotal = rawBaseAmount + regFee + cardFee + otherFee;
+        const subTotalFormatted = subTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const discountFormatted = discount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const term = (rcpt && rcpt.term) || params.term || '5';
+        const yearBE = (rcpt && rcpt.year_be) || params.yearBE || '2569';
+        const learningMode = (rcpt && rcpt.learning_mode) || params.learningMode || 'Online';
         const claimToken = (rcpt && rcpt.claim_token) || params.claimToken || '-';
-        const claimStatus = (rcpt && rcpt.claim_status) || 'พร้อมรับตำราเรียน';
-        const paymentMethod = (rcpt && rcpt.payment_method) || 'โอนเงิน';
+        const paymentMethod = (rcpt && rcpt.payment_method) || params.payMethod || 'โอนเงิน';
         const dateStr = (rcpt && rcpt.created_at) ? new Date(rcpt.created_at).toLocaleDateString('th-TH') : new Date().toLocaleDateString('th-TH');
 
-        const subject = `[ใบเสร็จรับเงิน] Oriental Culture Academy (東方文化書院) - เลขที่ ${rcptNo}`;
+        const thaiBahtWords = (typeof bahtText === 'function') ? bahtText(rawGrandTotal) : '-';
+
+        let additionalRowsHtml = '';
+        if (regFee > 0) {
+          additionalRowsHtml += `
+            <tr>
+              <td style="padding:6px 10px; border-bottom:1px solid #e2e8f0; color:#475569;">ค่าธรรมเนียมการลงทะเบียน / ค่าลงทะเบียนแรกเข้า</td>
+              <td style="padding:6px 10px; text-align:right; border-bottom:1px solid #e2e8f0; font-family:monospace; color:#0284c7;">${regFee.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>`;
+        }
+        if (cardFee > 0) {
+          additionalRowsHtml += `
+            <tr>
+              <td style="padding:6px 10px; border-bottom:1px solid #e2e8f0; color:#475569;">ค่าทำบัตรประจำตัวนักเรียน Smart Card</td>
+              <td style="padding:6px 10px; text-align:right; border-bottom:1px solid #e2e8f0; font-family:monospace; color:#0284c7;">${cardFee.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>`;
+        }
+        if (otherFee > 0) {
+          additionalRowsHtml += `
+            <tr>
+              <td style="padding:6px 10px; border-bottom:1px solid #e2e8f0; color:#475569;">ค่าลงทะเบียนอื่นๆ</td>
+              <td style="padding:6px 10px; text-align:right; border-bottom:1px solid #e2e8f0; font-family:monospace; color:#0284c7;">${otherFee.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>`;
+        }
+
+        let discountRowHtml = '';
+        if (discount > 0) {
+          discountRowHtml = `
+            <tr>
+              <td style="padding:6px 10px; text-align:right; color:#dc2626; border-bottom:1px solid #e2e8f0;">หัก ส่วนลดปกติ / Less: Discount:</td>
+              <td style="padding:6px 10px; text-align:right; color:#dc2626; border-bottom:1px solid #e2e8f0; font-family:monospace; font-weight:700;">-${discountFormatted}</td>
+            </tr>`;
+        }
+
+        const subject = `[ใบเสร็จรับเงิน] โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (東方文化書院) - เลขที่ ${rcptNo}`;
         
+        // Official Continuous Dot-Matrix Paper Receipt HTML Template
         const htmlReceipt = `
-<div style="font-family:'Noto Sans Thai', Arial, sans-serif; max-width:620px; margin:0 auto; background:#01231C; color:#FAF0D7; border:2px solid #D7A600; border-radius:14px; overflow:hidden;">
-  <div style="background:linear-gradient(135deg, #02231B 0%, #063c2f 100%); padding:24px; text-align:center; border-bottom:2px solid #D7A600;">
-    <h1 style="color:#D7A600; margin:0 0 4px 0; font-size:22px; font-weight:800; letter-spacing:1px;">ORIENTAL CULTURE ACADEMY</h1>
-    <div style="color:#E5CCA2; font-size:16px; font-weight:700;">東方文化書院 · โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก</div>
-    <div style="font-size:12px; color:#94a3b8; margin-top:4px;">ใบเสร็จรับเงินอิเล็กทรอนิกส์ (Official E-Receipt)</div>
-  </div>
-  <div style="padding:24px;">
-    <table style="width:100%; border-collapse:collapse; margin-bottom:18px; font-size:13.5px;">
-      <tr>
-        <td style="padding:4px 0; color:#cbd5e1;">เลขที่ใบเสร็จ:</td>
-        <td style="padding:4px 0; text-align:right; font-weight:700; color:#D7A600; font-family:monospace; font-size:15px;">${rcptNo}</td>
-      </tr>
-      <tr>
-        <td style="padding:4px 0; color:#cbd5e1;">วันที่ออกเอกสาร:</td>
-        <td style="padding:4px 0; text-align:right; color:#ffffff;">${dateStr}</td>
-      </tr>
-      <tr>
-        <td style="padding:4px 0; color:#cbd5e1;">รหัสนักศึกษา:</td>
-        <td style="padding:4px 0; text-align:right; font-weight:700; color:#ffffff; font-family:monospace;">${studentId}</td>
-      </tr>
-      <tr>
-        <td style="padding:4px 0; color:#cbd5e1;">ชื่อผู้เรียน:</td>
-        <td style="padding:4px 0; text-align:right; font-weight:700; color:#ffffff;">${buyerName}</td>
-      </tr>
-    </table>
-    <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-size:13.5px; background:rgba(255,255,255,0.03); border-radius:8px; overflow:hidden;">
-      <thead>
-        <tr style="background:rgba(215,166,0,0.15); color:#D7A600; text-align:left;">
-          <th style="padding:10px 12px; font-weight:700;">รายการ</th>
-          <th style="padding:10px 12px; text-align:right; font-weight:700;">จำนวนเงิน</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-          <td style="padding:12px;">
-            <div style="font-weight:700; color:#ffffff;">${courseName}</div>
-            <div style="font-size:12px; color:#94a3b8; margin-top:2px;">รอบเวลา: ${scheduleName}</div>
-          </td>
-          <td style="padding:12px; text-align:right; font-weight:700; color:#ffffff;">${grandTotal} บาท</td>
-        </tr>
-      </tbody>
-      <tfoot>
-        <tr style="background:rgba(215,166,0,0.2); color:#D7A600; font-size:15px;">
-          <td style="padding:12px; font-weight:800;">ยอดชำระสุทธิ (Grand Total)</td>
-          <td style="padding:12px; text-align:right; font-weight:800; font-family:monospace; font-size:17px; color:#10B981;">${grandTotal} บาท</td>
-        </tr>
-      </tfoot>
-    </table>
-    <div style="background:rgba(2,132,199,0.12); border:1.5px dashed #0284c7; border-radius:10px; padding:18px 14px; text-align:center; margin-bottom:20px;">
-      <div style="color:#38bdf8; font-weight:700; font-size:14px; margin-bottom:4px;">สิทธิ์รับตำราเรียน / สื่อการสอน (Textbook Claim)</div>
-      <div style="font-size:12px; color:#cbd5e1; margin-bottom:8px;">รหัส Token สำหรับแสดงต่อเจ้าหน้าที่เพื่อเบิกตำราเรียน:</div>
-      <div style="display:inline-block; background:#01231C; border:1px solid #38bdf8; color:#38bdf8; font-family:monospace; font-size:15px; font-weight:800; padding:6px 18px; border-radius:20px; letter-spacing:1px; margin-bottom:12px;">${claimToken}</div>
-      <div style="margin:6px auto 10px auto; padding:8px; background:#ffffff; border:2px solid #38bdf8; border-radius:10px; display:inline-block; box-shadow:0 4px 12px rgba(0,0,0,0.3);">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(claimToken)}" width="150" height="150" alt="QR Code รับตำราเรียน" style="display:block; margin:0 auto;" />
-      </div>
-      <div style="font-size:11.5px; color:#94a3b8; line-height:1.4;">📱 แสดง QR Code นี้ต่อเจ้าหน้าที่ ณ สถาบัน เพื่อสแกนรับตำราเรียน (สแกนรับได้ 1 ครั้ง)</div>
-    </div>
-    <div style="font-size:11.5px; color:#94a3b8; line-height:1.5;">
-      * เอกสารนี้เป็นใบเสร็จรับเงินอิเล็กทรอนิกส์ออกโดย Oriental Culture Academy<br>
-      * ช่องทางชำระเงิน: ${paymentMethod} | ติดต่อฝ่ายทะเบียน โทร. 02-214-5555
-    </div>
-  </div>
+<div style="background:#f1f5f9; padding:24px 8px; font-family:'Noto Sans Thai', 'Prompt', Tahoma, Arial, sans-serif;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" style="max-width:640px; width:100%; margin:0 auto; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:4px; box-shadow:0 4px 16px rgba(0,0,0,0.06); border-collapse:collapse; overflow:hidden;">
+    <tr>
+      <!-- Left Tractor Margin (Continuous Paper Holes) -->
+      <td style="width:22px; background:#f8fafc; border-right:1px dashed #cbd5e1; text-align:center; vertical-align:top; padding:12px 0; color:#94a3b8; font-size:11px; line-height:24px; user-select:none;">
+        ○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○
+      </td>
+
+      <!-- Main Dot-Matrix Receipt Body -->
+      <td style="padding:22px 20px; vertical-align:top; background:#ffffff;">
+        <!-- Header: Centered Academy Branding & Seal -->
+        <div style="text-align:center; margin-bottom:12px;">
+          <img src="https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-kJVDLKednw7P" alt="OCA Seal" style="height:58px; width:auto; display:block; margin:0 auto 6px auto;" />
+          <div style="font-family:'Kaiti', 'STKaiti', serif; font-size:24px; font-weight:700; color:#0f172a; letter-spacing:5px; line-height:1.2;">
+            東 方 文 化 書 院
+          </div>
+          <div style="font-size:16px; font-weight:800; color:#0f172a; margin-top:3px; letter-spacing:0.5px;">
+            วิทยสถานแห่งวัฒนธรรมตะวันออก
+          </div>
+          <div style="font-size:12px; font-weight:700; color:#334155; margin-top:2px; letter-spacing:1px;">
+            ORIENTAL CULTURE ACADEMY (OCA)
+          </div>
+          <div style="font-size:11.5px; color:#475569; margin-top:4px; line-height:1.45;">
+            64/28 ถ.รองเมือง ซอย 1 แขวงรองเมือง เขตปทุมวัน กรุงเทพมหานคร 10330
+          </div>
+          <div style="font-size:11px; color:#475569; margin-top:3px; line-height:1.45;">
+            โทรศัพท์: 02-216-2826, 02-216-2827, 02-216-2828 | Line: @OCANIHAO | Facebook: Oriental Culture Academy (OCA)
+          </div>
+        </div>
+
+        <!-- Receipt Title & Meta Box Row -->
+        <div style="border-top:1.5px dashed #cbd5e1; padding-top:10px; margin-bottom:12px;">
+          <table style="width:100%; border-collapse:collapse;">
+            <tr>
+              <td style="vertical-align:middle;">
+                <div style="font-size:18px; font-weight:800; color:#0f172a; letter-spacing:1px;">
+                  ใบเสร็จรับเงิน / RECEIPT
+                </div>
+                <div style="font-size:11px; color:#64748b; margin-top:2px;">
+                  (เอกสารทางการกระดาษต่อเนื่อง Dot-Matrix)
+                </div>
+              </td>
+              <td style="text-align:right; vertical-align:middle;">
+                <div style="display:inline-block; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:6px 12px; font-size:11.5px; text-align:right; line-height:1.45;">
+                  <div>เลขที่ / No. <strong style="color:#0284c7; font-family:monospace; font-size:13px;">${rcptNo}</strong></div>
+                  <div style="margin-top:2px;">ภาค/ปี / Term: <strong style="color:#0284c7;">เทอม ${term} / ปี ${yearBE}</strong></div>
+                  <div style="margin-top:2px;">วันที่ / Date: <strong style="color:#0284c7;">${dateStr}</strong></div>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Student / Payer Details -->
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:4px; padding:8px 12px; margin-bottom:12px; font-size:12.5px;">
+          <table style="width:100%; border-collapse:collapse;">
+            <tr>
+              <td style="color:#334155;">
+                ได้รับเงินจาก / Received From: <strong style="color:#0284c7; font-size:13px;">${buyerName}</strong>
+              </td>
+              <td style="text-align:right; color:#334155;">
+                รหัสประจำตัว / ID: <strong style="color:#0284c7; font-family:monospace; font-size:13px;">${studentId}</strong>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Table of Items (Dot-Matrix Style) -->
+        <table style="width:100%; border-collapse:collapse; margin-bottom:10px; font-size:12.5px;">
+          <thead>
+            <tr style="background:#f8fafc; border-top:1.5px solid #0f172a; border-bottom:1.5px solid #0f172a; color:#0f172a;">
+              <th style="padding:8px 10px; text-align:left; font-weight:700;">รายการ / Description</th>
+              <th style="padding:8px 10px; text-align:right; font-weight:700; width:140px;">จำนวนเงิน / Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:9px 10px; border-bottom:1px solid #e2e8f0;">
+                <div style="font-weight:700; color:#0f172a;">${courseName}</div>
+                <div style="font-size:11.5px; color:#64748b; margin-top:2px;">รอบเวลา: ${scheduleName}</div>
+              </td>
+              <td style="padding:9px 10px; text-align:right; border-bottom:1px solid #e2e8f0; font-family:monospace; font-weight:700; color:#0284c7;">
+                ${baseAmountFormatted}
+              </td>
+            </tr>
+            ${additionalRowsHtml}
+            <tr style="background:#f8fafc;">
+              <td style="padding:6px 10px; text-align:right; font-weight:600; color:#334155; border-bottom:1px solid #e2e8f0;">
+                รวมเงิน / Total:
+              </td>
+              <td style="padding:6px 10px; text-align:right; font-family:monospace; font-weight:700; color:#0284c7; border-bottom:1px solid #e2e8f0;">
+                ${subTotalFormatted}
+              </td>
+            </tr>
+            ${discountRowHtml}
+            <tr style="border-top:1.5px solid #0f172a; border-bottom:2px double #0f172a; background:#f8fafc;">
+              <td style="padding:9px 10px; font-weight:800; color:#0f172a; font-size:13px;">
+                จำนวนเงินรวมทั้งสิ้น / Net Total:
+              </td>
+              <td style="padding:9px 10px; text-align:right; font-weight:800; font-family:monospace; font-size:15px; color:#0284c7;">
+                ${grandTotalFormatted} บาท
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Thai Baht Words Box -->
+        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; padding:6px 12px; margin-bottom:10px; font-size:12px; color:#1e293b;">
+          จำนวนเงินตัวอักษร / (Baht in words): <strong>( <span style="color:#0284c7;">${thaiBahtWords}</span> )</strong>
+        </div>
+
+        <!-- Payment Method & Learning Mode -->
+        <table style="width:100%; border-collapse:collapse; margin-bottom:12px; font-size:11.5px; color:#334155;">
+          <tr>
+            <td>
+              ชำระโดย: <strong style="color:#0284c7;">[✓] ${paymentMethod}</strong>
+            </td>
+            <td style="text-align:right;">
+              รูปแบบการเรียน: <strong style="color:#0284c7;">${learningMode}</strong>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Textbook Claim Box (One-Time QR Code) -->
+        <div style="border:1.5px dashed #0284c7; background:#f0f9ff; border-radius:6px; padding:12px; margin-bottom:14px; text-align:center;">
+          <div style="font-size:12.5px; font-weight:700; color:#0369a1; margin-bottom:3px;">
+            สิทธิ์รับตำราและอุปกรณ์การเรียน (One-Time Claim)
+          </div>
+          <div style="font-size:11.5px; color:#475569; margin-bottom:6px;">
+            รหัส Token: <strong style="font-family:monospace; color:#0284c7; font-size:13px; letter-spacing:0.5px;">${claimToken}</strong>
+          </div>
+          <div style="display:inline-block; padding:6px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; margin:2px auto 6px auto;">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=2&data=${encodeURIComponent(claimToken)}" width="125" height="125" alt="QR Code รับตำราเรียน" style="display:block; margin:0 auto;" />
+          </div>
+          <div style="font-size:11px; color:#64748b; line-height:1.4;">
+            📱 แสดง QR Code นี้ต่อเจ้าหน้าที่ ณ สถาบัน เพื่อสแกนรับตำราและอุปกรณ์การเรียน (รับได้ 1 ครั้ง)
+          </div>
+        </div>
+
+        <!-- Official Signatures Row -->
+        <table style="width:100%; border-collapse:collapse; margin:14px 0 10px 0; font-size:11.5px; color:#475569;">
+          <tr>
+            <td style="width:50%; text-align:center; padding:8px 10px;">
+              <div style="width:150px; border-bottom:1px dashed #64748b; margin:0 auto 6px auto;"></div>
+              <div>( .................................................. )</div>
+              <div style="font-weight:700; color:#0f172a; margin-top:2px;">ผู้รับเงิน / Cashier (การเงิน OCA)</div>
+            </td>
+            <td style="width:50%; text-align:center; padding:8px 10px;">
+              <div style="width:150px; border-bottom:1px dashed #64748b; margin:0 auto 6px auto;"></div>
+              <div>( .................................................. )</div>
+              <div style="font-weight:700; color:#0f172a; margin-top:2px;">ผู้จ่ายเงิน / Payer</div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Footer Disclaimer -->
+        <div style="border-top:1px solid #e2e8f0; padding-top:8px; text-align:center; font-size:10.5px; color:#64748b; line-height:1.45;">
+          * เอกสารใบเสร็จรับเงินกระดาษต่อเนื่อง ออกโดยระบบบริหารจัดการ สถาบันภาษาและวัฒนธรรมตะวันออก (OCA)<br>
+          หากมีข้อสงสัยเกี่ยวกับใบเสร็จหรือการเรียน กรุณาติดต่อฝ่ายทะเบียน โทร. 02-216-2826 ถึง 8
+        </div>
+      </td>
+
+      <!-- Right Tractor Margin (Continuous Paper Holes) -->
+      <td style="width:22px; background:#f8fafc; border-left:1px dashed #cbd5e1; text-align:center; vertical-align:top; padding:12px 0; color:#94a3b8; font-size:11px; line-height:24px; user-select:none;">
+        ○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○
+      </td>
+    </tr>
+  </table>
 </div>`;
 
         // Direct Brevo API Call
@@ -9009,7 +9162,7 @@
               
             await _supabase.from('security_audit_logs').insert([{
               action: 'RECEIPT_EMAIL_SENT',
-              details: `ส่งใบเสร็จ ${rcptNo} ไปยัง ${targetEmail} (Brevo: ${isBrevoSent ? 'SUCCESS' : 'FALLBACK'})`,
+              details: `ส่งใบเสร็จกระดาษต่อเนื่อง ${rcptNo} ไปยัง ${targetEmail} (Brevo: ${isBrevoSent ? 'SUCCESS' : 'FALLBACK'})`,
               device_id: (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : 'OCA-CLIENT'
             }]);
           } catch(e) {}
@@ -9019,7 +9172,7 @@
           success: true,
           isBrevoSent: isBrevoSent,
           message: isBrevoSent 
-            ? `ส่งใบเสร็จรับเงินเข้าอีเมล ${targetEmail} สำเร็จเรียบร้อยแล้ว` 
+            ? `ส่งใบเสร็จรับเงินกระดาษต่อเนื่องเข้าอีเมล ${targetEmail} สำเร็จเรียบร้อยแล้ว` 
             : `จัดเตรียมใบเสร็จรับเงินส่งไปยัง ${targetEmail} เรียบร้อยแล้ว`
         };
       }
@@ -16554,7 +16707,7 @@
     /**
      * บันทึกหรือส่งออกใบเสร็จรับเงินเป็นรูปภาพ PNG ความละเอียดสูง (2x) ตามแบบภาพในระบบ 100%
      */
-    let currentReceiptPreviewMode = 'digital';
+    let currentReceiptPreviewMode = 'continuous';
     function switchReceiptPreviewMode(mode) {
       currentReceiptPreviewMode = mode;
       const btnDig = document.getElementById('btnToggleRcptDigital');
