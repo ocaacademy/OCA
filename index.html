@@ -10340,11 +10340,96 @@
         }
 
         // --- 18. STAFF USERS & SECURITY ---
-        if (action === 'getUsersList' || action === 'saveUser' || action === 'deleteUser') {
-          const { data } = await _supabase.from('staff_users')
-            .select('id, username, full_name, email, role, is_active, created_at, permissions')
-            .order('created_at', { ascending: true });
-          return { success: true, users: data || [] };
+        if (action === 'getUsersList') {
+          try {
+            const { data, error } = await _supabase.from('staff_users')
+              .select('id, username, full_name, email, role, is_active, created_at')
+              .order('created_at', { ascending: true });
+            
+            if (error) {
+              console.warn('getUsersList database warning:', error.message);
+            }
+
+            const defaultRolePerms = {
+              'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
+              'Admin': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
+              'Registrar': ['dashboard', 'enroll', 'search', 'courses', 'card', 'report'],
+              'Cashier': ['dashboard', 'receipts', 'report'],
+              'Staff': ['dashboard', 'textbooks', 'shipping'],
+              'Logistics': ['dashboard', 'textbooks', 'shipping']
+            };
+
+            const users = (data || []).map(u => ({
+              id: u.id,
+              username: u.username,
+              fullName: u.full_name || u.username,
+              email: u.email || '-',
+              role: u.role || 'Staff',
+              status: u.is_active ? 'Active' : 'Suspended',
+              permissions: defaultRolePerms[u.role] || ['dashboard'],
+              createdAt: u.created_at || new Date().toISOString()
+            }));
+
+            return { success: true, users: users };
+          } catch(e) {
+            console.warn('getUsersList catch error:', e);
+            return { success: false, users: [], message: e.message };
+          }
+        }
+
+        if (action === 'saveUser') {
+          try {
+            const uObj = params.user || params;
+            const uname = (uObj.username || '').toString().trim();
+            const fname = (uObj.fullName || '').toString().trim();
+            const uemail = (uObj.email || '').toString().trim();
+            const urole = (uObj.role || 'Staff').toString().trim();
+            const ustatus = (uObj.status || 'Active').toString().trim();
+            const upass = (uObj.password || '').toString().trim();
+
+            if (!uname) return { success: false, message: 'กรุณาระบุชื่อผู้ใช้งาน (Username)' };
+
+            const updateData = {
+              username: uname,
+              full_name: fname,
+              email: uemail,
+              role: urole,
+              is_active: ustatus === 'Active',
+              updated_at: new Date().toISOString()
+            };
+            if (upass) {
+              updateData.password_hash = upass;
+            }
+
+            const { data: existing } = await _supabase.from('staff_users')
+              .select('id')
+              .eq('username', uname)
+              .maybeSingle();
+
+            if (existing && existing.id) {
+              await _supabase.from('staff_users').update(updateData).eq('id', existing.id);
+            } else {
+              if (!upass) updateData.password_hash = 'Oca1234';
+              await _supabase.from('staff_users').insert([updateData]);
+            }
+
+            return { success: true, message: `บันทึกข้อมูลผู้ใช้งาน ${uname} เรียบร้อยแล้ว` };
+          } catch(e) {
+            return { success: false, message: e.message };
+          }
+        }
+
+        if (action === 'deleteUser') {
+          try {
+            const uname = (params.username || params.targetUsername || '').toString().trim();
+            if (uname.toLowerCase() === 'admin') {
+              return { success: false, message: 'ไม่อนุญาตให้ลบบัญชีผู้ดูแลระบบหลัก (Super Admin)' };
+            }
+            await _supabase.from('staff_users').delete().eq('username', uname);
+            return { success: true, message: `ลบผู้ใช้งาน ${uname} เรียบร้อยแล้ว` };
+          } catch(e) {
+            return { success: false, message: e.message };
+          }
         }
 
         if (action === 'logSecurityAudit') {
