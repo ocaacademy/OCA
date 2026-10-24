@@ -3451,10 +3451,16 @@
                     </select>
                   </div>
 
-                  <!-- 3. ชื่อ - นามสกุล -->
+                  <!-- 3. ชื่อ - นามสกุล (ภาษาไทย) -->
                   <div class="oca-input-group">
-                    <label class="oca-label" for="fullName">3. ชื่อ - นามสกุล *</label>
+                    <label class="oca-label" for="fullName">3. ชื่อ - นามสกุล (ภาษาไทย) *</label>
                     <input type="text" id="fullName" class="oca-input" placeholder="เช่น สมชาย รักไทย" onblur="checkDuplicateOnBlur()" required>
+                  </div>
+
+                  <!-- ชื่อ - นามสกุล ภาษาอังกฤษ (ไม่บังคับใส่) -->
+                  <div class="oca-input-group">
+                    <label class="oca-label" for="fullNameEn">ชื่อ - นามสกุล ภาษาอังกฤษ <span style="font-size:11.5px; font-weight:400; color:var(--text-muted);">(ไม่บังคับใส่)</span></label>
+                    <input type="text" id="fullNameEn" class="oca-input" placeholder="e.g. Somchai Rakthai">
                   </div>
 
                   <!-- แจ้งเตือนเมื่อพบข้อมูลนักเรียนซ้ำซ้อนเดิมในระบบ -->
@@ -7191,9 +7197,9 @@
                     <div style="font-size:12px; font-weight:700; color:var(--color-gold); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
                       <i class="fa-solid fa-id-card"></i> ข้อมูลพื้นฐาน &amp; รหัสประจำตัว
                     </div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:12px;">
+                    <div style="display:grid; grid-template-columns:120px 100px 1.2fr 1.2fr; gap:10px; margin-bottom:12px;">
                       <div class="oca-input-group">
-                        <label class="oca-label" for="inpEditStudentId">รหัสนักเรียน (Student ID)</label>
+                        <label class="oca-label" for="inpEditStudentId">รหัสนักเรียน (ID)</label>
                         <input type="text" id="inpEditStudentId" class="oca-input" readonly style="background:rgba(0,0,0,0.3); color:var(--color-gold-light); font-weight:700; font-family:monospace;">
                       </div>
                       <div class="oca-input-group">
@@ -7208,8 +7214,12 @@
                         </select>
                       </div>
                       <div class="oca-input-group">
-                        <label class="oca-label" for="inpEditFullName">ชื่อ-นามสกุล (Full Name) *</label>
+                        <label class="oca-label" for="inpEditFullName">ชื่อ-นามสกุล (ไทย) *</label>
                         <input type="text" id="inpEditFullName" class="oca-input" required placeholder="ชื่อ นามสกุล">
+                      </div>
+                      <div class="oca-input-group">
+                        <label class="oca-label" for="inpEditFullNameEn">ชื่อ-นามสกุล (อังกฤษ)</label>
+                        <input type="text" id="inpEditFullNameEn" class="oca-input" placeholder="e.g. Somchai Rakthai">
                       </div>
                     </div>
 
@@ -8112,7 +8122,7 @@
 
                 <!-- English / Pinyin Name -->
                 <div style="margin-bottom:14px;">
-                  <label class="oca-reg-label" id="lblNameEn">ชื่อ-นามสกุล ภาษาอังกฤษ หรือ พินอิน (English / Pinyin)</label>
+                  <label class="oca-reg-label" id="lblNameEn">ชื่อ-นามสกุล ภาษาอังกฤษ หรือ พินอิน (English / Pinyin) <span style="font-weight:normal; font-size:12px; color:#6B7280;">(ไม่บังคับใส่)</span></label>
                   <input type="text" id="txtPubNameEn" class="oca-reg-input" placeholder="e.g. Somchai Jaidee / Wang Wei">
                 </div>
 
@@ -9462,7 +9472,14 @@
             smart_card_uid: params.smartCardUid || '',
             photo_url: params.photoBase64 || params.photo || params.photoDataUri || '',
             status: params.status || 'ACTIVE',
-            notes: params.notes || ''
+            notes: (() => {
+              let n = params.notes || '';
+              const en = (params.fullNameEn || '').trim();
+              if (en && !n.includes('EN:')) {
+                n = n ? (n + ' | EN: ' + en) : ('EN: ' + en);
+              }
+              return n;
+            })()
           };
 
           // Optimistic Concurrency Retry Loop (Solves Scenarios 6 & 23)
@@ -9531,6 +9548,8 @@
             prefix: st ? (st.prefix || '') : '',
             fullName: st ? st.full_name : '',
             rawName: st ? st.full_name : '',
+            fullNameEn: (st && st.notes && st.notes.includes('EN:')) ? st.notes.split('EN:')[1].split('|')[0].trim() : '',
+            nameEn: (st && st.notes && st.notes.includes('EN:')) ? st.notes.split('EN:')[1].split('|')[0].trim() : '',
             citizenId: st ? st.citizen_id : '',
             phone: st ? st.phone_number : '',
             phoneNumber: st ? st.phone_number : '',
@@ -9899,6 +9918,8 @@
               prefix: s.prefix || '',
               fullName: s.full_name || '',
               rawName: s.full_name || '',
+              fullNameEn: (s.notes && s.notes.includes('EN:')) ? s.notes.split('EN:')[1].split('|')[0].trim() : '',
+              nameEn: (s.notes && s.notes.includes('EN:')) ? s.notes.split('EN:')[1].split('|')[0].trim() : '',
               citizenId: s.citizen_id || '',
               phone: s.phone_number || '',
               phoneNumber: s.phone_number || '',
@@ -11360,6 +11381,7 @@
       const citizenDigits = citizenRaw.replace(/\D/g, '');
       const prefix = document.getElementById('prefix').value;
       const fullName = document.getElementById('fullName').value.trim();
+      const fullNameEn = (document.getElementById('fullNameEn')?.value || '').trim();
       const phone = document.getElementById('phoneNumber').value.trim();
       const email = document.getElementById('email').value.trim();
       const course = document.getElementById('course')?.value || '-';
@@ -11446,6 +11468,7 @@
         citizenId: (citizenDigits || citizenRaw.replace(/[^0-9A-Za-z]/g, '')).slice(0, 13),
         prefix: prefix,
         fullName: fullName,
+        fullNameEn: fullNameEn,
         phoneNumber: phone,
         email: email,
         course: course,
@@ -12424,6 +12447,8 @@
       if (inpId) inpId.value = student.studentId || '';
       if (inpPrefix) inpPrefix.value = student.prefix || 'นาย';
       if (inpName) inpName.value = student.fullName || student.rawName || '';
+      const inpNameEn = document.getElementById('inpEditFullNameEn');
+      if (inpNameEn) inpNameEn.value = student.fullNameEn || student.nameEn || '';
       if (inpCit) inpCit.value = student.citizenId || '';
       if (inpPhone) inpPhone.value = student.phone || student.phoneNumber || '';
       if (inpCard) inpCard.value = student.smartCardUid || '';
@@ -12555,6 +12580,7 @@
       const studentId = (document.getElementById('inpEditStudentId')?.value || '').trim();
       const prefix = (document.getElementById('inpEditPrefix')?.value || '').trim();
       const fullName = (document.getElementById('inpEditFullName')?.value || '').trim();
+      const fullNameEn = (document.getElementById('inpEditFullNameEn')?.value || '').trim();
       const citizenId = (document.getElementById('inpEditCitizenId')?.value || '').toString().replace(/[^0-9A-Za-z]/g, '').slice(0, 13);
       const phone = (document.getElementById('inpEditPhone')?.value || '').trim();
       const smartCardUid = (document.getElementById('inpEditSmartCardUid')?.value || '').trim().toUpperCase();
@@ -12568,6 +12594,16 @@
       const deliveryMethod = (document.getElementById('inpEditDeliveryMethod')?.value || 'รับเอง').trim();
       const status = (document.getElementById('inpEditStatus')?.value || 'พร้อมเรียน').trim();
       const notes = (document.getElementById('inpEditNotes')?.value || '').trim();
+      let finalNotes = notes;
+      if (fullNameEn) {
+        if (finalNotes.includes('EN:')) {
+          finalNotes = finalNotes.replace(/EN:\s*[^|]+/, 'EN: ' + fullNameEn);
+        } else {
+          finalNotes = finalNotes ? (finalNotes + ' | EN: ' + fullNameEn) : ('EN: ' + fullNameEn);
+        }
+      } else if (finalNotes.includes('EN:')) {
+        finalNotes = finalNotes.replace(/\|\s*EN:\s*[^|]+/, '').replace(/EN:\s*[^|]+/, '').trim();
+      }
 
       if (!studentId) {
         showToast('กรุณาระบุรหัสนักเรียน', '', '⚠️');
@@ -12608,7 +12644,8 @@
         term: term,
         deliveryMethod: deliveryMethod,
         status: status,
-        notes: notes,
+        notes: finalNotes,
+        fullNameEn: fullNameEn,
         photoUrl: editStudentPhotoDataUri,
         photo: editStudentPhotoDataUri
       };
@@ -14047,7 +14084,8 @@
       const frontTerm = document.getElementById('cardFrontTerm');
       const frontUid = document.getElementById('cardFrontUidDisplay');
 
-      if (frontName) frontName.textContent = st.fullName || st.rawName || '-';
+      const cardNameWithEn = (st.fullName || st.rawName || '-') + (st.fullNameEn ? (' (' + st.fullNameEn + ')') : '');
+      if (frontName) frontName.textContent = cardNameWithEn;
       if (frontId) frontId.textContent = toArabicDigits(st.studentId) || '-';
       if (frontCourse) frontCourse.textContent = 'คอร์ส: ' + (st.course || '-');
       if (frontYear) frontYear.textContent = toArabicDigits(st.yearBE) || '-';
@@ -14061,7 +14099,7 @@
       const frontTermPort = document.getElementById('cardFrontTermPort');
       const frontUidPort = document.getElementById('cardFrontUidDisplayPort');
 
-      if (frontNamePort) frontNamePort.textContent = st.fullName || st.rawName || '-';
+      if (frontNamePort) frontNamePort.textContent = (st.fullName || st.rawName || '-') + (st.fullNameEn ? (' (' + st.fullNameEn + ')') : '');
       if (frontIdPort) frontIdPort.textContent = toArabicDigits(st.studentId) || '-';
       if (frontCoursePort) frontCoursePort.textContent = 'คอร์ส: ' + (st.course || '-');
       if (frontYearPort) frontYearPort.textContent = toArabicDigits(st.yearBE) || '-';
@@ -21623,7 +21661,7 @@
         prefix: 'คำนำหน้าชื่อ *',
         nameTh: 'ชื่อ-นามสกุล (ภาษาไทย) *',
         nameThPlace: 'เช่น นายสมชาย ใจดี',
-        nameEn: 'ชื่อ-นามสกุล ภาษาอังกฤษ หรือ พินอิน (English / Pinyin)',
+        nameEn: 'ชื่อ-นามสกุล ภาษาอังกฤษ หรือ พินอิน (ไม่บังคับใส่)',
         nameEnPlace: 'e.g. Somchai Jaidee / Wang Wei',
         citizenId: 'เลขประจำตัวประชาชน 13 หลัก หรือ เลขหนังสือเดินทาง (Passport) *',
         citizenPlace: 'กรอกเลขบัตร 13 หลัก หรือเลขพาสปอร์ต',
@@ -21676,7 +21714,7 @@
         prefix: 'Title / Prefix *',
         nameTh: 'Full Name (Thai) *',
         nameThPlace: 'e.g. Somchai Jaidee',
-        nameEn: 'Full Name (English / Pinyin)',
+        nameEn: 'Full Name in English or Pinyin (Optional)',
         nameEnPlace: 'e.g. Somchai Jaidee / Wang Wei',
         citizenId: 'National ID (13 Digits) or Passport Number *',
         citizenPlace: 'Enter 13-digit ID or Passport No.',
