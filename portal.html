@@ -8551,8 +8551,13 @@
     // SILENT DIFFING & ZERO-FLICKER DOM CONTROLLER
     // =========================================================================
     window._lastRenderedSignatures = window._lastRenderedSignatures || {};
-    function ocaShouldUpdateDOM(key, data) {
+    function ocaShouldUpdateDOM(key, data, containerEl) {
       try {
+        if (containerEl && containerEl.innerHTML && (containerEl.innerHTML.includes('กำลังโหลด') || containerEl.innerHTML.includes('fa-spinner'))) {
+          const sig = typeof data === 'string' ? data : JSON.stringify(data);
+          window._lastRenderedSignatures[key] = sig;
+          return true; // Container currently has loading spinner; must update DOM with real data
+        }
         if (!data) return true;
         const sig = typeof data === 'string' ? data : JSON.stringify(data);
         if (window._lastRenderedSignatures[key] === sig) {
@@ -10195,11 +10200,34 @@
 
         // --- 14. SHIPPING ORDERS & CARRIER STATUS ---
         if (action === 'getShippingOrders') {
-          const { data } = await _supabase.from('receipts')
+          const { data, error } = await _supabase.from('receipts')
             .select('*')
-            .eq('delivery_method', 'ส่งตำรา')
+            .or('delivery_method.eq.ส่งตำรา,delivery_method.eq.จัดส่งตามที่อยู่,delivery_method.eq.ส่งไปตามที่อยู่,delivery_method.ilike.%ส่ง%')
             .order('created_at', { ascending: false });
-          return { success: true, orders: data || [] };
+
+          if (error) {
+            console.error('[Supabase getShippingOrders error]', error);
+            return { success: false, message: error.message, orders: [] };
+          }
+
+          const mappedOrders = (data || []).map(r => ({
+            orderId: String(r.receipt_no || r.id || ''),
+            receiptNo: String(r.receipt_no || ''),
+            studentId: String(r.student_id || r.buyer_id || ''),
+            fullName: String(r.buyer_name || r.name || ''),
+            phoneNumber: String(r.phone_number || r.phone || ''),
+            phone: String(r.phone_number || r.phone || ''),
+            address: String(r.delivery_address || r.address || ''),
+            deliveryAddress: String(r.delivery_address || r.address || ''),
+            itemName: String(r.items || r.material_type || 'ตำราเรียน'),
+            status: String(r.shipping_status || 'PENDING_PRINT'),
+            carrier: String(r.carrier || ''),
+            trackingNo: String(r.tracking_number || r.tracking_no || ''),
+            createdAt: safeFormatThaiDateTime(r.created_at),
+            note: String(r.notes || '')
+          }));
+
+          return { success: true, orders: mappedOrders };
         }
 
         if (action === 'updateShippingStatus' || action === 'updateShippingRecipient') {
@@ -19747,7 +19775,7 @@
       if (!hasShippingModuleInit) {
         hasShippingModuleInit = true;
       }
-      loadShippingOrders();
+      loadShippingOrders(true);
     }
 
     /**
@@ -19759,11 +19787,17 @@
       isShippingLoading = true;
       const tbody = document.getElementById('tbodyShippingOrders');
       if (tbody && !isSilent && (!cachedShippingOrders || cachedShippingOrders.length === 0)) {
+        delete window._lastRenderedSignatures['shippingOrders'];
         tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดรายการจัดส่งตำราเรียน...</td></tr>';
       }
 
+      const loadTimeout = setTimeout(() => {
+        isShippingLoading = false;
+      }, 8000);
+
       callGasApi('getShippingOrders', {})
         .then(res => {
+          clearTimeout(loadTimeout);
           isShippingLoading = false;
           if (res && res.success && Array.isArray(res.orders)) {
             cachedShippingOrders = res.orders;
@@ -19773,6 +19807,7 @@
           filterShippingOrders();
         })
         .catch(err => {
+          clearTimeout(loadTimeout);
           isShippingLoading = false;
           console.error('loadShippingOrders error:', err);
           if (tbody) {
@@ -19858,7 +19893,7 @@
     function renderShippingOrdersTable(items) {
       const tbody = document.getElementById('tbodyShippingOrders');
       if (!tbody) return;
-      if (!ocaShouldUpdateDOM('shippingOrders', items)) return;
+      if (!ocaShouldUpdateDOM('shippingOrders', items, tbody)) return;
 
       if (!items || items.length === 0) {
         tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:40px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-inbox" style="font-size:24px; margin-bottom:8px; display:block; opacity:0.5;"></i>ไม่พบรายการนักเรียนที่เลือกส่งตำราเรียนไปที่บ้าน</td></tr>';
