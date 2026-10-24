@@ -382,8 +382,8 @@
     }
 
     @keyframes ocaFadeIn {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
 
     /* =========================================================================
@@ -8490,8 +8490,8 @@
       const tabId = activeTab ? activeTab.id : 'tabDashboard';
 
       if (tabId === 'tabSettings') {
-        if (typeof loadUsersList === 'function') loadUsersList(true);
-        if (typeof loadSecurityAuditLogs === 'function') loadSecurityAuditLogs(true);
+        if (typeof loadUsersList === 'function') loadUsersList(true, true);
+        if (typeof loadSecurityAuditLogs === 'function') loadSecurityAuditLogs(true, true);
         if (typeof renderDeviceSecurityInfo === 'function') renderDeviceSecurityInfo();
       } else if (tabId === 'tabDashboard') {
         if (typeof loadDashData === 'function') loadDashData();
@@ -8504,11 +8504,12 @@
         if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable();
         if (typeof fetchNextReceiptNumber === 'function') fetchNextReceiptNumber();
       } else if (tabId === 'tabShipping') {
-        if (typeof loadShippingOrders === 'function') loadShippingOrders(true);
+        if (typeof loadShippingOrders === 'function') loadShippingOrders(true, true);
       } else if (tabId === 'tabSearch') {
         if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus('silent');
       } else if (tabId === 'tabReport') {
-        if (typeof loadStudentReport === 'function') loadStudentReport(true);
+        if (typeof loadStudentReport === 'function') loadStudentReport(true, true);
+        if (typeof loadFinancialReport === 'function') loadFinancialReport(false, true);
       } else if (tabId === 'tabCard') {
         if (typeof loadRecentStudentsForCard === 'function') loadRecentStudentsForCard();
       } else if (tabId === 'tabEnroll') {
@@ -10729,7 +10730,7 @@
       if (typeof renderWebEmojiIcons === 'function') {
         setTimeout(() => renderWebEmojiIcons(document.body), 80);
       }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo(0, 0);
     }
 
     /**
@@ -18183,7 +18184,7 @@
      * ดึงข้อมูลรายงานนักเรียน พร้อมตัวกรองปีการศึกษา คอร์สเรียน และคำค้นหา
      * @param {boolean} forceRefresh
      */
-    function loadStudentReport(forceRefresh) {
+    function loadStudentReport(forceRefresh = false, isSilent = false) {
       if (!isReportSecurityUnlocked) {
         const tbody = document.getElementById('tbodyStudentReport');
         if (tbody) {
@@ -18212,7 +18213,7 @@
       const filterCourse = selCourse ? (selCourse.value || 'ALL') : 'ALL';
       const query = inpQuery ? (inpQuery.value || '').trim() : '';
 
-      if (tbody) {
+      if (tbody && !isSilent && (!cachedStudentReportData || cachedStudentReportData.length === 0)) {
         tbody.innerHTML =
           '<tr><td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted);">' +
           '  <div style="margin-bottom:8px;"><i class="fa-solid fa-spinner fa-spin" style="font-size:26px; color:var(--color-gold);"></i></div>' +
@@ -18222,7 +18223,9 @@
       }
 
       const badgeTotal = document.getElementById('badgeReportTotalStudents');
-      if (badgeTotal) badgeTotal.textContent = 'กำลังโหลด...';
+      if (badgeTotal && !isSilent && (!cachedStudentReportData || cachedStudentReportData.length === 0)) {
+        badgeTotal.textContent = 'กำลังโหลด...';
+      }
 
       const params = {
         year: filterYear,
@@ -18235,7 +18238,7 @@
           isStudentReportLoading = false;
           if (!res || !res.success) {
             const errMsg = (res && res.error) ? res.error : 'ไม่สามารถโหลดข้อมูลรายงานได้';
-            if (tbody) {
+            if (tbody && (!cachedStudentReportData || cachedStudentReportData.length === 0)) {
               tbody.innerHTML =
                 '<tr><td colspan="8" style="text-align:center; padding:28px; color:#ef4444;">' +
                 '  <div style="margin-bottom:6px;"><i class="fa-solid fa-triangle-exclamation" style="font-size:26px; color:#ef4444;"></i></div>' +
@@ -18243,7 +18246,9 @@
                 '  <button class="oca-btn-gold-submit" style="margin-top:10px; padding:6px 16px; font-size:12px;" onclick="loadStudentReport(true)"><i class="fa-solid fa-arrow-rotate-right" style="margin-right:4px;"></i> ลองใหม่อีกครั้ง</button>' +
                 '</td></tr>';
             }
-            if (badgeTotal) badgeTotal.textContent = '0 คน';
+            if (badgeTotal && (!cachedStudentReportData || cachedStudentReportData.length === 0)) {
+              badgeTotal.textContent = '0 คน';
+            }
             return;
           }
 
@@ -19368,7 +19373,7 @@
      * โหลดข้อมูลสรุปยอดเงินรายเดือนและรายปีจาก Backend
      * @param {boolean} forceRefresh
      */
-    function loadFinancialReport(forceRefresh = false) {
+    function loadFinancialReport(forceRefresh = false, isSilent = false) {
       if (isFinanceReportLoading && !forceRefresh) return;
       isFinanceReportLoading = true;
 
@@ -19377,11 +19382,13 @@
 
       const tbodyY = document.getElementById('tbodyFinanceYearly');
       const tbodyM = document.getElementById('tbodyFinanceMonthly');
-      if (tbodyY) {
-        tbodyY.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปรายได้รายปี...</td></tr>';
-      }
-      if (tbodyM) {
-        tbodyM.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปรายได้รายเดือน...</td></tr>';
+      if (!isSilent && !cachedFinancialSummary) {
+        if (tbodyY) {
+          tbodyY.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปรายได้รายปี...</td></tr>';
+        }
+        if (tbodyM) {
+          tbodyM.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปรายได้รายเดือน...</td></tr>';
+        }
       }
 
       callGasApi('getFinancialSummary', { filterYear: filterYear })
@@ -19635,11 +19642,11 @@
      * โหลดข้อมูลรายการจัดส่งตำราเรียนจากระบบ GAS
      * @param {boolean} forceRefresh
      */
-    function loadShippingOrders(forceRefresh = false) {
+    function loadShippingOrders(forceRefresh = false, isSilent = false) {
       if (isShippingLoading && !forceRefresh) return;
       isShippingLoading = true;
       const tbody = document.getElementById('tbodyShippingOrders');
-      if (tbody) {
+      if (tbody && !isSilent && (!cachedShippingOrders || cachedShippingOrders.length === 0)) {
         tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดรายการจัดส่งตำราเรียน...</td></tr>';
       }
 
@@ -21010,13 +21017,11 @@
     /**
      * โหลดรายชื่อผู้ใช้งานและสิทธิ์จากระบบ Supabase แบบ Real-time ตลอดเวลา
      */
-    function loadUsersList(force = true) {
+    function loadUsersList(force = true, isSilent = false) {
       const tbody = document.getElementById('tbodyUsersList');
       if (!tbody) return;
 
-      if (cachedUsersList.length > 0) {
-        renderUsersListTable(cachedUsersList);
-      } else {
+      if (!isSilent && (!cachedUsersList || cachedUsersList.length === 0)) {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดรายชื่อผู้ใช้งานและสิทธิ์ (Real-time)...</td></tr>';
       }
 
@@ -21361,14 +21366,14 @@
     /**
      * โหลดประวัติ Audit Logs จาก Supabase แบบ Real-time
      */
-    function loadSecurityAuditLogs(force = true) {
+    function loadSecurityAuditLogs(force = true, isSilent = false) {
       const tbody = document.getElementById('tbodyAuditLogs');
       if (!tbody) return;
 
       const actionFilter = document.getElementById('selAuditActionFilter')?.value || '';
       const daysFilter = document.getElementById('selAuditDaysFilter')?.value || '7';
 
-      if (!cachedAuditLogs || cachedAuditLogs.length === 0) {
+      if (!isSilent && (!cachedAuditLogs || cachedAuditLogs.length === 0)) {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดบันทึกความปลอดภัย (Real-time)...</td></tr>';
       }
 
