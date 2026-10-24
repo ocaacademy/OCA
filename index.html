@@ -3953,8 +3953,10 @@
             </div>
           </div>
 
-          <!-- General Fees & Discounts Card (การตั้งค่าอัตราค่าธรรมเนียมและส่วนลดทั่วไป) -->
-          <div id="cardGeneralFeeSettings" class="oca-chart-card" style="margin-bottom:20px;">
+          <!-- General Fees & Discounts Card Container -->
+          <div id="containerCoursesFeeCard">
+            <!-- General Fees & Discounts Card (การตั้งค่าอัตราค่าธรรมเนียมและส่วนลดทั่วไป) -->
+            <div id="cardGeneralFeeSettings" class="oca-chart-card" style="margin-bottom:20px;">
             <div class="oca-chart-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
               <span><i class="fa-solid fa-sliders" style="color:var(--color-gold); margin-right:6px;"></i>ตั้งค่าอัตราค่าธรรมเนียมและส่วนลดทั่วไป (General Fees & Discounts)</span>
               <span style="font-size:12px; color:var(--text-muted);">สามารถเลือกใช้ตลอดไป หรือกำหนดช่วงเวลามีผลบังคับใช้</span>
@@ -4131,6 +4133,7 @@
                 <i class="fa-solid fa-floppy-disk"></i> บันทึกค่าธรรมเนียมและส่วนลด
               </button>
             </div>
+          </div>
           </div>
 
           <div class="oca-mgmt-grid">
@@ -6027,7 +6030,10 @@
             
             <!-- Quick Subnav Switcher -->
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button type="button" class="oca-btn-subnav active" id="btnSubnavUsers" onclick="switchSettingsSubTab('users')" style="padding:7px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; background:linear-gradient(135deg, rgba(215,166,0,0.25), rgba(215,166,0,0.08)); border:1.5px solid var(--color-gold); color:var(--color-gold);">
+              <button type="button" class="oca-btn-subnav" id="btnSubnavFees" onclick="switchSettingsSubTab('fees')" style="padding:7px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); color:var(--text-muted);">
+                <i class="fa-solid fa-sliders"></i> <span>อัตราค่าธรรมเนียมและส่วนลด (Fees & Discounts)</span>
+              </button>
+              <button type="button" class="oca-btn-subnav active" id="btnSubnavUsers"  onclick="switchSettingsSubTab('users')" style="padding:7px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; background:linear-gradient(135deg, rgba(215,166,0,0.25), rgba(215,166,0,0.08)); border:1.5px solid var(--color-gold); color:var(--color-gold);">
                 <i class="fa-solid fa-users-gear"></i> <span>ผู้ใช้งานและสิทธิ์ (Users & RBAC)</span>
               </button>
               <button type="button" class="oca-btn-subnav" id="btnSubnavAudit" onclick="switchSettingsSubTab('audit')" style="padding:7px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); color:var(--text-muted);">
@@ -6037,6 +6043,11 @@
                 <i class="fa-solid fa-laptop-code"></i> <span>ความปลอดภัยเครื่องนี้ (Device ID)</span>
               </button>
             </div>
+          </div>
+
+          <!-- SUBTAB 0: GENERAL FEES & DISCOUNTS -->
+          <div id="subviewSettingsFees" class="oca-settings-subview" style="display:none; margin-bottom:20px;">
+            <div id="containerSettingsFeeCard"></div>
           </div>
 
           <!-- SUBTAB 1: USERS & MENU PERMISSION MANAGEMENT -->
@@ -9164,12 +9175,15 @@
             fees.forEach(f => {
               if (f.key && !f.key.startsWith('tb:')) {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
+                const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
+                const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
+                const amt = typeof f.amount === 'number' ? f.amount : (Number(f.amount) || 0);
                 feeObj[f.key] = {
-                  amount: f.amount,
+                  amount: amt,
                   name: f.name || feeNames[f.key] || f.key,
                   mode: normMode,
-                  startDate: f.start_date || '',
-                  endDate: f.end_date || ''
+                  startDate: sDate,
+                  endDate: eDate
                 };
               }
             });
@@ -10137,13 +10151,15 @@
             const it = items[k] || {};
             const amt = it.amount !== undefined ? Number(it.amount) : (params[k] !== undefined ? Number(params[k]) : 0);
             const m = (it.mode === 'period' || it.mode === 'dateRange') ? 'period' : 'always';
+            const sDate = (m === 'period' && it.startDate) ? String(it.startDate).split('T')[0] : null;
+            const eDate = (m === 'period' && it.endDate) ? String(it.endDate).split('T')[0] : null;
             updates.push({
               key: k,
               name: feeNames[k] || k,
-              amount: amt,
+              amount: isNaN(amt) ? 0 : amt,
               mode: m,
-              start_date: (m === 'period' && it.startDate) ? it.startDate : null,
-              end_date: (m === 'period' && it.endDate) ? it.endDate : null,
+              start_date: sDate,
+              end_date: eDate,
               updated_at: new Date().toISOString()
             });
           });
@@ -10159,12 +10175,15 @@
             fees.forEach(f => {
               if (f.key && !f.key.startsWith('tb:')) {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
+                const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
+                const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
+                const amt = typeof f.amount === 'number' ? f.amount : (Number(f.amount) || 0);
                 feeObj[f.key] = {
-                  amount: f.amount,
+                  amount: amt,
                   name: f.name || feeNames[f.key] || f.key,
                   mode: normMode,
-                  startDate: f.start_date || '',
-                  endDate: f.end_date || ''
+                  startDate: sDate,
+                  endDate: eDate
                 };
               }
             });
@@ -13113,20 +13132,22 @@
         let endDate = '';
 
         if (typeof raw === 'object' && raw !== null) {
-          if (raw.amount !== undefined) {
-            amount = typeof raw.amount === 'number' ? raw.amount : Number(raw.amount);
+          if (raw.amount !== undefined && raw.amount !== null && raw.amount !== '') {
+            const parsedAmt = Number(raw.amount);
+            amount = !isNaN(parsedAmt) ? parsedAmt : defaultAmounts[k];
           } else {
             amount = defaultAmounts[k];
           }
           const rawMode = typeof raw.mode === 'string' ? raw.mode : 'always';
           mode = (rawMode === 'period' || rawMode === 'dateRange') ? 'period' : 'always';
-          startDate = typeof raw.startDate === 'string' ? raw.startDate : (typeof raw.start_date === 'string' ? raw.start_date : '');
-          endDate = typeof raw.endDate === 'string' ? raw.endDate : (typeof raw.end_date === 'string' ? raw.end_date : '');
-        } else if (typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== '' && !isNaN(Number(raw)))) {
-          amount = Number(raw);
+          const rawStart = raw.startDate || raw.start_date || '';
+          const rawEnd = raw.endDate || raw.end_date || '';
+          startDate = typeof rawStart === 'string' ? rawStart.split('T')[0] : '';
+          endDate = typeof rawEnd === 'string' ? rawEnd.split('T')[0] : '';
+        } else if (raw !== undefined && raw !== null && raw !== '') {
+          const parsed = Number(raw);
+          amount = !isNaN(parsed) ? parsed : defaultAmounts[k];
         }
-
-        if (isNaN(amount)) amount = defaultAmounts[k];
 
         const item = { amount, mode, startDate, endDate };
         normalizedItems[k] = item;
@@ -13156,7 +13177,14 @@
         items: normalizedItems
       };
 
+      try {
+        localStorage.setItem('oca_general_fee_settings', JSON.stringify(globalFeePresets));
+      } catch(_) {}
+
       updateReceiptFeeStatusBadges();
+      if (typeof calcReceiptTotals === 'function') {
+        try { calcReceiptTotals(); } catch(_) {}
+      }
     }
 
     function saveGeneralFeeSettings() {
@@ -13171,15 +13199,39 @@
 
       const items = {};
       keys.forEach(k => {
+        const inpEl = document.getElementById(inputMap[k]);
+        const valStr = inpEl ? inpEl.value.trim() : '';
+        const amt = valStr !== '' ? (Number(valStr) || 0) : 0;
+        const mode = document.getElementById(`cfgMode_${k}`)?.value || 'always';
+        const start = document.getElementById(`cfgStart_${k}`)?.value || '';
+        const end = document.getElementById(`cfgEnd_${k}`)?.value || '';
         items[k] = {
-          amount: Number(document.getElementById(inputMap[k])?.value) || 0,
-          mode: document.getElementById(`cfgMode_${k}`)?.value || 'always',
-          startDate: document.getElementById(`cfgStart_${k}`)?.value || '',
-          endDate: document.getElementById(`cfgEnd_${k}`)?.value || ''
+          amount: amt,
+          mode: mode,
+          startDate: start,
+          endDate: end
         };
       });
 
-      toast('กำลังบันทึก', 'บันทึกการตั้งค่าค่าธรรมเนียมและส่วนลด...', 'info');
+      // Update in-memory state and local storage immediately
+      globalFeePresets = {
+        regFee: items.regFee.amount,
+        cardFee: items.cardFee.amount,
+        otherRegFee: items.otherRegFee.amount,
+        discountNormal: items.discountNormal.amount,
+        discountOther: items.discountOther.amount,
+        items: items
+      };
+      try {
+        localStorage.setItem('oca_general_fee_settings', JSON.stringify(globalFeePresets));
+      } catch(_) {}
+
+      updateReceiptFeeStatusBadges();
+      if (typeof calcReceiptTotals === 'function') {
+        try { calcReceiptTotals(); } catch(_) {}
+      }
+
+      toast('กำลังบันทึก', 'บันทึกการตั้งค่าค่าธรรมเนียมและส่วนลดขึ้นระบบ...', 'info');
       callGasApi('saveFeeSettings', {
         regFee: items.regFee.amount,
         cardFee: items.cardFee.amount,
@@ -13191,18 +13243,12 @@
         .then(res => {
           if (res && res.feeSettings) {
             globalFeePresets = res.feeSettings;
-          } else {
-            globalFeePresets = {
-              regFee: items.regFee.amount,
-              cardFee: items.cardFee.amount,
-              otherRegFee: items.otherRegFee.amount,
-              discountNormal: items.discountNormal.amount,
-              discountOther: items.discountOther.amount,
-              items: items
-            };
+            try {
+              localStorage.setItem('oca_general_fee_settings', JSON.stringify(globalFeePresets));
+            } catch(_) {}
           }
           populateGeneralFeeInputs(globalFeePresets);
-          toast('สำเร็จ', 'บันทึกค่าธรรมเนียมและส่วนลดเรียบร้อยแล้ว', '✓');
+          toast('สำเร็จ', 'บันทึกอัตราค่าธรรมเนียมและส่วนลดเรียบร้อยแล้ว', '✓');
         })
         .catch(err => {
           showModal('ข้อผิดพลาด', 'ไม่สามารถบันทึกการตั้งค่าได้: ' + (err.message || ''), '❌');
@@ -13219,8 +13265,17 @@
           } else {
             cachedSchedulesList = OFFICIAL_DEFAULT_SCHEDULES.map(s => ({ ...s }));
           }
+          const feeCard = document.getElementById('cardGeneralFeeSettings');
+          const coursesContainer = document.getElementById('containerCoursesFeeCard');
+          if (feeCard && coursesContainer && feeCard.parentElement !== coursesContainer && !document.getElementById('subviewSettingsFees')?.style.display.includes('block')) {
+            coursesContainer.appendChild(feeCard);
+          }
+
           if (res.feeSettings) {
             globalFeePresets = res.feeSettings;
+            try {
+              localStorage.setItem('oca_general_fee_settings', JSON.stringify(globalFeePresets));
+            } catch(_) {}
             populateGeneralFeeInputs(globalFeePresets);
           }
 
@@ -15655,7 +15710,15 @@
 
     function goToGeneralFeeSettings() {
       if (typeof switchNav === 'function') {
-        switchNav('courses');
+        const canAccessSettings = (typeof hasUserPermission === 'function') ? hasUserPermission('settings') : true;
+        if (canAccessSettings) {
+          switchNav('settings');
+          if (typeof switchSettingsSubTab === 'function') {
+            switchSettingsSubTab('fees');
+          }
+        } else {
+          switchNav('courses');
+        }
         setTimeout(() => {
           const card = document.getElementById('cardGeneralFeeSettings') || document.getElementById('cfgGeneralRegFee')?.closest('.oca-chart-card');
           if (card) {
@@ -15668,7 +15731,7 @@
               card.style.boxShadow = '';
             }, 3000);
           }
-        }, 180);
+        }, 200);
       }
     }
 
@@ -20800,6 +20863,24 @@
         const view = document.getElementById('subviewSettingsDevice');
         if (view) view.style.display = 'block';
         renderDeviceSecurityInfo();
+      } else if (subTab === 'fees') {
+        const btn = document.getElementById('btnSubnavFees');
+        if (btn) {
+          btn.classList.add('active');
+          btn.style.background = 'linear-gradient(135deg, rgba(215,166,0,0.25), rgba(215,166,0,0.08))';
+          btn.style.borderColor = 'var(--color-gold)';
+          btn.style.color = 'var(--color-gold)';
+        }
+        const view = document.getElementById('subviewSettingsFees');
+        if (view) {
+          view.style.display = 'block';
+          const feeCard = document.getElementById('cardGeneralFeeSettings');
+          const targetCont = document.getElementById('containerSettingsFeeCard');
+          if (feeCard && targetCont && feeCard.parentElement !== targetCont) {
+            targetCont.appendChild(feeCard);
+          }
+        }
+        populateGeneralFeeInputs(globalFeePresets);
       } else {
         const btn = document.getElementById('btnSubnavUsers');
         if (btn) {
@@ -21772,6 +21853,26 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       checkInitialAuthState();
+      // Restore fee settings from localStorage immediately to guarantee instant persistence
+      try {
+        const cachedFees = localStorage.getItem('oca_general_fee_settings');
+        if (cachedFees) {
+          globalFeePresets = JSON.parse(cachedFees);
+          populateGeneralFeeInputs(globalFeePresets);
+        }
+      } catch(_) {}
+      // Sync fresh fee settings from Supabase Cloud on boot
+      if (typeof callGasApi === 'function') {
+        callGasApi('getCoursesAndSchedules').then(res => {
+          if (res && res.feeSettings) {
+            globalFeePresets = res.feeSettings;
+            try {
+              localStorage.setItem('oca_general_fee_settings', JSON.stringify(globalFeePresets));
+            } catch(_) {}
+            populateGeneralFeeInputs(globalFeePresets);
+          }
+        }).catch(() => {});
+      }
       // Initialize Offline PWA Engine
       try {
         OcaOfflineDB.init().then(() => OcaOfflineDB.updateUIBadge());
