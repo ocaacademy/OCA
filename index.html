@@ -10642,10 +10642,12 @@
           // Foreign Key Safe Check: verify student_id exists in students table
           const rawSid = extractCleanId(params.studentId || params.buyerId);
           let validStudentId = null;
+          let fallbackStudentAddress = '';
           if (rawSid) {
-            const { data: stCheck } = await _supabase.from('students').select('student_id').eq('student_id', rawSid).limit(1);
+            const { data: stCheck } = await _supabase.from('students').select('student_id, address, phone_number').eq('student_id', rawSid).limit(1);
             if (stCheck && stCheck.length > 0) {
               validStudentId = rawSid;
+              if (stCheck[0].address) fallbackStudentAddress = stCheck[0].address;
             }
           }
 
@@ -10656,7 +10658,7 @@
             student_id: validStudentId,
             buyer_name: params.fullName || params.buyerName || '',
             citizen_id: (params.citizenId || '').toString().replace(/[^0-9A-Za-z]/g, '').slice(0, 13),
-            address: params.address || '',
+            address: params.address || fallbackStudentAddress || '',
             year_be: rcYear,
             term: rcTerm,
             item_code: params.itemCode || params.courseId || '',
@@ -11218,40 +11220,138 @@
             return { success: false, message: error.message, orders: [] };
           }
 
-          const mappedOrders = (data || []).map(r => ({
-            orderId: String(r.receipt_no || r.id || ''),
-            receiptNo: String(r.receipt_no || ''),
-            studentId: String(r.student_id || r.buyer_id || ''),
-            fullName: String(r.buyer_name || r.name || ''),
-            phoneNumber: String(r.phone_number || r.phone || ''),
-            phone: String(r.phone_number || r.phone || ''),
-            address: String(r.delivery_address || r.address || ''),
-            deliveryAddress: String(r.delivery_address || r.address || ''),
-            itemName: String(r.items || r.material_type || 'ตำราเรียน'),
-            status: String(r.shipping_status || 'PENDING_PRINT'),
-            carrier: String(r.carrier || ''),
-            trackingNo: String(r.tracking_number || r.tracking_no || ''),
-            createdAt: safeFormatThaiDateTime(r.created_at),
-            note: String(r.notes || '')
-          }));
+          const rawReceipts = data || [];
+          const toArabic = (typeof toArabicDigits === 'function')
+            ? toArabicDigits
+            : (v => String(v || '').replace(/[๐-๙]/g, d => '๐๑๒๓๔๕๖๗๘๙'.indexOf(d).toString()));
+
+          // Collect unique student IDs and citizen IDs to batch-query registration profile from students table
+          const studentIdSet = new Set();
+          const citizenIdSet = new Set();
+
+          rawReceipts.forEach(r => {
+            const rawSid = String(r.student_id || r.buyer_id || '').trim();
+            if (rawSid) {
+              studentIdSet.add(rawSid);
+              const arabicSid = toArabic(rawSid);
+              if (arabicSid) studentIdSet.add(arabicSid);
+            }
+            const rawCid = String(r.citizen_id || '').trim();
+            if (rawCid) citizenIdSet.add(rawCid);
+          });
+
+          const studentMap = {};
+          const studentIds = Array.from(studentIdSet);
+          if (studentIds.length > 0) {
+            const { data: stList } = await _supabase
+              .from('students')
+              .select('student_id, citizen_id, full_name, phone_number, address')
+              .in('student_id', studentIds);
+            if (stList) {
+              stList.forEach(st => {
+                if (st.student_id) studentMap[st.student_id] = st;
+                if (st.citizen_id) studentMap[st.citizen_id] = st;
+              });
+            }
+          }
+
+          // Fallback query for receipts with citizen_id not yet matched
+          const missingCids = Array.from(citizenIdSet).filter(cid => !studentMap[cid]);
+          if (missingCids.length > 0) {
+            const { data: stByCid } = await _supabase
+              .from('students')
+              .select('student_id, citizen_id, full_name, phone_number, address')
+              .in('citizen_id', missingCids);
+            if (stByCid) {
+              stByCid.forEach(st => {
+                if (st.student_id) studentMap[st.student_id] = st;
+                if (st.citizen_id) studentMap[st.citizen_id] = st;
+              });
+            }
+          }
+
+          const mappedOrders = rawReceipts.map(r => {
+            const rawSid = String(r.student_id || r.buyer_id || '').trim();
+            const arabicSid = toArabic(rawSid);
+            const rawCid = String(r.citizen_id || '').trim();
+            const st = studentMap[rawSid] || studentMap[arabicSid] || studentMap[rawCid] || null;
+
+            // Authoritative registration phone number according to student ID
+            const resolvedPhone = String(
+              (st && st.phone_number) ? st.phone_number : (r.phone_number || r.phone || '')
+            ).trim();
+
+            const resolvedAddress = String(
+              r.delivery_address || r.address || (st ? st.address : '') || ''
+            ).trim();
+
+            const resolvedFullName = String(
+              r.buyer_name || (st ? st.full_name : '') || r.name || ''
+            ).trim();
+
+            return {
+              orderId: String(r.receipt_no || r.id || ''),
+              receiptNo: String(r.receipt_no || ''),
+              studentId: rawSid || (st ? st.student_id : ''),
+              fullName: resolvedFullName,
+              phoneNumber: resolvedPhone,
+              phone: resolvedPhone,
+              address: resolvedAddress,
+              deliveryAddress: resolvedAddress,
+              itemName: String(r.item_name || r.items || 'ตำราเรียน'),
+              materialType: String(r.material_type || 'หนังสือและสมุด'),
+              status: String(r.shipping_status || (r.tracking_number ? 'SHIPPED' : 'PENDING_PRINT')),
+              carrier: String(r.carrier || ''),
+              trackingNo: String(r.tracking_number || r.tracking_no || '-'),
+              createdAt: safeFormatThaiDateTime(r.created_at),
+              note: String(r.notes || '')
+            };
+          });
 
           return { success: true, orders: mappedOrders };
         }
 
         if (action === 'updateShippingStatus' || action === 'updateShippingRecipient') {
+          const rcNo = String(params.receiptNo || params.orderId || '').trim();
           const updateObj = {};
-          if (params.trackingNumber) {
-            updateObj.tracking_number = params.carrier ? `[${params.carrier}] ${params.trackingNumber}` : params.trackingNumber;
+          const tracking = params.trackingNumber || params.trackingNo || '';
+          if (tracking && tracking !== '-') {
+            updateObj.tracking_number = params.carrier ? `[${params.carrier}] ${tracking}` : tracking;
           }
-          if (params.address) updateObj.address = params.address;
+          if (params.address) {
+            updateObj.address = params.address;
+          }
+          if (params.fullName) {
+            updateObj.buyer_name = params.fullName;
+          }
+          if (params.status) {
+            updateObj.shipping_status = params.status;
+          }
           if (params.carrier && !updateObj.tracking_number) {
             updateObj.edit_notes = `ขนส่ง: ${params.carrier}`;
           }
 
-          const { error } = await _supabase.from('receipts')
-            .update(updateObj)
-            .eq('receipt_no', params.receiptNo);
-          return { success: !error };
+          let updateError = null;
+          if (rcNo) {
+            const { error: rcErr, data: updatedRc } = await _supabase.from('receipts')
+              .update(updateObj)
+              .eq('receipt_no', rcNo)
+              .select('student_id');
+            updateError = rcErr;
+
+            // Keep student registration profile in sync with edited phone or address
+            const targetSid = (updatedRc && updatedRc.length > 0 && updatedRc[0].student_id) || params.studentId;
+            const phoneVal = String(params.phone || params.phoneNumber || '').trim();
+            if (targetSid && (phoneVal || params.address)) {
+              const stUpdate = {};
+              if (phoneVal) stUpdate.phone_number = phoneVal;
+              if (params.address) stUpdate.address = params.address;
+              if (Object.keys(stUpdate).length > 0) {
+                await _supabase.from('students').update(stUpdate).eq('student_id', targetSid);
+              }
+            }
+          }
+          return { success: !updateError, message: updateError ? updateError.message : 'บันทึกข้อมูลจัดส่งเรียบร้อย' };
         }
 
         // --- 15. COURSES, SCHEDULES & FEES MANAGEMENT ---
