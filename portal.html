@@ -3275,7 +3275,6 @@
     /* 5. Settings RBAC & Payee Form (Phone & Tablet) */
     @media (max-width: 768px) {
       #subviewSettingsPayee .oca-chart-card,
-      #subviewSettingsFees .oca-chart-card,
       #subviewSettingsUsers .oca-chart-card {
         padding: 14px 10px !important;
       }
@@ -5332,7 +5331,7 @@
                           <i class="fa-solid fa-lock" style="font-size:9px;"></i> ล็อคอัตรา
                         </span>
                       </div>
-                      <button type="button" class="oca-btn-icon" onclick="goToGeneralFeeSettings()" title="ไปที่เมนูตั้งค่าอัตราค่าธรรมเนียมและส่วนลดทั่วไป" style="font-size:11px; padding:2px 7px; height:22px; color:var(--color-gold); background:rgba(215,166,0,0.1); border:1px solid rgba(215,166,0,0.3); border-radius:4px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; font-weight:600; transition:all 0.2s ease;">
+                      <button type="button" class="oca-btn-icon" onclick="goToGeneralFeeSettings()" title="ไปที่หน้าคอร์สเรียน (Courses) เพื่อกำหนดอัตราค่าธรรมเนียมและส่วนลด" style="font-size:11px; padding:2px 7px; height:22px; color:var(--color-gold); background:rgba(215,166,0,0.1); border:1px solid rgba(215,166,0,0.3); border-radius:4px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; font-weight:600; transition:all 0.2s ease;">
                         <i class="fa-solid fa-gear" style="font-size:10px;"></i> ตั้งค่าอัตรา
                       </button>
                     </div>
@@ -5465,6 +5464,19 @@
                 <div style="font-size:11.5px; color:var(--color-gold); display:inline-flex; align-items:center; gap:4px;">
                   <i class="fa-solid fa-circle-check" style="color:#10b981;"></i> แบบกระดาษต่อเนื่อง Dot-Matrix เป็นแบบทางการที่จัดส่งเข้าอีเมลนักเรียน 100% พร้อม QR Code สแกนรับตำรา
                 </div>
+              </div>
+
+              <!-- Receipt Revision Version Selector (When viewing edited receipts) -->
+              <div id="boxReceiptVersionSelector" style="display:none; margin-bottom:12px; background:linear-gradient(135deg, rgba(168,85,247,0.12), rgba(88,28,135,0.18)); border:1px solid rgba(168,85,247,0.4); border-radius:10px; padding:10px 16px; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <span style="font-size:13px; color:#c084fc; font-weight:700; display:inline-flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-clock-rotate-left"></i> เลือกรุ่นใบเสร็จ (Revisions):
+                  </span>
+                  <select id="selReceiptPreviewVersion" class="oca-input" style="height:34px; font-size:12.5px; padding:3px 10px; width:auto; max-width:440px; border-color:#a855f7; background:rgba(0,0,0,0.4);" onchange="onReceiptVersionSelected(this.value)">
+                    <option value="current">ฉบับปัจจุบัน (ล่าสุด)</option>
+                  </select>
+                </div>
+                <div id="lblReceiptVersionNotice" style="font-size:12px; color:#e9d5ff; font-weight:600;"></div>
               </div>
 
               <!-- VIEW B: Live Dot-Matrix Continuous Form Receipt Preview (Matching Image) -->
@@ -6505,26 +6517,18 @@
 
           <!-- Settings Sub-navigation Bar -->
           <div class="oca-subnav-bar no-print" style="display:flex; gap:8px; margin-bottom:20px; border-bottom:1px solid var(--border-soft); padding-bottom:14px; flex-wrap:nowrap; overflow-x:auto;">
-            <button type="button" class="oca-btn-subnav" id="btnSubnavFees" onclick="switchSettingsSubTab('fees')" style="flex:1; min-width:160px; padding:9px 12px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); color:var(--text-muted); white-space:nowrap;">
-              <i class="fa-solid fa-sliders"></i> <span>1. ค่าธรรมเนียมและส่วนลด</span>
-            </button>
             <button type="button" class="oca-btn-subnav active" id="btnSubnavUsers" onclick="switchSettingsSubTab('users')" style="flex:1; min-width:160px; padding:9px 12px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:linear-gradient(135deg, rgba(215,166,0,0.25), rgba(215,166,0,0.08)); border:1.5px solid var(--color-gold); color:var(--color-gold); white-space:nowrap;">
-              <i class="fa-solid fa-users-gear"></i> <span>2. ผู้ใช้งานและสิทธิ์ (RBAC)</span>
+              <i class="fa-solid fa-users-gear"></i> <span>1. ผู้ใช้งานและสิทธิ์ (RBAC)</span>
             </button>
             <button type="button" class="oca-btn-subnav" id="btnSubnavPayee" onclick="switchSettingsSubTab('payee')" style="flex:1; min-width:160px; padding:9px 12px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); color:var(--text-muted); white-space:nowrap;">
-              <i class="fa-solid fa-file-invoice-dollar"></i> <span>3. กำหนดผู้รับเงิน (Receipt Payee)</span>
+              <i class="fa-solid fa-file-invoice-dollar"></i> <span>2. กำหนดผู้รับเงิน (Receipt Payee)</span>
             </button>
             <button type="button" class="oca-btn-subnav" id="btnSubnavAudit" onclick="switchSettingsSubTab('audit')" style="flex:1; min-width:160px; padding:9px 12px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); color:var(--text-muted); white-space:nowrap;">
-              <i class="fa-solid fa-shield-halved"></i> <span>4. Audit Log ย้อนหลัง</span>
+              <i class="fa-solid fa-shield-halved"></i> <span>3. Audit Log ย้อนหลัง</span>
             </button>
             <button type="button" class="oca-btn-subnav" id="btnSubnavDevice" onclick="switchSettingsSubTab('device')" style="flex:1; min-width:160px; padding:9px 12px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); color:var(--text-muted); white-space:nowrap;">
-              <i class="fa-solid fa-laptop-code"></i> <span>5. ความปลอดภัยเครื่องนี้</span>
+              <i class="fa-solid fa-laptop-code"></i> <span>4. ความปลอดภัยเครื่องนี้</span>
             </button>
-          </div>
-
-          <!-- SUBTAB 0: GENERAL FEES & DISCOUNTS -->
-          <div id="subviewSettingsFees" class="oca-settings-subview" style="display:none; margin-bottom:20px;">
-            <div id="containerSettingsFeeCard"></div>
           </div>
 
           <!-- SUBTAB 1: USERS & MENU PERMISSION MANAGEMENT -->
@@ -6747,16 +6751,19 @@
               <div style="width:180px;">
                 <select id="selAuditActionFilter" class="oca-input" onchange="loadSecurityAuditLogs(true)" style="height:38px; font-size:12.5px;">
                   <option value="">-- กิจกรรมทั้งหมด --</option>
+                  <option value="ISSUE_RECEIPT">ออกใบเสร็จรับเงิน (ISSUE RECEIPT)</option>
+                  <option value="RECEIPT_VERSION_BACKUP">แก้ไขใบเสร็จ (EDIT RECEIPT)</option>
+                  <option value="RECEIPT_EMAIL_SENT">ส่งอีเมลใบเสร็จ (EMAIL)</option>
+                  <option value="CLAIM_TEXTBOOK">สแกนรับตำราเรียน (CLAIM)</option>
+                  <option value="PRINT_STUDENT_CARD">พิมพ์บัตรนักเรียน (CARD)</option>
                   <option value="LOGIN_SUCCESS">เข้าสู่ระบบสำเร็จ (LOGIN)</option>
-                  <option value="FAILED_LOGIN">เข้าสู่ระบบล้มเหลว (FAILED)</option>
+                  <option value="LOGIN_FAILED">เข้าสู่ระบบล้มเหลว (FAILED)</option>
                   <option value="LOGOUT">ออกจากระบบ (LOGOUT)</option>
                   <option value="USER_SAVED">บันทึก/แก้ไขผู้ใช้ (USER)</option>
                   <option value="USER_DELETED">ลบผู้ใช้ (DELETE)</option>
-                  <option value="PASSWORD_RESET">รีเซ็ตรหัสผ่าน (RESET)</option>
-                  <option value="REPORT_ACCESSED">เปิดดูรายงาน (REPORT)</option>
-                  <option value="RECEIPT_CREATED">ออกใบเสร็จ (RECEIPT)</option>
-                  <option value="STUDENT_ENROLLED">รับสมัครนักเรียน (ENROLL)</option>
-                  <option value="SYSTEM_PRUNED">ล้างประวัติ 90 วัน (PRUNED)</option>
+                  <option value="COURSE_SAVED">จัดการคอร์สเรียน (COURSE)</option>
+                  <option value="SCHEDULE_SAVED">จัดการรอบเวลา (SCHEDULE)</option>
+                  <option value="EXPORT_PDF_STUDENTS">รายงานและการส่งออก (REPORT)</option>
                 </select>
               </div>
               <div style="width:140px;">
@@ -7337,16 +7344,16 @@
              GLOBAL CONFIRMATION MODAL (SYSTEM POPUP)
              =================================================================== -->
         <div id="modalGlobalConfirm" class="oca-custom-modal-backdrop" onclick="if(event.target===this)closeConfirmModal(false)" style="display:none; padding:20px; z-index:99999;">
-          <div class="oca-custom-modal-box" style="max-width:440px; width:100%; border-radius:14px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1px solid rgba(215,166,0,0.45); background:var(--bg-card);">
+          <div class="oca-custom-modal-box" id="modalConfirmBox" style="max-width:440px; width:100%; border-radius:14px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1px solid rgba(215,166,0,0.45); background:var(--bg-card); transition:border-color 0.25s ease, box-shadow 0.25s ease;">
             <!-- Modal Header -->
-            <div style="padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.35);">
+            <div id="modalConfirmHeader" style="padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.35);">
               <div style="display:flex; align-items:center; gap:10px;">
                 <div id="modalConfirmIconBox" style="width:36px; height:36px; border-radius:10px; background:rgba(245,158,11,0.18); border:1px solid #f59e0b; display:flex; align-items:center; justify-content:center; font-size:16px; color:#f59e0b;">
                   <i id="modalConfirmIcon" class="fa-solid fa-triangle-exclamation"></i>
                 </div>
                 <div>
                   <div id="modalConfirmTitle" style="font-size:15px; font-weight:700; color:#ffffff;">ยืนยันการดำเนินการ</div>
-                  <div style="font-size:12px; color:var(--text-muted);">Confirmation Required</div>
+                  <div id="modalConfirmSubtitle" style="font-size:12px; color:var(--text-muted);">Confirmation Required</div>
                 </div>
               </div>
               <button type="button" style="background:transparent; border:none; color:var(--text-muted); font-size:18px; cursor:pointer;" onclick="closeConfirmModal(false)">
@@ -7596,6 +7603,39 @@
         </div>
 
         <!-- ===================================================================
+             MODAL 3.5: RECEIPT REVISION HISTORY (ประวัติการแก้ไขใบเสร็จฉบับย้อนหลัง)
+             =================================================================== -->
+        <div id="modalReceiptRevisionHistory" class="oca-custom-modal-backdrop" style="display:none; padding:20px; align-items:center; justify-content:center; z-index:999999;">
+          <div class="oca-custom-modal-box" style="max-width:760px; width:100%; max-height:90vh; display:flex; flex-direction:column; background:#0f172a; border:1px solid rgba(168,85,247,0.3); border-radius:14px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.7); overflow:hidden;">
+            <!-- Modal Header -->
+            <div style="padding:18px 24px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:linear-gradient(90deg, rgba(168,85,247,0.15), rgba(15,23,42,0.9));">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:18px; color:#c084fc;"><i class="fa-solid fa-clock-rotate-left"></i></span>
+                <div>
+                  <div style="font-size:16px; font-weight:700; color:#ffffff;">ประวัติการแก้ไขใบเสร็จรับเงิน</div>
+                  <div style="font-size:12px; color:#94a3b8;">เลขที่ใบเสร็จ: <span id="lblModalRevRcptNo" style="font-family:monospace; font-weight:700; color:var(--color-gold);">-</span></div>
+                </div>
+              </div>
+              <button type="button" style="background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;" onclick="closeReceiptRevisionHistoryModal()">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <!-- List Body -->
+            <div id="listReceiptRevisionsWrap" style="padding:20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:14px; max-height:calc(90vh - 130px);">
+              <!-- Dynamic Revision Items -->
+            </div>
+
+            <!-- Footer -->
+            <div style="padding:14px 24px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:flex-end; background:#0b1120;">
+              <button type="button" class="oca-btn-action-edit" style="padding:8px 20px; font-size:13px;" onclick="closeReceiptRevisionHistoryModal()">
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+
+                <!-- ===================================================================
              MODAL 4: EDIT RECEIPT (แก้ไขข้อมูลใบเสร็จรับเงิน & ส่งเมลใหม่)
              =================================================================== -->
         <div id="modalEditReceipt" class="oca-custom-modal-backdrop" style="padding:20px;">
@@ -8709,6 +8749,39 @@
           <div id="boxPublicRegisterFormBody">
             <form id="formPublicRegister" onsubmit="event.preventDefault(); submitPublicRegister();">
               
+              <!-- Friendly Auto-Save Notice -->
+              <div id="boxPubRegAutoSaveNote" style="background:#ECFDF5; border:1.5px solid #10B981; border-radius:12px; padding:14px 16px; margin-bottom:20px; display:flex; align-items:flex-start; gap:12px; box-shadow:0 3px 10px rgba(16,185,129,0.08);">
+                <div style="width:34px; height:34px; border-radius:50%; background:#D1FAE5; color:#047857; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:16px;">
+                  <i class="fa-solid fa-lightbulb"></i>
+                </div>
+                <div style="flex:1;">
+                  <div id="lblPubRegNoteTitle" style="font-size:13.5px; font-weight:800; color:#065F46; margin-bottom:3px;">
+                    ข้อแนะนำ: สบายใจได้ ระบบช่วยบันทึกข้อมูลให้อัตโนมัติ
+                  </div>
+                  <div id="lblPubRegNoteBody" style="font-size:12.5px; color:#047857; line-height:1.55;">
+                    หากท่านจำเป็นต้องสลับหน้าจอไปถ่ายรูป หรือออกไปเตรียมเอกสาร ไม่ต้องกังวล! ระบบจะช่วยจำข้อมูลที่ท่านกรอกไว้ให้อัตโนมัติ เมื่อกลับเข้ามาเพียงระบุเลขบัตรประชาชน ระบบจะดึงข้อมูลเดิมกลับมาแสดงให้ทันที เพื่อความสะดวกและไม่สร้างข้อมูลซ้ำซ้อน
+                  </div>
+                </div>
+              </div>
+
+              <!-- Restored Data Notification Alert -->
+              <div id="boxPubRegRestoredAlert" style="display:none; background:#EFF6FF; border:1.5px solid #3B82F6; border-radius:12px; padding:14px 16px; margin-bottom:20px; align-items:flex-start; gap:12px; box-shadow:0 3px 10px rgba(59,130,246,0.1);">
+                <div style="width:34px; height:34px; border-radius:50%; background:#DBEAFE; color:#1D4ED8; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:16px;">
+                  <i class="fa-solid fa-clock-rotate-left"></i>
+                </div>
+                <div style="flex:1;">
+                  <div id="lblPubRegRestoredTitle" style="font-size:13.5px; font-weight:800; color:#1E40AF; margin-bottom:3px;">
+                    ดึงข้อมูลเดิมที่คุณเคยกรอกไว้เรียบร้อยแล้ว
+                  </div>
+                  <div id="lblPubRegRestoredBody" style="font-size:12.5px; color:#1D4ED8; line-height:1.55;">
+                    ระบบได้นำข้อมูลที่คุณเคยบันทึกค้างไว้มาแสดงในแบบฟอร์มแล้ว ท่านสามารถตรวจสอบความถูกต้อง แนบรูปถ่าย และกดยืนยันการสมัครได้เลย
+                  </div>
+                </div>
+                <button type="button" onclick="dismissPubRegRestoredAlert()" style="background:transparent; border:none; color:#60A5FA; cursor:pointer; font-size:18px; padding:2px; line-height:1;" title="ปิดการแจ้งเตือน">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
               <!-- SECTION 1: Personal Details -->
               <div style="margin-bottom:26px;">
                 <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; border-bottom:2px solid #E5E7EB; padding-bottom:8px;">
@@ -8750,20 +8823,20 @@
                   </div>
                   <div>
                     <label class="oca-reg-label" id="lblNameTh">ชื่อ-นามสกุล (ภาษาไทย) *</label>
-                    <input type="text" id="txtPubFullName" class="oca-reg-input" placeholder="เช่น นายสมชาย ใจดี" required>
+                    <input type="text" id="txtPubFullName" class="oca-reg-input" placeholder="เช่น นายสมชาย ใจดี" required onblur="checkAndRestoreExistingStudent()" oninput="savePublicRegisterDraft()">
                   </div>
                 </div>
 
                 <!-- English / Pinyin Name -->
                 <div style="margin-bottom:14px;">
                   <label class="oca-reg-label" id="lblNameEn">ชื่อ-นามสกุล ภาษาอังกฤษ หรือ พินอิน (English / Pinyin) <span style="font-weight:normal; font-size:12px; color:#6B7280;">(ไม่บังคับใส่)</span></label>
-                  <input type="text" id="txtPubNameEn" class="oca-reg-input" placeholder="e.g. Somchai Jaidee / Wang Wei">
+                  <input type="text" id="txtPubNameEn" class="oca-reg-input" placeholder="e.g. Somchai Jaidee / Wang Wei" oninput="savePublicRegisterDraft()">
                 </div>
 
                 <!-- Citizen ID / Passport -->
                 <div style="margin-bottom:14px;">
                   <label class="oca-reg-label" id="lblCitizenId">เลขประจำตัวประชาชน 13 หลัก หรือ เลขหนังสือเดินทาง (Passport) *</label>
-                  <input type="text" id="txtPubCitizenId" class="oca-reg-input" placeholder="กรอกเลขบัตร 13 หลัก หรือเลขพาสปอร์ต" maxlength="25" required>
+                  <input type="text" id="txtPubCitizenId" class="oca-reg-input" placeholder="กรอกเลขบัตร 13 หลัก หรือเลขพาสปอร์ต" maxlength="25" required onblur="checkAndRestoreExistingStudent()" oninput="onPubCitizenInput(this)">
                 </div>
 
                 <!-- DOB & Gender -->
@@ -9016,9 +9089,13 @@
             console.log('[Realtime DB Event] Staff users updated:', payload.eventType);
             handleRealtimeBroadcast('staff_users', payload);
           })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'security_audit_logs' }, (payload) => {
+            console.log('[Realtime DB Event] Security audit logs updated:', payload.eventType);
+            handleRealtimeBroadcast('security_audit_logs', payload);
+          })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_logs' }, (payload) => {
             console.log('[Realtime DB Event] Audit logs updated:', payload.eventType);
-            handleRealtimeBroadcast('audit_logs', payload);
+            handleRealtimeBroadcast('security_audit_logs', payload);
           })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'shipping_parcels' }, (payload) => {
             console.log('[Realtime DB Event] Shipping parcels updated:', payload.eventType);
@@ -9078,6 +9155,16 @@
         if (typeof loadRecentStudentsForCard === 'function') loadRecentStudentsForCard();
         if (typeof loadStudentReport === 'function') loadStudentReport(false);
       } else if (table === 'receipts') {
+        if (payload && payload.new && Array.isArray(receiptHistoryCachedLogs)) {
+          const norm = (typeof normalizeReceiptObject === 'function') ? normalizeReceiptObject(payload.new) : payload.new;
+          const idx = receiptHistoryCachedLogs.findIndex(r => r.receiptNo === norm.receiptNo);
+          if (idx !== -1) {
+            receiptHistoryCachedLogs[idx] = Object.assign({}, receiptHistoryCachedLogs[idx], norm);
+          } else if (payload.eventType === 'INSERT') {
+            receiptHistoryCachedLogs.unshift(norm);
+          }
+          if (typeof filterReceiptHistoryTable === 'function') filterReceiptHistoryTable();
+        }
         if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable();
         if (typeof loadShippingOrders === 'function') loadShippingOrders(true);
         if (typeof loadTextbookClaimLogs === 'function') loadTextbookClaimLogs();
@@ -9095,8 +9182,8 @@
         if (typeof loadCoursesManager === 'function') loadCoursesManager(false);
       } else if (table === 'staff_users') {
         if (typeof loadUsersList === 'function') loadUsersList(true);
-      } else if (table === 'audit_logs') {
-        if (typeof loadSecurityAuditLogs === 'function') loadSecurityAuditLogs(true);
+      } else if (table === 'security_audit_logs' || table === 'audit_logs') {
+        if (typeof loadSecurityAuditLogs === 'function') loadSecurityAuditLogs(true, true);
       } else if (table === 'shipping_parcels') {
         if (typeof loadShippingOrders === 'function') loadShippingOrders(true);
       } else if (table === 'textbook_claims') {
@@ -9223,6 +9310,43 @@
       return copy;
     }
 
+    function getAuditActor(override = {}) {
+      let u = null;
+      if (typeof getSavedCurrentUser === 'function') {
+        try { u = getSavedCurrentUser(); } catch (_) {}
+      }
+      if (!u) {
+        try {
+          const stored = localStorage.getItem('oca_current_user');
+          if (stored) u = JSON.parse(stored);
+        } catch (_) {}
+      }
+      if (!u && window.currentUser) {
+        u = window.currentUser;
+      }
+
+      const username = override.username || override.staffUser || (u && u.username) || 'admin';
+      let fullName = override.fullName || override.full_name || override.operator || (u && (u.fullName || u.full_name || u.name));
+      if (!fullName) {
+        if (username === 'admin') fullName = 'ผู้ดูแลระบบ (Admin)';
+        else if (username === 'registrar') fullName = 'ฝ่ายทะเบียนนักเรียน (Registrar)';
+        else if (username === 'cashier') fullName = 'ฝ่ายการเงินสถาบัน (Cashier)';
+        else if (username === 'shipping') fullName = 'ฝ่ายจัดส่งตำรา (Logistics)';
+        else fullName = username;
+      }
+      const role = override.role || (u && u.role) || (username === 'admin' ? 'Administrator' : 'Staff');
+      const deviceId = override.deviceId || (typeof getOrCreateDeviceId === 'function' ? getOrCreateDeviceId() : 'OCA-BROWSER');
+      const deviceInfo = override.deviceInfo || (typeof window !== 'undefined' && typeof window.getDeviceFingerprintString === 'function' ? window.getDeviceFingerprintString() : (typeof navigator !== 'undefined' ? navigator.userAgent : 'Browser WebApp'));
+
+      return { username, fullName, role, deviceId, deviceInfo };
+    }
+
+    // Auto-sync window.currentUser on script load
+    try {
+      const _initActor = getAuditActor();
+      if (_initActor && _initActor.username) window.currentUser = _initActor;
+    } catch (_) {}
+
     async function callSupabaseApi(action, params = {}, method = 'GET', isDirectSync = false) {
       // Internal sanitizers & safe helpers for Supabase operations
       const extractCleanId = (val) => {
@@ -9248,13 +9372,23 @@
         }
         try {
           const str = String(raw).trim();
+          if (!str || str === '-' || str === 'null' || str === 'undefined') return '-';
           if (/^\d{1,2}\/\d{1,2}\/\d{4}.*น\./.test(str)) return str;
+          if (/^\d{1,2}\s+[^\d\s]+\s+\d{4}.*น\./.test(str)) return str;
           const d = new Date(str);
-          if (isNaN(d.getTime())) return str;
+          if (isNaN(d.getTime())) {
+            const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+            if (isoMatch) {
+              let y = parseInt(isoMatch[1], 10);
+              if (y < 2400) y += 543;
+              return `${isoMatch[3].padStart(2, '0')}/${isoMatch[2].padStart(2, '0')}/${y}`;
+            }
+            return str;
+          }
           const pad = n => String(n).padStart(2, '0');
           let y = d.getFullYear();
           if (y < 2400) y += 543;
-          return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${y} ${pad(d.getHours())}:${pad(d.getMinutes())} น.`;
+          return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${y} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} น.`;
         } catch (_) {
           return String(raw);
         }
@@ -9262,8 +9396,8 @@
 
       const safeNormalizeReceipt = (r) => {
         if (!r) return {};
-        if (typeof safeNormalizeReceipt === 'function') {
-          try { return safeNormalizeReceipt(r); } catch (_) {}
+        if (typeof normalizeReceiptObject === 'function') {
+          try { return normalizeReceiptObject(r); } catch (_) {}
         }
         const copy = Object.assign({}, r);
         copy.receiptNo = String(r.receiptNo || r.receipt_no || '');
@@ -9300,6 +9434,13 @@
         copy.room = String(r.room || '');
         copy.claimedAt = r.claimed_at || r.claimedAt || '';
         copy.claimedBy = r.claimed_by || r.claimedBy || '';
+        copy.createdAt = r.createdAt || r.created_at || '';
+        copy.created_at = copy.createdAt;
+        copy.updatedAt = r.updatedAt || r.updated_at || '';
+        copy.updated_at = copy.updatedAt;
+        copy.editNotes = String(r.editNotes || r.edit_notes || '');
+        copy.edit_notes = copy.editNotes;
+        copy.cashierName = String(r.cashierName || r.cashier_name || r.cashier || '');
         return copy;
       };
 
@@ -9357,62 +9498,106 @@
 
         // 1. Super Admin Match
         if ((isAdminUser && isMatchAdminPass) || (isMatchAdminPass && !['registrar', 'cashier', 'shipping'].includes(u))) {
-          return {
-            success: true,
-            user: {
-              username: u || 'admin',
-              fullName: 'ผู้ดูแลระบบสูงสุด (Super Admin)',
-              email: 'admin@oca.ac.th',
-              role: 'Administrator',
-              permissions: allPerms,
-              deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
-            }
+          const superUser = {
+            username: u || 'admin',
+            fullName: 'ผู้ดูแลระบบสูงสุด (Super Admin)',
+            email: 'admin@oca.ac.th',
+            role: 'Administrator',
+            permissions: allPerms,
+            deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
           };
+          try {
+            await _supabase.from('security_audit_logs').insert([{
+              action: 'LOGIN_SUCCESS',
+              username: superUser.username,
+              full_name: superUser.fullName,
+              role: superUser.role,
+              device_id: superUser.deviceId,
+              device_info: params.deviceInfo || (navigator ? navigator.userAgent : 'Browser WebApp'),
+              details: 'เข้าสู่ระบบสำเร็จ (สิทธิ์: Administrator)',
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+          } catch (_) {}
+          return { success: true, user: superUser };
         }
 
         // 2. Registrar Match
         if (u === 'registrar' && (p === 'Oca1234' || p === '1234' || p === 'oca@2026' || p.toLowerCase() === 'oca1234')) {
-          return {
-            success: true,
-            user: {
-              username: 'registrar',
-              fullName: 'ฝ่ายทะเบียนนักเรียน (Registrar)',
-              email: 'registrar@oca.ac.th',
-              role: 'Registrar',
-              permissions: registrarPerms,
-              deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
-            }
+          const regUser = {
+            username: 'registrar',
+            fullName: 'ฝ่ายทะเบียนนักเรียน (Registrar)',
+            email: 'registrar@oca.ac.th',
+            role: 'Registrar',
+            permissions: registrarPerms,
+            deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
           };
+          try {
+            await _supabase.from('security_audit_logs').insert([{
+              action: 'LOGIN_SUCCESS',
+              username: regUser.username,
+              full_name: regUser.fullName,
+              role: regUser.role,
+              device_id: regUser.deviceId,
+              device_info: params.deviceInfo || (navigator ? navigator.userAgent : 'Browser WebApp'),
+              details: 'เข้าสู่ระบบสำเร็จ (สิทธิ์: Registrar)',
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+          } catch (_) {}
+          return { success: true, user: regUser };
         }
 
         // 3. Cashier Match
         if (u === 'cashier' && (p === 'Oca1234' || p === '1234' || p.toLowerCase() === 'oca1234')) {
-          return {
-            success: true,
-            user: {
-              username: 'cashier',
-              fullName: 'ฝ่ายการเงินสถาบัน (Cashier)',
-              email: 'finance@oca.ac.th',
-              role: 'Cashier',
-              permissions: cashierPerms,
-              deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
-            }
+          const cashUser = {
+            username: 'cashier',
+            fullName: 'ฝ่ายการเงินสถาบัน (Cashier)',
+            email: 'finance@oca.ac.th',
+            role: 'Cashier',
+            permissions: cashierPerms,
+            deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
           };
+          try {
+            await _supabase.from('security_audit_logs').insert([{
+              action: 'LOGIN_SUCCESS',
+              username: cashUser.username,
+              full_name: cashUser.fullName,
+              role: cashUser.role,
+              device_id: cashUser.deviceId,
+              device_info: params.deviceInfo || (navigator ? navigator.userAgent : 'Browser WebApp'),
+              details: 'เข้าสู่ระบบสำเร็จ (สิทธิ์: Cashier)',
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+          } catch (_) {}
+          return { success: true, user: cashUser };
         }
 
         // 4. Logistics / Shipping Match
         if (u === 'shipping' && (p === 'Oca1234' || p === '1234' || p.toLowerCase() === 'oca1234')) {
-          return {
-            success: true,
-            user: {
-              username: 'shipping',
-              fullName: 'ฝ่ายจัดส่งตำรา (Logistics)',
-              email: 'shipping@oca.ac.th',
-              role: 'Staff',
-              permissions: shippingPerms,
-              deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
-            }
+          const shipUser = {
+            username: 'shipping',
+            fullName: 'ฝ่ายจัดส่งตำรา (Logistics)',
+            email: 'shipping@oca.ac.th',
+            role: 'Staff',
+            permissions: shippingPerms,
+            deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
           };
+          try {
+            await _supabase.from('security_audit_logs').insert([{
+              action: 'LOGIN_SUCCESS',
+              username: shipUser.username,
+              full_name: shipUser.fullName,
+              role: shipUser.role,
+              device_id: shipUser.deviceId,
+              device_info: params.deviceInfo || (navigator ? navigator.userAgent : 'Browser WebApp'),
+              details: 'เข้าสู่ระบบสำเร็จ (สิทธิ์: Logistics/Staff)',
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+          } catch (_) {}
+          return { success: true, user: shipUser };
         }
 
         // 5. Check staff_users in Supabase if client is ready
@@ -9445,6 +9630,20 @@
             console.warn('DB user check notice:', dbErr);
           }
         }
+
+        try {
+          await _supabase.from('security_audit_logs').insert([{
+            action: 'LOGIN_FAILED',
+            username: u || 'unknown',
+            full_name: 'ผู้พยายามเข้าสู่ระบบ',
+            role: 'Guest',
+            device_id: params.deviceId || (typeof getOrCreateDeviceId === 'function' ? getOrCreateDeviceId() : 'OCA-BROWSER'),
+            device_info: params.deviceInfo || (navigator ? navigator.userAgent : 'Browser WebApp'),
+            details: `พยายามเข้าสู่ระบบไม่สำเร็จ: รหัสผ่านไม่ถูกต้อง (บัญชี: ${u || '-'})`,
+            records: 1,
+            status: 'FAILED'
+          }]);
+        } catch (_) {}
 
         return { 
           success: false, 
@@ -9532,7 +9731,7 @@
         const shippingAddress = (rcpt && rcpt.address) || params.address || '';
         const claimToken = (rcpt && rcpt.claim_token) || params.claimToken || '';
         const paymentMethod = (rcpt && rcpt.payment_method) || params.paymentMethod || params.payMethod || 'โอนเงิน';
-        const dateStr = (rcpt && rcpt.created_at) ? new Date(rcpt.created_at).toLocaleDateString('th-TH') : new Date().toLocaleDateString('th-TH');
+        const dateStr = (typeof formatThaiDate === 'function') ? formatThaiDate(rcpt ? (rcpt.created_at || rcpt.createdAt) : new Date()) : ((rcpt && rcpt.created_at) ? new Date(rcpt.created_at).toLocaleDateString('th-TH') : new Date().toLocaleDateString('th-TH'));
 
         // Resolve Cashier / Payee Name strictly according to system configuration
         let cashierName = params.cashierName || params.cashier;
@@ -9838,9 +10037,19 @@
         // Update Supabase
         if (_supabase) {
           try {
+            const finalEmailStatus = isBrevoSent ? 'DELIVERED_BREVO' : 'SENT';
             await _supabase.from('receipts')
-              .update({ email: targetEmail, email_status: isBrevoSent ? 'DELIVERED_BREVO' : 'SENT' })
+              .update({ email: targetEmail, email_status: finalEmailStatus })
               .eq('receipt_no', rcptNo);
+              
+            if (typeof receiptHistoryCachedLogs !== 'undefined' && Array.isArray(receiptHistoryCachedLogs)) {
+              const cachedRc = receiptHistoryCachedLogs.find(r => r.receiptNo === rcptNo);
+              if (cachedRc) {
+                cachedRc.email = targetEmail;
+                cachedRc.emailStatus = finalEmailStatus;
+                if (typeof filterReceiptHistoryTable === 'function') filterReceiptHistoryTable();
+              }
+            }
               
             await _supabase.from('security_audit_logs').insert([{
               action: 'RECEIPT_EMAIL_SENT',
@@ -10187,6 +10396,32 @@
             const { data: dup } = await dupQuery.limit(5);
 
             if (dup && dup.length > 0) {
+              // Resuming / completing existing online admission application
+              const existingSt = dup[0];
+              const isResume = !!(params.allowUpdate || params.isOnlineResume || params.photoBase64 || params.photo);
+              if (isResume) {
+                const updatedPayload = {
+                  full_name: cleanName,
+                  phone_number: params.phoneNumber || params.phone || existingSt.phone_number,
+                  email: (params.email || '').toString().trim(),
+                  address: params.address || existingSt.address || '',
+                  photo_url: params.photoBase64 || params.photo || existingSt.photo_url || ''
+                };
+                if (params.prefix) updatedPayload.prefix = params.prefix;
+                if (params.fullNameEn) {
+                  let n = existingSt.notes || '';
+                  if (!n.includes('EN:')) n = n ? (n + ' | EN: ' + params.fullNameEn) : ('EN: ' + params.fullNameEn);
+                  updatedPayload.notes = n;
+                }
+                await _supabase.from('students').update(updatedPayload).eq('student_id', existingSt.student_id);
+                return {
+                  success: true,
+                  isUpdated: true,
+                  studentId: existingSt.student_id,
+                  message: `อัปเดตข้อมูลและแนบรูปถ่ายในประวัติเดิมเรียบร้อยแล้ว (รหัส: ${existingSt.student_id})`
+                };
+              }
+
               return {
                 isDuplicate: true,
                 message: `พบประวัติในระบบแล้ว (รหัส: ${dup[0].student_id} - ${dup[0].full_name})`,
@@ -10262,7 +10497,7 @@
         if (action === 'checkStatus' || action === 'checkStudentDuplicate') {
           const rawQ = (params.query || params.citizenId || params.phone || '').trim();
           const q = rawQ.replace(/[,()"]/g, ' ').trim();
-          if (!q) return { found: false, isDuplicate: false, duplicates: [] };
+          if (!q) return { success: true, found: false, isDuplicate: false, duplicates: [] };
 
           const cleanQ = q.replace(/[^0-9A-Za-z]/g, '');
           const orList = [
@@ -10277,6 +10512,10 @@
             orList.push(`student_id.eq.${cleanQ}`);
             orList.push(`citizen_id.eq.${cleanQ}`);
           }
+          if (q.length >= 3) {
+            orList.push(`full_name.eq."${q}"`);
+            orList.push(`full_name.ilike.%${q}%`);
+          }
           const { data: found } = await _supabase.from('students')
             .select('*')
             .or(orList.join(','))
@@ -10285,9 +10524,19 @@
           const hasMatches = !!(found && found.length > 0);
           const st = hasMatches ? found[0] : null;
           return {
+            success: true,
             found: hasMatches,
             isDuplicate: hasMatches,
-            duplicates: found || [],
+            duplicates: (found || []).map(item => ({
+              ...item,
+              studentId: item.student_id,
+              fullName: item.full_name,
+              citizenId: item.citizen_id,
+              phoneNumber: item.phone_number,
+              course: item.current_course || '-',
+              schedule: item.current_schedule || '-',
+              matchReason: item.citizen_id === q ? 'ตรงกับเลขบัตรประชาชน' : (item.phone_number === q ? 'ตรงกับเบอร์โทรศัพท์' : 'ตรงกับรหัสประจำตัว')
+            })),
             student: st,
             studentId: st ? st.student_id : '',
             id: st ? st.student_id : '',
@@ -10450,6 +10699,24 @@
             } catch(emErr) {
               console.warn('sendReceiptEmail execution error:', emErr);
             }
+          }
+
+          // Realtime Audit Log for Receipt Issuance
+          try {
+            const actor = getAuditActor();
+            await _supabase.from('security_audit_logs').insert([{
+              action: action === 'renewStudentCourseAndReceipt' ? 'RENEW_COURSE' : 'ISSUE_RECEIPT',
+              username: actor.username,
+              full_name: actor.fullName,
+              role: actor.role,
+              device_id: actor.deviceId,
+              device_info: actor.deviceInfo,
+              details: `ออกใบเสร็จรับเงินเลขที่ ${assignedRcNo} (${receiptData.item_name}) ฿${Number(receiptData.grand_total).toLocaleString()} ผู้ชำระ: ${receiptData.buyer_name}${validStudentId ? ' (รหัส: ' + validStudentId + ')' : ''}`,
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+          } catch (auditErr) {
+            console.warn('saveReceipt audit log warning:', auditErr);
           }
 
           return {
@@ -10687,7 +10954,7 @@
               address: s.address || '',
               notes: s.notes || '',
               email: s.email || '',
-              createdAt: s.created_at || '-',
+              createdAt: safeFormatThaiDateTime(s.created_at),
               photoUrl: s.photo_url || '',
               photo: s.photo_url || ''
             };
@@ -10698,7 +10965,7 @@
             obj[3] = s.phone_number;
             obj[4] = s.current_course || '-';
             obj[5] = s.current_schedule || '-';
-            obj[6] = s.created_at || '-';
+            obj[6] = safeFormatThaiDateTime(s.created_at);
             obj[7] = s.status || 'Active';
             return obj;
           });
@@ -10765,6 +11032,19 @@
 
           const rcpt = rList[0];
 
+          // Auto-resolve exact course materials from courses table if material_type is generic or missing
+          let effectiveMaterial = rcpt.material_type || '';
+          if (!effectiveMaterial || effectiveMaterial === 'หนังสือและสมุด' || effectiveMaterial === 'ตำราเรียน') {
+            if (rcpt.item_code) {
+              try {
+                const { data: cData } = await _supabase.from('courses').select('code, name, linked_book').eq('code', rcpt.item_code).limit(1);
+                if (cData && cData.length > 0 && cData[0].linked_book) {
+                  effectiveMaterial = cData[0].linked_book;
+                }
+              } catch (_) {}
+            }
+          }
+
           // Scenario 17 Fraud Protection: Card replacement or receipts with NO textbook entitlement
           const isCardOnly = rcpt.receipt_type === 'card' || (rcpt.item_name && rcpt.item_name.includes('บัตร'));
           const hasNoBook = rcpt.material_type === 'NONE' || rcpt.material_type === 'บัตรนักเรียน' || rcpt.claim_status === 'NO_BOOK_CLAIM';
@@ -10783,6 +11063,7 @@
               success: false,
               deliveryOrder: true,
               itemTitle: rcpt.item_name || 'ตำราเรียน',
+              materialType: effectiveMaterial || rcpt.material_type || 'หนังสือและสมุด',
               buyerName: rcpt.buyer_name || '',
               buyerId: rcpt.student_id || '',
               receiptNo: rcpt.receipt_no || '',
@@ -10796,7 +11077,7 @@
               success: false,
               alreadyClaimed: true,
               itemTitle: rcpt.item_name || 'ตำราเรียน',
-              materialType: rcpt.material_type || 'หนังสือและสมุด',
+              materialType: effectiveMaterial || rcpt.material_type || 'หนังสือและสมุด',
               buyerName: rcpt.buyer_name || '',
               buyerId: rcpt.student_id || '',
               receiptNo: rcpt.receipt_no || '',
@@ -10814,11 +11095,28 @@
             claimed_by: claimOperator
           }).eq('id', rcpt.id);
 
+          try {
+            const actor = getAuditActor({ operator: claimOperator });
+            await _supabase.from('security_audit_logs').insert([{
+              action: 'CLAIM_TEXTBOOK',
+              username: actor.username,
+              full_name: claimOperator || actor.fullName,
+              role: actor.role,
+              device_id: actor.deviceId,
+              device_info: actor.deviceInfo,
+              details: `สแกนรับตำราเรียน (${rcpt.material_type || 'หนังสือและสมุด'}) ใบเสร็จ ${rcpt.receipt_no} ผู้รับ: ${rcpt.buyer_name} (รหัส: ${rcpt.student_id || '-'})`,
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+          } catch (tbErr) {
+            console.warn('verifyAndClaimTextbook audit warning:', tbErr);
+          }
+
           return {
             success: true,
             receipt: rcpt,
             itemTitle: rcpt.item_name || 'ตำราเรียน',
-            materialType: rcpt.material_type || 'หนังสือและสมุด',
+            materialType: effectiveMaterial || rcpt.material_type || 'หนังสือและสมุด',
             buyerName: rcpt.buyer_name || '',
             buyerId: rcpt.student_id || '',
             receiptNo: rcpt.receipt_no || '',
@@ -10901,6 +11199,21 @@
             linked_book: params.materialType || params.linked_book || 'หนังสือและสมุดช่องใหญ่',
             is_active: true
           }]);
+
+          try {
+            const actor = getAuditActor();
+            await _supabase.from('security_audit_logs').insert([{
+              action: 'COURSE_SAVED',
+              username: actor.username,
+              full_name: actor.fullName,
+              role: actor.role,
+              device_id: actor.deviceId,
+              device_info: actor.deviceInfo,
+              details: `บันทึก/แก้ไขคอร์สเรียน: ${params.name || courseCode} (ราคา ฿${Number(params.price || 0).toLocaleString()})`,
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+          } catch (_) {}
           if (error) {
             console.error('[Supabase saveCourse error]', error);
             return { success: false, message: error.message };
@@ -11020,22 +11333,143 @@
           }
         }
 
-        // --- 15.5 DELETE STUDENT (WITH FINANCIAL INTEGRITY PRESERVATION) ---
+        // --- 15.5 DELETE STUDENT (COMPREHENSIVE CASCADE DELETES ALL LINKED & ORPHANED RECEIPTS) ---
         if (action === 'deleteStudent') {
           const sId = extractCleanId(params.studentId);
           if (!sId) return { success: false, message: 'กรุณาระบุรหัสนักเรียน' };
 
           const { data: st } = await _supabase.from('students').select('*').eq('student_id', sId).limit(1);
-          if (!st || st.length === 0) return { success: false, message: 'ไม่พบนักเรียนรหัสนี้ในระบบ' };
+          const studentRecord = (st && st.length > 0) ? st[0] : null;
+          const studentName = studentRecord ? (studentRecord.full_name || '') : '';
+          const studentCitizen = studentRecord ? (studentRecord.citizen_id || '') : '';
 
-          // Delete student from students table; receipts table preserves financial audit records!
-          const { error: delErr } = await _supabase.from('students').delete().eq('student_id', sId);
-          if (delErr) throw delErr;
+          // Alternate term formats (e.g. 6940001 <-> 69040001)
+          let altSid = '';
+          if (sId.length === 7) {
+            altSid = sId.slice(0, 2) + '0' + sId.slice(2);
+          } else if (sId.length === 8 && sId.charAt(2) === '0') {
+            altSid = sId.slice(0, 2) + sId.slice(3);
+          }
+
+          // Build exhaustive match conditions for linked & orphaned receipts
+          const rcOrConditions = [
+            `student_id.eq.${sId}`,
+            `receipt_no.eq.${sId}`
+          ];
+          if (altSid) {
+            rcOrConditions.push(`student_id.eq.${altSid}`);
+            rcOrConditions.push(`receipt_no.eq.${altSid}`);
+          }
+          if (studentCitizen) {
+            rcOrConditions.push(`citizen_id.eq.${studentCitizen}`);
+          }
+          if (studentName) {
+            const safeName = studentName.replace(/[,()"]/g, ' ').trim();
+            if (safeName) rcOrConditions.push(`buyer_name.eq."${safeName}"`);
+          }
+
+          // 1. ค้นหาและลบใบเสร็จรับเงินทั้งหมดที่ผูกกับรหัสนักเรียนนี้ (Cascade Delete Receipts)
+          const { data: linkedReceipts } = await _supabase.from('receipts')
+            .select('id, receipt_no, grand_total, buyer_name')
+            .or(rcOrConditions.join(','));
+
+          let deletedReceiptCount = 0;
+          let deletedReceiptNos = '';
+
+          if (linkedReceipts && linkedReceipts.length > 0) {
+            deletedReceiptCount = linkedReceipts.length;
+            deletedReceiptNos = linkedReceipts.map(r => r.receipt_no).join(', ');
+            const rcIdsToDelete = linkedReceipts.map(r => r.id);
+            const { error: rcDelErr } = await _supabase.from('receipts')
+              .delete()
+              .in('id', rcIdsToDelete);
+            if (rcDelErr) {
+              console.error('Error deleting linked receipts:', rcDelErr);
+              throw new Error('ไม่สามารถลบใบเสร็จที่ผูกกับนักเรียนได้: ' + rcDelErr.message);
+            }
+          }
+
+          // 2. ลบข้อมูลนักเรียนออกจากตาราง students (ถ้ายังมีอยู่)
+          let deletedStudent = false;
+          if (studentRecord) {
+            const { error: delErr } = await _supabase.from('students').delete().eq('student_id', sId);
+            if (delErr) throw delErr;
+            deletedStudent = true;
+          }
+
+          if (!deletedStudent && deletedReceiptCount === 0) {
+            return { success: false, message: 'ไม่พบข้อมูลนักเรียนหรือใบเสร็จที่ตรงกับรหัส ' + sId + ' ในระบบ' };
+          }
+
+          // 3. บันทึกประวัติกิจกรรม Audit Log
+          try {
+            const actor = getAuditActor();
+            await _supabase.from('security_audit_logs').insert([{
+              action: 'DELETE_STUDENT',
+              username: actor.username,
+              full_name: actor.fullName,
+              role: actor.role,
+              device_id: actor.deviceId,
+              device_info: actor.deviceInfo,
+              details: `ลบข้อมูลนักเรียน ${studentName || sId} (รหัส: ${sId}) พร้อมลบใบเสร็จที่ผูกไว้จำนวน ${deletedReceiptCount} ฉบับ (${deletedReceiptNos || 'ไม่มีใบเสร็จ'})`,
+              records: (deletedStudent ? 1 : 0) + deletedReceiptCount,
+              status: 'SUCCESS'
+            }]);
+          } catch (auditErr) {
+            console.warn('deleteStudent audit log error:', auditErr);
+          }
 
           return {
             success: true,
             studentId: sId,
-            message: `ลบข้อมูลนักเรียนรหัส ${sId} เรียบร้อยแล้ว (ประวัติใบเสร็จทางการเงินยังถูกเก็บรักษาตามระเบียบบัญชี)`
+            deletedReceiptCount: deletedReceiptCount,
+            message: `ลบข้อมูลนักเรียนรหัส ${sId} เรียบร้อยแล้ว (พร้อมลบใบเสร็จที่ผูกอยู่ ${deletedReceiptCount} ฉบับ)`
+          };
+        }
+
+        // --- 15.6 DELETE RECEIPT DIRECTLY ---
+        if (action === 'deleteReceipt') {
+          const rawRc = (params.receiptNo || params.id || '').toString().trim();
+          const cleanRc = extractCleanId(rawRc) || rawRc;
+          if (!cleanRc) return { success: false, message: 'กรุณาระบุเลขที่ใบเสร็จ' };
+
+          const { data: foundRc } = await _supabase.from('receipts')
+            .select('id, receipt_no, buyer_name, grand_total, student_id')
+            .or(`receipt_no.eq.${cleanRc},id.eq.${cleanRc}`)
+            .limit(1);
+
+          if (!foundRc || foundRc.length === 0) {
+            return { success: false, message: 'ไม่พบใบเสร็จเลขที่ ' + cleanRc + ' ในระบบ' };
+          }
+
+          const target = foundRc[0];
+          const { error: delErr } = await _supabase.from('receipts')
+            .delete()
+            .eq('id', target.id);
+
+          if (delErr) throw delErr;
+
+          try {
+            const actor = getAuditActor();
+            await _supabase.from('security_audit_logs').insert([{
+              action: 'DELETE_RECEIPT',
+              username: actor.username,
+              full_name: actor.fullName,
+              role: actor.role,
+              device_id: actor.deviceId,
+              device_info: actor.deviceInfo,
+              details: `ลบใบเสร็จรับเงินเลขที่ ${target.receipt_no} (ผู้ซื้อ: ${target.buyer_name || '-'}, จำนวนเงิน: ฿${target.grand_total})`,
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+          } catch (auditErr) {
+            console.warn('deleteReceipt audit log error:', auditErr);
+          }
+
+          return {
+            success: true,
+            receiptNo: target.receipt_no,
+            message: `ลบใบเสร็จเลขที่ ${target.receipt_no} เรียบร้อยแล้ว`
           };
         }
 
@@ -11202,13 +11636,15 @@
 
         if (action === 'logSecurityAudit') {
           try {
+            const actor = getAuditActor(params);
             const auditRow = {
               action: params.action || 'AUTH_EVENT',
               details: params.details || '',
-              device_id: params.deviceId || (typeof getOrCreateDeviceId === 'function' ? getOrCreateDeviceId() : 'OCA-BROWSER-SECURE'),
-              username: params.staffUser || params.username || params.operator || 'Staff/Registrar',
-              full_name: params.operator || params.staffUser || (window.currentUser && window.currentUser.name) || 'Staff/Registrar',
-              role: params.role || (window.currentUser && window.currentUser.role) || 'Staff',
+              device_id: params.deviceId || actor.deviceId,
+              device_info: params.deviceInfo || actor.deviceInfo,
+              username: params.username || params.staffUser || actor.username,
+              full_name: params.fullName || params.operator || actor.fullName,
+              role: params.role || actor.role,
               records: Number(params.recordCount || params.records || 1),
               status: params.status || 'SUCCESS'
             };
@@ -11216,6 +11652,9 @@
             if (insertErr) {
               console.warn('logSecurityAudit insert warning:', insertErr.message);
               return { success: false, error: insertErr.message };
+            }
+            if (typeof loadSecurityAuditLogs === 'function') {
+              try { loadSecurityAuditLogs(true, true); } catch (_) {}
             }
             return { success: true };
           } catch(err) {
@@ -11225,10 +11664,33 @@
         }
 
         if (action === 'getSecurityAuditLogs') {
-          const { data, error: qErr } = await _supabase.from('security_audit_logs')
-            .select('*')
+          let query = _supabase.from('security_audit_logs').select('*');
+
+          if (params.action && params.action.trim() !== '') {
+            const act = params.action.trim();
+            if (act === 'ISSUE_RECEIPT') {
+              query = query.or('action.eq.ISSUE_RECEIPT,action.eq.RECEIPT_CREATED,action.eq.RENEW_COURSE');
+            } else if (act === 'LOGIN_FAILED') {
+              query = query.or('action.eq.LOGIN_FAILED,action.eq.FAILED_LOGIN');
+            } else if (act === 'RECEIPT_VERSION_BACKUP') {
+              query = query.or('action.eq.RECEIPT_VERSION_BACKUP,action.eq.UPDATE_RECEIPT');
+            } else {
+              query = query.eq('action', act);
+            }
+          }
+
+          if (params.days) {
+            const numDays = parseInt(params.days, 10);
+            if (!isNaN(numDays) && numDays > 0) {
+              const sinceDate = new Date(Date.now() - numDays * 86400000).toISOString();
+              query = query.gte('created_at', sinceDate);
+            }
+          }
+
+          const { data, error: qErr } = await query
             .order('created_at', { ascending: false })
-            .limit(50);
+            .limit(100);
+
           if (qErr) {
             console.warn('getSecurityAuditLogs error:', qErr.message);
             return { success: false, logs: [], message: qErr.message };
@@ -11243,11 +11705,74 @@
           return { success: true, logs: mappedLogs };
         }
 
-        if (action === 'pruneAuditLogs' || action === 'logoutStaff') {
+        if (action === 'logoutStaff') {
+          try {
+            const actor = getAuditActor(params);
+            await _supabase.from('security_audit_logs').insert([{
+              action: 'LOGOUT',
+              username: actor.username,
+              full_name: actor.fullName,
+              role: actor.role,
+              device_id: actor.deviceId,
+              device_info: actor.deviceInfo,
+              details: 'ออกจากระบบเรียบร้อยแล้ว',
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+          } catch (_) {}
           return { success: true };
         }
 
-        // --- 18. UPDATE RECEIPT (COURSE CHANGE & EDIT INTEGRITY) ---
+        if (action === 'pruneAuditLogs') {
+          return { success: true };
+        }
+
+        // --- 17.8 GET RECEIPT REVISIONS (AUDIT TRAIL & PRE-EDIT SNAPSHOTS) ---
+        if (action === 'getReceiptRevisions') {
+          const rcNo = extractCleanId(params.receiptNo);
+          if (!rcNo) return { success: false, revisions: [], message: 'ไม่พบเลขที่ใบเสร็จ' };
+          try {
+            const { data, error } = await _supabase
+              .from('security_audit_logs')
+              .select('*')
+              .eq('action', 'RECEIPT_VERSION_BACKUP')
+              .ilike('details', `%"receiptNo":"${rcNo}"%`)
+              .order('created_at', { ascending: false });
+
+            if (error) {
+              console.warn('getReceiptRevisions query error:', error.message);
+              return { success: false, revisions: [], message: error.message };
+            }
+
+            const revisions = (data || []).map(r => {
+              let parsed = {};
+              try {
+                parsed = JSON.parse(r.details || '{}');
+              } catch (_) {
+                parsed = {};
+              }
+              return {
+                id: r.id,
+                action: r.action,
+                username: r.username,
+                fullName: r.full_name || r.username,
+                role: r.role,
+                deviceId: r.device_id,
+                createdAt: r.created_at,
+                revisionNumber: r.records || parsed.revisionNumber || 1,
+                reason: parsed.reason || parsed.editNotes || 'แก้ไขข้อมูลใบเสร็จ',
+                editor: parsed.editor || r.full_name || r.username,
+                snapshot: parsed.snapshot || parsed.receipt || {}
+              };
+            });
+            return { success: true, revisions: revisions };
+          } catch (e) {
+            console.warn('getReceiptRevisions error:', e);
+            return { success: false, revisions: [], message: e.message };
+          }
+        }
+
+        // --- 18. UPDATE RECEIPT (COURSE CHANGE & EDIT INTEGRITY & SNAPSHOT BACKUP) ---
         if (action === 'updateReceipt') {
           const rcNo = extractCleanId(params.receiptNo);
           if (!rcNo) return { success: false, message: 'ไม่พบเลขที่ใบเสร็จ' };
@@ -11256,16 +11781,62 @@
           if (!existing || existing.length === 0) return { success: false, message: 'ไม่พบใบเสร็จในระบบ' };
 
           const currentRc = existing[0];
+
+          // Step 1: Snapshot current receipt as revision backup before applying edits
+          try {
+            const { data: pastBackups } = await _supabase
+              .from('security_audit_logs')
+              .select('id')
+              .eq('action', 'RECEIPT_VERSION_BACKUP')
+              .ilike('details', `%"receiptNo":"${rcNo}"%`);
+            const nextRev = (pastBackups ? pastBackups.length : 0) + 1;
+
+            const editorName = params.operator || (window.currentUser && window.currentUser.name) || 'Admin';
+            const editorUser = (window.currentUser && window.currentUser.username) || 'Admin';
+            const editorRole = (window.currentUser && window.currentUser.role) || 'Staff';
+            const editReason = params.editNotes || 'แก้ไขข้อมูลใบเสร็จ';
+
+            const backupDetail = {
+              receiptNo: rcNo,
+              revisionNumber: nextRev,
+              reason: editReason,
+              editedAt: new Date().toISOString(),
+              editor: editorName,
+              snapshot: currentRc
+            };
+
+            await _supabase.from('security_audit_logs').insert([{
+              action: 'RECEIPT_VERSION_BACKUP',
+              username: editorUser,
+              full_name: editorName,
+              role: editorRole,
+              device_id: typeof getOrCreateDeviceId === 'function' ? getOrCreateDeviceId() : 'OCA-BROWSER',
+              details: JSON.stringify(backupDetail),
+              records: nextRev,
+              status: 'BACKUP_SAVED'
+            }]);
+          } catch (snapErr) {
+            console.warn('Receipt pre-edit backup error:', snapErr);
+          }
+
+          // Step 2: Prepare comprehensive update fields
           const updateFields = {};
 
           if (params.itemName || params.courseName) updateFields.item_name = params.itemName || params.courseName;
           if (params.itemCode || params.courseId) updateFields.item_code = params.itemCode || params.courseId;
           if (params.schedule || params.scheduleName) updateFields.schedule = params.schedule || params.scheduleName;
           if (params.buyerName || params.fullName) updateFields.buyer_name = params.buyerName || params.fullName;
-          if (params.address) updateFields.address = params.address;
-          if (params.editNotes) updateFields.edit_notes = params.editNotes;
+          if (params.address !== undefined) updateFields.address = params.address;
+          if (params.email !== undefined) updateFields.email = params.email;
+          if (params.editNotes !== undefined) updateFields.edit_notes = params.editNotes;
+          if (params.materialType !== undefined) updateFields.material_type = params.materialType;
+          if (params.deliveryMethod !== undefined) updateFields.delivery_method = params.deliveryMethod;
+          if (params.learningMode !== undefined) updateFields.learning_mode = params.learningMode;
           if (params.grandTotal !== undefined) updateFields.grand_total = Number(params.grandTotal);
           if (params.baseAmount !== undefined) updateFields.base_amount = Number(params.baseAmount);
+          if (params.regFee !== undefined) updateFields.reg_fee = Number(params.regFee);
+          if (params.cardFee !== undefined) updateFields.card_fee = Number(params.cardFee);
+          if (params.otherRegFee !== undefined) updateFields.other_reg_fee = Number(params.otherRegFee);
           if (params.discountNormal !== undefined) updateFields.discount_normal = Number(params.discountNormal);
           if (params.discountOther !== undefined) updateFields.discount_other = Number(params.discountOther);
 
@@ -11287,7 +11858,23 @@
             }).eq('student_id', currentRc.student_id);
           }
 
-          return { success: true, message: 'แก้ไขใบเสร็จและเปลี่ยนหลักสูตรสำเร็จ' };
+          // If sendEmail is requested, dispatch receipt email
+          if (params.sendEmail && (params.email || currentRc.email)) {
+            try {
+              await callSupabaseApi('sendReceiptEmail', {
+                receiptNo: rcNo,
+                email: params.email || currentRc.email,
+                buyerName: params.buyerName || currentRc.buyer_name,
+                courseName: params.itemName || currentRc.item_name,
+                grandTotal: params.grandTotal !== undefined ? params.grandTotal : currentRc.grand_total,
+                operator: params.operator || 'Admin'
+              });
+            } catch (mailErr) {
+              console.warn('Auto send receipt email error:', mailErr);
+            }
+          }
+
+          return { success: true, message: 'แก้ไขใบเสร็จและบันทึกประวัติสำเร็จ' };
         }
 
         // --- 18.5 FORGOT PASSWORD HANDLER ---
@@ -11450,11 +12037,6 @@
       } else if (navKey === 'courses') {
         document.getElementById('tabCourses').classList.add('active');
         document.getElementById('btnNavCourses').classList.add('active');
-        const feeCard = document.getElementById('cardGeneralFeeSettings');
-        const coursesContainer = document.getElementById('containerCoursesFeeCard');
-        if (feeCard && coursesContainer && feeCard.parentElement !== coursesContainer) {
-          coursesContainer.appendChild(feeCard);
-        }
         if (typeof loadCoursesManager === 'function') loadCoursesManager();
       } else if (navKey === 'card') {
         document.getElementById('tabCard').classList.add('active');
@@ -13327,25 +13909,32 @@
 
       showConfirmModal({
         title: 'ยืนยันการลบข้อมูลนักเรียน',
-        message: 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนักเรียน "' + (fullName || '') + '" (รหัส: ' + studentId + ') ออกจากระบบอย่างถาวร?\n\n⚠️ ข้อมูลในฐานข้อมูล Supabase จะถูกลบอย่างถาวรและไม่สามารถกู้คืนได้',
+        message: 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนักเรียน "' + (fullName || '') + '" (รหัส: ' + studentId + ') ออกจากระบบอย่างถาวร?\n\n⚠️ ระบบจะทำการลบข้อมูลนักเรียนพร้อมใบเสร็จรับเงินทั้งหมดที่ผูกกับรหัสนักเรียนนี้ออกด้วยอย่างถาวร',
         icon: 'fa-trash-can',
         iconColor: '#ef4444',
         iconBg: 'rgba(239,68,68,0.18)',
         iconBorder: '#ef4444',
-        confirmText: 'ยืนยันการลบนักเรียน',
+        confirmText: 'ยืนยันการลบนักเรียนและใบเสร็จ',
         confirmBg: '#dc2626',
         confirmBorder: '#ef4444',
         onConfirm: () => {
-          showToast('กำลังลบข้อมูลนักเรียน...', '', '🗑️');
+          showToast('กำลังลบข้อมูลนักเรียนและใบเสร็จ...', '', '🗑️');
           callGasApi('deleteStudent', { studentId })
             .then(res => {
               if (res && res.success) {
-                showToast('ลบข้อมูลนักเรียนเรียบร้อย', res.message || '', '✅');
+                showToast('ลบข้อมูลเรียบร้อย', res.message || '', '✅');
                 closeEditStudentModal();
                 closeStudentDetailCard();
                 cachedSearchStudentsData = [];
                 loadAllStudentsStatus(true);
                 try { loadDashData(); } catch(_) {}
+                if (typeof loadReceiptsHistoryTable === 'function') {
+                  try { loadReceiptsHistoryTable(); } catch(_) {}
+                }
+                try { loadFinancialReport(); } catch(_) {}
+                if (typeof loadTextbookClaimLogs === 'function') {
+                  try { loadTextbookClaimLogs(); } catch(_) {}
+                }
               } else {
                 showToast('ไม่สามารถลบข้อมูลได้', res?.message || '', '❌');
               }
@@ -13370,30 +13959,71 @@
 
       showConfirmModal({
         title: 'ยืนยันการลบข้อมูลนักเรียน',
-        message: 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนักเรียน "' + fullName + '" (รหัส: ' + studentId + ') ออกจากฐานข้อมูล Supabase?',
+        message: 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนักเรียน "' + fullName + '" (รหัส: ' + studentId + ') ออกจากระบบอย่างถาวร?\n\n⚠️ ระบบจะทำการลบข้อมูลนักเรียนพร้อมใบเสร็จรับเงินทั้งหมดที่ผูกกับรหัสนักเรียนนี้ออกด้วยอย่างถาวร',
         icon: 'fa-trash',
         iconColor: '#ef4444',
         iconBg: 'rgba(239,68,68,0.18)',
         iconBorder: '#ef4444',
-        confirmText: 'ลบข้อมูลนักเรียน',
+        confirmText: 'ลบข้อมูลนักเรียนและใบเสร็จ',
         confirmBg: '#dc2626',
         confirmBorder: '#ef4444',
         onConfirm: () => {
-          showToast('กำลังลบข้อมูลนักเรียน...', '', '🗑️');
+          showToast('กำลังลบข้อมูลนักเรียนและใบเสร็จ...', '', '🗑️');
           callGasApi('deleteStudent', { studentId })
             .then(res => {
               if (res && res.success) {
-                showToast('ลบข้อมูลนักเรียนเรียบร้อย', res.message || '', '✅');
+                showToast('ลบข้อมูลเรียบร้อย', res.message || '', '✅');
                 closeEditStudentModal();
                 closeStudentDetailCard();
+                cachedSearchStudentsData = [];
                 loadAllStudentsStatus(true);
                 try { loadDashData(); } catch(_) {}
+                if (typeof loadReceiptsHistoryTable === 'function') {
+                  try { loadReceiptsHistoryTable(); } catch(_) {}
+                }
+                try { loadFinancialReport(); } catch(_) {}
+                if (typeof loadTextbookClaimLogs === 'function') {
+                  try { loadTextbookClaimLogs(); } catch(_) {}
+                }
               } else {
                 showToast('ไม่สามารถลบข้อมูลได้', res?.message || '', '❌');
               }
             })
             .catch(err => {
               showToast('เกิดข้อผิดพลาดในการลบ', err.message || '', '❌');
+            });
+        }
+      });
+    }
+
+    function confirmDeleteReceipt(receiptNo) {
+      if (!receiptNo) return;
+      showConfirmModal({
+        title: 'ยืนยันการลบใบเสร็จรับเงิน',
+        message: 'ท่านต้องการลบใบเสร็จรับเงินเลขที่ ' + toArabicDigits(receiptNo) + ' ออกจากระบบอย่างถาวรหรือไม่?\n\n⚠️ ข้อมูลใบเสร็จและประวัติการออกใบเสร็จจะถูกลบอย่างถาวร ไม่สามารถย้อนกลับได้',
+        icon: 'fa-trash-can',
+        iconColor: '#ef4444',
+        iconBg: 'rgba(239,68,68,0.18)',
+        iconBorder: '#ef4444',
+        confirmText: 'ลบใบเสร็จ',
+        cancelText: 'ยกเลิก',
+        confirmBg: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+        confirmBorder: '#ef4444',
+        onConfirm: () => {
+          showToast('กำลังลบใบเสร็จ...', '', '🗑️');
+          callGasApi('deleteReceipt', { receiptNo: receiptNo })
+            .then(res => {
+              if (res && res.success) {
+                showToast('ลบใบเสร็จสำเร็จ', res.message || 'ลบใบเสร็จเรียบร้อยแล้ว', '✓');
+                loadReceiptsHistoryTable();
+                try { loadFinancialReport(); } catch(_) {}
+                try { loadDashData(); } catch(_) {}
+              } else {
+                showModal('ลบไม่สำเร็จ', (res && res.message) || 'ระบบไม่สามารถลบใบเสร็จได้', '❌');
+              }
+            })
+            .catch(err => {
+              showModal('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถลบใบเสร็จได้', '❌');
             });
         }
       });
@@ -13766,16 +14396,31 @@
     }
 
     function formatThaiShortDate(dateStr) {
-      if (!dateStr || typeof dateStr !== 'string') return '';
-      const parts = dateStr.split('-');
-      if (parts.length !== 3) return dateStr;
-      const y = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10) - 1;
-      const d = parseInt(parts[2], 10);
+      if (!dateStr) return '';
+      const str = String(dateStr).trim();
       const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-      const thaiYearShort = String((y + 543) % 100).padStart(2, '0');
-      const monthName = thaiMonths[m] || '';
-      return `${d} ${monthName} ${thaiYearShort}`;
+      
+      const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (isoMatch) {
+        let y = parseInt(isoMatch[1], 10);
+        if (y < 2400) y += 543;
+        const m = parseInt(isoMatch[2], 10) - 1;
+        const d = parseInt(isoMatch[3], 10);
+        const thaiYearShort = String(y % 100).padStart(2, '0');
+        return `${d} ${thaiMonths[m] || ''} ${thaiYearShort}`;
+      }
+
+      const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (slashMatch) {
+        const d = parseInt(slashMatch[1], 10);
+        const m = parseInt(slashMatch[2], 10) - 1;
+        let y = parseInt(slashMatch[3], 10);
+        if (y < 2400) y += 543;
+        const thaiYearShort = String(y % 100).padStart(2, '0');
+        return `${d} ${thaiMonths[m] || ''} ${thaiYearShort}`;
+      }
+
+      return formatThaiDate(str);
     }
 
     function getFeeItemStatus(item) {
@@ -14069,11 +14714,6 @@
           } else {
             cachedSchedulesList = OFFICIAL_DEFAULT_SCHEDULES.map(s => ({ ...s }));
           }
-          const feeCard = document.getElementById('cardGeneralFeeSettings');
-          const coursesContainer = document.getElementById('containerCoursesFeeCard');
-          if (feeCard && coursesContainer && feeCard.parentElement !== coursesContainer && !document.getElementById('subviewSettingsFees')?.style.display.includes('block')) {
-            coursesContainer.appendChild(feeCard);
-          }
 
           if (res.feeSettings) {
             globalFeePresets = res.feeSettings;
@@ -14168,11 +14808,13 @@
       if (!isoStr) return '';
       const parts = isoStr.split('-');
       if (parts.length === 3) {
-        const year = parseInt(parts[0], 10) + 543;
+        let year = parseInt(parts[0], 10);
+        if (year < 2400) year += 543;
         const mIdx = parseInt(parts[1], 10) - 1;
         const day = parseInt(parts[2], 10);
+        const months = (typeof THAI_MONTHS_SHORT !== 'undefined' && Array.isArray(THAI_MONTHS_SHORT)) ? THAI_MONTHS_SHORT : ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
         if (mIdx >= 0 && mIdx < 12) {
-          return day + ' ' + THAI_MONTHS_SHORT[mIdx] + ' ' + year;
+          return day + ' ' + months[mIdx] + ' ' + year;
         }
       }
       return isoStr;
@@ -15432,6 +16074,15 @@
       // Activate direct card print classes
       document.body.classList.add('printing-cr80-card', 'printing-zebra-mode');
 
+      // Realtime Audit Logging for Card Print
+      try {
+        const stdId = document.getElementById('lblPreviewStudentId')?.textContent || '';
+        const stdName = document.getElementById('lblPreviewThaiName')?.textContent || '';
+        if (typeof logSecurityAuditAction === 'function') {
+          logSecurityAuditAction('PRINT_STUDENT_CARD', `พิมพ์บัตรประจำตัวนักเรียน รหัส: ${stdId} (${stdName})`, 1);
+        }
+      } catch (_) {}
+
       // Trigger print after micro-delay
       setTimeout(() => {
         window.print();
@@ -16068,10 +16719,14 @@
                 const total = toArabicDigits(Number(r.grandTotal || r.grand_total || 0).toLocaleString());
                 const isDelivery = (r.deliveryMethod || r.delivery_method) === 'ส่งไปตามที่อยู่';
                 const claimStatus = r.claimStatus || r.claim_status;
+                const claimTime = formatClaimTimestamp(r.claimedAt || r.claimed_at);
                 const claimBadge = isDelivery ?
                   '<span style="background:rgba(56,189,248,0.15); color:#38bdf8; font-weight:600; font-size:11.5px; padding:2px 7px; border-radius:6px; white-space:nowrap; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-truck"></i> จัดส่ง</span>' :
                   (claimStatus === 'CLAIMED' ?
-                    '<span style="background:rgba(16,185,129,0.15); color:#10b981; font-weight:600; font-size:11.5px; padding:2px 7px; border-radius:6px; white-space:nowrap; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-check"></i> รับแล้ว</span>' :
+                    ('<div style="display:inline-flex; flex-direction:column; align-items:center; gap:2px;">' +
+                      '<span style="background:rgba(16,185,129,0.15); color:#10b981; font-weight:600; font-size:11.5px; padding:2px 7px; border-radius:6px; white-space:nowrap; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-check"></i> รับแล้ว</span>' +
+                      (claimTime ? ('<span style="font-size:10px; color:#10b981; font-family:monospace; white-space:nowrap; display:inline-flex; align-items:center; gap:2px;"><i class="fa-regular fa-clock" style="font-size:9px;"></i>' + claimTime + '</span>') : '') +
+                    '</div>') :
                     '<span style="background:rgba(245,158,11,0.15); color:#f59e0b; font-weight:600; font-size:11.5px; padding:2px 7px; border-radius:6px; white-space:nowrap; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-clock"></i> รอรับ</span>');
 
                 const txType = (typeof getReceiptTransactionType === 'function') ? getReceiptTransactionType(r) : { label: 'รายการชำระเงิน', icon: 'fa-receipt', color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' };
@@ -16483,7 +17138,7 @@
         otherRegFee: 'ค่าลงทะเบียนอื่นๆ'
       };
       const name = titleMap[feeType] || 'ค่าธรรมเนียม';
-      const msg = `ไม่สามารถแก้ไขตัวเลข "${name}" จากหน้านี้ได้โดยตรง หากต้องการปรับปรุงอัตรา ต้องเข้าไปแก้ไขที่เมนู "ตั้งค่าอัตราค่าธรรมเนียมและส่วนลดทั่วไป" เท่านั้น`;
+      const msg = `ไม่สามารถแก้ไขตัวเลข "${name}" จากหน้านี้ได้โดยตรง หากต้องการปรับปรุงอัตรา ต้องเข้าไปแก้ไขที่หน้า "คอร์สเรียน (Courses)" (หัวข้อ: ตั้งค่าอัตราค่าธรรมเนียมและส่วนลดทั่วไป) เท่านั้น`;
       if (typeof toast === 'function') {
         toast('🔒 อัตราค่าธรรมเนียมถูกล็อค', msg, 'info');
       } else if (typeof showToast === 'function') {
@@ -16495,15 +17150,7 @@
 
     function goToGeneralFeeSettings() {
       if (typeof switchNav === 'function') {
-        const canAccessSettings = (typeof hasUserPermission === 'function') ? hasUserPermission('settings') : true;
-        if (canAccessSettings) {
-          switchNav('settings');
-          if (typeof switchSettingsSubTab === 'function') {
-            switchSettingsSubTab('fees');
-          }
-        } else {
-          switchNav('courses');
-        }
+        switchNav('courses');
         setTimeout(() => {
           const card = document.getElementById('cardGeneralFeeSettings') || document.getElementById('cfgGeneralRegFee')?.closest('.oca-chart-card');
           if (card) {
@@ -16560,7 +17207,7 @@
           inp.value = (typeof item.amount === 'number') ? item.amount : (Number(item?.amount) || 0);
         } else {
           inp.value = 0;
-          const msg = `"${titleMap[feeType] || feeType}" อยู่นอกช่วงเวลาที่มีผลบังคับใช้ (${st.label}) หากต้องการแก้ไขอัตราหรือช่วงเวลา กรุณาไปที่เมนู "ตั้งค่าอัตราค่าธรรมเนียมและส่วนลดทั่วไป"`;
+          const msg = `"${titleMap[feeType] || feeType}" อยู่นอกช่วงเวลาที่มีผลบังคับใช้ (${st.label}) หากต้องการแก้ไขอัตราหรือช่วงเวลา กรุณาไปที่หน้า "คอร์สเรียน (Courses)"`;
           if (typeof toast === 'function') {
             toast('แจ้งเตือนช่วงเวลา', msg, 'warning');
           } else if (typeof showToast === 'function') {
@@ -17100,6 +17747,8 @@
                 room: room,
                 address: shippingAddress,
                 cashierName: document.getElementById('txtRcptCashier')?.value || (typeof getEffectivePayeeName === 'function' ? getEffectivePayeeName() : '')
+              }).then(() => {
+                if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable();
               }).catch(e => console.warn('Direct Brevo notice:', e));
             }
             if (res.emailSent) {
@@ -17373,15 +18022,39 @@
       const confirmBorder = opts.confirmBorder || '';
 
       const modal = document.getElementById('modalGlobalConfirm');
+      const elBox = document.getElementById('modalConfirmBox') || (modal ? modal.querySelector('.oca-custom-modal-box') : null);
+      const elHeader = document.getElementById('modalConfirmHeader');
       const elTitle = document.getElementById('modalConfirmTitle');
+      const elSub = document.getElementById('modalConfirmSubtitle');
       const elMsg = document.getElementById('modalConfirmMessage');
       const elIcon = document.getElementById('modalConfirmIcon');
       const elIconBox = document.getElementById('modalConfirmIconBox');
       const btnAction = document.getElementById('btnConfirmAction');
       const btnCancel = document.getElementById('btnConfirmCancel');
 
-      if (elTitle) elTitle.textContent = title;
-      if (elMsg) elMsg.textContent = message;
+      if (elBox) {
+        elBox.style.border = opts.boxBorder || '1px solid rgba(215,166,0,0.45)';
+        elBox.style.boxShadow = opts.boxShadow || '0 24px 64px rgba(0,0,0,0.85)';
+      }
+      if (elHeader) {
+        elHeader.style.background = opts.headerBg || 'rgba(0,0,0,0.35)';
+        elHeader.style.borderBottom = opts.headerBorderBottom || '1px solid rgba(255,255,255,0.08)';
+      }
+      if (elTitle) {
+        elTitle.textContent = title;
+        elTitle.style.color = opts.titleColor || '#ffffff';
+      }
+      if (elSub) {
+        elSub.textContent = opts.subtitle || 'Confirmation Required';
+        elSub.style.color = opts.subtitleColor || 'var(--text-muted)';
+      }
+      if (elMsg) {
+        if (opts.isHtml) {
+          elMsg.innerHTML = message;
+        } else {
+          elMsg.textContent = message;
+        }
+      }
       if (elIcon) elIcon.className = 'fa-solid ' + icon;
       if (elIconBox) {
         elIconBox.style.color = iconColor;
@@ -17392,6 +18065,8 @@
         btnAction.textContent = confirmText;
         btnAction.style.background = confirmBg || '';
         btnAction.style.borderColor = confirmBorder || '';
+        if (opts.confirmColor) btnAction.style.color = opts.confirmColor;
+        else btnAction.style.color = '';
       }
       if (btnCancel) {
         if (cancelText === false || cancelText === null || cancelText === '') {
@@ -17406,18 +18081,81 @@
       if (modal) modal.style.display = 'flex';
     }
 
-    function showClaimAlertPopup(title, message, icon = 'fa-triangle-exclamation', iconColor = '#ef4444') {
+    function showClaimAlertPopup(title, message, icon = 'fa-triangle-exclamation', iconColor = '#ef4444', customOpts = {}) {
+      const isGreen = (iconColor === '#10b981' || iconColor === 'green' || iconColor === '#059669' || customOpts.statusType === 'success');
+      const isBlue = (iconColor === '#38bdf8' || iconColor === '#0284c7' || customOpts.statusType === 'delivery');
+      const isRed = (iconColor === '#ef4444' || iconColor === '#dc2626' || customOpts.statusType === 'alreadyClaimed' || customOpts.statusType === 'error');
+
+      let boxBorder = '1px solid rgba(215,166,0,0.45)';
+      let boxShadow = '0 24px 64px rgba(0,0,0,0.85)';
+      let headerBg = 'rgba(0,0,0,0.35)';
+      let headerBorderBottom = '1px solid rgba(255,255,255,0.08)';
+      let titleColor = '#ffffff';
+      let subtitle = customOpts.subtitle || 'Textbook Claim Status';
+      let subtitleColor = 'var(--text-muted)';
+      let confirmBg = 'linear-gradient(135deg, #f59e0b, #d97706)';
+      let confirmBorder = iconColor;
+      let confirmText = customOpts.confirmText || 'รับทราบ';
+
+      if (isGreen) {
+        // First scan (SUCCESS): High-visibility GREEN
+        boxBorder = '2.5px solid #10b981';
+        boxShadow = '0 24px 64px rgba(0,0,0,0.9), 0 0 45px rgba(16,185,129,0.5)';
+        headerBg = 'rgba(16,185,129,0.18)';
+        headerBorderBottom = '1px solid rgba(16,185,129,0.35)';
+        titleColor = '#34d399';
+        subtitle = customOpts.subtitle || '✓ ผ่านการตรวจสอบสิทธิ์ (สแกนครั้งแรก)';
+        subtitleColor = '#10b981';
+        confirmBg = 'linear-gradient(135deg, #10b981, #059669)';
+        confirmBorder = '#10b981';
+        confirmText = customOpts.confirmText || 'ตกลง (ส่งมอบเรียบร้อย)';
+      } else if (isRed) {
+        // Already claimed / Duplicate scan: High-visibility RED
+        boxBorder = '2.5px solid #ef4444';
+        boxShadow = '0 24px 64px rgba(0,0,0,0.9), 0 0 50px rgba(239,68,68,0.6)';
+        headerBg = 'rgba(239,68,68,0.2)';
+        headerBorderBottom = '1px solid rgba(239,68,68,0.45)';
+        titleColor = '#f87171';
+        subtitle = customOpts.subtitle || '❌ สแกนซ้ำ: สิทธิ์นี้ถูกใช้ไปแล้ว (ห้ามจ่ายของซ้ำ)';
+        subtitleColor = '#ef4444';
+        confirmBg = 'linear-gradient(135deg, #ef4444, #b91c1c)';
+        confirmBorder = '#ef4444';
+        confirmText = customOpts.confirmText || 'รับทราบ (ห้ามส่งมอบซ้ำ)';
+      } else if (isBlue) {
+        // Postal delivery: High-visibility SKY BLUE
+        boxBorder = '2.5px solid #38bdf8';
+        boxShadow = '0 24px 64px rgba(0,0,0,0.9), 0 0 40px rgba(56,189,248,0.4)';
+        headerBg = 'rgba(56,189,248,0.16)';
+        headerBorderBottom = '1px solid rgba(56,189,248,0.35)';
+        titleColor = '#7dd3fc';
+        subtitle = customOpts.subtitle || '📦 จัดส่งทางพัสดุตามที่อยู่ (Delivery By Post)';
+        subtitleColor = '#38bdf8';
+        confirmBg = 'linear-gradient(135deg, #0284c7, #0369a1)';
+        confirmBorder = '#38bdf8';
+        confirmText = customOpts.confirmText || 'รับทราบ (จัดส่งทางพัสดุ)';
+      }
+
+      const iconBg = isGreen ? 'rgba(16,185,129,0.22)' : (isBlue ? 'rgba(56,189,248,0.22)' : (isRed ? 'rgba(239,68,68,0.22)' : 'rgba(245,158,11,0.2)'));
+
       showConfirmModal({
         title: title || 'แจ้งเตือนการสแกนตำรา',
+        subtitle: subtitle,
+        subtitleColor: subtitleColor,
+        titleColor: titleColor,
         message: message || '',
+        isHtml: !!customOpts.isHtml,
         icon: icon,
         iconColor: iconColor,
-        iconBg: iconColor === '#ef4444' ? 'rgba(239,68,68,0.18)' : (iconColor === '#38bdf8' ? 'rgba(56,189,248,0.18)' : 'rgba(245,158,11,0.18)'),
+        iconBg: iconBg,
         iconBorder: iconColor,
-        confirmText: 'รับทราบ',
+        confirmText: confirmText,
         cancelText: false,
-        confirmBg: iconColor === '#ef4444' ? 'linear-gradient(135deg, #ef4444, #b91c1c)' : (iconColor === '#38bdf8' ? 'linear-gradient(135deg, #0284c7, #0369a1)' : 'linear-gradient(135deg, #f59e0b, #d97706)'),
-        confirmBorder: iconColor
+        confirmBg: confirmBg,
+        confirmBorder: confirmBorder,
+        boxBorder: boxBorder,
+        boxShadow: boxShadow,
+        headerBg: headerBg,
+        headerBorderBottom: headerBorderBottom
       });
     }
 
@@ -17511,11 +18249,20 @@
     function formatThaiDateTime(raw) {
       if (!raw) return '-';
       const str = String(raw).trim();
-      if (!str) return '-';
+      if (!str || str === '-' || str === 'null' || str === 'undefined') return '-';
       if (/^\d{1,2}\/\d{1,2}\/\d{4}.*น\./.test(str)) return toArabicDigits(str);
+      if (/^\d{1,2}\s+[^\d\s]+\s+\d{4}.*น\./.test(str)) return toArabicDigits(str);
 
       const d = new Date(str);
-      if (isNaN(d.getTime())) return toArabicDigits(str);
+      if (isNaN(d.getTime())) {
+        const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (isoMatch) {
+          let y = parseInt(isoMatch[1], 10);
+          if (y < 2400) y += 543;
+          return toArabicDigits(`${isoMatch[3].padStart(2, '0')}/${isoMatch[2].padStart(2, '0')}/${y}`);
+        }
+        return toArabicDigits(str);
+      }
 
       const pad = n => String(n).padStart(2, '0');
       const day = pad(d.getDate());
@@ -17530,27 +18277,73 @@
     }
 
     /**
-     * แปลงวันที่เป็นรูปแบบภาษาไทยสั้น
+     * แปลงวันเวลาที่สแกนรับตำราเรียนเป็นรูปแบบกระชับสวยงาม (เช่น 24 ต.ค. 69 13:25 น.)
+     * @param {string|Date} raw
+     * @return {string}
+     */
+    function formatClaimTimestamp(raw) {
+      if (!raw) return '';
+      try {
+        const str = String(raw).trim();
+        if (!str || str === '-' || str === 'null' || str === 'undefined') return '';
+        const d = new Date(str);
+        if (isNaN(d.getTime())) return toArabicDigits(String(str));
+        const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+        const day = d.getDate();
+        const mName = months[d.getMonth()];
+        let yr = d.getFullYear();
+        if (yr < 2400) yr += 543;
+        const yrShort = String(yr).slice(-2);
+        const hr = String(d.getHours()).padStart(2, '0');
+        const mn = String(d.getMinutes()).padStart(2, '0');
+        return toArabicDigits(`${day} ${mName} ${yrShort} ${hr}:${mn} น.`);
+      } catch (_) {
+        return toArabicDigits(String(raw || ''));
+      }
+    }
+
+    /**
+     * แปลงวันที่เป็นรูปแบบภาษาไทยสั้นตามมาตรฐานประเทศไทย (วัน เดือน ปี พ.ศ.)
+     * เช่น "24 ต.ค. 2569"
      * @param {string|Date} raw
      * @return {string}
      */
     function formatThaiDate(raw) {
       if (!raw) return '-';
       const str = String(raw).trim();
-      if (!str) return '-';
+      if (!str || str === '-' || str === 'null' || str === 'undefined') return '-';
       const monthNames = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+      // หากมีรูปแบบภาษาไทยสมบูรณ์อยู่แล้ว เช่น "24 ต.ค. 2569"
+      if (/^\d{1,2}\s+[^\d\s]+\s+\d{4}/.test(str)) {
+        return toArabicDigits(str);
+      }
+
+      // รูปแบบ วว/ดด/ปปปป
       const mMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
       if (mMatch) {
         const day = mMatch[1].padStart(2, '0');
         const monthNum = parseInt(mMatch[2], 10) - 1;
         const month = monthNames[monthNum] || mMatch[2];
-        const year = mMatch[3];
+        let year = parseInt(mMatch[3], 10);
+        if (year < 2400) year += 543;
         return toArabicDigits(day + ' ' + month + ' ' + year);
       }
+
+      // รูปแบบ ISO YYYY-MM-DD
+      const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (isoMatch) {
+        let year = parseInt(isoMatch[1], 10);
+        if (year < 2400) year += 543;
+        const monthNum = parseInt(isoMatch[2], 10) - 1;
+        const month = monthNames[monthNum] || isoMatch[2];
+        const day = isoMatch[3].padStart(2, '0');
+        return toArabicDigits(day + ' ' + month + ' ' + year);
+      }
+
       const d = new Date(str);
       if (isNaN(d.getTime())) {
-        const parts = str.split(' ')[0];
-        return toArabicDigits(parts || str);
+        return toArabicDigits(str);
       }
       const pad = n => String(n).padStart(2, '0');
       const day = pad(d.getDate());
@@ -17659,6 +18452,14 @@
           if (deliveryMethod.includes('ส่ง') || (row.deliveryMethod && row.deliveryMethod.includes('พัสดุ'))) return true;
         }
 
+        const emailStatUpper = (row.emailStatus || '').toUpperCase();
+        if (q.includes('จัดส่งแล้ว') || q.includes('ส่งแล้ว') || q === 'sent' || q === 'delivered') {
+          if (emailStatUpper.includes('DELIVERED') || emailStatUpper.includes('SENT') || emailStatUpper.includes('BREVO')) return true;
+        }
+        if (q.includes('รอส่ง') || q === 'pending_email') {
+          if (!emailStatUpper.includes('DELIVERED') && !emailStatUpper.includes('SENT') && !emailStatUpper.includes('BREVO') && row.email) return true;
+        }
+
         return false;
       });
 
@@ -17708,16 +18509,35 @@
         if (isDelivery) {
           statusBadge = '<span style="background:rgba(59,130,246,0.18); border:1px solid rgba(59,130,246,0.35); color:#93c5fd; padding:3px 10px; border-radius:10px; font-weight:700; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-truck"></i> จัดส่งตามที่อยู่</span>';
         } else if (isClaimed) {
-          statusBadge = '<span style="background:rgba(16,185,129,0.15); color:#10B981; padding:3px 10px; border-radius:10px; font-weight:700; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-check"></i> รับแล้ว</span>';
+          const claimTime = formatClaimTimestamp(row.claimedAt);
+          statusBadge = '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:3px;">' +
+            '<span style="background:rgba(16,185,129,0.15); color:#10B981; padding:3px 10px; border-radius:10px; font-weight:700; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-check"></i> รับแล้ว</span>' +
+            (claimTime ? ('<span style="font-size:10.5px; color:#10b981; font-family:monospace; white-space:nowrap; display:inline-flex; align-items:center; gap:3px;"><i class="fa-regular fa-clock" style="font-size:9.5px;"></i>' + claimTime + '</span>') : '') +
+          '</div>';
         } else {
           statusBadge = '<span style="background:rgba(245,158,11,0.15); color:#F59E0B; padding:3px 10px; border-radius:10px; font-weight:700; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-clock"></i> รอรับตำรา</span>';
         }
 
+        const emailStatusUpper = String(row.emailStatus || '').toUpperCase();
+        const isEmailDelivered = emailStatusUpper.includes('DELIVERED') || 
+                                 emailStatusUpper.includes('SENT') || 
+                                 emailStatusUpper.includes('SUCCESS') || 
+                                 emailStatusUpper.includes('BREVO') ||
+                                 emailStatusUpper.includes('COMPLETED') ||
+                                 emailStatusUpper.includes('DONE');
+        const isEmailProcessing = emailStatusUpper.includes('PROCESSING') || emailStatusUpper.includes('SENDING');
+
+        let emailStatusBadge = '';
+        if (isEmailDelivered) {
+          emailStatusBadge = '<span style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:#10B981; padding:2px 7px; border-radius:6px; font-weight:700; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-check"></i> จัดส่งแล้ว</span>';
+        } else if (isEmailProcessing) {
+          emailStatusBadge = '<span style="background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.3); color:#facc15; padding:2px 7px; border-radius:6px; font-weight:600; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-spinner fa-spin"></i> กำลังส่ง</span>';
+        } else {
+          emailStatusBadge = '<span style="background:rgba(2,132,199,0.15); border:1px solid rgba(2,132,199,0.3); color:#38bdf8; padding:2px 7px; border-radius:6px; font-weight:600; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-paper-plane"></i> รอส่ง</span>';
+        }
+
         const emailBadge = row.email ?
-          '<div style="font-size:12px; color:var(--text-muted); font-family:monospace;">' + escapeHtml(row.email) + '</div>' +
-          (row.emailStatus && row.emailStatus.indexOf('SENT') !== -1 ?
-            '<span style="background:rgba(16,185,129,0.15); color:#10B981; padding:2px 6px; border-radius:6px; font-weight:700; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-check"></i> ส่งแล้ว</span>' :
-            '<span style="background:rgba(2,132,199,0.15); color:#38bdf8; padding:2px 6px; border-radius:6px; font-weight:600; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-paper-plane"></i> รอส่ง</span>') :
+          '<div style="font-size:12px; color:var(--text-muted); font-family:monospace; margin-bottom:3px;">' + escapeHtml(row.email) + '</div>' + emailStatusBadge :
           '<span style="color:#64748b; font-size:12px;">-</span>';
 
         const citId = (row.citizenId || citizenMap.get(String(row.buyerId).trim()) || '').trim();
@@ -17753,6 +18573,12 @@
               '</button>' +
               '<button class="oca-btn-action-edit" style="background:rgba(2,132,199,0.15); color:#38bdf8; border-color:#0284c7;" onclick="sendReceiptEmailFromHistory(\'' + escapeHtml(row.receiptNo) + '\', \'' + escapeHtml(row.buyerId || '') + '\', \'' + escapeHtml(row.email || '') + '\')">' +
                 '<i class="fa-solid fa-envelope" style="margin-right:3px;"></i> ส่งเมล' +
+              '</button>' +
+              '<button class="oca-btn-action-edit" style="background:rgba(168,85,247,0.15); color:#c084fc; border-color:#a855f7;" onclick="openReceiptRevisionHistoryModal(\'' + escapeHtml(row.receiptNo) + '\')">' +
+                '<i class="fa-solid fa-clock-rotate-left" style="margin-right:3px;"></i> ประวัติ' +
+              '</button>' +
+              '<button class="oca-btn-action-edit" style="background:rgba(239,68,68,0.15); color:#f87171; border-color:#dc2626;" onclick="confirmDeleteReceipt(\'' + escapeHtml(row.receiptNo) + '\')">' +
+                '<i class="fa-solid fa-trash-can" style="margin-right:3px;"></i> ลบ' +
               '</button>' +
             '</div>' +
           '</td>';
@@ -17911,170 +18737,334 @@
         });
     }
 
-    function previewReceiptFromHistory(rcptNo) {
+    function previewReceiptFromHistory(rcptNo, versionData = null) {
       callGasApi('getReceipts')
         .then(res => {
           if (res && res.success && Array.isArray(res.logs)) {
-            const item = res.logs.find(l => l.receiptNo === rcptNo);
-            if (item) {
-              const elNo = document.getElementById('lblPrevRcptNo');
-              const elName = document.getElementById('lblPrevBuyerName');
-              const elId = document.getElementById('lblPrevBuyerId');
-              const elDesc = document.getElementById('lblPrevItemDesc');
-              const elGrand = document.getElementById('lblPrevGrandTotal');
-              const elBaht = document.getElementById('lblPrevBahtText');
-              const elDate = document.getElementById('lblPrevRcptDate');
-              const elEmail = document.getElementById('txtRcptEmail');
-
-              if (elNo) elNo.textContent = toArabicDigits(item.receiptNo);
-              if (elName) elName.textContent = item.buyerName;
-              if (elId) elId.textContent = toArabicDigits(item.buyerId);
-              if (elDesc) elDesc.textContent = item.itemName;
-              if (elGrand) elGrand.textContent = toArabicDigits(Number(item.grandTotal).toLocaleString('en-US', { minimumFractionDigits: 2 }));
-              if (elBaht) elBaht.textContent = bahtText(item.grandTotal);
-              if (elDate) elDate.textContent = formatThaiDate(item.createdAt);
-              if (elEmail) elEmail.value = item.email || '';
-
-              const elMatSub = document.getElementById('lblPrevClaimMaterialsSub');
-              if (elMatSub) elMatSub.textContent = '[ ' + (item.materialType || 'หนังสือและสมุด') + ' ]';
-
-              const elOpen = document.getElementById('lblPrevOpenDate');
-              const elRoom = document.getElementById('lblPrevRoom');
-              const elRemarksBox = document.getElementById('boxPrevReceiptRemarks');
-              const elRoomWrap = document.getElementById('boxPrevRoomWrap');
-              const elNoRoomWrap = document.getElementById('boxPrevNoRoomWrap');
-              const openVal = (item.openDate || '').toString().trim();
-              const roomVal = (item.room || '').toString().trim();
-              if (elOpen) elOpen.textContent = openVal ? toArabicDigits(openVal) : '-';
-              if (elRoom) elRoom.textContent = roomVal ? toArabicDigits(roomVal) : '-';
-              if (elRemarksBox) {
-                if (openVal && openVal !== '-') {
-                  elRemarksBox.style.display = 'block';
-                  const hasRoom = (roomVal && roomVal !== '-');
-                  if (elRoomWrap) elRoomWrap.style.display = hasRoom ? 'inline' : 'none';
-                  if (elNoRoomWrap) elNoRoomWrap.style.display = hasRoom ? 'none' : 'inline';
-                } else {
-                  elRemarksBox.style.display = 'none';
-                }
-              }
-
-              // Live Breakdown Update
-              const baseAmount = Number(item.baseAmount) || Number(item.grandTotal) || 0;
-              const regFee = Number(item.regFee) || 0;
-              const cardFee = Number(item.cardFee) || 0;
-              const otherRegFee = Number(item.otherRegFee) || 0;
-              const normalDiscount = Number(item.discountNormal) || 0;
-              const otherDiscount = Number(item.discountOther) || 0;
-              const subTotal = (item.type === 'tuition') ? (baseAmount + regFee + cardFee + otherRegFee) : baseAmount;
-
-              const elBase = document.getElementById('lblPrevBaseAmount');
-              if (elBase) elBase.textContent = toArabicDigits(baseAmount.toLocaleString('en-US', { minimumFractionDigits: 2 }));
-
-              const rowReg = document.getElementById('rowPrevLine2');
-              const elReg = document.getElementById('lblPrevRegFee');
-              if (rowReg && elReg) {
-                if (regFee > 0) {
-                  rowReg.style.display = '';
-                  elReg.textContent = toArabicDigits(regFee.toLocaleString('en-US', { minimumFractionDigits: 2 }));
-                } else {
-                  rowReg.style.display = 'none';
-                }
-              }
-
-              const rowCard = document.getElementById('rowPrevLineCard');
-              const elCard = document.getElementById('lblPrevCardFee');
-              if (rowCard && elCard) {
-                if (cardFee > 0) {
-                  rowCard.style.display = '';
-                  elCard.textContent = toArabicDigits(cardFee.toLocaleString('en-US', { minimumFractionDigits: 2 }));
-                } else {
-                  rowCard.style.display = 'none';
-                }
-              }
-
-              const rowOtherReg = document.getElementById('rowPrevLine3');
-              const elOtherReg = document.getElementById('lblPrevOtherRegFee');
-              if (rowOtherReg && elOtherReg) {
-                if (otherRegFee > 0) {
-                  rowOtherReg.style.display = '';
-                  elOtherReg.textContent = toArabicDigits(otherRegFee.toLocaleString('en-US', { minimumFractionDigits: 2 }));
-                } else {
-                  rowOtherReg.style.display = 'none';
-                }
-              }
-
-              const elSub = document.getElementById('lblPrevSubTotal');
-              if (elSub) elSub.textContent = toArabicDigits(subTotal.toLocaleString('en-US', { minimumFractionDigits: 2 }));
-
-              const rowDiscNorm = document.getElementById('rowPrevDiscountNormal');
-              const elDiscNorm = document.getElementById('lblPrevDiscountNormal');
-              if (rowDiscNorm && elDiscNorm) {
-                if (normalDiscount > 0) {
-                  rowDiscNorm.style.display = '';
-                  elDiscNorm.textContent = toArabicDigits(normalDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 }));
-                } else {
-                  rowDiscNorm.style.display = 'none';
-                }
-              }
-
-              const rowDiscOther = document.getElementById('rowPrevDiscountOther');
-              const elDiscOther = document.getElementById('lblPrevDiscountOther');
-              if (rowDiscOther && elDiscOther) {
-                if (otherDiscount > 0) {
-                  rowDiscOther.style.display = '';
-                  elDiscOther.textContent = toArabicDigits(otherDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 }));
-                } else {
-                  rowDiscOther.style.display = 'none';
-                }
-              }
-
-              receiptCurrentOfficialNo = item.receiptNo;
-              receiptCurrentClaimToken = item.claimToken;
-
-              const isDelivery = item.deliveryMethod === 'ส่งตำรา' || item.deliveryMethod === 'ส่งไปตามที่อยู่' || (item.deliveryMethod && item.deliveryMethod.indexOf('ส่ง') !== -1) || !item.claimToken;
-              const boxQrWrap = document.getElementById('boxPrevQrCodeWrap');
-              const boxShipBadge = document.getElementById('boxPrevShippingBadge');
-              const lblHeader = document.getElementById('lblPrevClaimHeader');
-              const lblSecNote = document.getElementById('lblPrevClaimSecurityNote');
-              const boxShipAddr = document.getElementById('boxPrevShippingAddressWrap');
-              const lblShipAddrText = document.getElementById('lblPrevShippingAddressText');
-
-              const lblBookClaimSub = document.getElementById('lblPrevBookClaimSub');
-
-              if (isDelivery) {
-                if (boxQrWrap) boxQrWrap.style.display = 'none';
-                if (boxShipBadge) boxShipBadge.style.display = 'flex';
-                if (lblHeader) lblHeader.innerHTML = '<i class="fa-solid fa-truck" style="margin-right:4px;"></i> บริการจัดส่งอุปกรณ์และตำราเรียนทางพัสดุ (Parcel Delivery)';
-                if (lblBookClaimSub) lblBookClaimSub.style.display = 'none';
-                if (boxShipAddr) boxShipAddr.style.display = 'block';
-                if (lblShipAddrText) lblShipAddrText.textContent = item.address && item.address !== '-' ? item.address : 'จัดส่งตามที่อยู่ที่ลงทะเบียน';
-                if (lblSecNote) lblSecNote.innerHTML = '<i class="fa-solid fa-truck-fast" style="margin-right:4px;"></i> สถาบันจะจัดส่งอุปกรณ์และตำราเรียนไปยังที่อยู่ข้างต้น (ไม่ต้องสแกน QR Code)';
-              } else {
-                if (boxQrWrap) boxQrWrap.style.display = 'flex';
-                if (boxShipBadge) boxShipBadge.style.display = 'none';
-                if (lblHeader) lblHeader.innerHTML = '<i class="fa-solid fa-qrcode" style="color:#0284c7; margin-right:4px;"></i> สิทธิ์รับตำราและอุปกรณ์การเรียน (One-Time Claim)';
-                if (lblBookClaimSub) {
-                  lblBookClaimSub.style.display = 'block';
-                  lblBookClaimSub.innerHTML =
-                    '<div style="font-size:12px; color:#0f172a; font-weight:600; line-height:1.5;">' +
-                    '  <i class="fa-solid fa-circle-exclamation" style="color:#0284c7; margin-right:4px;"></i> ต้องสแกน QR Code ณ สถาบันก่อน จึงจะทราบและแสดงรายการอุปกรณ์ที่ได้รับ' +
-                    '</div>' +
-                    '<div style="font-size:12px; color:#64748b; margin-top:2px;">' +
-                    '  (ระบบจะแสดงรายการตำราและอุปกรณ์ที่ได้รับบนหน้าจอเจ้าหน้าที่เมื่อสแกน QR Code นี้เท่านั้น)' +
-                    '</div>';
-                }
-                if (boxShipAddr) boxShipAddr.style.display = 'none';
-                if (lblSecNote) lblSecNote.innerHTML = '<i class="fa-solid fa-lock" style="margin-right:4px;"></i> สแกนรับสิทธิ์ได้ 1 ครั้งเท่านั้น ผ่านระบบกล้อง OCA ภายในสถาบัน (ไม่สามารถใช้แอปภายนอกสแกนได้)';
-                const qrStatus = document.getElementById('lblPrevQrClaimStatus');
-                if (qrStatus) qrStatus.textContent = 'สแกนตรวจสอบรายการที่ได้รับ';
-                generateReceiptQrCode(item.claimToken);
-              }
-
-              window.scrollTo({ top: 300, behavior: 'smooth' });
-              showToast('โหลดข้อมูลใบเสร็จ', 'เลขที่ ' + toArabicDigits(item.receiptNo), '📄');
+            let item = res.logs.find(l => l.receiptNo === rcptNo);
+            if (!item && versionData) item = versionData;
+            if (!item) {
+              showToast('ไม่พบข้อมูลใบเสร็จ', 'เลขที่ ' + toArabicDigits(rcptNo), '⚠️');
+              return;
             }
+
+            if (versionData) {
+              item = normalizeReceiptObject(Object.assign({}, item, versionData));
+            } else {
+              item = normalizeReceiptObject(item);
+            }
+
+            const elNo = document.getElementById('lblPrevRcptNo');
+            const elTermYear = document.getElementById('lblPrevRcptTermYear');
+            const elDate = document.getElementById('lblPrevRcptDate');
+            const elName = document.getElementById('lblPrevBuyerName');
+            const elId = document.getElementById('lblPrevBuyerId');
+            const elDesc = document.getElementById('lblPrevItemDesc');
+            const elSubDesc = document.getElementById('lblPrevItemSubDesc');
+            const elMode = document.getElementById('lblPrevLearningMode');
+            const elGrand = document.getElementById('lblPrevGrandTotal');
+            const elBaht = document.getElementById('lblPrevBahtText');
+            const elEmail = document.getElementById('txtRcptEmail');
+            const elCashier = document.getElementById('lblPrevCashier');
+
+            if (elNo) elNo.textContent = toArabicDigits(item.receiptNo);
+            if (elTermYear) elTermYear.textContent = toArabicDigits((item.term || '1') + '/' + (item.yearBe || item.year_be || '2569'));
+            if (elDate) {
+              const dVal = item.createdAt || item.created_at;
+              elDate.textContent = dVal ? formatThaiDate(dVal) : formatThaiDate(new Date());
+            }
+            if (elName) elName.textContent = item.buyerName || '-';
+            if (elId) elId.textContent = toArabicDigits(item.buyerId || '-');
+            if (elDesc) elDesc.textContent = item.itemName || '-';
+            if (elSubDesc) elSubDesc.textContent = (item.schedule && item.schedule !== '-') ? ('รอบเวลา: ' + item.schedule) : (item.itemCode || '-');
+            if (elMode) elMode.textContent = item.learningMode || 'Online';
+            if (elGrand) elGrand.textContent = toArabicDigits(Number(item.grandTotal).toLocaleString('en-US', { minimumFractionDigits: 2 }));
+            if (elBaht) elBaht.textContent = bahtText(item.grandTotal);
+            if (elEmail) elEmail.value = item.email || '';
+            if (elCashier) elCashier.textContent = item.cashierName || item.cashier || (typeof getEffectivePayeeName === 'function' ? getEffectivePayeeName() : 'เจ้าหน้าที่ฝ่ายการเงิน (Cashier)');
+
+            // Live Breakdown Update
+            const baseAmount = Number(item.baseAmount !== undefined ? item.baseAmount : item.grandTotal) || 0;
+            const regFee = Number(item.regFee) || 0;
+            const cardFee = Number(item.cardFee) || 0;
+            const otherRegFee = Number(item.otherRegFee) || 0;
+            const normalDiscount = Number(item.discountNormal) || 0;
+            const otherDiscount = Number(item.discountOther) || 0;
+            const subTotal = (item.type === 'tuition' || item.receiptType === 'tuition') ? (baseAmount + regFee + cardFee + otherRegFee) : baseAmount;
+
+            const elBase = document.getElementById('lblPrevBaseAmount');
+            if (elBase) elBase.textContent = toArabicDigits(baseAmount.toLocaleString('en-US', { minimumFractionDigits: 2 }));
+
+            const rowReg = document.getElementById('rowPrevLine2');
+            const elReg = document.getElementById('lblPrevRegFee');
+            if (rowReg && elReg) {
+              rowReg.style.display = regFee > 0 ? '' : 'none';
+              elReg.textContent = toArabicDigits(regFee.toLocaleString('en-US', { minimumFractionDigits: 2 }));
+            }
+
+            const rowCard = document.getElementById('rowPrevLineCard');
+            const elCard = document.getElementById('lblPrevCardFee');
+            if (rowCard && elCard) {
+              rowCard.style.display = cardFee > 0 ? '' : 'none';
+              elCard.textContent = toArabicDigits(cardFee.toLocaleString('en-US', { minimumFractionDigits: 2 }));
+            }
+
+            const rowOtherReg = document.getElementById('rowPrevLine3');
+            const elOtherReg = document.getElementById('lblPrevOtherRegFee');
+            if (rowOtherReg && elOtherReg) {
+              rowOtherReg.style.display = otherRegFee > 0 ? '' : 'none';
+              elOtherReg.textContent = toArabicDigits(otherRegFee.toLocaleString('en-US', { minimumFractionDigits: 2 }));
+            }
+
+            const elSub = document.getElementById('lblPrevSubTotal');
+            if (elSub) elSub.textContent = toArabicDigits(subTotal.toLocaleString('en-US', { minimumFractionDigits: 2 }));
+
+            const rowDiscNorm = document.getElementById('rowPrevDiscountNormal');
+            const elDiscNorm = document.getElementById('lblPrevDiscountNormal');
+            if (rowDiscNorm && elDiscNorm) {
+              rowDiscNorm.style.display = normalDiscount > 0 ? '' : 'none';
+              elDiscNorm.textContent = toArabicDigits(normalDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 }));
+            }
+
+            const rowDiscOther = document.getElementById('rowPrevDiscountOther');
+            const elDiscOther = document.getElementById('lblPrevDiscountOther');
+            if (rowDiscOther && elDiscOther) {
+              rowDiscOther.style.display = otherDiscount > 0 ? '' : 'none';
+              elDiscOther.textContent = toArabicDigits(otherDiscount.toLocaleString('en-US', { minimumFractionDigits: 2 }));
+            }
+
+            const elMatSub = document.getElementById('lblPrevClaimMaterialsSub');
+            if (elMatSub) elMatSub.textContent = '[ ' + (item.materialType || 'หนังสือและสมุด') + ' ]';
+
+            const elOpen = document.getElementById('lblPrevOpenDate');
+            const elRoom = document.getElementById('lblPrevRoom');
+            const elRemarksBox = document.getElementById('boxPrevReceiptRemarks');
+            const elRoomWrap = document.getElementById('boxPrevRoomWrap');
+            const elNoRoomWrap = document.getElementById('boxPrevNoRoomWrap');
+            const openVal = (item.openDate || '').toString().trim();
+            const roomVal = (item.room || '').toString().trim();
+            if (elOpen) elOpen.textContent = openVal ? toArabicDigits(openVal) : '-';
+            if (elRoom) elRoom.textContent = roomVal ? toArabicDigits(roomVal) : '-';
+            if (elRemarksBox) {
+              if (openVal && openVal !== '-') {
+                elRemarksBox.style.display = 'block';
+                const hasRoom = (roomVal && roomVal !== '-');
+                if (elRoomWrap) elRoomWrap.style.display = hasRoom ? 'inline' : 'none';
+                if (elNoRoomWrap) elNoRoomWrap.style.display = hasRoom ? 'none' : 'inline';
+              } else {
+                elRemarksBox.style.display = 'none';
+              }
+            }
+
+            receiptCurrentOfficialNo = item.receiptNo;
+            receiptCurrentClaimToken = item.claimToken;
+
+            const isDelivery = item.deliveryMethod === 'ส่งตำรา' || item.deliveryMethod === 'ส่งไปตามที่อยู่' || (item.deliveryMethod && item.deliveryMethod.indexOf('ส่ง') !== -1) || !item.claimToken;
+            const boxQrWrap = document.getElementById('boxPrevQrCodeWrap');
+            const boxShipBadge = document.getElementById('boxPrevShippingBadge');
+            const lblHeader = document.getElementById('lblPrevClaimHeader');
+            const lblSecNote = document.getElementById('lblPrevClaimSecurityNote');
+            const boxShipAddr = document.getElementById('boxPrevShippingAddressWrap');
+            const lblShipAddrText = document.getElementById('lblPrevShippingAddressText');
+            const lblBookClaimSub = document.getElementById('lblPrevBookClaimSub');
+
+            if (isDelivery) {
+              if (boxQrWrap) boxQrWrap.style.display = 'none';
+              if (boxShipBadge) boxShipBadge.style.display = 'flex';
+              if (lblHeader) lblHeader.innerHTML = '<i class="fa-solid fa-truck" style="margin-right:4px;"></i> บริการจัดส่งอุปกรณ์และตำราเรียนทางพัสดุ (Parcel Delivery)';
+              if (lblBookClaimSub) lblBookClaimSub.style.display = 'none';
+              if (boxShipAddr) boxShipAddr.style.display = 'block';
+              if (lblShipAddrText) lblShipAddrText.textContent = item.address && item.address !== '-' ? item.address : 'จัดส่งตามที่อยู่ที่ลงทะเบียน';
+              if (lblSecNote) lblSecNote.innerHTML = '<i class="fa-solid fa-truck-fast" style="margin-right:4px;"></i> สถาบันจะจัดส่งอุปกรณ์และตำราเรียนไปยังที่อยู่ข้างต้น (ไม่ต้องสแกน QR Code)';
+            } else {
+              if (boxQrWrap) boxQrWrap.style.display = 'flex';
+              if (boxShipBadge) boxShipBadge.style.display = 'none';
+              if (lblHeader) lblHeader.innerHTML = '<i class="fa-solid fa-qrcode" style="color:#0284c7; margin-right:4px;"></i> สิทธิ์รับตำราและอุปกรณ์การเรียน (One-Time Claim)';
+              if (lblBookClaimSub) {
+                lblBookClaimSub.style.display = 'block';
+                lblBookClaimSub.innerHTML =
+                  '<div style="font-size:12px; color:#0f172a; font-weight:600; line-height:1.5;">' +
+                  '  <i class="fa-solid fa-circle-exclamation" style="color:#0284c7; margin-right:4px;"></i> ต้องสแกน QR Code ณ สถาบันก่อน จึงจะทราบและแสดงรายการอุปกรณ์ที่ได้รับ' +
+                  '</div>' +
+                  '<div style="font-size:12px; color:#64748b; margin-top:2px;">' +
+                  '  (ระบบจะแสดงรายการตำราและอุปกรณ์ที่ได้รับบนหน้าจอเจ้าหน้าที่เมื่อสแกน QR Code นี้เท่านั้น)' +
+                  '</div>';
+              }
+              if (boxShipAddr) boxShipAddr.style.display = 'none';
+              if (lblSecNote) lblSecNote.innerHTML = '<i class="fa-solid fa-lock" style="margin-right:4px;"></i> สแกนรับสิทธิ์ได้ 1 ครั้งเท่านั้น ผ่านระบบกล้อง OCA ภายในสถาบัน (ไม่สามารถใช้แอปภายนอกสแกนได้)';
+              const qrStatus = document.getElementById('lblPrevQrClaimStatus');
+              if (item.claimStatus === 'CLAIMED') {
+                const claimTime = formatClaimTimestamp(item.claimedAt || item.claimed_at);
+                if (qrStatus) qrStatus.innerHTML = '<span style="color:#10b981; font-weight:700;"><i class="fa-solid fa-circle-check"></i> สแกนรับตำราแล้ว' + (claimTime ? (' (' + claimTime + ')') : '') + '</span>';
+              } else {
+                if (qrStatus) qrStatus.textContent = 'สแกนตรวจสอบรายการที่ได้รับ';
+              }
+              generateReceiptQrCode(item.claimToken);
+            }
+
+            // Version Selector
+            if (!versionData) {
+              loadReceiptVersionSelector(rcptNo, item);
+            }
+
+            window.scrollTo({ top: 300, behavior: 'smooth' });
+            showToast('โหลดข้อมูลใบเสร็จ', 'เลขที่ ' + toArabicDigits(item.receiptNo), '📄');
           }
         });
+    }
+
+    async function loadReceiptVersionSelector(rcptNo, currentItem) {
+      const box = document.getElementById('boxReceiptVersionSelector');
+      const sel = document.getElementById('selReceiptPreviewVersion');
+      const notice = document.getElementById('lblReceiptVersionNotice');
+      if (!box || !sel) return;
+
+      try {
+        const res = await callSupabaseApi('getReceiptRevisions', { receiptNo: rcptNo });
+        if (res && res.success && Array.isArray(res.revisions) && res.revisions.length > 0) {
+          window._activeReceiptRevisions = res.revisions;
+          window._activeReceiptCurrent = currentItem;
+
+          let opts = `<option value="current">ฉบับปัจจุบัน (${currentItem.updatedAt ? 'แก้ไขล่าสุด ' + formatThaiDateTime(currentItem.updatedAt) : 'ล่าสุด'})</option>`;
+          res.revisions.forEach((rev, idx) => {
+            const revNum = res.revisions.length - idx;
+            const revDate = rev.createdAt ? formatThaiDateTime(rev.createdAt) : '-';
+            const isOrig = (idx === res.revisions.length - 1);
+            opts += `<option value="${idx}">ฉบับที่ ${revNum} (${isOrig ? 'ดั้งเดิมก่อนแก้ไข' : 'ก่อนแก้ไข'} ${revDate})</option>`;
+          });
+
+          sel.innerHTML = opts;
+          box.style.display = 'flex';
+          if (notice) notice.textContent = `พบประวัติการแก้ไข ${toArabicDigits(res.revisions.length)} ฉบับก่อนหน้า`;
+        } else {
+          box.style.display = 'none';
+          window._activeReceiptRevisions = [];
+          window._activeReceiptCurrent = null;
+        }
+      } catch (_) {
+        box.style.display = 'none';
+      }
+    }
+
+    function onReceiptVersionSelected(val) {
+      if (val === 'current') {
+        if (window._activeReceiptCurrent) {
+          previewReceiptFromHistory(window._activeReceiptCurrent.receiptNo);
+        }
+      } else {
+        const idx = parseInt(val, 10);
+        if (window._activeReceiptRevisions && window._activeReceiptRevisions[idx]) {
+          const rev = window._activeReceiptRevisions[idx];
+          const snap = rev.snapshot;
+          previewReceiptFromHistory(snap.receipt_no || snap.receiptNo, snap);
+          showToast('กำลังดูฉบับก่อนหน้า', `ฉบับก่อนแก้ไขเมื่อ ${formatThaiDateTime(rev.createdAt)} (${escapeHtml(rev.editReason || '')})`, '🕒');
+        }
+      }
+    }
+
+    async function openReceiptRevisionHistoryModal(rcptNo) {
+      const modal = document.getElementById('modalReceiptRevisionHistory');
+      const lblNo = document.getElementById('lblModalRevRcptNo');
+      const listWrap = document.getElementById('listReceiptRevisionsWrap');
+      if (!modal || !listWrap) return;
+
+      if (lblNo) lblNo.textContent = toArabicDigits(rcptNo);
+      listWrap.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:var(--color-gold);"></i><div style="margin-top:8px;">กำลังโหลดประวัติการแก้ไข...</div></div>';
+      modal.style.display = 'flex';
+
+      try {
+        const res = await callSupabaseApi('getReceiptRevisions', { receiptNo: rcptNo });
+        const rcptRes = await callGasApi('getReceipts');
+        const currentRc = (rcptRes?.logs || []).find(r => r.receiptNo === rcptNo);
+
+        if (!res || !res.success || !Array.isArray(res.revisions) || res.revisions.length === 0) {
+          listWrap.innerHTML = `
+            <div style="text-align:center; padding:30px; color:var(--text-muted); background:rgba(255,255,255,0.02); border-radius:8px; border:1px dashed var(--border-soft);">
+              <i class="fa-solid fa-file-circle-check" style="font-size:32px; color:#10b981; margin-bottom:10px;"></i>
+              <div style="font-size:14px; font-weight:700; color:#e2e8f0;">ใบเสร็จฉบับนี้ยังไม่เคยมีการแก้ไข (Original Version 100%)</div>
+              <div style="font-size:12.5px; margin-top:4px; color:#94a3b8;">ออกเมื่อ: ${formatThaiDateTime(currentRc?.createdAt || currentRc?.created_at)}</div>
+              <div style="margin-top:14px;">
+                <button type="button" class="oca-btn-gold-submit" style="padding:6px 16px; font-size:12.5px;" onclick="closeReceiptRevisionHistoryModal(); previewReceiptFromHistory('${escapeHtml(rcptNo)}');">
+                  <i class="fa-solid fa-eye"></i> ดูใบเสร็จฉบับปัจจุบัน
+                </button>
+              </div>
+            </div>`;
+          return;
+        }
+
+        window._activeReceiptRevisions = res.revisions;
+        let html = '';
+        if (currentRc) {
+          html += `
+            <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); border-radius:10px; padding:14px 18px; margin-bottom:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="background:#10b981; color:#0f172a; font-weight:800; font-size:11px; padding:2px 8px; border-radius:4px;">ฉบับปัจจุบัน (LATEST)</span>
+                  <strong style="color:#ffffff; font-size:13.5px;">${escapeHtml(currentRc.itemName)} (฿${toArabicDigits(Number(currentRc.grandTotal).toLocaleString('en-US', { minimumFractionDigits: 2 }))})</strong>
+                </div>
+                <div style="font-size:12px; color:#94a3b8;">แก้ไขล่าสุด: ${formatThaiDateTime(currentRc.updatedAt || currentRc.updated_at)}</div>
+              </div>
+              <div style="font-size:12.5px; color:#cbd5e1; margin-top:6px; line-height:1.5;">
+                ผู้ชำระ: <strong>${escapeHtml(currentRc.buyerName)}</strong> | รหัส: ${toArabicDigits(currentRc.buyerId)} | รอบ: ${escapeHtml(currentRc.schedule || '-')} | การจัดส่ง: ${escapeHtml(currentRc.deliveryMethod || 'รับเอง')}
+              </div>
+              ${currentRc.editNotes ? `<div style="font-size:12px; color:#facc15; margin-top:6px; background:rgba(0,0,0,0.25); padding:6px 10px; border-radius:6px;"><i class="fa-solid fa-comment-dots" style="margin-right:4px;"></i>หมายเหตุ: ${escapeHtml(currentRc.editNotes)}</div>` : ''}
+              <div style="margin-top:10px; text-align:right;">
+                <button type="button" class="oca-btn-icon-gold" style="padding:4px 12px; font-size:12px; border-radius:6px;" onclick="closeReceiptRevisionHistoryModal(); previewReceiptFromHistory('${escapeHtml(rcptNo)}');">
+                  <i class="fa-solid fa-file-invoice"></i> ดูใบเสร็จฉบับนี้
+                </button>
+              </div>
+            </div>`;
+        }
+
+        res.revisions.forEach((rev, idx) => {
+          const revNum = res.revisions.length - idx;
+          const snap = rev.snapshot || {};
+          const isOriginal = (idx === res.revisions.length - 1);
+          const snapTotal = Number(snap.grand_total !== undefined ? snap.grand_total : (snap.grandTotal || 0));
+          const snapItem = snap.item_name || snap.itemName || '-';
+          const snapBuyer = snap.buyer_name || snap.buyerName || '-';
+          const snapSid = snap.student_id || snap.buyerId || snap.studentId || '-';
+          const snapDate = snap.created_at || snap.createdAt;
+          const snapSchedule = snap.schedule || '-';
+
+          const snapJsonEscaped = escapeHtml(JSON.stringify(snap)).replace(/"/g, '&quot;');
+
+          html += `
+            <div style="background:rgba(255,255,255,0.03); border:1px solid ${isOriginal ? 'rgba(215,166,0,0.35)' : 'rgba(255,255,255,0.1)'}; border-radius:10px; padding:14px 18px; margin-bottom:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="background:${isOriginal ? 'var(--color-gold)' : 'rgba(168,85,247,0.3)'}; color:${isOriginal ? '#0f172a' : '#c084fc'}; font-weight:800; font-size:11px; padding:2px 8px; border-radius:4px;">
+                    ${isOriginal ? 'ฉบับที่ 1 (ดั้งเดิมก่อนแก้ไข)' : ('ฉบับแก้ไขครั้งที่ ' + revNum)}
+                  </span>
+                  <strong style="color:#ffffff; font-size:13.5px;">${escapeHtml(snapItem)} (฿${toArabicDigits(snapTotal.toLocaleString('en-US', { minimumFractionDigits: 2 }))})</strong>
+                </div>
+                <div style="font-size:12px; color:#94a3b8;">
+                  บันทึกสำเนาเมื่อ: ${formatThaiDateTime(rev.createdAt)} โดย ${escapeHtml(rev.fullName || rev.username)}
+                </div>
+              </div>
+              <div style="font-size:12.5px; color:#cbd5e1; margin-top:6px; line-height:1.5;">
+                ผู้ชำระ: <strong>${escapeHtml(snapBuyer)}</strong> | รหัส: ${toArabicDigits(snapSid)} | วันที่ออกเดิม: <strong>${formatThaiDate(snapDate)}</strong> | รอบ: ${escapeHtml(snapSchedule)}
+              </div>
+              <div style="font-size:12px; color:#fde047; margin-top:6px; background:rgba(0,0,0,0.25); padding:6px 10px; border-radius:6px; border-left:3px solid var(--color-gold);">
+                <i class="fa-solid fa-pen" style="margin-right:4px;"></i><strong>เหตุผลที่แก้ไข:</strong> ${escapeHtml(rev.editReason || 'แก้ไขข้อมูลใบเสร็จ')}
+              </div>
+              <div style="margin-top:10px; display:flex; justify-content:flex-end; gap:8px;">
+                <button type="button" class="oca-btn-icon-gold" style="padding:4px 12px; font-size:12px; border-radius:6px; background:rgba(168,85,247,0.15); border-color:#a855f7; color:#c084fc;" onclick="closeReceiptRevisionHistoryModal(); previewReceiptFromHistory('${escapeHtml(rcptNo)}', window._activeReceiptRevisions[${idx}].snapshot);">
+                  <i class="fa-solid fa-eye"></i> ดูใบเสร็จฉบับเดิมนี้
+                </button>
+              </div>
+            </div>`;
+        });
+
+        listWrap.innerHTML = html;
+      } catch (e) {
+        listWrap.innerHTML = `<div style="text-align:center; padding:20px; color:#ef4444;">โหลดประวัติไม่สำเร็จ: ${escapeHtml(e.message || '')}</div>`;
+      }
+    }
+
+    function closeReceiptRevisionHistoryModal() {
+      const modal = document.getElementById('modalReceiptRevisionHistory');
+      if (modal) modal.style.display = 'none';
     }
 
     // =========================================================================
@@ -18323,16 +19313,20 @@
             }
             claimedLogs.forEach(row => {
               const tr = document.createElement('tr');
-              tr.innerHTML =
-                '<td style="font-size:12px; color:var(--text-muted);">' + formatThaiDateTime(row.claimedAt || row.createdAt) + '</td>' +
-                '<td style="font-family:monospace; font-weight:700; color:var(--color-gold);">' + toArabicDigits(row.receiptNo) + '</td>' +
-                '<td>' + toArabicDigits(row.buyerId) + '</td>' +
-                '<td><strong>' + escapeHtml(row.buyerName) + '</strong></td>' +
-                '<td>' + escapeHtml(row.itemName) + (row.materialType ? (' <span style="background:rgba(59,130,246,0.18); border:1px solid rgba(59,130,246,0.35); color:#93c5fd; padding:1px 6px; border-radius:4px; font-size:12px; margin-left:4px; white-space:nowrap;">' + escapeHtml(row.materialType) + '</span>') : '') + '</td>' +
-                '<td>' + escapeHtml(row.claimedBy || 'เจ้าหน้าที่') + '</td>' +
-                '<td style="white-space:nowrap; text-align:center;">' +
-                  '<span style="background:rgba(16,185,129,0.15); color:#10B981; padding:3px 10px; border-radius:10px; font-weight:700; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-check"></i> รับเรียบร้อย</span>' +
-                '</td>';
+                const claimTime = formatClaimTimestamp(row.claimedAt || row.createdAt);
+                tr.innerHTML =
+                  '<td style="font-size:12px; color:var(--text-muted);">' + formatThaiDateTime(row.claimedAt || row.createdAt) + '</td>' +
+                  '<td style="font-family:monospace; font-weight:700; color:var(--color-gold);">' + toArabicDigits(row.receiptNo) + '</td>' +
+                  '<td>' + toArabicDigits(row.buyerId) + '</td>' +
+                  '<td><strong>' + escapeHtml(row.buyerName) + '</strong></td>' +
+                  '<td>' + escapeHtml(row.itemName) + (row.materialType ? (' <span style="background:rgba(59,130,246,0.18); border:1px solid rgba(59,130,246,0.35); color:#93c5fd; padding:1px 6px; border-radius:4px; font-size:12px; margin-left:4px; white-space:nowrap;">' + escapeHtml(row.materialType) + '</span>') : '') + '</td>' +
+                  '<td>' + escapeHtml(row.claimedBy || 'เจ้าหน้าที่') + '</td>' +
+                  '<td style="white-space:nowrap; text-align:center;">' +
+                    '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:2px;">' +
+                      '<span style="background:rgba(16,185,129,0.15); color:#10B981; padding:3px 10px; border-radius:10px; font-weight:700; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-check"></i> รับเรียบร้อย</span>' +
+                      (claimTime ? ('<span style="font-size:10.5px; color:#10b981; font-family:monospace; white-space:nowrap; display:inline-flex; align-items:center; gap:2px;"><i class="fa-regular fa-clock" style="font-size:9.5px;"></i>' + claimTime + '</span>') : '') +
+                    '</div>' +
+                  '</td>';
               tbody.appendChild(tr);
             });
           } else {
@@ -18561,102 +19555,133 @@
 
       showToast('กำลังตรวจสอบสิทธิ์รับตำรา...', '', 'info');
 
-      function renderMaterialClaimBox(matType) {
-        const type = (matType || 'หนังสือและสมุดช่องใหญ่').toString().trim();
+      function parseCourseMaterialItems(rawType, fallbackCourseTitle = '') {
+        let s = (rawType || '').toString().trim();
+        if (!s && fallbackCourseTitle) s = fallbackCourseTitle.trim();
+
+        if (!s || s.indexOf('ไม่มีอุปกรณ์') !== -1 || s.indexOf('ไม่รับ') !== -1) {
+          return {
+            items: ['ไม่มีอุปกรณ์ (ผู้เรียนใช้ตำราเดิมต่อเนื่อง ไม่ต้องหยิบอุปกรณ์)'],
+            hasBook: false,
+            hasNotebook: false,
+            isNoMaterial: true,
+            summary: 'ไม่มีอุปกรณ์ (ใช้ตำราเดิม)'
+          };
+        }
+
+        const items = [];
+        let hasBook = false;
+        let hasNotebook = false;
+
+        // 1. ตรวจจับหนังสือเรียน / ตำราเรียนประจำหลักสูตร
+        if (s.indexOf('หนังสือ') !== -1 || s.indexOf('แบบเรียน') !== -1 || s.indexOf('ตำรา') !== -1) {
+          hasBook = true;
+          let bookPart = s;
+          if (s.indexOf('+') !== -1) {
+            bookPart = s.split('+')[0].trim();
+          } else if (s.indexOf('และ') !== -1 && s.indexOf('สมุด') !== -1) {
+            bookPart = s.split('และ')[0].trim();
+          }
+          if (bookPart === 'หนังสือ' || bookPart === 'หนังสือเรียน' || bookPart === 'หนังสืออย่างเดียว') {
+            items.push('หนังสือเรียนประจำหลักสูตร 1 เล่ม');
+          } else if (bookPart.indexOf('กู่เจิง') !== -1) {
+            items.push(bookPart.indexOf('เล่ม') !== -1 ? bookPart : (bookPart + ' 1 เล่ม'));
+          } else {
+            items.push(bookPart.indexOf('เล่ม') !== -1 ? bookPart : (bookPart + ' 1 เล่ม'));
+          }
+        }
+
+        // 2. ตรวจจับสมุดบันทึก / สมุดคัดลายมือ
+        if (s.indexOf('สมุดช่องใหญ่') !== -1) {
+          hasNotebook = true;
+          items.push('สมุดคัดจีนช่องใหญ่ (ตารางใหญ่) 1 เล่ม');
+        } else if (s.indexOf('สมุดช่องเล็ก') !== -1) {
+          hasNotebook = true;
+          items.push('สมุดคัดจีนช่องเล็ก (ตารางเล็ก) 1 เล่ม');
+        } else if (s.indexOf('สมุด') !== -1 && !hasNotebook) {
+          hasNotebook = true;
+          items.push('สมุดคัดจีน/สมุดบันทึก 1 เล่ม');
+        }
+
+        // 3. ตรวจจับอุปกรณ์พิเศษ (พู่กันจีน, หมึก, เครื่องดนตรี)
+        if (s.indexOf('พู่กัน') !== -1) {
+          items.push('ชุดพู่กันจีนและอุปกรณ์ฝึกเขียน 1 ชุด');
+        }
+        if (s.indexOf('กู่เจิง') !== -1 && !hasBook) {
+          hasBook = true;
+          items.push('แบบเรียนพิณกู่เจิง 1 เล่ม');
+        }
+
+        if (items.length === 0) {
+          items.push(s);
+        }
+
+        return {
+          items: items,
+          hasBook: hasBook,
+          hasNotebook: hasNotebook,
+          isNoMaterial: false,
+          summary: items.join(' + ')
+        };
+      }
+
+      function renderMaterialClaimBox(matType, courseName = '') {
+        const parsed = parseCourseMaterialItems(matType, courseName);
         let icon = '<i class="fa-solid fa-book-bookmark"></i>';
-        let title = type;
-        let desc = 'กรุณาหยิบหนังสือเรียนและสมุดมอบให้นักเรียน';
+        let title = parsed.summary;
         let bg = 'linear-gradient(135deg, rgba(234,179,8,0.22), rgba(202,138,4,0.32))';
         let border = '#facc15';
         let textColor = '#fef08a';
         let note = '';
 
-        if (type.indexOf('หนังสือและสมุดช่องใหญ่') !== -1) {
-          icon = '<i class="fa-solid fa-book-bookmark"></i>';
-          title = 'หนังสือเรียน + สมุดช่องใหญ่ (Large Grid Notebook)';
-          desc = 'หยิบ: หนังสือเรียนประจำหลักสูตร 1 เล่ม + สมุดคัดจีนช่องใหญ่ (ตารางใหญ่) 1 เล่ม';
-          note = 'สมุดช่องใหญ่เหมาะสำหรับผู้เริ่มเรียนฝึกคัดตัวอักษรจีน';
-          bg = 'linear-gradient(135deg, rgba(234,179,8,0.22), rgba(202,138,4,0.32))';
-          border = '#facc15';
-          textColor = '#fef08a';
-        } else if (type.indexOf('หนังสือและสมุดช่องเล็ก') !== -1) {
-          icon = '<i class="fa-solid fa-book-bookmark"></i>';
-          title = 'หนังสือเรียน + สมุดช่องเล็ก (Small Grid Notebook)';
-          desc = 'หยิบ: หนังสือเรียนประจำหลักสูตร 1 เล่ม + สมุดคัดจีนช่องเล็ก (ตารางเล็ก) 1 เล่ม';
-          note = 'สมุดช่องเล็กเหมาะสำหรับระดับกลาง-สูง / เขียนเรียงความและจดบันทึก';
-          bg = 'linear-gradient(135deg, rgba(16,185,129,0.22), rgba(5,150,105,0.32))';
-          border = '#34d399';
-          textColor = '#a7f3d0';
-        } else if (type.indexOf('สมุดช่องใหญ่') !== -1) {
-          icon = '<i class="fa-solid fa-book"></i>';
-          title = 'สมุดช่องใหญ่ อย่างเดียว (Large Grid Notebook Only)';
-          desc = 'หยิบ: สมุดคัดอักษรจีนช่องใหญ่ 1 เล่ม (ไม่ต้องจ่ายหนังสือ)';
-          note = 'สมุดตารางใหญ่สำหรับฝึกคัดลายมือ';
-          bg = 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(217,119,6,0.32))';
-          border = '#fbbf24';
-          textColor = '#fde68a';
-        } else if (type.indexOf('สมุดช่องเล็ก') !== -1) {
-          icon = '<i class="fa-solid fa-book"></i>';
-          title = 'สมุดช่องเล็ก อย่างเดียว (Small Grid Notebook Only)';
-          desc = 'หยิบ: สมุดคัดอักษรจีนช่องเล็ก 1 เล่ม (ไม่ต้องจ่ายหนังสือ)';
-          note = 'สมุดตารางเล็กสำหรับระดับกลาง-สูง / จดบันทึก';
-          bg = 'linear-gradient(135deg, rgba(168,85,247,0.22), rgba(126,34,206,0.32))';
-          border = '#c084fc';
-          textColor = '#f3e8ff';
-        } else if (type.indexOf('หนังสือ') !== -1 && type.indexOf('สมุด') === -1) {
-          icon = '<i class="fa-solid fa-book-open"></i>';
-          title = 'หนังสือเรียน อย่างเดียว (Textbook Only)';
-          desc = 'หยิบ: หนังสือเรียน 1 เล่ม (ไม่ต้องจ่ายสมุด)';
-          note = 'เฉพาะตำราเรียนประจำหลักสูตร';
-          bg = 'linear-gradient(135deg, rgba(59,130,246,0.22), rgba(29,78,216,0.32))';
-          border = '#60a5fa';
-          textColor = '#bfdbfe';
-        } else if (type.indexOf('พู่กันจีน') !== -1 || type.indexOf('พู่กัน') !== -1) {
-          icon = '<i class="fa-solid fa-paintbrush"></i>';
-          title = 'พู่กันจีน (Chinese Calligraphy Brush)';
-          desc = 'หยิบ: ชุดพู่กันจีนสำหรับฝึกคัดลายมือ / ด้ามพู่กันและอุปกรณ์';
-          note = 'สำหรับวิชาศาสตร์พู่กันจีนและจิตรกรรมหมึกโบราณ';
-          bg = 'linear-gradient(135deg, rgba(217,119,6,0.25), rgba(180,83,9,0.35))';
-          border = '#f59e0b';
-          textColor = '#fef3c7';
-        } else if (type.indexOf('กู่เจิง') !== -1) {
-          icon = '<i class="fa-solid fa-music"></i>';
-          title = 'แบบเรียนพิณกู่เจิง (Guzheng Textbook)';
-          desc = 'หยิบ: แบบเรียนพิณกู่เจิง 1 เล่ม';
-          note = 'สำหรับวิชาดนตรีจีนโบราณ พิณกู่เจิง';
-          bg = 'linear-gradient(135deg, rgba(6,182,212,0.22), rgba(8,145,178,0.32))';
-          border = '#22d3ee';
-          textColor = '#cffafe';
-        } else if (type.indexOf('ไม่มีอุปกรณ์') !== -1 || type.indexOf('ไม่รับ') !== -1) {
+        if (parsed.isNoMaterial) {
           icon = '<i class="fa-solid fa-circle-minus"></i>';
           title = 'ไม่มีอุปกรณ์ (No Materials Required)';
-          desc = 'ไม่ต้องจ่ายอุปกรณ์ (ผู้เรียนใช้ตำราเดิมต่อเนื่องจากระดับก่อนหน้า)';
-          note = 'คอร์สต่อยอด ไม่ต้องหยิบตำราหรือสมุด';
           bg = 'linear-gradient(135deg, rgba(100,116,139,0.2), rgba(71,85,105,0.3))';
           border = '#94a3b8';
           textColor = '#e2e8f0';
-        } else {
+          note = 'คอร์สต่อยอด ไม่ต้องหยิบตำราหรือสมุด ผู้เรียนใช้ตำราเดิม';
+        } else if (parsed.hasBook && parsed.hasNotebook) {
           icon = '<i class="fa-solid fa-book-bookmark"></i>';
-          title = type || 'หนังสือและสมุด';
-          desc = 'หยิบหนังสือเรียน 1 เล่ม + สมุดบันทึก 1 เล่ม';
-          note = 'โปรดตรวจสอบประเภทสมุด (ช่องใหญ่/เล็ก) ให้ตรงกับหลักสูตรของผู้เรียน';
-          bg = 'linear-gradient(135deg, rgba(234,179,8,0.22), rgba(202,138,4,0.32))';
-          border = '#facc15';
-          textColor = '#fef08a';
+          title = 'หนังสือเรียน + สมุดประจำหลักสูตร (ครบชุด)';
+          bg = 'linear-gradient(135deg, rgba(16,185,129,0.22), rgba(5,150,105,0.32))';
+          border = '#34d399';
+          textColor = '#a7f3d0';
+          note = 'โปรดตรวจสอบชื่อหนังสือและตารางสมุดให้ตรงกับหลักสูตรของผู้เรียน';
+        } else if (parsed.hasBook) {
+          icon = '<i class="fa-solid fa-book-open"></i>';
+          title = 'หนังสือเรียนประจำหลักสูตร (Textbook Only)';
+          bg = 'linear-gradient(135deg, rgba(59,130,246,0.22), rgba(29,78,216,0.32))';
+          border = '#60a5fa';
+          textColor = '#bfdbfe';
+          note = 'เฉพาะตำราเรียนประจำหลักสูตร (ไม่ต้องจ่ายสมุด)';
+        } else if (parsed.hasNotebook) {
+          icon = '<i class="fa-solid fa-book"></i>';
+          title = 'สมุดคัดลายมือ อย่างเดียว (Notebook Only)';
+          bg = 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(217,119,6,0.32))';
+          border = '#fbbf24';
+          textColor = '#fde68a';
+          note = 'เฉพาะสมุดคัดลายมือ (ไม่ต้องจ่ายหนังสือ)';
         }
+
+        const itemsHtml = parsed.items.map(it =>
+          '<div style="font-size:13.5px; color:#ffffff; margin-top:4px; font-weight:600; display:flex; align-items:center; gap:8px;">' +
+          '  <i class="fa-solid fa-circle-check" style="color:var(--color-gold); font-size:13px;"></i> ' + escapeHtml(it) +
+          '</div>'
+        ).join('');
 
         return '<div style="background:' + bg + '; border:2px solid ' + border + '; border-radius:10px; padding:12px 16px; margin:10px 0 12px 0; text-align:left; box-shadow:0 4px 14px rgba(0,0,0,0.35);">' +
                '  <div style="font-size:12px; font-weight:800; color:#fbbf24; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">' +
-               '    <i class="fa-solid fa-box-archive"></i> รายการที่เจ้าหน้าที่ต้องหยิบส่งมอบให้นักเรียน:' +
+               '    <i class="fa-solid fa-box-archive"></i> รายการอุปกรณ์ที่ต้องหยิบส่งมอบให้นักเรียน (' + toArabicDigits(parsed.items.length) + ' รายการ):' +
                '  </div>' +
-               '  <div style="font-size:17px; font-weight:900; color:' + textColor + '; display:flex; align-items:center; gap:8px;">' +
-               '    <span style="font-size:22px;">' + icon + '</span>' +
-               '    <span>' + title + '</span>' +
+               '  <div style="font-size:16px; font-weight:900; color:' + textColor + '; display:flex; align-items:center; gap:8px; margin-bottom:6px;">' +
+               '    <span style="font-size:20px;">' + icon + '</span>' +
+               '    <span>' + escapeHtml(title) + '</span>' +
                '  </div>' +
-               '  <div style="font-size:13px; color:#ffffff; margin-top:5px; font-weight:600; display:flex; align-items:center; gap:6px;">' +
-               '    <i class="fa-solid fa-hand-point-right" style="color:var(--color-gold);"></i> ' + desc +
+               '  <div style="background:rgba(0,0,0,0.25); border-radius:8px; padding:8px 12px; border:1px dashed ' + border + ';">' +
+                    itemsHtml +
                '  </div>' +
-               (note ? ('  <div style="font-size:12px; color:#cbd5e1; margin-top:4px; font-style:italic;"><i class="fa-solid fa-circle-info" style="color:var(--color-gold); margin-right:4px;"></i>หมายเหตุ: ' + note + '</div>') : '') +
+               (note ? ('  <div style="font-size:12px; color:#cbd5e1; margin-top:6px; font-style:italic;"><i class="fa-solid fa-circle-info" style="color:var(--color-gold); margin-right:4px;"></i>หมายเหตุ: ' + escapeHtml(note) + '</div>') : '') +
                '</div>';
       }
 
@@ -18666,12 +19691,14 @@
 
           if (res && res.deliveryOrder) {
             card.className = 'oca-claim-feedback-card warning';
+            const matBox = renderMaterialClaimBox(res.materialType, res.itemTitle);
             content.innerHTML =
               '<div style="font-size:17px; font-weight:800; color:#38bdf8; display:flex; align-items:center; gap:8px;">' +
               '  <span><i class="fa-solid fa-truck" style="margin-right:6px;"></i> แจ้งเตือน: ใบเสร็จนี้เลือก "จัดส่งทางพัสดุตามที่อยู่"</span>' +
               '</div>' +
+              matBox +
               '<div style="font-size:14px; font-weight:700; color:#ffffff; margin-top:8px;">' +
-              '  ตำราเรียน: ' + escapeHtml(res.itemTitle || '') +
+              '  หลักสูตร: ' + escapeHtml(res.itemTitle || '') +
               '</div>' +
               '<div style="font-size:13px; color:#bfdbfe; margin-top:4px; line-height:1.5;">' +
               '  ผู้รับ: <strong>' + escapeHtml(res.buyerName || '') + '</strong> (รหัส: ' + toArabicDigits(res.buyerId) + ')<br>' +
@@ -18682,29 +19709,55 @@
               '  <i class="fa-solid fa-truck-fast" style="margin-right:4px;"></i> สถาบันจะจัดส่งพัสดุตามที่อยู่ข้างต้น ไม่ต้องจ่ายอุปกรณ์ที่เคาน์เตอร์' +
               '</div>';
             showToast('จัดส่งทางพัสดุ', 'ไม่ต้องจ่ายของที่เคาน์เตอร์', 'info');
+            const parsedDeliv = parseCourseMaterialItems(res.materialType, res.itemTitle);
+            const delivItemsHtml = parsedDeliv.items.map((it) => '<div style="padding:2px 0;">• ' + escapeHtml(it) + '</div>').join('');
+            const delivModalBody =
+              '<div style="background:rgba(56,189,248,0.15); border:1.5px solid #38bdf8; border-radius:10px; padding:12px 14px; margin-bottom:14px;">' +
+              '  <div style="font-size:14px; font-weight:800; color:#7dd3fc; display:flex; align-items:center; gap:8px; margin-bottom:4px;">' +
+              '    <i class="fa-solid fa-truck-fast" style="font-size:18px; color:#38bdf8;"></i>' +
+              '    <span>สถานะ: รายการนี้จัดส่งทางพัสดุตามที่อยู่</span>' +
+              '  </div>' +
+              '  <div style="font-size:12px; color:#bfdbfe; line-height:1.4;">' +
+              '    สถาบันจะจัดส่งพัสดุตามที่อยู่ข้างต้น <strong>ไม่ต้องจ่ายอุปกรณ์ที่เคาน์เตอร์</strong>' +
+              '  </div>' +
+              '</div>' +
+              '<div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; color:#e2e8f0;">' +
+              '  <div><strong>ผู้รับ:</strong> ' + escapeHtml(res.buyerName || '-') + ' (รหัส: ' + toArabicDigits(res.buyerId || '-') + ')</div>' +
+              '  <div><strong>เลขที่ใบเสร็จ:</strong> ' + toArabicDigits(res.receiptNo || '-') + '</div>' +
+              '  <div><strong>หลักสูตร:</strong> ' + escapeHtml(res.itemTitle || '-') + '</div>' +
+              '  <div><strong>ที่อยู่จัดส่ง:</strong> ' + escapeHtml(res.address || '-') + '</div>' +
+              '  <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.12);">' +
+              '    <strong style="color:#38bdf8;">รายการอุปกรณ์ที่ต้องจัดส่ง:</strong>' +
+              '    <div style="margin-left:6px; margin-top:4px; color:#f1f5f9;">' + delivItemsHtml + '</div>' +
+              '  </div>' +
+              '</div>';
+
             showClaimAlertPopup(
               'รายการนี้จัดส่งทางพัสดุตามที่อยู่',
-              'ใบเสร็จเลขที่: ' + toArabicDigits(res.receiptNo || '-') + '\n' +
-              'ผู้รับ: ' + (res.buyerName || '-') + '\n' +
-              'ที่อยู่จัดส่ง: ' + (res.address || '-') + '\n\n' +
-              'รายการนี้เลือกรูปแบบจัดส่งทางพัสดุ สถาบันจะจัดส่งตามที่อยู่ข้างต้น ไม่ต้องจ่ายอุปกรณ์ที่เคาน์เตอร์',
+              delivModalBody,
               'fa-truck',
-              '#38bdf8'
+              '#38bdf8',
+              {
+                statusType: 'delivery',
+                isHtml: true,
+                subtitle: '📦 จัดส่งทางพัสดุตามที่อยู่ (Delivery By Post)',
+                confirmText: 'รับทราบ (จัดส่งทางพัสดุ)'
+              }
             );
             return;
           }
 
           if (res && res.alreadyClaimed) {
-            // Already Claimed Warning (Second Scan Alert)
+            // Already Claimed Warning (Repeat Scan -> High Visibility RED Alert)
             card.className = 'oca-claim-feedback-card warning';
-            const matBox = renderMaterialClaimBox(res.materialType);
+            const matBox = renderMaterialClaimBox(res.materialType, res.itemTitle);
             content.innerHTML =
               '<div style="font-size:17px; font-weight:800; color:#ef4444; display:flex; align-items:center; gap:8px;">' +
-              '  <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>บันทึกเตือน: รับอุปกรณ์/ตำราเรียนไปแล้ว!</span>' +
+              '  <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>บันทึกเตือน: รับอุปกรณ์/ตำราเรียนไปแล้ว!</span>' +
               '</div>' +
               matBox +
               '<div style="font-size:14px; font-weight:700; color:#ffffff; margin-top:6px;">' +
-              '  ตำราเรียน: ' + (res.itemTitle || 'ตำราเรียน') +
+              '  หลักสูตร: ' + (res.itemTitle || 'ตำราเรียน') +
               '</div>' +
               '<div style="font-size:13px; color:#fca5a5; margin-top:4px;">' +
               '  ผู้รับ: <strong>' + (res.buyerName || '') + '</strong> (รหัส: ' + toArabicDigits(res.buyerId) + ')<br>' +
@@ -18715,16 +19768,44 @@
               '  สแกนซ้ำไม่ได้: รหัส QR Code นี้ถูกใช้ตัดสิทธิ์ไปแล้ว' +
               '</div>';
             showToast('แจ้งเตือน!', 'รับตำราไปแล้วเมื่อ ' + toArabicDigits(res.claimedAt), 'warn');
+
+            const parsedClaim = parseCourseMaterialItems(res.materialType, res.itemTitle);
+            const claimItemsHtml = parsedClaim.items.map((it) => '<div style="padding:2px 0;">• ' + escapeHtml(it) + '</div>').join('');
+            const alreadyClaimedModalBody =
+              '<div style="background:rgba(239,68,68,0.18); border:2px solid #ef4444; border-radius:10px; padding:12px 14px; margin-bottom:14px;">' +
+              '  <div style="font-size:14px; font-weight:800; color:#f87171; display:flex; align-items:center; gap:8px; margin-bottom:4px;">' +
+              '    <i class="fa-solid fa-triangle-exclamation" style="font-size:18px; color:#ef4444;"></i>' +
+              '    <span>สถานะ: สิทธิ์นี้ถูกตัดรับไปแล้ว (สแกนซ้ำ)</span>' +
+              '  </div>' +
+              '  <div style="font-size:12.5px; color:#fca5a5; line-height:1.45;">' +
+              '    ใบเสร็จนี้เคยถูกใช้ตัดสิทธิ์รับตำราเรียนไปแล้วในระบบ <strong>ห้ามส่งมอบอุปกรณ์ซ้ำเด็ดขาด</strong>' +
+              '  </div>' +
+              '</div>' +
+              '<div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; color:#e2e8f0;">' +
+              '  <div><strong>ผู้รับ:</strong> ' + escapeHtml(res.buyerName || '-') + ' (รหัส: ' + toArabicDigits(res.buyerId || '-') + ')</div>' +
+              '  <div><strong>เลขที่ใบเสร็จ:</strong> ' + toArabicDigits(res.receiptNo || '-') + '</div>' +
+              '  <div><strong>หลักสูตร:</strong> ' + escapeHtml(res.itemTitle || '-') + '</div>' +
+              '  <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.12);">' +
+              '    <strong style="color:#fbbf24;">รายการอุปกรณ์ตามสิทธิ์:</strong>' +
+              '    <div style="margin-left:6px; margin-top:4px; color:#f1f5f9;">' + claimItemsHtml + '</div>' +
+              '  </div>' +
+              '  <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.12); color:#fca5a5; font-size:12px;">' +
+              '    <div><i class="fa-solid fa-clock" style="margin-right:4px;"></i><strong>รับไปแล้วเมื่อ:</strong> ' + toArabicDigits(res.claimedAt || '-') + '</div>' +
+              '    <div><i class="fa-solid fa-user-check" style="margin-right:4px;"></i><strong>โดยเจ้าหน้าที่:</strong> ' + escapeHtml(res.claimedBy || '-') + '</div>' +
+              '  </div>' +
+              '</div>';
+
             showClaimAlertPopup(
-              'ตำราเรียนนี้ถูกจ่ายไปแล้ว (สิทธิ์ถูกใช้แล้ว)',
-              'ผู้รับ: ' + (res.buyerName || '-') + ' (รหัส: ' + toArabicDigits(res.buyerId || '-') + ')\n' +
-              'เลขที่ใบเสร็จ: ' + toArabicDigits(res.receiptNo || '-') + '\n' +
-              'ตำราเรียน: ' + (res.itemTitle || '-') + '\n\n' +
-              'รับไปแล้วเมื่อ: ' + toArabicDigits(res.claimedAt || '-') + '\n' +
-              'โดยเจ้าหน้าที่: ' + (res.claimedBy || '-') + '\n\n' +
-              'สแกนซ้ำไม่ได้: สิทธิ์ใบเสร็จนี้ถูกบันทึกตัดจ่ายไปแล้ว',
-              'fa-triangle-exclamation',
-              '#ef4444'
+              '⚠️ ตำราเรียนนี้ถูกรับไปแล้ว! (สแกนซ้ำ)',
+              alreadyClaimedModalBody,
+              'fa-circle-xmark',
+              '#ef4444',
+              {
+                statusType: 'alreadyClaimed',
+                isHtml: true,
+                subtitle: '❌ สแกนซ้ำ: สิทธิ์นี้ถูกใช้ไปแล้ว (Already Claimed - Duplicate Scan)',
+                confirmText: 'รับทราบ (ห้ามส่งมอบซ้ำ)'
+              }
             );
 
           } else if (res && res.isCardReceipt) {
@@ -18745,16 +19826,16 @@
             );
 
           } else if (res && res.success) {
-            // Success Claim (First Scan)
+            // Success Claim (First Scan -> High Visibility GREEN Alert)
             card.className = 'oca-claim-feedback-card success';
-            const matBox = renderMaterialClaimBox(res.materialType);
+            const matBox = renderMaterialClaimBox(res.materialType, res.itemTitle);
             content.innerHTML =
               '<div style="font-size:18px; font-weight:800; color:#10b981; display:flex; align-items:center; gap:8px;">' +
               '  <span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>สแกนสำเร็จ: บันทึกรับอุปกรณ์การเรียนเรียบร้อยแล้ว!</span>' +
               '</div>' +
               matBox +
               '<div style="font-size:14.5px; font-weight:700; color:#ffffff; margin-top:6px;">' +
-              '  ตำราเรียน: ' + (res.itemTitle || '') +
+              '  หลักสูตร: ' + (res.itemTitle || '') +
               '</div>' +
               '<div style="font-size:13.5px; color:#a7f3d0; margin-top:4px;">' +
               '  ผู้รับ: <strong>' + (res.buyerName || '') + '</strong> (รหัส: ' + toArabicDigits(res.buyerId) + ')<br>' +
@@ -18766,6 +19847,45 @@
             loadTextbookClaimLogs();
             loadTextbooksData();
             loadReceiptsHistoryTable();
+
+            const parsedSucc = parseCourseMaterialItems(res.materialType, res.itemTitle);
+            const succItemsHtml = parsedSucc.items.map((it) => '<div style="padding:2px 0;">• ' + escapeHtml(it) + '</div>').join('');
+            const successModalBody =
+              '<div style="background:rgba(16,185,129,0.18); border:2px solid #10b981; border-radius:10px; padding:12px 14px; margin-bottom:14px;">' +
+              '  <div style="font-size:14px; font-weight:800; color:#34d399; display:flex; align-items:center; gap:8px; margin-bottom:4px;">' +
+              '    <i class="fa-solid fa-circle-check" style="font-size:18px; color:#10b981;"></i>' +
+              '    <span>สถานะ: ผ่านการตรวจสอบ (สแกนครั้งแรก)</span>' +
+              '  </div>' +
+              '  <div style="font-size:12.5px; color:#a7f3d0; line-height:1.45;">' +
+              '    ตัดสิทธิ์ในระบบสำเร็จ อนุญาตให้ส่งมอบตำรา/อุปกรณ์การเรียนตามรายการได้' +
+              '  </div>' +
+              '</div>' +
+              '<div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; color:#e2e8f0;">' +
+              '  <div><strong>ผู้รับ:</strong> ' + escapeHtml(res.buyerName || '-') + ' (รหัส: ' + toArabicDigits(res.buyerId || '-') + ')</div>' +
+              '  <div><strong>เลขที่ใบเสร็จ:</strong> ' + toArabicDigits(res.receiptNo || '-') + '</div>' +
+              '  <div><strong>หลักสูตร:</strong> ' + escapeHtml(res.itemTitle || '-') + '</div>' +
+              '  <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.12);">' +
+              '    <strong style="color:#34d399;">รายการอุปกรณ์ที่ต้องส่งมอบ:</strong>' +
+              '    <div style="margin-left:6px; margin-top:4px; color:#f1f5f9;">' + succItemsHtml + '</div>' +
+              '  </div>' +
+              '  <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.12); color:#94a3b8; font-size:12px;">' +
+              '    <div><i class="fa-solid fa-clock" style="margin-right:4px;"></i><strong>วันเวลาบันทึก:</strong> ' + toArabicDigits(res.claimedAt || '-') + '</div>' +
+              '    <div><i class="fa-solid fa-user-check" style="margin-right:4px;"></i><strong>ผู้บันทึกจ่าย:</strong> ' + escapeHtml(res.claimedBy || '-') + '</div>' +
+              '  </div>' +
+              '</div>';
+
+            showClaimAlertPopup(
+              'สแกนรับอุปกรณ์การเรียนสำเร็จ!',
+              successModalBody,
+              'fa-circle-check',
+              '#10b981',
+              {
+                statusType: 'success',
+                isHtml: true,
+                subtitle: '✓ สแกนครั้งแรก: ผ่านการตรวจสอบสิทธิ์ (First Scan Verified)',
+                confirmText: 'ตกลง (ส่งมอบอุปกรณ์เรียบร้อย)'
+              }
+            );
 
           } else {
             card.className = 'oca-claim-feedback-card warning';
@@ -20591,7 +21711,7 @@
             <td style="text-align:center; color:var(--text-muted); font-size:12px;">${toArabicDigits(idx + 1)}</td>
             <td>
               <div style="font-weight:700; color:var(--text-main); font-size:13px;">${toArabicDigits(item.receiptNo || item.orderId)}</div>
-              <div style="font-size:12px; color:var(--text-muted);">${toArabicDigits(item.createdAt || '-')}</div>
+              <div style="font-size:12px; color:var(--text-muted);">${toArabicDigits(formatThaiDateTime(item.createdAt))}</div>
             </td>
             <td><code style="font-size:12px; color:var(--color-gold);">${toArabicDigits(item.studentId || '-')}</code></td>
             <td>
@@ -21125,6 +22245,7 @@
      */
     function saveCurrentUser(user) {
       try {
+        window.currentUser = user || null;
         if (!user) {
           localStorage.removeItem('oca_current_user');
         } else {
@@ -21738,24 +22859,7 @@
         const view = document.getElementById('subviewSettingsDevice');
         if (view) view.style.display = 'block';
         renderDeviceSecurityInfo();
-      } else if (subTab === 'fees') {
-        const btn = document.getElementById('btnSubnavFees');
-        if (btn) {
-          btn.classList.add('active');
-          btn.style.background = 'linear-gradient(135deg, rgba(215,166,0,0.25), rgba(215,166,0,0.08))';
-          btn.style.borderColor = 'var(--color-gold)';
-          btn.style.color = 'var(--color-gold)';
-        }
-        const view = document.getElementById('subviewSettingsFees');
-        if (view) {
-          view.style.display = 'block';
-          const feeCard = document.getElementById('cardGeneralFeeSettings');
-          const targetCont = document.getElementById('containerSettingsFeeCard');
-          if (feeCard && targetCont && feeCard.parentElement !== targetCont) {
-            targetCont.appendChild(feeCard);
-          }
-        }
-        populateGeneralFeeInputs(globalFeePresets);
+
       } else if (subTab === 'payee') {
         const btn = document.getElementById('btnSubnavPayee');
         if (btn) {
@@ -22451,15 +23555,33 @@
     /**
      * โหลดประวัติ Audit Logs จาก Supabase แบบ Real-time
      */
+    function filterAuditLogsTable() {
+      const q = (document.getElementById('txtAuditSearch')?.value || '').trim().toLowerCase();
+      if (!cachedAuditLogs || cachedAuditLogs.length === 0) return;
+      if (!q) {
+        renderAuditLogsTable(cachedAuditLogs);
+        return;
+      }
+      const filtered = cachedAuditLogs.filter(item => {
+        const u = (item.username || '').toLowerCase();
+        const f = (item.fullName || item.full_name || '').toLowerCase();
+        const a = (item.action || '').toLowerCase();
+        const d = (item.details || '').toLowerCase();
+        const dev = (item.deviceId || '').toLowerCase();
+        return u.includes(q) || f.includes(q) || a.includes(q) || d.includes(q) || dev.includes(q);
+      });
+      renderAuditLogsTable(filtered);
+    }
+
     function loadSecurityAuditLogs(force = true, isSilent = false) {
       const tbody = document.getElementById('tbodyAuditLogs');
       if (!tbody) return;
 
       const actionFilter = document.getElementById('selAuditActionFilter')?.value || '';
-      const daysFilter = document.getElementById('selAuditDaysFilter')?.value || '7';
+      const daysFilter = document.getElementById('selAuditDaysFilter')?.value || '90';
 
       if (!isSilent && (!cachedAuditLogs || cachedAuditLogs.length === 0)) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดบันทึกความปลอดภัย (Real-time)...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>กำลังโหลดบันทึกกิจกรรม...</td></tr>';
       }
 
       callGasApi('getSecurityAuditLogs', { action: actionFilter, days: daysFilter }, 'GET')
@@ -22467,66 +23589,109 @@
         const logs = (res && (res.logs || res.data)) || [];
         if (res && res.success && Array.isArray(logs)) {
           cachedAuditLogs = logs;
-          renderAuditLogsTable(cachedAuditLogs);
+          const searchQ = (document.getElementById('txtAuditSearch')?.value || '').trim().toLowerCase();
+          if (searchQ) {
+            filterAuditLogsTable();
+          } else {
+            renderAuditLogsTable(cachedAuditLogs);
+          }
         } else if (!cachedAuditLogs || cachedAuditLogs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">ไม่พบบันทึกการใช้งานในช่วงเวลาที่เลือก</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">ไม่พบประวัติกิจกรรมในช่วงเวลาที่เลือก</td></tr>';
         }
       })
       .catch(err => {
         if (!cachedAuditLogs || cachedAuditLogs.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:24px; color:#ef4444;">เกิดข้อผิดพลาด: ${escapeHtml(err.message || "")}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:#ef4444;">เกิดข้อผิดพลาด: ${escapeHtml(err.message || '')}</td></tr>`;
         }
       });
     }
 
-    /**
-     * วาดตาราง Audit Log
-     */
+    function getAuditActionBadge(act) {
+      const a = (act || '').toUpperCase();
+      if (a.includes('LOGIN_SUCCESS')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#10b981; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3);"><i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ</span>';
+      }
+      if (a.includes('FAILED') || a.includes('LOGIN_FAILED')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#ef4444; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3);"><i class="fa-solid fa-triangle-exclamation"></i> ล็อกอินล้มเหลว</span>';
+      }
+      if (a.includes('LOGOUT')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#94a3b8; background:rgba(148,163,184,0.15); border:1px solid rgba(148,163,184,0.3);"><i class="fa-solid fa-arrow-right-from-bracket"></i> ออกจากระบบ</span>';
+      }
+      if (a.includes('ISSUE_RECEIPT') || a.includes('RECEIPT_CREATED') || a.includes('RENEW_COURSE')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#facc15; background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.3);"><i class="fa-solid fa-file-invoice-dollar"></i> ออกใบเสร็จ</span>';
+      }
+      if (a.includes('RECEIPT_VERSION_BACKUP') || a.includes('UPDATE_RECEIPT')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#c084fc; background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.3);"><i class="fa-solid fa-clock-rotate-left"></i> แก้ไขใบเสร็จ</span>';
+      }
+      if (a.includes('RECEIPT_EMAIL_SENT') || a.includes('EMAIL')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#38bdf8; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3);"><i class="fa-solid fa-envelope"></i> ส่งอีเมลใบเสร็จ</span>';
+      }
+      if (a.includes('CLAIM_TEXTBOOK') || a.includes('CLAIM')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#34d399; background:rgba(52,211,153,0.15); border:1px solid rgba(52,211,153,0.3);"><i class="fa-solid fa-book-bookmark"></i> สแกนรับตำรา</span>';
+      }
+      if (a.includes('STUDENT_CARD') || a.includes('PRINT_CARD') || a.includes('CARD')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#818cf8; background:rgba(129,140,248,0.15); border:1px solid rgba(129,140,248,0.3);"><i class="fa-solid fa-id-card"></i> บัตรนักเรียน</span>';
+      }
+      if (a.includes('USER_SAVED') || a.includes('USER_DELETED') || a.includes('PERMISSION') || a.includes('PASSWORD_RESET')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#fb923c; background:rgba(251,146,60,0.15); border:1px solid rgba(251,146,60,0.3);"><i class="fa-solid fa-user-gear"></i> ผู้ใช้งาน</span>';
+      }
+      if (a.includes('COURSE') || a.includes('SCHEDULE')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#60a5fa; background:rgba(96,165,250,0.15); border:1px solid rgba(96,165,250,0.3);"><i class="fa-solid fa-graduation-cap"></i> คอร์ส/รอบเวลา</span>';
+      }
+      if (a.includes('EXPORT_') || a.includes('REPORT_')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#f472b6; background:rgba(244,114,182,0.15); border:1px solid rgba(244,114,182,0.3);"><i class="fa-solid fa-file-export"></i> รายงาน</span>';
+      }
+      return `<span style="display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#94a3b8; background:rgba(255,255,255,0.06);">${escapeHtml(act)}</span>`;
+    }
+
     function renderAuditLogsTable(logs) {
       const tbody = document.getElementById('tbodyAuditLogs');
       if (!tbody) return;
-      if (!ocaShouldUpdateDOM('auditLogs', logs)) return;
 
       if (!logs || logs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">ไม่พบประวัติกิจกรรมตามเงื่อนไขค้นหา</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-clock-rotate-left" style="margin-right:6px;"></i>ไม่พบประวัติกิจกรรมตามเงื่อนไขค้นหา</td></tr>';
         return;
       }
 
       let html = '';
       logs.forEach(item => {
         const isSuccess = (item.status === 'SUCCESS');
-        let actColor = '#38bdf8';
-        let actBg = 'rgba(2,132,199,0.15)';
+        const badge = getAuditActionBadge(item.action);
 
-        if (item.action.includes('LOGIN_SUCCESS')) { actColor = '#10b981'; actBg = 'rgba(16,185,129,0.15)'; }
-        else if (item.action.includes('FAILED')) { actColor = '#ef4444'; actBg = 'rgba(239,68,68,0.15)'; }
-        else if (item.action.includes('PASSWORD_RESET')) { actColor = '#f59e0b'; actBg = 'rgba(245,158,11,0.15)'; }
-        else if (item.action.includes('USER_SAVED') || item.action.includes('PERMISSION')) { actColor = '#a855f7'; actBg = 'rgba(168,85,247,0.15)'; }
+        let detailText = item.details || '-';
+        if (detailText.startsWith('{') && detailText.includes('"reason"')) {
+          try {
+            const parsed = JSON.parse(detailText);
+            detailText = `แก้ไขใบเสร็จ ${parsed.receiptNo || ''} (ฉบับที่ ${parsed.revisionNumber || ''}) เหตุผล: ${parsed.reason || '-'}`;
+          } catch (_) {}
+        }
+
+        const dateDisplay = (typeof formatThaiDateTime === 'function')
+          ? formatThaiDateTime(item.timestamp || item.created_at)
+          : (item.timestamp ? item.timestamp.substring(0, 19).replace('T', ' ') : '-');
 
         html += `
           <tr style="border-bottom:1px solid rgba(255,255,255,0.05); font-size:12.5px;">
-            <td style="padding:10px 14px; color:#94a3b8; font-family:monospace; font-size:11.5px;">
-              ${item.timestamp ? item.timestamp.substring(0, 19).replace('T', ' ') : '-'}
+            <td style="padding:10px 14px; color:#cbd5e1; font-size:12px; white-space:nowrap;">
+              ${dateDisplay}
             </td>
-            <td style="padding:10px 14px; text-align:center;">
-              <span style="display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:${actColor}; background:${actBg};">
-                ${item.action}
-              </span>
+            <td style="padding:10px 14px; text-align:center; white-space:nowrap;">
+              ${badge}
             </td>
             <td style="padding:10px 14px;">
-              <strong style="color:#ffffff;">${item.username || '-'}</strong>
-              <div style="font-size:11px; color:var(--text-muted);">${item.fullName || ''} (${item.role || 'Staff'})</div>
+              <strong style="color:#ffffff;">${escapeHtml(item.username || '-')}</strong>
+              <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(item.fullName || item.full_name || '')} (${escapeHtml(item.role || 'Staff')})</div>
             </td>
-            <td style="padding:10px 14px; text-align:center; font-family:monospace; font-size:11.5px; color:var(--color-gold);">
-              ${item.deviceId || '-'}
+            <td style="padding:10px 14px; text-align:center; font-family:monospace; font-size:11px; color:var(--color-gold); white-space:nowrap;">
+              ${escapeHtml(item.deviceId || '-')}
             </td>
-            <td style="padding:10px 14px; font-size:11.5px; color:#cbd5e1; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${item.deviceInfo || ''}">
-              ${item.deviceInfo || '-'}
+            <td style="padding:10px 14px; font-size:11px; color:#94a3b8; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(item.deviceInfo || '-')}">
+              ${escapeHtml(item.deviceInfo || '-')}
             </td>
-            <td style="padding:10px 14px; color:#e2e8f0;">
-              ${item.details || '-'}
+            <td style="padding:10px 14px; color:#e2e8f0; line-height:1.4;">
+              ${escapeHtml(detailText)}
             </td>
-            <td style="padding:10px 14px; text-align:center;">
+            <td style="padding:10px 14px; text-align:center; white-space:nowrap;">
               <span style="font-weight:700; font-size:11px; color:${isSuccess ? '#10b981' : '#ef4444'};">
                 ${isSuccess ? '✓ สำเร็จ' : '✕ ล้มเหลว'}
               </span>
@@ -22961,7 +24126,7 @@
         };
         const title = actionMap[it.action] || it.action;
         const detail = (it.params && (it.params.fullName || it.params.studentId || it.params.buyerName || it.params.receiptNo)) || '-';
-        const dateStr = it.createdAt ? new Date(it.createdAt).toLocaleTimeString('th-TH') : '';
+        const dateStr = it.createdAt ? formatThaiDateTime(it.createdAt) : '';
 
         return `
           <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:7px 10px; margin-bottom:6px; font-size:12px;">
@@ -23106,10 +24271,14 @@
               const rawItem = r.itemName || '-';
               const total = toArabicDigits(Number(r.grandTotal || 0).toLocaleString());
               const isDelivery = r.deliveryMethod === 'ส่งไปตามที่อยู่';
+              const claimTime = formatClaimTimestamp(r.claimedAt || r.claimed_at);
               const claimBadge = isDelivery ?
                 '<span style="background:rgba(56,189,248,0.15); color:#38bdf8; font-weight:600; font-size:11.5px; padding:2px 6px; border-radius:6px; white-space:nowrap;"><i class="fa-solid fa-truck"></i> จัดส่ง</span>' :
                 (r.claimStatus === 'CLAIMED' ?
-                  '<span style="background:rgba(16,185,129,0.15); color:#10b981; font-weight:600; font-size:11.5px; padding:2px 6px; border-radius:6px; white-space:nowrap;"><i class="fa-solid fa-check"></i> รับแล้ว</span>' :
+                  ('<div style="display:inline-flex; flex-direction:column; align-items:center; gap:2px;">' +
+                    '<span style="background:rgba(16,185,129,0.15); color:#10b981; font-weight:600; font-size:11.5px; padding:2px 6px; border-radius:6px; white-space:nowrap;"><i class="fa-solid fa-check"></i> รับแล้ว</span>' +
+                    (claimTime ? ('<span style="font-size:9.5px; color:#10b981; font-family:monospace; white-space:nowrap; display:inline-flex; align-items:center; gap:2px;"><i class="fa-regular fa-clock" style="font-size:8.5px;"></i>' + claimTime + '</span>') : '') +
+                  '</div>') :
                   '<span style="background:rgba(245,158,11,0.15); color:#f59e0b; font-weight:600; font-size:11.5px; padding:2px 6px; border-radius:6px; white-space:nowrap;"><i class="fa-solid fa-clock"></i> รอรับ</span>');
               const txType = getReceiptTransactionType(r);
               const txBadge = '<span style="background:' + txType.bg + '; color:' + txType.color + '; padding:2px 6px; border-radius:6px; font-weight:600; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid ' + txType.icon + '"></i> ' + escapeHtml(txType.label) + '</span>';
@@ -23188,6 +24357,10 @@
         postalCodePlace: 'เช่น 10110',
         btnSubmit: 'บันทึกข้อมูลและส่งใบสมัคร',
         secHint: 'ข้อมูลของท่านจะได้รับการจัดเก็บอย่างปลอดภัยตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล (PDPA)',
+        autoSaveNoteTitle: 'ข้อแนะนำ: สบายใจได้ ระบบช่วยบันทึกข้อมูลให้อัตโนมัติ',
+        autoSaveNoteBody: 'หากท่านจำเป็นต้องสลับหน้าจอไปถ่ายรูป หรือออกไปเตรียมเอกสาร ไม่ต้องกังวล! ระบบจะช่วยจำข้อมูลที่ท่านกรอกไว้ให้อัตโนมัติ เมื่อกลับเข้ามาเพียงระบุเลขบัตรประชาชน ระบบจะดึงข้อมูลเดิมกลับมาแสดงให้ทันที เพื่อความสะดวกและไม่สร้างข้อมูลซ้ำซ้อน',
+        restoredAlertTitle: 'ดึงข้อมูลที่คุณเคยกรอกไว้เรียบร้อยแล้ว',
+        restoredAlertBody: 'ระบบได้นำข้อมูลที่คุณเคยบันทึกค้างไว้มาแสดงในแบบฟอร์มแล้ว ท่านสามารถตรวจสอบความถูกต้อง แนบรูปถ่าย และกดยืนยันการสมัครได้เลย',
         successHeading: 'การสมัครเข้าศึกษาสำเร็จเรียบร้อยแล้ว!',
         successSub: 'Oriental Culture Academy (東方文化書院) ได้รับข้อมูลการสมัครของท่านแล้ว',
         successIdLabel: 'รหัสนักศึกษาของท่าน (Student ID):',
@@ -23241,6 +24414,10 @@
         postalCodePlace: 'e.g. 10110',
         btnSubmit: 'Submit Application',
         secHint: 'Your personal data is protected under PDPA regulations.',
+        autoSaveNoteTitle: 'Helpful Tip: Auto-Save Active',
+        autoSaveNoteBody: 'If you need to switch apps to take a photo or prepare documents, don\'t worry! The system automatically remembers your filled details. When you return, entering your ID number will immediately restore your application without duplicating data.',
+        restoredAlertTitle: 'Previous Application Data Restored',
+        restoredAlertBody: 'Your previously entered information has been restored to the form. You can verify the details, attach your photo, and proceed with registration.',
         successHeading: 'Admission Application Submitted Successfully!',
         successSub: 'Oriental Culture Academy (東方文化書院) has received your application.',
         successIdLabel: 'Your Official Student ID:',
@@ -23315,6 +24492,10 @@
 
       setTxt('lblBtnSubmitText', dict.btnSubmit);
       setTxt('lblSecHintFooter', dict.secHint);
+      setTxt('lblPubRegNoteTitle', dict.autoSaveNoteTitle);
+      setTxt('lblPubRegNoteBody', dict.autoSaveNoteBody);
+      setTxt('lblPubRegRestoredTitle', dict.restoredAlertTitle);
+      setTxt('lblPubRegRestoredBody', dict.restoredAlertBody);
 
       setTxt('lblSuccessHeading', dict.successHeading);
       setTxt('lblSuccessSub', dict.successSub);
@@ -23328,6 +24509,246 @@
       setTxt('lblBtnCloseSuccess', dict.btnClose);
     }
 
+    let isPubRegAutoSaveInited = false;
+
+    function initPublicRegisterAutoSave() {
+      if (isPubRegAutoSaveInited) return;
+      const form = document.getElementById('formPublicRegister');
+      if (!form) return;
+      form.addEventListener('input', () => {
+        savePublicRegisterDraft();
+      });
+      form.addEventListener('change', () => {
+        savePublicRegisterDraft();
+      });
+      isPubRegAutoSaveInited = true;
+    }
+
+    function savePublicRegisterDraft() {
+      try {
+        const form = document.getElementById('formPublicRegister');
+        if (!form) return;
+        const draft = {
+          prefix: document.getElementById('selPubPrefix')?.value || 'นาย',
+          fullName: (document.getElementById('txtPubFullName')?.value || '').trim(),
+          fullNameEn: (document.getElementById('txtPubNameEn')?.value || '').trim(),
+          citizenId: (document.getElementById('txtPubCitizenId')?.value || '').trim(),
+          dob: document.getElementById('txtPubDob')?.value || '',
+          gender: document.getElementById('selPubGender')?.value || '',
+          phone: (document.getElementById('txtPubPhone')?.value || '').trim(),
+          email: (document.getElementById('txtPubEmail')?.value || '').trim(),
+          addrLine: (document.getElementById('txtPubAddrLine')?.value || '').trim(),
+          subdistrict: (document.getElementById('txtPubSubdistrict')?.value || '').trim(),
+          district: (document.getElementById('txtPubDistrict')?.value || '').trim(),
+          province: (document.getElementById('txtPubProvince')?.value || '').trim(),
+          postalCode: (document.getElementById('txtPubPostalCode')?.value || '').trim(),
+          photoBase64: pubStudentPhotoDataUri || '',
+          savedAt: new Date().toISOString()
+        };
+        if (draft.fullName || draft.citizenId || draft.phone || draft.email || draft.addrLine) {
+          localStorage.setItem('oca_public_reg_draft', JSON.stringify(draft));
+          if (draft.citizenId) {
+            const cleanCid = draft.citizenId.replace(/[^0-9A-Za-z]/g, '');
+            if (cleanCid) localStorage.setItem('oca_reg_cache_' + cleanCid, JSON.stringify(draft));
+          }
+          if (draft.fullName) {
+            localStorage.setItem('oca_reg_cache_name_' + draft.fullName.replace(/\s+/g, '_'), JSON.stringify(draft));
+          }
+        }
+      } catch (e) {
+        console.warn('savePublicRegisterDraft error:', e);
+      }
+    }
+
+    function restorePublicRegisterFromDraft(data, sourceLabel) {
+      if (!data) return false;
+      let restoredAny = false;
+
+      const setVal = (id, val) => {
+        if (val !== undefined && val !== null && val !== '') {
+          const el = document.getElementById(id);
+          if (el) { el.value = val; restoredAny = true; }
+        }
+      };
+
+      setVal('selPubPrefix', data.prefix);
+      setVal('txtPubFullName', data.fullName || data.full_name);
+      setVal('txtPubNameEn', data.fullNameEn || data.nameEn || data.name_en);
+      setVal('txtPubCitizenId', data.citizenId || data.citizen_id);
+      setVal('txtPubDob', data.dob || data.birth_date);
+      setVal('selPubGender', data.gender);
+      setVal('txtPubPhone', data.phone || data.phoneNumber || data.phone_number);
+      setVal('txtPubEmail', data.email);
+
+      if (data.addrLine) {
+        setVal('txtPubAddrLine', data.addrLine);
+        setVal('txtPubSubdistrict', data.subdistrict);
+        setVal('txtPubDistrict', data.district);
+        setVal('txtPubProvince', data.province);
+        setVal('txtPubPostalCode', data.postalCode);
+      } else if (data.address) {
+        parseAndFillAddress(data.address);
+        restoredAny = true;
+      }
+
+      const photo = data.photoBase64 || data.photoUrl || data.photo_url || data.photo;
+      if (photo && photo.length > 50) {
+        pubStudentPhotoDataUri = photo;
+        const img = document.getElementById('imgPubPhotoPreview');
+        const ico = document.getElementById('icoPubPhotoPlaceholder');
+        if (img) {
+          img.src = photo;
+          img.style.display = 'block';
+        }
+        if (ico) ico.style.display = 'none';
+      }
+
+      if (restoredAny) {
+        showPubRegRestoredAlert(sourceLabel);
+      }
+      return restoredAny;
+    }
+
+    function parseAndFillAddress(fullAddr) {
+      if (!fullAddr) return;
+      const addrLineEl = document.getElementById('txtPubAddrLine');
+      const subdistrictEl = document.getElementById('txtPubSubdistrict');
+      const districtEl = document.getElementById('txtPubDistrict');
+      const provinceEl = document.getElementById('txtPubProvince');
+      const postalEl = document.getElementById('txtPubPostalCode');
+
+      if (addrLineEl && addrLineEl.value) return;
+
+      const zipMatch = fullAddr.match(/\b\d{5}\b/);
+      if (zipMatch && postalEl && !postalEl.value) {
+        postalEl.value = zipMatch[0];
+      }
+
+      let remaining = fullAddr.replace(/\b\d{5}\b/, '').trim();
+      const provMatch = remaining.match(/(?:จ\.|จังหวัด)\s*([^\s]+)/) || remaining.match(/(กรุงเทพ(?:มหานคร)?)/);
+      if (provMatch && provinceEl && !provinceEl.value) {
+        provinceEl.value = provMatch[1] || provMatch[0];
+        remaining = remaining.replace(provMatch[0], '').trim();
+      }
+
+      const distMatch = remaining.match(/(?:อ\.|อำเภอ|เขต)\s*([^\s]+)/);
+      if (distMatch && districtEl && !districtEl.value) {
+        districtEl.value = distMatch[1];
+        remaining = remaining.replace(distMatch[0], '').trim();
+      }
+
+      const subMatch = remaining.match(/(?:ต\.|ตำบล|แขวง)\s*([^\s]+)/);
+      if (subMatch && subdistrictEl && !subdistrictEl.value) {
+        subdistrictEl.value = subMatch[1];
+        remaining = remaining.replace(subMatch[0], '').trim();
+      }
+
+      if (addrLineEl && !addrLineEl.value) {
+        addrLineEl.value = remaining || fullAddr;
+      }
+    }
+
+    function showPubRegRestoredAlert(sourceLabel) {
+      const alertBox = document.getElementById('boxPubRegRestoredAlert');
+      const lblBody = document.getElementById('lblPubRegRestoredBody');
+      if (alertBox) {
+        alertBox.style.display = 'flex';
+        if (sourceLabel && lblBody) {
+          lblBody.innerHTML = `ดึงข้อมูลจาก<strong>${escapeHtml(sourceLabel)}</strong>เรียบร้อยแล้ว ท่านสามารถตรวจสอบความถูกต้อง แนบรูปถ่าย และกดยืนยันการสมัครต่อได้ทันที`;
+        }
+      }
+    }
+
+    function dismissPubRegRestoredAlert() {
+      const alertBox = document.getElementById('boxPubRegRestoredAlert');
+      if (alertBox) alertBox.style.display = 'none';
+    }
+
+    function checkAndAutoRestoreDraft() {
+      try {
+        const raw = localStorage.getItem('oca_public_reg_draft');
+        if (!raw) return;
+        const draft = JSON.parse(raw);
+        if (draft && (draft.fullName || draft.citizenId || draft.phone)) {
+          restorePublicRegisterFromDraft(draft, 'ข้อมูลที่คุณเคยกรอกค้างไว้ในเครื่องนี้');
+        }
+      } catch (err) {
+        console.warn('checkAndAutoRestoreDraft error:', err);
+      }
+    }
+
+    async function checkAndRestoreExistingStudent() {
+      const cidInput = document.getElementById('txtPubCitizenId');
+      const nameInput = document.getElementById('txtPubFullName');
+      const rawCid = (cidInput?.value || '').trim();
+      const rawName = (nameInput?.value || '').trim();
+      const cleanCid = rawCid.replace(/[^0-9A-Za-z]/g, '');
+
+      // 1. Check local cache by citizen ID
+      if (cleanCid) {
+        try {
+          const cached = localStorage.getItem('oca_reg_cache_' + cleanCid);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && (parsed.fullName || parsed.phone)) {
+              restorePublicRegisterFromDraft(parsed, 'ข้อมูลที่คุณเคยกรอกไว้ในอุปกรณ์นี้');
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. Check local cache by name
+      if (rawName && rawName.length >= 3) {
+        try {
+          const cachedName = localStorage.getItem('oca_reg_cache_name_' + rawName.replace(/\s+/g, '_'));
+          if (cachedName) {
+            const parsed = JSON.parse(cachedName);
+            if (parsed && (parsed.citizenId || parsed.phone)) {
+              restorePublicRegisterFromDraft(parsed, 'ข้อมูลที่คุณเคยกรอกไว้ในอุปกรณ์นี้');
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3. Check in-memory cachedSearchStudentsData
+      if (cleanCid && Array.isArray(cachedSearchStudentsData) && cachedSearchStudentsData.length > 0) {
+        const match = cachedSearchStudentsData.find(s =>
+          (s.citizenId && s.citizenId.replace(/[^0-9A-Za-z]/g, '') === cleanCid) ||
+          (s.fullName && rawName && s.fullName.trim() === rawName)
+        );
+        if (match) {
+          restorePublicRegisterFromDraft(match, `ข้อมูลประวัติผู้สมัครเดิมในระบบ (รหัส: ${toArabicDigits(match.studentId || '')})`);
+          savePublicRegisterDraft();
+          return;
+        }
+      }
+
+      // 4. Check via backend API
+      const queryTerm = cleanCid || rawName;
+      if (!queryTerm || queryTerm.length < 4) return;
+
+      try {
+        const res = await callGasApi('checkStudentDuplicate', { query: queryTerm, citizenId: cleanCid }, 'POST');
+        if (res && res.found && res.student) {
+          restorePublicRegisterFromDraft(res, `ข้อมูลประวัติผู้สมัครเดิมในระบบ (รหัส: ${toArabicDigits(res.studentId || '')})`);
+          savePublicRegisterDraft();
+        }
+      } catch (err) {
+        console.warn('checkAndRestoreExistingStudent warning:', err);
+      }
+    }
+
+    function onPubCitizenInput(el) {
+      savePublicRegisterDraft();
+      const val = (el.value || '').trim();
+      const digits = val.replace(/[^0-9A-Za-z]/g, '');
+      if (digits.length === 13) {
+        checkAndRestoreExistingStudent();
+      }
+    }
+
     function openPublicRegisterView() {
       const regView = document.getElementById('viewPublicRegister');
       const welcome = document.getElementById('viewWelcome');
@@ -23339,6 +24760,9 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
       setRegisterLanguage(currentRegLanguage);
+
+      initPublicRegisterAutoSave();
+      checkAndAutoRestoreDraft();
     }
 
     function closePublicRegisterView() {
@@ -23362,6 +24786,7 @@
           img.style.display = 'block';
         }
         if (ico) ico.style.display = 'none';
+        savePublicRegisterDraft();
       };
       reader.readAsDataURL(file);
     }
@@ -23374,6 +24799,11 @@
       const ico = document.getElementById('icoPubPhotoPlaceholder');
       if (img) img.style.display = 'none';
       if (ico) ico.style.display = 'block';
+
+      try {
+        localStorage.removeItem('oca_public_reg_draft');
+      } catch (_) {}
+      dismissPubRegRestoredAlert();
 
       const boxForm = document.getElementById('boxPublicRegisterFormBody');
       const boxSuccess = document.getElementById('boxPublicRegisterSuccessBody');
@@ -23453,6 +24883,8 @@
         deliveryMethod: 'จัดส่งตามที่อยู่',
         photoBase64: pubStudentPhotoDataUri,
         status: 'ACTIVE',
+        allowUpdate: true,
+        isOnlineResume: true,
         notes: `สมัครเรียนออนไลน์แบบ OCA (${currentRegLanguage.toUpperCase()})`
       };
 
@@ -23481,6 +24913,15 @@
             if (lblName) lblName.textContent = prefix + ' ' + fullName;
             if (lblPhone) lblPhone.textContent = phone;
             if (lblAddr) lblAddr.textContent = combinedAddress;
+
+            try {
+              localStorage.removeItem('oca_public_reg_draft');
+            } catch (_) {}
+            dismissPubRegRestoredAlert();
+
+            if (res.isUpdated) {
+              showToast('บันทึกข้อมูลเรียบร้อย', res.message || 'แนบรูปถ่ายและบันทึกประวัติการสมัครสำเร็จ', '✓');
+            }
 
             if (boxForm) boxForm.style.display = 'none';
             if (boxSuccess) boxSuccess.style.display = 'block';
@@ -23511,8 +24952,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=66' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=66' : (window.location.pathname + '/sw.js?v=48'));
+        ? './sw.js?v=68' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=68' : (window.location.pathname + '/sw.js?v=48'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
       }).catch(function(err) {
