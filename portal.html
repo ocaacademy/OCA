@@ -20841,6 +20841,27 @@
         txt.textContent = 'สถานะ: ออนไลน์ เชื่อมต่อ Supabase Realtime สมบูรณ์ 100%';
         txt.style.color = '#34d399';
       }
+
+      // Sync data to subviewSettingsDevice elements
+      const dispDevId = document.getElementById('dispSettingsDeviceId');
+      if (dispDevId) dispDevId.textContent = devId;
+
+      let osName = 'Windows';
+      if (ua.indexOf('Mac') !== -1) osName = 'macOS';
+      else if (ua.indexOf('Linux') !== -1) osName = 'Linux';
+      else if (ua.indexOf('Android') !== -1) osName = 'Android';
+      else if (ua.indexOf('iPhone') !== -1 || ua.indexOf('iPad') !== -1) osName = 'iOS';
+
+      const dispOs = document.getElementById('dispSettingsDeviceOs');
+      if (dispOs) dispOs.textContent = osName;
+
+      const dispBrowser = document.getElementById('dispSettingsDeviceBrowser');
+      if (dispBrowser) dispBrowser.textContent = bInfo;
+
+      const dispScreen = document.getElementById('dispSettingsDeviceScreen');
+      if (dispScreen && window.screen) {
+        dispScreen.textContent = `${window.screen.width} x ${window.screen.height} (${window.devicePixelRatio || 1}x)`;
+      }
     }
 
     /**
@@ -20967,6 +20988,231 @@
       });
 
       tbody.innerHTML = html;
+    }
+
+    /**
+     * เปิด Modal เพิ่มผู้ใช้งานใหม่
+     */
+    function openAddUserModal() {
+      const modal = document.getElementById('modalUserPermission');
+      if (!modal) return;
+      const isEdit = document.getElementById('inpUserIsEdit');
+      const origU = document.getElementById('inpUserOrigUsername');
+      const uInp = document.getElementById('inpModalUsername');
+      const fInp = document.getElementById('inpModalFullName');
+      const pInp = document.getElementById('inpModalPassword');
+      const rSel = document.getElementById('selModalRole');
+      const sSel = document.getElementById('selModalStatus');
+      const title = document.getElementById('lblModalUserTitle');
+      const passHint = document.getElementById('lblModalPassHint');
+      const alertBox = document.getElementById('boxModalUserAlert');
+
+      if (isEdit) isEdit.value = 'false';
+      if (origU) origU.value = '';
+      if (title) title.textContent = 'เพิ่มผู้ใช้งานใหม่ (Add Staff User)';
+      if (uInp) {
+        uInp.value = '';
+        uInp.readOnly = false;
+        uInp.style.opacity = '1';
+      }
+      if (fInp) fInp.value = '';
+      if (pInp) pInp.value = '';
+      if (passHint) passHint.textContent = '* (ค่าเริ่มต้น: Oca1234)';
+      if (rSel) rSel.value = 'Registrar';
+      if (sSel) sSel.value = 'Active';
+      if (alertBox) {
+        alertBox.textContent = '';
+        alertBox.style.display = 'none';
+      }
+
+      // Default permissions for Registrar
+      const defaultRegistrarPerms = ['dashboard', 'enroll', 'search', 'courses', 'card', 'report'];
+      document.querySelectorAll('.chk-user-perm').forEach(cb => {
+        cb.checked = defaultRegistrarPerms.includes(cb.value);
+      });
+
+      modal.style.display = 'flex';
+      setTimeout(() => { if (uInp) uInp.focus(); }, 100);
+    }
+
+    /**
+     * เปิด Modal แก้ไขผู้ใช้งาน
+     */
+    function openEditUserModal(username) {
+      const modal = document.getElementById('modalUserPermission');
+      if (!modal) return;
+      const isEdit = document.getElementById('inpUserIsEdit');
+      const origU = document.getElementById('inpUserOrigUsername');
+      const uInp = document.getElementById('inpModalUsername');
+      const fInp = document.getElementById('inpModalFullName');
+      const pInp = document.getElementById('inpModalPassword');
+      const rSel = document.getElementById('selModalRole');
+      const sSel = document.getElementById('selModalStatus');
+      const title = document.getElementById('lblModalUserTitle');
+      const passHint = document.getElementById('lblModalPassHint');
+      const alertBox = document.getElementById('boxModalUserAlert');
+
+      const user = (cachedUsersList || []).find(u => u.username === username);
+      if (!user) {
+        showToast('ไม่พบข้อมูลผู้ใช้งาน', username, '⚠️');
+        return;
+      }
+
+      if (isEdit) isEdit.value = 'true';
+      if (origU) origU.value = username;
+      if (title) title.textContent = `แก้ไขผู้ใช้งาน: ${username}`;
+      if (uInp) {
+        uInp.value = username;
+        uInp.readOnly = (username === 'admin');
+        uInp.style.opacity = (username === 'admin') ? '0.7' : '1';
+      }
+      if (fInp) fInp.value = user.fullName || user.username || '';
+      if (pInp) pInp.value = '';
+      if (passHint) passHint.textContent = '(เว้นว่างหากไม่ต้องการเปลี่ยนรหัสผ่าน)';
+      if (rSel) rSel.value = user.role || 'Staff';
+      if (sSel) sSel.value = (user.status === 'Active' || user.isActive) ? 'Active' : 'Suspended';
+      if (alertBox) {
+        alertBox.textContent = '';
+        alertBox.style.display = 'none';
+      }
+
+      const userPerms = Array.isArray(user.permissions) ? user.permissions : [];
+      document.querySelectorAll('.chk-user-perm').forEach(cb => {
+        cb.checked = userPerms.includes(cb.value);
+      });
+
+      modal.style.display = 'flex';
+    }
+
+    /**
+     * ปิด Modal จัดการผู้ใช้งาน
+     */
+    function closeUserModal() {
+      const modal = document.getElementById('modalUserPermission');
+      if (modal) modal.style.display = 'none';
+    }
+
+    /**
+     * เลือก/ยกเลิกสิทธิ์ทั้งหมด
+     */
+    function toggleAllPermissions(checked) {
+      document.querySelectorAll('.chk-user-perm').forEach(cb => {
+        cb.checked = !!checked;
+      });
+    }
+
+    /**
+     * บันทึกข้อมูลผู้ใช้งาน
+     */
+    function submitSaveUser() {
+      const uInp = document.getElementById('inpModalUsername');
+      const fInp = document.getElementById('inpModalFullName');
+      const pInp = document.getElementById('inpModalPassword');
+      const rSel = document.getElementById('selModalRole');
+      const sSel = document.getElementById('selModalStatus');
+      const isEdit = document.getElementById('inpUserIsEdit')?.value === 'true';
+      const origU = document.getElementById('inpUserOrigUsername')?.value || '';
+      const alertBox = document.getElementById('boxModalUserAlert');
+      const btn = document.getElementById('btnSubmitSaveUser');
+
+      const username = (uInp?.value || '').trim();
+      const fullName = (fInp?.value || '').trim();
+      const password = (pInp?.value || '').trim();
+      const role = rSel?.value || 'Staff';
+      const status = sSel?.value || 'Active';
+
+      const perms = [];
+      document.querySelectorAll('.chk-user-perm:checked').forEach(cb => perms.push(cb.value));
+
+      if (!username) {
+        if (alertBox) {
+          alertBox.textContent = 'กรุณาระบุชื่อผู้ใช้งาน (Username)';
+          alertBox.style.display = 'block';
+        }
+        if (uInp) uInp.focus();
+        return;
+      }
+      if (!fullName) {
+        if (alertBox) {
+          alertBox.textContent = 'กรุณาระบุชื่อ-นามสกุล';
+          alertBox.style.display = 'block';
+        }
+        if (fInp) fInp.focus();
+        return;
+      }
+
+      if (alertBox) alertBox.style.display = 'none';
+      setButtonLoading(btn, true, 'กำลังบันทึก...');
+
+      const payload = {
+        username: username,
+        fullName: fullName,
+        password: password,
+        role: role,
+        status: status,
+        permissions: perms,
+        isEdit: isEdit,
+        originalUsername: origU
+      };
+
+      callGasApi('saveUser', payload, 'POST')
+        .then(res => {
+          setButtonLoading(btn, false);
+          if (res && res.success) {
+            showToast('บันทึกสำเร็จ!', res.message || `บันทึกข้อมูลผู้ใช้งาน ${username} เรียบร้อยแล้ว`, '✓');
+            closeUserModal();
+            loadUsersList(true);
+          } else {
+            const msg = (res && res.message) ? res.message : 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
+            if (alertBox) {
+              alertBox.textContent = msg;
+              alertBox.style.display = 'block';
+            } else {
+              showToast('บันทึกไม่สำเร็จ', msg, '❌');
+            }
+          }
+        })
+        .catch(err => {
+          setButtonLoading(btn, false);
+          const msg = err.message || 'เครือข่ายขัดข้อง';
+          if (alertBox) {
+            alertBox.textContent = msg;
+            alertBox.style.display = 'block';
+          }
+        });
+    }
+
+    /**
+     * ลบผู้ใช้งาน (Staff User)
+     */
+    function deleteStaffUser(username) {
+      if (!username || username === 'admin') {
+        showToast('ไม่อนุญาตให้ลบบัญชีหลัก', 'บัญชี Super Admin ไม่สามารถลบได้', '⚠️');
+        return;
+      }
+
+      showConfirmModal({
+        title: 'ยืนยันการลบผู้ใช้งาน',
+        message: `คุณแน่ใจหรือไม่ว่าต้องการลบบัญชี "${username}" ออกจากระบบอย่างถาวร?`,
+        icon: 'fa-user-xmark',
+        iconColor: '#ef4444',
+        confirmText: 'ลบบัญชีผู้ใช้',
+        onConfirm: () => {
+          showToast('กำลังลบผู้ใช้งาน...', username, '⏳');
+          callGasApi('deleteUser', { username: username }, 'POST')
+            .then(res => {
+              if (res && res.success) {
+                showToast('ลบสำเร็จ!', res.message || `ลบผู้ใช้งาน ${username} เรียบร้อยแล้ว`, '✓');
+                loadUsersList(true);
+              } else {
+                showToast('ลบไม่สำเร็จ', (res && res.message) ? res.message : 'เกิดข้อผิดพลาด', '❌');
+              }
+            })
+            .catch(err => {
+              showToast('เกิดข้อผิดพลาด', err.message, '❌');
+            });
+        }
+      });
     }
 
     /**
