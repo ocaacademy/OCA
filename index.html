@@ -6745,35 +6745,50 @@
 
             <!-- Audit Filter Row -->
             <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:center; background:rgba(0,0,0,0.25); padding:12px 16px; border-radius:10px; border:1px solid rgba(255,255,255,0.06);">
-              <div style="flex:1; min-width:200px;">
-                <input type="text" id="txtAuditSearch" class="oca-input" placeholder="ค้นหาตามชื่อผู้ใช้, Device ID, หรือรายละเอียด..." onkeydown="if(event.key==='Enter')loadSecurityAuditLogs(true)" style="height:38px; font-size:13px;">
+              <!-- 1. Text Search Box -->
+              <div style="flex:1; min-width:210px;">
+                <input type="text" id="txtAuditSearch" class="oca-input" placeholder="ค้นหาชื่อ, Device ID, วันที่ (24 ต.ค.), กิจกรรม, รายละเอียด..." oninput="filterAuditLogsTable()" onkeydown="if(event.key==='Enter')loadSecurityAuditLogs(true)" style="height:38px; font-size:13px;">
               </div>
-              <div style="width:180px;">
-                <select id="selAuditActionFilter" class="oca-input" onchange="loadSecurityAuditLogs(true)" style="height:38px; font-size:12.5px;">
-                  <option value="">-- กิจกรรมทั้งหมด --</option>
+              <!-- 2. Device ID Quick Filter -->
+              <div style="width:160px;">
+                <input type="text" id="txtAuditDeviceIdFilter" class="oca-input" placeholder="Device ID เครื่อง..." oninput="filterAuditLogsTable()" onkeydown="if(event.key==='Enter')loadSecurityAuditLogs(true)" style="height:38px; font-size:12px; font-family:monospace;">
+              </div>
+              <!-- 3. Action Filter -->
+              <div style="width:185px;">
+                <select id="selAuditActionFilter" class="oca-input" onchange="loadSecurityAuditLogs(true)" style="height:38px; font-size:12px;">
+                  <option value="">-- กิจกรรมทั้งหมด (All) --</option>
                   <option value="ISSUE_RECEIPT">ออกใบเสร็จรับเงิน (ISSUE RECEIPT)</option>
                   <option value="RECEIPT_VERSION_BACKUP">แก้ไขใบเสร็จ (EDIT RECEIPT)</option>
+                  <option value="DELETE_RECEIPT">ลบใบเสร็จ (DELETE RECEIPT)</option>
                   <option value="RECEIPT_EMAIL_SENT">ส่งอีเมลใบเสร็จ (EMAIL)</option>
                   <option value="CLAIM_TEXTBOOK">สแกนรับตำราเรียน (CLAIM)</option>
                   <option value="PRINT_STUDENT_CARD">พิมพ์บัตรนักเรียน (CARD)</option>
+                  <option value="STUDENT_REGISTER">ลงทะเบียนนักเรียน (REGISTER)</option>
+                  <option value="DELETE_STUDENT">ลบข้อมูลนักเรียน (DELETE STUDENT)</option>
                   <option value="LOGIN_SUCCESS">เข้าสู่ระบบสำเร็จ (LOGIN)</option>
                   <option value="LOGIN_FAILED">เข้าสู่ระบบล้มเหลว (FAILED)</option>
                   <option value="LOGOUT">ออกจากระบบ (LOGOUT)</option>
                   <option value="USER_SAVED">บันทึก/แก้ไขผู้ใช้ (USER)</option>
-                  <option value="USER_DELETED">ลบผู้ใช้ (DELETE)</option>
-                  <option value="COURSE_SAVED">จัดการคอร์สเรียน (COURSE)</option>
-                  <option value="SCHEDULE_SAVED">จัดการรอบเวลา (SCHEDULE)</option>
-                  <option value="EXPORT_PDF_STUDENTS">รายงานและการส่งออก (REPORT)</option>
+                  <option value="USER_DELETED">ลบผู้ใช้ (DELETE USER)</option>
+                  <option value="COURSE_SAVED">จัดการคอร์ส/รอบเวลา</option>
+                  <option value="REPORT_EXPORT">รายงานและการส่งออก (REPORT)</option>
                 </select>
               </div>
-              <div style="width:140px;">
-                <select id="selAuditDaysFilter" class="oca-input" onchange="loadSecurityAuditLogs(true)" style="height:38px; font-size:12.5px;">
-                  <option value="90">ย้อนหลัง 90 วัน (3 เดือน)</option>
-                  <option value="30">ย้อนหลัง 30 วัน (1 เดือน)</option>
+              <!-- 4. Date Picker Filter -->
+              <div style="width:140px;" title="เลือกวันที่เฉพาะเจาะจง">
+                <input type="date" id="inpAuditDateFilter" class="oca-input" onchange="loadSecurityAuditLogs(true)" style="height:38px; font-size:12px; color:#ffffff;">
+              </div>
+              <!-- 5. Days Filter -->
+              <div style="width:130px;">
+                <select id="selAuditDaysFilter" class="oca-input" onchange="loadSecurityAuditLogs(true)" style="height:38px; font-size:12px;">
+                  <option value="90">ย้อนหลัง 90 วัน</option>
+                  <option value="30">ย้อนหลัง 30 วัน</option>
                   <option value="7">ย้อนหลัง 7 วัน</option>
                   <option value="1">เฉพาะวันนี้</option>
+                  <option value="all">ทั้งหมด</option>
                 </select>
               </div>
+              <!-- 6. Search & Reset Buttons -->
               <button type="button" class="oca-btn-gold-submit" onclick="loadSecurityAuditLogs(true)" style="height:38px; padding:0 18px; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
                 <i class="fa-solid fa-magnifying-glass"></i> ค้นหา
               </button>
@@ -11666,20 +11681,53 @@
         if (action === 'getSecurityAuditLogs') {
           let query = _supabase.from('security_audit_logs').select('*');
 
+          // กรองกิจกรรม (Action Filter)
           if (params.action && params.action.trim() !== '') {
-            const act = params.action.trim();
+            const act = params.action.trim().toUpperCase();
             if (act === 'ISSUE_RECEIPT') {
               query = query.or('action.eq.ISSUE_RECEIPT,action.eq.RECEIPT_CREATED,action.eq.RENEW_COURSE');
-            } else if (act === 'LOGIN_FAILED') {
-              query = query.or('action.eq.LOGIN_FAILED,action.eq.FAILED_LOGIN');
             } else if (act === 'RECEIPT_VERSION_BACKUP') {
               query = query.or('action.eq.RECEIPT_VERSION_BACKUP,action.eq.UPDATE_RECEIPT');
+            } else if (act === 'DELETE_RECEIPT') {
+              query = query.or('action.eq.DELETE_RECEIPT,action.eq.RECEIPT_DELETED');
+            } else if (act === 'DELETE_STUDENT') {
+              query = query.or('action.eq.DELETE_STUDENT,action.eq.STUDENT_DELETED');
+            } else if (act === 'STUDENT_REGISTER') {
+              query = query.or('action.eq.STUDENT_REGISTER,action.eq.REGISTER_STUDENT,action.eq.NEW_STUDENT');
+            } else if (act === 'LOGIN_FAILED') {
+              query = query.or('action.eq.LOGIN_FAILED,action.eq.FAILED_LOGIN');
+            } else if (act === 'LOGIN_SUCCESS') {
+              query = query.or('action.eq.LOGIN_SUCCESS,action.eq.LOGIN');
+            } else if (act === 'CLAIM_TEXTBOOK') {
+              query = query.or('action.eq.CLAIM_TEXTBOOK,action.eq.TEXTBOOK_CLAIM');
+            } else if (act === 'PRINT_STUDENT_CARD') {
+              query = query.or('action.eq.PRINT_STUDENT_CARD,action.eq.STUDENT_CARD');
+            } else if (act === 'USER_SAVED') {
+              query = query.or('action.eq.USER_SAVED,action.eq.USER_UPDATED,action.eq.PASSWORD_RESET');
+            } else if (act === 'USER_DELETED') {
+              query = query.or('action.eq.USER_DELETED,action.eq.DELETE_USER');
+            } else if (act === 'COURSE_SAVED') {
+              query = query.or('action.eq.COURSE_SAVED,action.eq.SCHEDULE_SAVED');
+            } else if (act === 'REPORT_EXPORT') {
+              query = query.or('action.ilike.EXPORT_%,action.ilike.REPORT_%');
             } else {
               query = query.eq('action', act);
             }
           }
 
-          if (params.days) {
+          // กรองรหัสเครื่อง (Device ID Filter)
+          if (params.deviceId && params.deviceId.trim() !== '') {
+            const cleanDev = params.deviceId.trim().replace(/[%_]/g, '');
+            if (cleanDev) query = query.ilike('device_id', `%${cleanDev}%`);
+          }
+
+          // กรองวันที่เฉพาะเจาะจง (Date Filter: YYYY-MM-DD) หรือช่วงวันย้อนหลัง
+          if (params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date.trim())) {
+            const dStr = params.date.trim();
+            const startIso = new Date(`${dStr}T00:00:00+07:00`).toISOString();
+            const endIso = new Date(`${dStr}T23:59:59.999+07:00`).toISOString();
+            query = query.gte('created_at', startIso).lte('created_at', endIso);
+          } else if (params.days) {
             const numDays = parseInt(params.days, 10);
             if (!isNaN(numDays) && numDays > 0) {
               const sinceDate = new Date(Date.now() - numDays * 86400000).toISOString();
@@ -11687,9 +11735,17 @@
             }
           }
 
+          // ค้นหาข้อความอิสระ (Free Text Search)
+          if (params.search && params.search.trim() !== '') {
+            const cleanSearch = params.search.trim().replace(/[%_"]/g, '');
+            if (cleanSearch) {
+              query = query.or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%,device_id.ilike.%${cleanSearch}%,details.ilike.%${cleanSearch}%`);
+            }
+          }
+
           const { data, error: qErr } = await query
             .order('created_at', { ascending: false })
-            .limit(100);
+            .limit(300);
 
           if (qErr) {
             console.warn('getSecurityAuditLogs error:', qErr.message);
@@ -23553,50 +23609,157 @@
     }
 
     /**
-     * โหลดประวัติ Audit Logs จาก Supabase แบบ Real-time
+     * แปลงรหัสกิจกรรมเป็นข้อความภาษาไทยสำหรับค้นหา
+     */
+    function getAuditActionThaiLabel(act) {
+      const a = (act || '').toUpperCase();
+      if (a.includes('LOGIN_SUCCESS')) return 'เข้าสู่ระบบ เข้าสู่ระบบสำเร็จ login';
+      if (a.includes('FAILED') || a.includes('LOGIN_FAILED')) return 'ล็อกอินล้มเหลว เข้าสู่ระบบล้มเหลว login failed';
+      if (a.includes('LOGOUT')) return 'ออกจากระบบ logout';
+      if (a.includes('ISSUE_RECEIPT') || a.includes('RECEIPT_CREATED') || a.includes('RENEW_COURSE')) return 'ออกใบเสร็จ ออกใบเสร็จรับเงิน ชำระเงิน ค่าเล่าเรียน receipt';
+      if (a.includes('RECEIPT_VERSION_BACKUP') || a.includes('UPDATE_RECEIPT')) return 'แก้ไขใบเสร็จ ปรับปรุงใบเสร็จ edit receipt';
+      if (a.includes('DELETE_RECEIPT')) return 'ลบใบเสร็จ delete receipt';
+      if (a.includes('RECEIPT_EMAIL_SENT') || a.includes('EMAIL')) return 'ส่งอีเมลใบเสร็จ อีเมล email';
+      if (a.includes('CLAIM_TEXTBOOK') || a.includes('CLAIM')) return 'สแกนรับตำรา สแกนตำรา รับอุปกรณ์ claim textbook';
+      if (a.includes('STUDENT_CARD') || a.includes('PRINT_CARD') || a.includes('CARD')) return 'บัตรนักเรียน พิมพ์บัตร พิมพ์บัตรประจำตัว student card';
+      if (a.includes('DELETE_STUDENT') || a.includes('STUDENT_DELETED')) return 'ลบข้อมูลนักเรียน ลบนักเรียน delete student';
+      if (a.includes('STUDENT_REGISTER') || a.includes('REGISTER_STUDENT') || a.includes('NEW_STUDENT')) return 'ลงทะเบียนนักเรียน สมัครเรียน register';
+      if (a.includes('USER_SAVED') || a.includes('USER_DELETED') || a.includes('PERMISSION') || a.includes('PASSWORD_RESET')) return 'ผู้ใช้งาน ผู้ใช้ บัญชี user';
+      if (a.includes('COURSE') || a.includes('SCHEDULE')) return 'คอร์ส รอบเวลา หลักสูตร course schedule';
+      if (a.includes('EXPORT_') || a.includes('REPORT_')) return 'รายงาน ส่งออก excel pdf report';
+      return a;
+    }
+
+    /**
+     * กรองและแสดงผลตาราง Audit Logs แบบ Real-time ตาม Device ID, วันที่, กิจกรรม, และคำค้นหา
      */
     function filterAuditLogsTable() {
-      const q = (document.getElementById('txtAuditSearch')?.value || '').trim().toLowerCase();
-      if (!cachedAuditLogs || cachedAuditLogs.length === 0) return;
-      if (!q) {
-        renderAuditLogsTable(cachedAuditLogs);
+      const tbody = document.getElementById('tbodyAuditLogs');
+      if (!tbody) return;
+
+      if (!cachedAuditLogs || cachedAuditLogs.length === 0) {
+        renderAuditLogsTable([]);
         return;
       }
+
+      const q = (document.getElementById('txtAuditSearch')?.value || '').trim().toLowerCase();
+      const devFilter = (document.getElementById('txtAuditDeviceIdFilter')?.value || '').trim().toLowerCase();
+      const actFilter = (document.getElementById('selAuditActionFilter')?.value || '').trim().toUpperCase();
+      const dateVal = (document.getElementById('inpAuditDateFilter')?.value || '').trim(); // YYYY-MM-DD
+
       const filtered = cachedAuditLogs.filter(item => {
-        const u = (item.username || '').toLowerCase();
-        const f = (item.fullName || item.full_name || '').toLowerCase();
-        const a = (item.action || '').toLowerCase();
-        const d = (item.details || '').toLowerCase();
-        const dev = (item.deviceId || '').toLowerCase();
-        return u.includes(q) || f.includes(q) || a.includes(q) || d.includes(q) || dev.includes(q);
+        const rawDev = (item.deviceId || item.device_id || '').toLowerCase();
+        const rawDevInfo = (item.deviceInfo || item.device_info || '').toLowerCase();
+
+        // 1. Device ID filter
+        if (devFilter && !rawDev.includes(devFilter) && !rawDevInfo.includes(devFilter)) {
+          return false;
+        }
+
+        // 2. Specific Date filter (YYYY-MM-DD)
+        if (dateVal) {
+          const itemIso = item.created_at || item.timestamp || '';
+          let matchDate = itemIso.startsWith(dateVal);
+          if (!matchDate) {
+            const dObj = new Date(itemIso);
+            if (!isNaN(dObj.getTime())) {
+              const y = dObj.getFullYear();
+              const m = String(dObj.getMonth() + 1).padStart(2, '0');
+              const d = String(dObj.getDate()).padStart(2, '0');
+              if (`${y}-${m}-${d}` === dateVal) matchDate = true;
+            }
+          }
+          if (!matchDate) return false;
+        }
+
+        // 3. Action dropdown filter
+        if (actFilter) {
+          const rawAct = (item.action || '').toUpperCase();
+          let matchAct = (rawAct === actFilter);
+          if (!matchAct) {
+            if (actFilter === 'ISSUE_RECEIPT' && (rawAct === 'RECEIPT_CREATED' || rawAct === 'RENEW_COURSE')) matchAct = true;
+            if (actFilter === 'RECEIPT_VERSION_BACKUP' && rawAct === 'UPDATE_RECEIPT') matchAct = true;
+            if (actFilter === 'DELETE_STUDENT' && rawAct === 'STUDENT_DELETED') matchAct = true;
+            if (actFilter === 'STUDENT_REGISTER' && (rawAct === 'REGISTER_STUDENT' || rawAct === 'NEW_STUDENT')) matchAct = true;
+            if (actFilter === 'DELETE_RECEIPT' && rawAct === 'RECEIPT_DELETED') matchAct = true;
+            if (actFilter === 'LOGIN_SUCCESS' && rawAct === 'LOGIN') matchAct = true;
+            if (actFilter === 'LOGIN_FAILED' && rawAct === 'FAILED_LOGIN') matchAct = true;
+            if (actFilter === 'CLAIM_TEXTBOOK' && rawAct === 'TEXTBOOK_CLAIM') matchAct = true;
+            if (actFilter === 'PRINT_STUDENT_CARD' && rawAct === 'STUDENT_CARD') matchAct = true;
+            if (actFilter === 'REPORT_EXPORT' && (rawAct.startsWith('EXPORT_') || rawAct.startsWith('REPORT_'))) matchAct = true;
+          }
+          if (!matchAct) return false;
+        }
+
+        // 4. Free text search across all attributes (Device, Date, Action, Thai Labels, User, Details)
+        if (q) {
+          const u = (item.username || '').toLowerCase();
+          const f = (item.fullName || item.full_name || '').toLowerCase();
+          const a = (item.action || '').toLowerCase();
+          const d = (item.details || '').toLowerCase();
+          const role = (item.role || '').toLowerCase();
+          const dev = rawDev;
+          const devInfo = rawDevInfo;
+
+          const rawTime = (item.timestamp || item.created_at || '').toLowerCase();
+          const thaiDate = (typeof formatThaiDateTime === 'function')
+            ? formatThaiDateTime(item.timestamp || item.created_at).toLowerCase()
+            : '';
+          const thaiAction = getAuditActionThaiLabel(item.action).toLowerCase();
+
+          const matches = u.includes(q) ||
+            f.includes(q) ||
+            a.includes(q) ||
+            thaiAction.includes(q) ||
+            d.includes(q) ||
+            dev.includes(q) ||
+            devInfo.includes(q) ||
+            role.includes(q) ||
+            rawTime.includes(q) ||
+            thaiDate.includes(q);
+
+          if (!matches) return false;
+        }
+
+        return true;
       });
+
       renderAuditLogsTable(filtered);
     }
 
+    /**
+     * ดึงข้อมูล Audit Logs จากฐานข้อมูลตามเงื่อนไขค้นหา
+     */
     function loadSecurityAuditLogs(force = true, isSilent = false) {
       const tbody = document.getElementById('tbodyAuditLogs');
       if (!tbody) return;
 
       const actionFilter = document.getElementById('selAuditActionFilter')?.value || '';
       const daysFilter = document.getElementById('selAuditDaysFilter')?.value || '90';
+      const dateFilter = document.getElementById('inpAuditDateFilter')?.value || '';
+      const deviceIdFilter = (document.getElementById('txtAuditDeviceIdFilter')?.value || '').trim();
+      const searchQ = (document.getElementById('txtAuditSearch')?.value || '').trim();
 
       if (!isSilent && (!cachedAuditLogs || cachedAuditLogs.length === 0)) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>กำลังโหลดบันทึกกิจกรรม...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>กำลังค้นหาและโหลดบันทึกกิจกรรม...</td></tr>';
       }
 
-      callGasApi('getSecurityAuditLogs', { action: actionFilter, days: daysFilter }, 'GET')
+      const params = {
+        action: actionFilter,
+        days: daysFilter === 'all' ? 0 : daysFilter,
+        date: dateFilter,
+        deviceId: deviceIdFilter,
+        search: searchQ
+      };
+
+      callGasApi('getSecurityAuditLogs', params, 'GET')
       .then(res => {
         const logs = (res && (res.logs || res.data)) || [];
         if (res && res.success && Array.isArray(logs)) {
           cachedAuditLogs = logs;
-          const searchQ = (document.getElementById('txtAuditSearch')?.value || '').trim().toLowerCase();
-          if (searchQ) {
-            filterAuditLogsTable();
-          } else {
-            renderAuditLogsTable(cachedAuditLogs);
-          }
+          filterAuditLogsTable();
         } else if (!cachedAuditLogs || cachedAuditLogs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">ไม่พบประวัติกิจกรรมในช่วงเวลาที่เลือก</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">ไม่พบประวัติกิจกรรมตามเงื่อนไขค้นหา</td></tr>';
         }
       })
       .catch(err => {
@@ -23606,6 +23769,9 @@
       });
     }
 
+    /**
+     * แสดง Badge กิจกรรม
+     */
     function getAuditActionBadge(act) {
       const a = (act || '').toUpperCase();
       if (a.includes('LOGIN_SUCCESS')) {
@@ -23623,6 +23789,9 @@
       if (a.includes('RECEIPT_VERSION_BACKUP') || a.includes('UPDATE_RECEIPT')) {
         return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#c084fc; background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.3);"><i class="fa-solid fa-clock-rotate-left"></i> แก้ไขใบเสร็จ</span>';
       }
+      if (a.includes('DELETE_RECEIPT')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#ef4444; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3);"><i class="fa-solid fa-trash-can"></i> ลบใบเสร็จ</span>';
+      }
       if (a.includes('RECEIPT_EMAIL_SENT') || a.includes('EMAIL')) {
         return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#38bdf8; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3);"><i class="fa-solid fa-envelope"></i> ส่งอีเมลใบเสร็จ</span>';
       }
@@ -23631,6 +23800,12 @@
       }
       if (a.includes('STUDENT_CARD') || a.includes('PRINT_CARD') || a.includes('CARD')) {
         return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#818cf8; background:rgba(129,140,248,0.15); border:1px solid rgba(129,140,248,0.3);"><i class="fa-solid fa-id-card"></i> บัตรนักเรียน</span>';
+      }
+      if (a.includes('DELETE_STUDENT') || a.includes('STUDENT_DELETED')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#ef4444; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3);"><i class="fa-solid fa-user-xmark"></i> ลบนักเรียน</span>';
+      }
+      if (a.includes('STUDENT_REGISTER') || a.includes('REGISTER_STUDENT') || a.includes('NEW_STUDENT')) {
+        return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#10b981; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3);"><i class="fa-solid fa-user-plus"></i> ลงทะเบียน</span>';
       }
       if (a.includes('USER_SAVED') || a.includes('USER_DELETED') || a.includes('PERMISSION') || a.includes('PASSWORD_RESET')) {
         return '<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#fb923c; background:rgba(251,146,60,0.15); border:1px solid rgba(251,146,60,0.3);"><i class="fa-solid fa-user-gear"></i> ผู้ใช้งาน</span>';
@@ -23644,6 +23819,9 @@
       return `<span style="display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; color:#94a3b8; background:rgba(255,255,255,0.06);">${escapeHtml(act)}</span>`;
     }
 
+    /**
+     * แสดงตาราง Audit Logs
+     */
     function renderAuditLogsTable(logs) {
       const tbody = document.getElementById('tbodyAuditLogs');
       if (!tbody) return;
@@ -23670,6 +23848,8 @@
           ? formatThaiDateTime(item.timestamp || item.created_at)
           : (item.timestamp ? item.timestamp.substring(0, 19).replace('T', ' ') : '-');
 
+        const devId = item.deviceId || item.device_id || '-';
+
         html += `
           <tr style="border-bottom:1px solid rgba(255,255,255,0.05); font-size:12.5px;">
             <td style="padding:10px 14px; color:#cbd5e1; font-size:12px; white-space:nowrap;">
@@ -23683,10 +23863,12 @@
               <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(item.fullName || item.full_name || '')} (${escapeHtml(item.role || 'Staff')})</div>
             </td>
             <td style="padding:10px 14px; text-align:center; font-family:monospace; font-size:11px; color:var(--color-gold); white-space:nowrap;">
-              ${escapeHtml(item.deviceId || '-')}
+              <span style="cursor:pointer; text-decoration:underline dotted;" title="คลิกเพื่อกรองเฉพาะ Device ID นี้" onclick="filterByDeviceId('${escapeHtml(devId)}')">
+                ${escapeHtml(devId)}
+              </span>
             </td>
-            <td style="padding:10px 14px; font-size:11px; color:#94a3b8; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(item.deviceInfo || '-')}">
-              ${escapeHtml(item.deviceInfo || '-')}
+            <td style="padding:10px 14px; font-size:11px; color:#94a3b8; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(item.deviceInfo || item.device_info || '-')}">
+              ${escapeHtml(item.deviceInfo || item.device_info || '-')}
             </td>
             <td style="padding:10px 14px; color:#e2e8f0; line-height:1.4;">
               ${escapeHtml(detailText)}
@@ -23704,12 +23886,26 @@
     }
 
     /**
+     * กรองตาม Device ID อัตโนมัติเมื่อคลิกที่ Device ID ในตาราง
+     */
+    function filterByDeviceId(devId) {
+      if (!devId || devId === '-') return;
+      const inp = document.getElementById('txtAuditDeviceIdFilter');
+      if (inp) {
+        inp.value = devId;
+        filterAuditLogsTable();
+      }
+    }
+
+    /**
      * ล้างตัวกรอง Audit Log
      */
     function resetAuditFilters() {
       const s = document.getElementById('txtAuditSearch'); if (s) s.value = '';
+      const dev = document.getElementById('txtAuditDeviceIdFilter'); if (dev) dev.value = '';
       const a = document.getElementById('selAuditActionFilter'); if (a) a.value = '';
-      const d = document.getElementById('selAuditDaysFilter'); if (d) d.value = '90';
+      const d = document.getElementById('inpAuditDateFilter'); if (d) d.value = '';
+      const days = document.getElementById('selAuditDaysFilter'); if (days) days.value = '90';
       loadSecurityAuditLogs(true);
     }
 
