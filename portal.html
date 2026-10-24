@@ -5903,24 +5903,61 @@
 
           <!-- Section 3: Claim History Logs Table -->
           <div class="oca-table-card">
-            <div class="oca-table-header-row">
+            <div class="oca-table-header-row" style="flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom:14px;">
               <div>
-                <div class="oca-table-title">ประวัติการรับตำราเรียน (Claim History Logs)</div>
-                <div class="oca-table-subtitle">บันทึกวันเวลาและเจ้าหน้าที่ผู้จ่ายตำราเรียนตามสิทธิ์ใบเสร็จ</div>
+                <div class="oca-table-title" style="display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-clock-rotate-left" style="color:var(--color-gold);"></i>
+                  <span>ประวัติและสถานะการรับตำราเรียน (Textbook Claim Status)</span>
+                </div>
+                <div class="oca-table-subtitle">ค้นหาและตรวจสอบสิทธิ์การรับตำราตามเลขที่ใบเสร็จ, รหัสผู้เรียน, หรือชื่อผู้รับตำรา</div>
               </div>
-              
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span class="oca-stat-badge" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:20px; padding:4px 12px; font-size:12.5px; color:#e2e8f0;">
+                  ทั้งหมด: <strong id="badgeClaimTotalCount" style="color:var(--color-gold); font-family:monospace;">0</strong> รายการ
+                </span>
+                <span class="oca-stat-badge" style="background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); border-radius:20px; padding:4px 12px; font-size:12.5px; color:#34d399;">
+                  <i class="fa-solid fa-check" style="font-size:11px; margin-right:3px;"></i>รับแล้ว: <strong id="badgeClaimedCount" style="font-family:monospace;">0</strong>
+                </span>
+                <span class="oca-stat-badge" style="background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); border-radius:20px; padding:4px 12px; font-size:12.5px; color:#fbbf24;">
+                  <i class="fa-regular fa-clock" style="font-size:11px; margin-right:3px;"></i>ยังไม่ได้รับ: <strong id="badgePendingClaimCount" style="font-family:monospace;">0</strong>
+                </span>
+              </div>
             </div>
+
+            <!-- Claim History Search & Filter Toolbar -->
+            <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; background:rgba(0,0,0,0.18); border:1px solid rgba(255,255,255,0.08); padding:10px 14px; border-radius:10px; align-items:center;">
+              <div style="flex:1; min-width:260px; position:relative;">
+                <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:13px;"></i>
+                <input type="text" id="txtClaimHistorySearch" class="oca-input" placeholder="ค้นหาเลขที่ใบเสร็จ, รหัสผู้เรียน (เช่น 6950001), หรือชื่อผู้รับ..." style="padding-left:36px; height:38px; font-size:13px; width:100%; border-radius:8px;" oninput="filterClaimHistoryLogs()" onkeydown="if(event.key==='Enter') loadTextbookClaimLogs(true);">
+              </div>
+              <div style="min-width:190px;">
+                <select id="selClaimStatusFilter" class="oca-input" style="height:38px; font-size:13px; width:100%; border-radius:8px;" onchange="filterClaimHistoryLogs()">
+                  <option value="ALL">-- แสดงสถานะทั้งหมด --</option>
+                  <option value="PENDING">⏳ ยังไม่ได้รับตำรา (Pending)</option>
+                  <option value="CLAIMED">✓ รับเรียบร้อยแล้ว (Claimed)</option>
+                </select>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button type="button" class="oca-btn-icon" style="height:38px; padding:0 12px; font-size:12.5px; border-radius:8px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; cursor:pointer; display:inline-flex; align-items:center; gap:5px;" onclick="clearClaimHistoryFilter()" title="ล้างคำค้นหา">
+                  <i class="fa-solid fa-xmark"></i> ล้าง
+                </button>
+                <button type="button" class="oca-btn-gold-submit" id="btnRefreshClaimLogs" style="height:38px; padding:0 14px; font-size:12.5px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;" onclick="loadTextbookClaimLogs(true)" title="โหลดข้อมูลล่าสุด">
+                  <i class="fa-solid fa-arrows-rotate"></i> รีเฟรช
+                </button>
+              </div>
+            </div>
+
             <div style="overflow-x:auto;">
               <table class="oca-live-table" id="tblClaimHistoryLogs">
                 <thead>
                   <tr>
-                    <th style="width:155px; text-align:left;">วันเวลาที่รับ</th>
-                    <th style="width:135px; text-align:left;">เลขที่ใบเสร็จ</th>
-                    <th style="width:105px; text-align:left;">รหัสผู้เรียน</th>
+                    <th style="width:160px; text-align:left;">วันเวลา</th>
+                    <th style="width:130px; text-align:left;">เลขที่ใบเสร็จ</th>
+                    <th style="width:110px; text-align:left;">รหัสผู้เรียน</th>
                     <th style="min-width:160px; text-align:left;">ชื่อผู้รับตำรา</th>
-                    <th style="min-width:180px; text-align:left;">รายการตำรา</th>
-                    <th style="width:125px; text-align:left;">ผู้บันทึกจ่าย</th>
-                    <th style="width:130px; text-align:center;">สถานะ</th>
+                    <th style="min-width:180px; text-align:left;">รายการตำรา / สิทธิ์</th>
+                    <th style="width:130px; text-align:left;">ผู้บันทึกจ่าย</th>
+                    <th style="width:145px; text-align:center;">สถานะ / การดำเนินการ</th>
                   </tr>
                 </thead>
                 <tbody id="tbodyClaimHistoryLogs">
@@ -11141,16 +11178,31 @@
         }
 
         if (action === 'getTextbookClaimLogs') {
-          const { data, error } = await _supabase.from('receipts')
-            .select('*')
-            .eq('claim_status', 'CLAIMED')
-            .order('claimed_at', { ascending: false })
-            .limit(100);
+          let query = _supabase.from('receipts').select('*');
+          if (params && params.status) {
+            const st = String(params.status).trim().toUpperCase();
+            if (st === 'CLAIMED') {
+              query = query.eq('claim_status', 'CLAIMED');
+            } else if (st === 'PENDING') {
+              query = query.or('claim_status.is.null,claim_status.eq.PENDING,claim_status.neq.CLAIMED');
+            }
+          }
+          if (params && params.search) {
+            const s = String(params.search).trim().replace(/[%_"]/g, '');
+            if (s) {
+              query = query.or(`receipt_no.ilike.%${s}%,student_id.ilike.%${s}%,buyer_name.ilike.%${s}%`);
+            }
+          }
+          const { data, error } = await query
+            .order('created_at', { ascending: false })
+            .limit(300);
           if (error) {
             console.error('getTextbookClaimLogs Supabase error:', error);
             return { success: false, message: error.message, logs: [], receipts: [], data: [] };
           }
-          const mapped = (data || []).map(r => safeNormalizeReceipt(r));
+          const mapped = (data || [])
+            .filter(r => r.receipt_type !== 'CARD_FEE')
+            .map(r => safeNormalizeReceipt(r));
           return { success: true, logs: mapped, receipts: mapped, data: mapped };
         }
 
@@ -19353,47 +19405,181 @@
         });
     }
 
-    function loadTextbookClaimLogs() {
+    let cachedTextbookClaimLogs = [];
+
+    function clearClaimHistoryFilter() {
+      const txt = document.getElementById('txtClaimHistorySearch');
+      const sel = document.getElementById('selClaimStatusFilter');
+      if (txt) txt.value = '';
+      if (sel) sel.value = 'ALL';
+      filterClaimHistoryLogs();
+    }
+
+    function filterClaimHistoryLogs() {
+      const searchInput = document.getElementById('txtClaimHistorySearch');
+      const statusSelect = document.getElementById('selClaimStatusFilter');
+      const term = (searchInput ? searchInput.value : '').toLowerCase().trim();
+      const statusFilter = (statusSelect ? statusSelect.value : 'ALL').toUpperCase();
+
+      const filtered = (cachedTextbookClaimLogs || []).filter(row => {
+        // Status matching
+        const isClaimed = String(row.claimStatus || '').toUpperCase() === 'CLAIMED';
+        if (statusFilter === 'CLAIMED' && !isClaimed) return false;
+        if (statusFilter === 'PENDING' && isClaimed) return false;
+
+        // Search matching (receiptNo, buyerId, buyerName, itemName, materialType, claimedBy)
+        if (term) {
+          const rcNo = String(row.receiptNo || '').toLowerCase();
+          const bId = String(row.buyerId || '').toLowerCase();
+          const bName = String(row.buyerName || '').toLowerCase();
+          const itName = String(row.itemName || '').toLowerCase();
+          const mat = String(row.materialType || '').toLowerCase();
+          const claimedBy = String(row.claimedBy || '').toLowerCase();
+          if (!rcNo.includes(term) && !bId.includes(term) && !bName.includes(term) && !itName.includes(term) && !mat.includes(term) && !claimedBy.includes(term)) {
+            return false;
+          }
+        }
+        return true;
+      });
+
+      renderClaimHistoryLogsTable(filtered);
+    }
+
+    function renderClaimHistoryLogsTable(logs) {
+      const tbody = document.getElementById('tbodyClaimHistoryLogs');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      if (!Array.isArray(logs) || logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted); font-size:13px;"><i class="fa-solid fa-inbox" style="margin-right:6px; font-size:16px;"></i>ไม่พบรายการประวัติการรับตำราเรียนตามเงื่อนไขที่ค้นหา</td></tr>';
+        return;
+      }
+
+      logs.forEach(row => {
+        const tr = document.createElement('tr');
+        const isClaimed = String(row.claimStatus || '').toUpperCase() === 'CLAIMED';
+        const isShipping = (row.deliveryMethod === 'ส่งตำรา' || row.deliveryMethod === 'จัดส่งตามที่อยู่' || String(row.claimStatus).includes('ส่ง'));
+        const claimTime = isClaimed ? formatClaimTimestamp(row.claimedAt || row.createdAt) : '';
+
+        // Date Display
+        let dateHtml = '';
+        if (isClaimed) {
+          dateHtml = '<div style="font-size:12px; color:var(--text-main); font-weight:600;">' + formatThaiDateTime(row.claimedAt || row.createdAt) + '</div>' +
+                     (claimTime ? '<div style="font-size:10.5px; color:#10b981; font-family:monospace; display:inline-flex; align-items:center; gap:3px;"><i class="fa-regular fa-clock" style="font-size:9px;"></i>' + claimTime + '</div>' : '');
+        } else {
+          dateHtml = '<div style="font-size:12px; color:var(--text-muted);">' + formatThaiDateTime(row.createdAt) + '</div>' +
+                     '<div style="font-size:10.5px; color:var(--text-muted);">(ออกใบเสร็จ)</div>';
+        }
+
+        // Material Badge
+        let matBadge = '';
+        if (row.materialType) {
+          const isNoMat = row.materialType.includes('ไม่มี') || row.materialType === 'NONE';
+          const badgeBg = isNoMat ? 'rgba(148,163,184,0.15)' : 'rgba(59,130,246,0.18)';
+          const badgeBorder = isNoMat ? 'rgba(148,163,184,0.3)' : 'rgba(59,130,246,0.35)';
+          const badgeColor = isNoMat ? '#cbd5e1' : '#93c5fd';
+          matBadge = ' <span style="background:' + badgeBg + '; border:1px solid ' + badgeBorder + '; color:' + badgeColor + '; padding:1px 6px; border-radius:4px; font-size:11px; margin-left:4px; white-space:nowrap;">' + escapeHtml(row.materialType) + '</span>';
+        }
+
+        // Officer Display
+        let officerHtml = '';
+        if (isClaimed) {
+          officerHtml = '<span style="font-weight:600; color:var(--text-main);"><i class="fa-solid fa-user-check" style="font-size:11px; color:#10b981; margin-right:4px;"></i>' + escapeHtml(row.claimedBy || 'เจ้าหน้าที่') + '</span>';
+        } else {
+          officerHtml = '<span style="color:var(--text-muted); font-size:12px;">- (ยังไม่ตัดจ่าย)</span>';
+        }
+
+        // Status & Action Column
+        let statusColHtml = '';
+        if (isClaimed) {
+          statusColHtml =
+            '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:2px;">' +
+            '  <span style="background:rgba(16,185,129,0.15); color:#10B981; border:1px solid rgba(16,185,129,0.35); padding:3px 10px; border-radius:12px; font-weight:700; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">' +
+            '    <i class="fa-solid fa-check"></i> รับเรียบร้อยแล้ว' +
+            '  </span>' +
+            '</div>';
+        } else if (isShipping) {
+          statusColHtml =
+            '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:3px;">' +
+            '  <span style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.35); padding:3px 10px; border-radius:12px; font-weight:700; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">' +
+            '    <i class="fa-solid fa-truck"></i> จัดส่งทางพัสดุ' +
+            '  </span>' +
+            '  <button type="button" class="oca-btn-icon" style="padding:2px 8px; font-size:10.5px; border-radius:5px; background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3); color:#7dd3fc; cursor:pointer;" onclick="handleScannedQrToken(\'' + escapeHtml(row.receiptNo) + '\')">' +
+            '    ตรวจสอบพัสดุ' +
+            '  </button>' +
+            '</div>';
+        } else {
+          statusColHtml =
+            '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:4px;">' +
+            '  <span style="background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.35); padding:3px 10px; border-radius:12px; font-weight:700; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">' +
+            '    <i class="fa-regular fa-clock"></i> ยังไม่ได้รับ' +
+            '  </span>' +
+            '  <button type="button" class="oca-btn-gold-submit" style="padding:3px 9px; font-size:11px; border-radius:6px; background:linear-gradient(135deg, #d97706, #b45309); border:none; color:#ffffff; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.25);" onclick="handleScannedQrToken(\'' + escapeHtml(row.receiptNo) + '\')">' +
+            '    <i class="fa-solid fa-barcode"></i> ตัดจ่ายตำรา' +
+            '  </button>' +
+            '</div>';
+        }
+
+        tr.innerHTML =
+          '<td style="white-space:nowrap;">' + dateHtml + '</td>' +
+          '<td style="font-family:monospace; font-weight:700; color:var(--color-gold); white-space:nowrap;">' + toArabicDigits(row.receiptNo) + '</td>' +
+          '<td style="font-family:monospace; font-weight:600; white-space:nowrap;">' + toArabicDigits(row.buyerId) + '</td>' +
+          '<td><strong>' + escapeHtml(row.buyerName) + '</strong></td>' +
+          '<td>' + escapeHtml(row.itemName || '-') + matBadge + '</td>' +
+          '<td>' + officerHtml + '</td>' +
+          '<td style="white-space:nowrap; text-align:center;">' + statusColHtml + '</td>';
+        tbody.appendChild(tr);
+      });
+    }
+
+    function loadTextbookClaimLogs(force = false) {
+      const tbody = document.getElementById('tbodyClaimHistoryLogs');
+      const btnRefresh = document.getElementById('btnRefreshClaimLogs');
+      if (btnRefresh) {
+        btnRefresh.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> โหลด...';
+        btnRefresh.disabled = true;
+      }
+      if (force && tbody && (!cachedTextbookClaimLogs || cachedTextbookClaimLogs.length === 0)) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>กำลังโหลดข้อมูลล่าสุด...</td></tr>';
+      }
+
       callGasApi('getTextbookClaimLogs')
         .then(res => {
-          const tbody = document.getElementById('tbodyClaimHistoryLogs');
-          if (!tbody) return;
-          tbody.innerHTML = '';
+          if (btnRefresh) {
+            btnRefresh.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> รีเฟรช';
+            btnRefresh.disabled = false;
+          }
           const rawLogs = (res && res.success) ? (res.logs || res.receipts || res.data || []) : [];
-          if (Array.isArray(rawLogs) && rawLogs.length > 0) {
+          if (Array.isArray(rawLogs)) {
             const mapped = rawLogs.map(r => normalizeReceiptObject(r));
-            const claimedLogs = mapped.filter(l => l.claimStatus === 'CLAIMED');
-            if (claimedLogs.length === 0) {
-              tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">ยังไม่มีรายการเคลมรับตำราเรียน</td></tr>';
-              return;
-            }
-            claimedLogs.forEach(row => {
-              const tr = document.createElement('tr');
-                const claimTime = formatClaimTimestamp(row.claimedAt || row.createdAt);
-                tr.innerHTML =
-                  '<td style="font-size:12px; color:var(--text-muted);">' + formatThaiDateTime(row.claimedAt || row.createdAt) + '</td>' +
-                  '<td style="font-family:monospace; font-weight:700; color:var(--color-gold);">' + toArabicDigits(row.receiptNo) + '</td>' +
-                  '<td>' + toArabicDigits(row.buyerId) + '</td>' +
-                  '<td><strong>' + escapeHtml(row.buyerName) + '</strong></td>' +
-                  '<td>' + escapeHtml(row.itemName) + (row.materialType ? (' <span style="background:rgba(59,130,246,0.18); border:1px solid rgba(59,130,246,0.35); color:#93c5fd; padding:1px 6px; border-radius:4px; font-size:12px; margin-left:4px; white-space:nowrap;">' + escapeHtml(row.materialType) + '</span>') : '') + '</td>' +
-                  '<td>' + escapeHtml(row.claimedBy || 'เจ้าหน้าที่') + '</td>' +
-                  '<td style="white-space:nowrap; text-align:center;">' +
-                    '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:2px;">' +
-                      '<span style="background:rgba(16,185,129,0.15); color:#10B981; padding:3px 10px; border-radius:10px; font-weight:700; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-check"></i> รับเรียบร้อย</span>' +
-                      (claimTime ? ('<span style="font-size:10.5px; color:#10b981; font-family:monospace; white-space:nowrap; display:inline-flex; align-items:center; gap:2px;"><i class="fa-regular fa-clock" style="font-size:9.5px;"></i>' + claimTime + '</span>') : '') +
-                    '</div>' +
-                  '</td>';
-              tbody.appendChild(tr);
-            });
+            cachedTextbookClaimLogs = mapped;
+
+            // Update badge counters
+            const totalCount = mapped.length;
+            const claimedCount = mapped.filter(r => String(r.claimStatus || '').toUpperCase() === 'CLAIMED').length;
+            const pendingCount = totalCount - claimedCount;
+
+            const bTotal = document.getElementById('badgeClaimTotalCount');
+            const bClaimed = document.getElementById('badgeClaimedCount');
+            const bPending = document.getElementById('badgePendingClaimCount');
+            if (bTotal) bTotal.textContent = toArabicDigits(totalCount);
+            if (bClaimed) bClaimed.textContent = toArabicDigits(claimedCount);
+            if (bPending) bPending.textContent = toArabicDigits(pendingCount);
+
+            filterClaimHistoryLogs();
           } else {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">ยังไม่มีรายการรับตำราเรียนในระบบ</td></tr>';
+            cachedTextbookClaimLogs = [];
+            filterClaimHistoryLogs();
           }
         })
         .catch(err => {
           console.error('loadTextbookClaimLogs error:', err);
-          const tbody = document.getElementById('tbodyClaimHistoryLogs');
+          if (btnRefresh) {
+            btnRefresh.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> รีเฟรช';
+            btnRefresh.disabled = false;
+          }
           if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#ef4444;">โหลดประวัติการรับตำราไม่สำเร็จ</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#ef4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i>โหลดประวัติการรับตำราไม่สำเร็จ กรุณาลองใหม่อีกครั้ง</td></tr>';
           }
         });
     }
