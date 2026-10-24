@@ -372,13 +372,42 @@
       overflow-x: hidden;
     }
 
+    #oca-app-root .oca-content-canvas {
+      padding: 24px 32px;
+      flex: 1 1 auto;
+      min-width: 0;
+      max-width: 100%;
+      min-height: calc(100vh - 72px);
+      box-sizing: border-box;
+      overflow-x: hidden;
+      position: relative;
+    }
+
     #oca-app-root .oca-view-tab {
       display: none;
-      animation: ocaFadeIn 0.25s ease;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      opacity: 1 !important;
+      transform: none !important;
+      transition: none !important;
+      animation: none !important;
     }
 
     #oca-app-root .oca-view-tab.active {
-      display: block;
+      display: block !important;
+      opacity: 1 !important;
+      transform: none !important;
+      transition: none !important;
+      animation: none !important;
+    }
+
+    #oca-app-root .oca-table-card,
+    #oca-app-root .oca-chart-card,
+    #oca-app-root .oca-settings-subview {
+      min-height: 240px;
+      box-sizing: border-box;
     }
 
     @keyframes ocaFadeIn {
@@ -8432,20 +8461,29 @@
             }
           });
 
-        // Background Pulse Timer (Every 10s) to guarantee real-time updates across multiple tabs/devices
+        // Background Pulse Timer (Every 60s quiet sync) - WebSocket handles instant DB pushes
         if (_realtimePulseTimer) clearInterval(_realtimePulseTimer);
         _realtimePulseTimer = setInterval(() => {
           if (!document.hidden && navigator.onLine) {
             triggerRealtimeSilentRefresh();
           }
-        }, 10000);
+        }, 60000);
 
-        // Immediate sync on window / tab focus
+        // Throttled sync on window / tab focus (minimum 20s between triggers)
+        let _lastFocusSyncTime = 0;
         window.addEventListener('focus', () => {
-          if (navigator.onLine) triggerRealtimeSilentRefresh();
+          const now = Date.now();
+          if (navigator.onLine && (now - _lastFocusSyncTime > 20000)) {
+            _lastFocusSyncTime = now;
+            triggerRealtimeSilentRefresh();
+          }
         });
         document.addEventListener('visibilitychange', () => {
-          if (!document.hidden && navigator.onLine) triggerRealtimeSilentRefresh();
+          const now = Date.now();
+          if (!document.hidden && navigator.onLine && (now - _lastFocusSyncTime > 20000)) {
+            _lastFocusSyncTime = now;
+            triggerRealtimeSilentRefresh();
+          }
         });
 
       } catch (err) {
@@ -8494,6 +8532,24 @@
     /**
      * รีเฟรชข้อมูลหน้าจอที่กำลังเปิดอยู่อย่างเงียบๆ เบื้องหลัง ให้เป็นปัจจุบันตลอดเวลา (Real-time Active View Refresh)
      */
+        // =========================================================================
+    // SILENT DIFFING & ZERO-FLICKER DOM CONTROLLER
+    // =========================================================================
+    window._lastRenderedSignatures = window._lastRenderedSignatures || {};
+    function ocaShouldUpdateDOM(key, data) {
+      try {
+        if (!data) return true;
+        const sig = typeof data === 'string' ? data : JSON.stringify(data);
+        if (window._lastRenderedSignatures[key] === sig) {
+          return false; // Data unchanged: Skip DOM rewriting to eliminate flickering 100%
+        }
+        window._lastRenderedSignatures[key] = sig;
+        return true;
+      } catch (_) {
+        return true;
+      }
+    }
+
     function triggerRealtimeSilentRefresh() {
       const activeTab = document.querySelector('.oca-view-tab.active');
       const tabId = activeTab ? activeTab.id : 'tabDashboard';
@@ -10739,7 +10795,7 @@
       if (typeof renderWebEmojiIcons === 'function') {
         setTimeout(() => renderWebEmojiIcons(document.body), 80);
       }
-      window.scrollTo(0, 0);
+      if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: 'instant' });
     }
 
     /**
@@ -16881,6 +16937,7 @@
       const tbody = document.getElementById('tbodyReceiptsHistory');
       const badgeCount = document.getElementById('lblRcptHistCountBadge');
       if (!tbody) return;
+      if (!ocaShouldUpdateDOM('receiptsHistory', { logs, query })) return;
 
       const totalCount = receiptHistoryCachedLogs.length;
       if (badgeCount) {
@@ -18262,6 +18319,7 @@
           }
 
           cachedStudentReportData = res.students || [];
+          if (!ocaShouldUpdateDOM('studentReportData', res)) return;
 
           // 1. อัปเดตรายการปีการศึกษาใน Dropdown (ถ้ามีส่งกลับมา)
           if (selYear && Array.isArray(res.availableYears) && res.availableYears.length > 0) {
@@ -19755,6 +19813,7 @@
     function renderShippingOrdersTable(items) {
       const tbody = document.getElementById('tbodyShippingOrders');
       if (!tbody) return;
+      if (!ocaShouldUpdateDOM('shippingOrders', items)) return;
 
       if (!items || items.length === 0) {
         tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:40px; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-inbox" style="font-size:24px; margin-bottom:8px; display:block; opacity:0.5;"></i>ไม่พบรายการนักเรียนที่เลือกส่งตำราเรียนไปที่บ้าน</td></tr>';
@@ -20898,8 +20957,10 @@
      */
     function initSettingsModule() {
       renderDeviceSecurityInfo();
-      loadUsersList(true);
-      loadSecurityAuditLogs(true);
+      const hasUsers = cachedUsersList && cachedUsersList.length > 0;
+      loadUsersList(false, hasUsers);
+      const hasAudit = cachedAuditLogs && cachedAuditLogs.length > 0;
+      loadSecurityAuditLogs(false, hasAudit);
     }
 
     /**
@@ -21059,6 +21120,7 @@
     function renderUsersListTable(users) {
       const tbody = document.getElementById('tbodyUsersList');
       if (!tbody) return;
+      if (!ocaShouldUpdateDOM('usersList', users)) return;
 
       if (!users || users.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">ยังไม่มีข้อมูลผู้ใช้งาน</td></tr>';
@@ -21409,6 +21471,7 @@
     function renderAuditLogsTable(logs) {
       const tbody = document.getElementById('tbodyAuditLogs');
       if (!tbody) return;
+      if (!ocaShouldUpdateDOM('auditLogs', logs)) return;
 
       if (!logs || logs.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">ไม่พบประวัติกิจกรรมตามเงื่อนไขค้นหา</td></tr>';
@@ -22431,8 +22494,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=65' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=65' : (window.location.pathname + '/sw.js?v=48'));
+        ? './sw.js?v=66' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=66' : (window.location.pathname + '/sw.js?v=48'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
       }).catch(function(err) {
