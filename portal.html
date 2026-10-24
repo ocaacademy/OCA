@@ -9212,21 +9212,43 @@
         const scheduleName = (rcpt && rcpt.schedule) || params.schedule || '-';
         const rawGrandTotal = Number((rcpt && rcpt.grand_total) || params.grandTotal || 0);
         const grandTotalFormatted = rawGrandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const rawBaseAmount = Number((rcpt && rcpt.amount) || params.baseAmount || rawGrandTotal);
+        const rawBaseAmount = Number((rcpt && rcpt.base_amount) || (rcpt && rcpt.amount) || params.baseAmount || rawGrandTotal);
         const baseAmountFormatted = rawBaseAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const regFee = Number((rcpt && rcpt.reg_fee) || params.regFee || 0);
         const cardFee = Number((rcpt && rcpt.card_fee) || params.cardFee || 0);
-        const otherFee = Number((rcpt && rcpt.other_fee) || params.otherRegFee || 0);
-        const discount = Number((rcpt && rcpt.discount) || params.discount || 0);
+        const otherFee = Number((rcpt && rcpt.other_reg_fee) || (rcpt && rcpt.other_fee) || params.otherRegFee || 0);
+        const discountNormal = Number((rcpt && rcpt.discount_normal) || params.discountNormal || 0);
+        const discountOther = Number((rcpt && rcpt.discount_other) || params.discountOther || 0);
+        const discount = discountNormal + discountOther || Number((rcpt && rcpt.discount) || params.discount || 0);
         const subTotal = rawBaseAmount + regFee + cardFee + otherFee;
         const subTotalFormatted = subTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const discountFormatted = discount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const term = (rcpt && rcpt.term) || params.term || '5';
         const yearBE = (rcpt && rcpt.year_be) || params.yearBE || '2569';
         const learningMode = (rcpt && rcpt.learning_mode) || params.learningMode || 'Online';
-        const claimToken = (rcpt && rcpt.claim_token) || params.claimToken || '-';
-        const paymentMethod = (rcpt && rcpt.payment_method) || params.payMethod || 'โอนเงิน';
+        const deliveryMethod = (rcpt && rcpt.delivery_method) || params.deliveryMethod || 'รับเอง';
+        const materialType = (rcpt && rcpt.material_type) || params.materialType || 'หนังสือและสมุด';
+        const openDate = (rcpt && rcpt.open_date) || params.openDate || '';
+        const room = (rcpt && rcpt.room) || params.room || '';
+        const shippingAddress = (rcpt && rcpt.address) || params.address || '';
+        const claimToken = (rcpt && rcpt.claim_token) || params.claimToken || '';
+        const paymentMethod = (rcpt && rcpt.payment_method) || params.paymentMethod || params.payMethod || 'โอนเงิน';
         const dateStr = (rcpt && rcpt.created_at) ? new Date(rcpt.created_at).toLocaleDateString('th-TH') : new Date().toLocaleDateString('th-TH');
+
+        // Resolve Cashier / Payee Name strictly according to system configuration
+        let cashierName = params.cashierName || params.cashier;
+        if (!cashierName && typeof getEffectivePayeeName === 'function') {
+          cashierName = getEffectivePayeeName();
+        }
+        if (!cashierName && _supabase) {
+          try {
+            const { data: pRow } = await _supabase.from('fee_settings').select('*').eq('key', 'cfg_cashier_payee').limit(1);
+            if (pRow && pRow.length > 0 && pRow[0].name) {
+              cashierName = pRow[0].name;
+            }
+          } catch(_) {}
+        }
+        if (!cashierName) cashierName = 'เจ้าหน้าที่การเงิน (Cashier)';
 
         const thaiBahtWords = (typeof bahtText === 'function') ? bahtText(rawGrandTotal) : '-';
 
@@ -9255,16 +9277,92 @@
 
         let discountRowHtml = '';
         if (discount > 0) {
-          discountRowHtml = `
+          discountRowHtml += `
             <tr>
               <td style="padding:6px 10px; text-align:right; color:#dc2626; border-bottom:1px solid #e2e8f0;">หัก ส่วนลดปกติ / Less: Discount:</td>
               <td style="padding:6px 10px; text-align:right; color:#dc2626; border-bottom:1px solid #e2e8f0; font-family:monospace; font-weight:700;">-${discountFormatted}</td>
             </tr>`;
         }
 
+        const isShip = (deliveryMethod === 'ส่งตำรา' || deliveryMethod === 'ส่งไปตามที่อยู่' || (deliveryMethod && deliveryMethod.indexOf('ส่ง') !== -1));
+
+        // หมายเหตุ: กำหนดวันเปิดเรียน (ตรงกับระบบ 100%)
+        let remarksBoxHtml = '';
+        if (openDate && openDate !== '-') {
+          const roomHtml = (room && room !== '-') 
+            ? ` &nbsp;|&nbsp; ห้องเรียน: <strong style="color:#0284c7;">${room}</strong>` 
+            : ` &nbsp;|&nbsp; <span style="color:#0284c7; font-weight:600;">(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)</span>`;
+          remarksBoxHtml = `
+            <div style="background:#f8fafc; border:1px solid #bae6fd; border-radius:4px; padding:6px 12px; margin:8px 0 10px 0; font-size:12px; color:#1e293b;">
+              <strong>หมายเหตุ:</strong> กำหนดวันเปิดเรียน วันที่ <strong style="color:#0284c7;">${openDate}</strong>${roomHtml}
+            </div>`;
+        }
+
+        // กล่องสิทธิ์รับตำราและอุปกรณ์การเรียน One-Time Claim (ตรงกับระบบ 100%)
+        let claimBoxHtml = '';
+        if (claimToken && claimToken !== '-') {
+          claimBoxHtml = `
+            <div style="border:1px dashed #0284c7; background:#f0f9ff; border-radius:6px; padding:10px 14px; margin:10px 0;">
+              <table style="width:100%; border-collapse:collapse;" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align:middle; padding-right:12px;">
+                    <div style="font-size:12px; font-weight:700; color:#0369a1; margin-bottom:4px;">
+                      สิทธิ์รับตำราและอุปกรณ์การเรียน (One-Time Claim)
+                    </div>
+                    <div style="font-size:12px; color:#0f172a; font-weight:600; line-height:1.45;">
+                      ตำรา: <strong style="color:#0369a1;">${courseName}</strong> <span style="font-size:11px; color:#64748b;">[ ${materialType} ]</span>
+                    </div>
+                    <div style="font-size:11.5px; color:#475569; margin-top:3px; line-height:1.4;">
+                      ${isShip ? 'จัดส่งตำราและอุปกรณ์การเรียนตามที่อยู่จัดส่งทางพัสดุ' : 'สแกน QR Code ณ สถาบันเพื่อรับตำราและอุปกรณ์การเรียน (รับได้ 1 ครั้ง)'}
+                    </div>
+                    ${(isShip && shippingAddress) ? `
+                    <div style="font-size:12px; color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe; border-radius:4px; padding:4px 8px; margin-top:4px;">
+                      <strong>ที่อยู่จัดส่งทางพัสดุ:</strong> ${shippingAddress}
+                    </div>` : ''}
+                    <div style="font-size:11px; color:#64748b; margin-top:4px; line-height:1.4;">
+                      ${isShip ? 'เจ้าหน้าที่จะจัดส่งและแจ้งรหัสพัสดุผ่านทางระบบ' : 'สแกนรับตำราได้ 1 ครั้งเท่านั้น ผ่านระบบกล้อง OCA ภายในสถาบัน (ไม่สามารถใช้แอปภายนอกสแกนได้)'}
+                    </div>
+                    <div style="font-size:11px; color:#0284c7; font-family:monospace; margin-top:3px;">
+                      รหัส Token: <strong>${claimToken}</strong>
+                    </div>
+                  </td>
+                  <td style="width:125px; text-align:center; vertical-align:middle;">
+                    ${isShip ? `
+                    <div style="width:115px; height:115px; background:#eff6ff; border:2px dashed #3b82f6; border-radius:8px; padding:6px; margin:0 auto; text-align:center;">
+                      <div style="font-size:30px; line-height:1; color:#2563eb; margin-top:10px;">🚚</div>
+                      <div style="font-size:12px; font-weight:800; color:#1d4ed8; margin-top:4px;">จัดส่งตามที่อยู่</div>
+                      <div style="font-size:11px; color:#64748b; margin-top:2px;">(ไม่มี QR Code)</div>
+                    </div>` : `
+                    <div style="width:115px; height:115px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; padding:4px; margin:0 auto; text-align:center;">
+                      <img src="https://api.qrserver.com/v1/create-qr-code/?size=115x115&margin=2&data=${encodeURIComponent(claimToken)}" width="107" height="107" alt="QR Code รับตำราเรียน" style="display:block; margin:0 auto;" />
+                    </div>
+                    <div style="font-size:11.5px; font-weight:700; color:#0369a1; margin-top:3px; text-align:center;">
+                      สแกนตรวจสอบรายการที่ได้รับ
+                    </div>`}
+                  </td>
+                </tr>
+              </table>
+            </div>`;
+        }
+
+        // ลายเซ็นท้ายใบเสร็จ (Signatures Block ตรงกับระบบ 100%)
+        const signaturesHtml = `
+          <table style="width:100%; border-collapse:collapse; margin-top:16px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:12px; color:#334155;">
+            <tr>
+              <td style="width:50%; text-align:left; vertical-align:bottom; padding:6px 0;">
+                ผู้รับเงิน: <span style="color:#0284c7; font-weight:700;">${cashierName}</span><br>
+                <small style="color:#94a3b8;">(ลงชื่อเจ้าหน้าที่ฝ่ายการเงิน)</small>
+              </td>
+              <td style="width:50%; text-align:right; vertical-align:bottom; padding:6px 0;">
+                ผู้จัดการ / Manager: .....................................................<br>
+                <small style="color:#94a3b8;">(ลายมือชื่อผู้มีอำนาจ)</small>
+              </td>
+            </tr>
+          </table>`;
+
         const subject = `[ใบเสร็จรับเงิน] โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (東方文化書院) - เลขที่ ${rcptNo}`;
         
-        // Official Continuous Dot-Matrix Paper Receipt HTML Template
+        // Official Continuous Dot-Matrix Paper Receipt HTML Template (100% Identical to System Layout)
         const htmlReceipt = `
 <div style="background:#f1f5f9; padding:24px 8px; font-family:'Noto Sans Thai', 'Prompt', Tahoma, Arial, sans-serif;">
   <table align="center" border="0" cellpadding="0" cellspacing="0" style="max-width:640px; width:100%; margin:0 auto; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:4px; box-shadow:0 4px 16px rgba(0,0,0,0.06); border-collapse:collapse; overflow:hidden;">
@@ -9292,7 +9390,7 @@
             64/28 ถ.รองเมือง ซอย 1 แขวงรองเมือง เขตปทุมวัน กรุงเทพมหานคร 10330
           </div>
           <div style="font-size:11px; color:#475569; margin-top:3px; line-height:1.45;">
-            โทรศัพท์: 02-216-2826, 02-216-2827, 02-216-2828 | Line: @OCANIHAO | Facebook: Oriental Culture Academy (OCA)
+            เบอร์โทรศัพท์: 02-216-2826, 02-216-2827, 02-216-2828 | Line Official: @OCANIHAO | Facebook: Oriental Culture Academy (OCA) | TikTok: orientalcultureacademy
           </div>
         </div>
 
@@ -9389,37 +9487,14 @@
           </tr>
         </table>
 
-        <!-- Textbook Claim Box (One-Time QR Code) -->
-        <div style="border:1.5px dashed #0284c7; background:#f0f9ff; border-radius:6px; padding:12px; margin-bottom:14px; text-align:center;">
-          <div style="font-size:12.5px; font-weight:700; color:#0369a1; margin-bottom:3px;">
-            สิทธิ์รับตำราและอุปกรณ์การเรียน (One-Time Claim)
-          </div>
-          <div style="font-size:11.5px; color:#475569; margin-bottom:6px;">
-            รหัส Token: <strong style="font-family:monospace; color:#0284c7; font-size:13px; letter-spacing:0.5px;">${claimToken}</strong>
-          </div>
-          <div style="display:inline-block; padding:6px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; margin:2px auto 6px auto;">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=2&data=${encodeURIComponent(claimToken)}" width="125" height="125" alt="QR Code รับตำราเรียน" style="display:block; margin:0 auto;" />
-          </div>
-          <div style="font-size:11px; color:#64748b; line-height:1.4;">
-            📱 แสดง QR Code นี้ต่อเจ้าหน้าที่ ณ สถาบัน เพื่อสแกนรับตำราและอุปกรณ์การเรียน (รับได้ 1 ครั้ง)
-          </div>
-        </div>
+        <!-- หมายเหตุ: กำหนดวันเปิดเรียน (ตรงกับระบบ 100%) -->
+        ${remarksBoxHtml}
 
-        <!-- Official Signatures Row -->
-        <table style="width:100%; border-collapse:collapse; margin:14px 0 10px 0; font-size:11.5px; color:#475569;">
-          <tr>
-            <td style="width:50%; text-align:center; padding:8px 10px;">
-              <div style="width:150px; border-bottom:1px dashed #64748b; margin:0 auto 6px auto;"></div>
-              <div style="font-weight:700; color:#0f172a;">( ${params.cashierName || params.cashier || (typeof getEffectivePayeeName === 'function' ? getEffectivePayeeName() : 'เจ้าหน้าที่การเงิน (Cashier)')} )</div>
-              <div style="font-weight:700; color:#0f172a; margin-top:2px;">ผู้รับเงิน / Cashier (การเงิน OCA)</div>
-            </td>
-            <td style="width:50%; text-align:center; padding:8px 10px;">
-              <div style="width:150px; border-bottom:1px dashed #64748b; margin:0 auto 6px auto;"></div>
-              <div>( .................................................. )</div>
-              <div style="font-weight:700; color:#0f172a; margin-top:2px;">ผู้จ่ายเงิน / Payer</div>
-            </td>
-          </tr>
-        </table>
+        <!-- กล่องสิทธิ์รับตำราและอุปกรณ์การเรียน One-Time Claim (ตรงกับระบบ 100%) -->
+        ${claimBoxHtml}
+
+        <!-- Official Signatures Row (ตรงกับระบบ 100%) -->
+        ${signaturesHtml}
 
         <!-- Footer Disclaimer -->
         <div style="border-top:1px solid #e2e8f0; padding-top:8px; text-align:center; font-size:10.5px; color:#64748b; line-height:1.45;">
@@ -10062,7 +10137,14 @@
                 courseName: params.itemName || params.courseName,
                 schedule: params.schedule || params.scheduleName,
                 grandTotal: params.grandTotal,
-                claimToken: generatedClaimToken
+                claimToken: generatedClaimToken,
+                deliveryMethod: receiptData.delivery_method,
+                materialType: receiptData.material_type,
+                learningMode: receiptData.learning_mode,
+                openDate: receiptData.open_date,
+                room: receiptData.room,
+                address: receiptData.address,
+                cashierName: params.cashierName || params.cashier || (typeof getEffectivePayeeName === 'function' ? getEffectivePayeeName() : '')
               });
               emailSentResult = (emailRes && emailRes.success);
               emailStatusMsg = (emailRes && emailRes.message) || '';
@@ -16607,6 +16689,7 @@
         term: term,
         courseId: itemCode,
         courseName: itemName,
+        cashierName: document.getElementById('txtRcptCashier')?.value || (typeof getEffectivePayeeName === 'function' ? getEffectivePayeeName() : ''),
         course: itemName,
         schedule: schedule,
         scheduleName: schedule,
@@ -16710,7 +16793,14 @@
                 schedule: schedule,
                 grandTotal: grandTotal,
                 claimToken: res.claimToken || receiptCurrentClaimToken,
-                paymentMethod: payMethod
+                paymentMethod: payMethod,
+                deliveryMethod: deliveryMethod,
+                materialType: materialType,
+                learningMode: learningMode,
+                openDate: openDate,
+                room: room,
+                address: shippingAddress,
+                cashierName: document.getElementById('txtRcptCashier')?.value || (typeof getEffectivePayeeName === 'function' ? getEffectivePayeeName() : '')
               }).catch(e => console.warn('Direct Brevo notice:', e));
             }
             if (res.emailSent) {
