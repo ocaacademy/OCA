@@ -214,7 +214,7 @@
       flex: 1;
     }
 
-    #oca-app-root .oca-menu-item-btn {
+    #oca-app-root .oca-sidebar .oca-menu-item-btn {
       width: 100%;
       display: flex;
       align-items: center;
@@ -232,12 +232,12 @@
       font-family: inherit;
     }
 
-    #oca-app-root .oca-menu-item-btn:hover {
+    #oca-app-root .oca-sidebar .oca-menu-item-btn:hover {
       background: rgba(255, 255, 255, 0.05);
       color: var(--text-main);
     }
 
-    #oca-app-root .oca-menu-item-btn.active {
+    #oca-app-root .oca-sidebar .oca-menu-item-btn.active {
       background: var(--bg-sidebar-select);
       border-color: var(--color-gold);
       color: var(--color-gold-cream);
@@ -245,8 +245,17 @@
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     }
 
-    #oca-app-root .oca-menu-item-btn.active .oca-svg {
+    #oca-app-root .oca-sidebar .oca-menu-item-btn.active .oca-svg {
       stroke: var(--color-gold-light);
+    }
+
+    /* Prevent toolbar/header buttons outside sidebar from inheriting 100% width and dropping down */
+    #oca-app-root button.oca-menu-item-btn:not(.oca-sidebar button) {
+      width: auto !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-align: center !important;
     }
 
     /* Main Content Area */
@@ -4149,6 +4158,9 @@
                 <button type="button" class="oca-btn-gold-submit" style="padding:6px 14px; font-size:12.5px; background:linear-gradient(135deg, #10b981 0%, #059669 100%); border-color:#34d399; display:inline-flex; align-items:center; gap:6px;" onclick="quickRenewStudentFromCard()">
                   <i class="fa-solid fa-bolt"></i> ต่อคอร์สด่วน
                 </button>
+                <button type="button" class="oca-btn-gold-submit" style="padding:6px 14px; font-size:12.5px; background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border-color:#60a5fa; display:inline-flex; align-items:center; gap:6px;" onclick="openTransferCourseModalFromCard()" title="ย้ายคอร์สและรอบเวลาเรียน">
+                  <i class="fa-solid fa-right-left"></i> ย้ายคอร์ส
+                </button>
                 <button type="button" class="oca-btn-gold-submit" style="padding:6px 14px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px;" onclick="openEditStudentModalFromCard()">
                   <i class="fa-solid fa-user-pen"></i> แก้ไข
                 </button>
@@ -4225,7 +4237,7 @@
                     <th style="padding:12px 10px; white-space:nowrap; text-align:center;">ปี / เทอม</th>
                     <th style="padding:12px 10px; white-space:nowrap; text-align:center;">วิธีรับตำรา</th>
                     <th style="padding:12px 10px; white-space:nowrap; text-align:center;">สถานะ</th>
-                    <th style="padding:12px 10px; white-space:nowrap; text-align:center;">จัดการ</th>
+                    <th style="padding:12px 10px; white-space:nowrap; text-align:center; min-width:380px;">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody id="tbodySearchStudents">
@@ -4742,8 +4754,7 @@
                 <i class="fa-solid fa-print"></i> สั่งพิมพ์บัตรด้วย POINMAN N15 (Print Card)
               </button>
             </div>
-          </div>          </div>
-
+          </div>
         </div>
 
         <!-- ===================================================================
@@ -7858,6 +7869,152 @@
         </div>
 
         <!-- ===================================================================
+             MODAL: TRANSFER STUDENT COURSE (ระบบย้ายคอร์สและรอบเวลาเรียน)
+             =================================================================== -->
+        <div id="modalTransferCourse" class="oca-custom-modal-backdrop" onclick="if(event.target===this)closeTransferCourseModal()" style="display:none; padding:20px;">
+          <div class="oca-custom-modal-box" style="max-width:760px; width:100%; max-height:92vh; display:flex; flex-direction:column; padding:0; border-radius:14px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1px solid rgba(96,165,250,0.45); background:var(--bg-card);">
+            <!-- Modal Header -->
+            <div style="padding:18px 24px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg, rgba(30,58,138,0.3) 0%, rgba(15,23,42,0.6) 100%); flex-shrink:0;">
+              <div>
+                <div style="font-size:12px; font-weight:700; color:#60a5fa; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:6px;">
+                  <i class="fa-solid fa-right-left"></i> ระบบย้ายคอร์สและรอบเวลาเรียน (Course & Schedule Transfer)
+                </div>
+                <h3 style="margin:2px 0 0 0; font-size:18px; font-weight:700; color:var(--text-main);">
+                  ย้ายคอร์ส: <span id="lblTransferStudentName" style="color:#93c5fd;">-</span>
+                </h3>
+              </div>
+              <button type="button" class="oca-btn-icon-close" onclick="closeTransferCourseModal()" title="ปิดหน้าต่าง">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <!-- Modal Body (Scrollable) -->
+            <form onsubmit="submitTransferCourse(event)" style="display:flex; flex-direction:column; overflow:hidden; flex:1;">
+              <div style="padding:22px 24px; overflow-y:auto; flex:1;">
+                <!-- Student Quick Info Strip -->
+                <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 16px; margin-bottom:18px; font-size:12.5px;">
+                  <div>
+                    <span style="color:var(--text-muted);">รหัสนักเรียน:</span>
+                    <strong id="lblTransferStudentId" style="color:var(--color-gold); font-family:monospace; margin-left:4px;">-</strong>
+                  </div>
+                  <div>
+                    <span style="color:var(--text-muted);">เลขบัตรประชาชน:</span>
+                    <span id="lblTransferCitizenId" style="color:var(--text-main); font-family:monospace; margin-left:4px;">-</span>
+                  </div>
+                </div>
+
+                <!-- 2-Column Side-by-side Comparison -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">
+                  <!-- Left: Current Course -->
+                  <div style="background:rgba(239,68,68,0.05); border:1px dashed rgba(239,68,68,0.3); border-radius:10px; padding:14px;">
+                    <div style="font-size:12px; font-weight:700; color:#f87171; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                      <i class="fa-solid fa-arrow-right-from-bracket"></i> คอร์สและรอบเวลาเดิม (Current)
+                    </div>
+                    <div style="margin-bottom:8px;">
+                      <div style="font-size:11px; color:var(--text-muted);">คอร์สเรียนปัจจุบัน:</div>
+                      <div id="lblTransferOldCourse" style="font-size:13.5px; font-weight:700; color:var(--text-main);">-</div>
+                    </div>
+                    <div style="margin-bottom:8px;">
+                      <div style="font-size:11px; color:var(--text-muted);">รอบเวลาปัจจุบัน:</div>
+                      <div id="lblTransferOldSchedule" style="font-size:12.5px; color:var(--text-muted);">-</div>
+                    </div>
+                    <div>
+                      <div style="font-size:11px; color:var(--text-muted);">ปี / ภาคเรียน:</div>
+                      <div id="lblTransferOldTermYear" style="font-size:12px; color:var(--text-muted);">-</div>
+                    </div>
+                  </div>
+
+                  <!-- Right: New Target Course -->
+                  <div style="background:rgba(59,130,246,0.06); border:1.5px solid rgba(59,130,246,0.4); border-radius:10px; padding:14px;">
+                    <div style="font-size:12px; font-weight:700; color:#60a5fa; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                      <i class="fa-solid fa-arrow-right-to-bracket"></i> คอร์สและรอบเวลาใหม่ (Target) *
+                    </div>
+                    <div class="oca-input-group" style="margin-bottom:10px;">
+                      <label class="oca-label" for="selTransferNewCourse" style="font-size:11.5px;">เลือกคอร์สใหม่ *</label>
+                      <select id="selTransferNewCourse" class="oca-input" style="font-size:12.5px; padding:6px 10px;" required>
+                        <option value="">-- เลือกคอร์สเรียนปลายทาง --</option>
+                      </select>
+                    </div>
+                    <div class="oca-input-group" style="margin-bottom:10px;">
+                      <label class="oca-label" for="selTransferNewSchedule" style="font-size:11.5px;">เลือกรอบเวลาเรียน *</label>
+                      <select id="selTransferNewSchedule" class="oca-input" style="font-size:12.5px; padding:6px 10px;">
+                        <option value="">-- เลือกรอบเวลาเรียน --</option>
+                      </select>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                      <div class="oca-input-group">
+                        <label class="oca-label" for="inpTransferNewYearBE" style="font-size:11.5px;">ปีการศึกษา (พ.ศ.)</label>
+                        <input type="number" id="inpTransferNewYearBE" class="oca-input" style="font-size:12.5px; padding:5px 8px;">
+                      </div>
+                      <div class="oca-input-group">
+                        <label class="oca-label" for="selTransferNewTerm" style="font-size:11.5px;">ภาคเรียน (Term)</label>
+                        <select id="selTransferNewTerm" class="oca-input" style="font-size:12.5px; padding:5px 8px;">
+                          <option value="1">เทอม 1</option>
+                          <option value="2">เทอม 2</option>
+                          <option value="3">เทอม 3</option>
+                          <option value="4">เทอม 4</option>
+                          <option value="5">เทอม 5</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Transfer Settings Grid -->
+                <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px; margin-bottom:14px;">
+                  <div style="font-size:12.5px; font-weight:700; color:var(--color-gold); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-sliders"></i> กำหนดเงื่อนไขและค่าธรรมเนียมการย้ายคอร์ส
+                  </div>
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:10px;">
+                    <div class="oca-input-group">
+                      <label class="oca-label" for="selTransferFeeType">ค่าธรรมเนียมย้ายคอร์ส (Transfer Fee)</label>
+                      <select id="selTransferFeeType" class="oca-input" onchange="onTransferFeeTypeChange()">
+                        <option value="0">0 บาท (ฟรี - ย้ายห้องเรียน / ปรับรอบเวลา)</option>
+                        <option value="100">100 บาท (ค่าธรรมเนียมย้ายคอร์สมาตรฐาน)</option>
+                        <option value="200">200 บาท (ค่าธรรมเนียมย้ายคอร์สพิเศษ)</option>
+                        <option value="custom">ระบุจำนวนเงินเอง</option>
+                      </select>
+                      <div id="boxTransferCustomFee" style="display:none; margin-top:6px;">
+                        <input type="number" id="inpTransferCustomFee" class="oca-input" placeholder="จำนวนเงินค่าธรรมเนียม (บาท)" min="0">
+                      </div>
+                    </div>
+                    <div class="oca-input-group">
+                      <label class="oca-label" for="selTransferTextbookOption">การรับตำราเรียน (Textbook Policy)</label>
+                      <select id="selTransferTextbookOption" class="oca-input">
+                        <option value="keep">ใช้ตำราเรียนเดิม (ไม่ต้องรับตำราใหม่)</option>
+                        <option value="new">ต้องรับตำราเล่มใหม่สำหรับคอร์สนี้ (รีเซ็ตสิทธิ์รับตำรา)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                    <input type="checkbox" id="chkTransferIssueReceipt" checked style="width:16px; height:16px; accent-color:var(--color-gold); cursor:pointer;">
+                    <label for="chkTransferIssueReceipt" style="font-size:12.5px; color:var(--text-main); cursor:pointer; user-select:none;">
+                      ออกใบเสร็จรับเงินสำหรับค่าธรรมเนียมนี้โดยอัตโนมัติ (หากมีค่าธรรมเนียม > 0)
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Reason Notes -->
+                <div class="oca-input-group">
+                  <label class="oca-label" for="inpTransferReason">เหตุผลในการขอย้ายคอร์ส / บันทึกเพิ่มเติม (Reason & Remarks) *</label>
+                  <input type="text" id="inpTransferReason" class="oca-input" placeholder="เช่น นักเรียนติดภารกิจงาน, ปรับระดับชั้นเรียน, เวลาเรียนตรงกับวันทำงาน" value="นักเรียนขอย้ายคอร์สและรอบเวลาเรียน">
+                </div>
+              </div>
+
+              <!-- Fixed Modal Footer -->
+              <div style="padding:16px 24px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.35); flex-shrink:0;">
+                <button type="button" class="oca-btn-cancel-custom" onclick="closeTransferCourseModal()">
+                  ยกเลิก
+                </button>
+                <button type="submit" id="btnSubmitTransferCourse" class="oca-btn-gold-submit" style="background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border-color:#60a5fa; padding:9px 24px; font-size:13.5px; display:inline-flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-right-left"></i> ยืนยันการย้ายคอร์ส
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- ===================================================================
              MODAL: SHIPPING LABEL A4 PRINT PREVIEW (8 ใบต่อแผ่น A4 แนวตั้ง)
              =================================================================== -->
         <div id="modalShippingPrintPreview" class="oca-custom-modal-backdrop" onclick="if(event.target===this)closeShippingPrintPreview()" style="display:none; padding:20px;">
@@ -8870,6 +9027,10 @@
   <div id="printCardContainer" style="display:none;"></div>
 
   <script>
+    // Global Unhandled Rejection Boundary
+    window.addEventListener('unhandledrejection', (event) => {
+      console.warn('[OCA Safety Shield] Unhandled rejection intercepted:', event.reason);
+    });
     // ส่งสัญญาณแจ้งหน้าต่างหลัก Shell ให้ปลดหน้า Splash Screen ทันที
     try {
       if (window.parent && window.parent !== window) {
@@ -9501,7 +9662,7 @@
 
         return { 
           success: false, 
-          message: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง (กรุณาใช้ admin / OcaAdmin@2026 หรือ 1234)' 
+          message: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง' 
         };
       }
 
@@ -9523,14 +9684,7 @@
         }
         return { success: false, message: 'รหัส PIN ความปลอดภัยไม่ถูกต้อง (ค่าเริ่มต้น: 1234)' };
       }
-      if (false && action === '_oldVerifySecurityPin') {
-        const pin = String(params.pin || '').trim();
-        const validPins = ['1234', 'admin1234', 'OcaAdmin@2026', 'oca@2026', '0000'];
-        if (validPins.includes(pin)) {
-          return { success: true };
-        }
-        return { success: false, message: 'รหัส PIN ความปลอดภัยไม่ถูกต้อง (ค่าเริ่มต้น: 1234)' };
-      }
+
 
       if (action === 'logoutStaff') {
         return { success: true };
@@ -10753,6 +10907,191 @@
           return { success: true, message: `ผูกรหัสบัตร ${targetUid} เรียบร้อยแล้ว`, smartCardUid: targetUid };
         }
 
+        // --- 11.1 TRANSFER STUDENT COURSE ---
+        if (action === 'transferStudentCourse') {
+          try {
+            const sid = extractCleanId(params.studentId);
+            if (!sid) return { success: false, message: 'กรุณาระบุรหัสนักเรียน' };
+
+            const newCourse = (params.newCourse || '').toString().trim();
+            const newSchedule = (params.newSchedule || '').toString().trim();
+            if (!newCourse) return { success: false, message: 'กรุณาระบุคอร์สเรียนปลายทาง' };
+
+            // 1. Fetch current student record
+            const { data: stData, error: stErr } = await _supabase.from('students')
+              .select('*')
+              .eq('student_id', sid)
+              .maybeSingle();
+
+            if (stErr || !stData) {
+              return { success: false, message: 'ไม่พบข้อมูลนักเรียนรหัส ' + sid };
+            }
+
+            const oldCourse = stData.current_course || '-';
+            const oldSchedule = stData.current_schedule || '-';
+            const reason = (params.reason || 'ย้ายคอร์ส/รอบเวลาเรียน').toString().trim();
+            const officer = getAuditActor(params);
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            const dateStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear() + 543}`;
+
+            const transferNote = `[ย้ายคอร์ส: ${oldCourse} (${oldSchedule}) -> ${newCourse} (${newSchedule || 'ตามประกาศ'}) เมื่อ ${dateStr} โดย ${officer.username} เหตุผล: ${reason}]`;
+            const currentNotes = stData.notes || '';
+            const updatedNotes = currentNotes ? `${currentNotes} | ${transferNote}` : transferNote;
+
+            const studentUpdate = {
+              current_course: newCourse,
+              notes: updatedNotes
+            };
+            if (newSchedule) studentUpdate.current_schedule = newSchedule;
+            if (params.newYearBE) studentUpdate.year_be = Number(params.newYearBE);
+            if (params.newTerm) studentUpdate.term = Number(params.newTerm);
+
+            const { error: updErr } = await _supabase.from('students')
+              .update(studentUpdate)
+              .eq('student_id', sid);
+
+            if (updErr) {
+              return { success: false, message: 'ไม่สามารถอัปเดตข้อมูลนักเรียนได้: ' + updErr.message };
+            }
+
+            // 2. If textbook reset requested, update tuition receipt claim status & course code
+            if (params.textbookOption === 'new') {
+              try {
+                const { data: rList } = await _supabase.from('receipts')
+                  .select('receipt_no, notes, item_name')
+                  .eq('student_id', sid)
+                  .eq('receipt_type', 'tuition')
+                  .order('created_at', { ascending: false })
+                  .limit(1);
+
+                if (rList && rList.length > 0) {
+                  const r = rList[0];
+                  const rNote = (r.notes || '') + ` [สิทธิ์ตำราใหม่: ${newCourse}]`;
+                  await _supabase.from('receipts')
+                    .update({
+                      item_code: newCourse,
+                      item_name: `ค่าเล่าเรียนและอุปกรณ์ (${newCourse})`,
+                      claim_status: 'PENDING',
+                      claimed_at: null,
+                      claimed_by: null,
+                      material_type: 'หนังสือและสมุด',
+                      notes: rNote
+                    })
+                    .eq('receipt_no', r.receipt_no);
+                }
+              } catch (tbResetErr) {
+                console.warn('Textbook reset error:', tbResetErr);
+              }
+            }
+
+            // 3. If fee is charged and receipt requested
+            let createdReceiptNo = null;
+            const fee = Number(params.feeAmount || 0);
+            if (fee > 0 && params.issueReceipt) {
+              const rcYear = Number(params.newYearBE || stData.year_be) || 2569;
+              const rcTerm = Number(params.newTerm || stData.term) || 1;
+              const rcPrefix = String(rcYear).slice(-2) + String(rcTerm).padStart(2, '0');
+
+              let assignedRcNo = rcPrefix + '0001';
+              const { data: latestRc } = await _supabase.from('receipts')
+                .select('receipt_no')
+                .like('receipt_no', `${rcPrefix}%`)
+                .order('receipt_no', { ascending: false })
+                .limit(1);
+
+              let nextRcSeq = 1;
+              if (latestRc && latestRc.length > 0 && latestRc[0].receipt_no) {
+                const curRcNum = parseInt(latestRc[0].receipt_no.slice(-4), 10);
+                if (!isNaN(curRcNum)) nextRcSeq = curRcNum + 1;
+              }
+              assignedRcNo = rcPrefix + String(nextRcSeq).padStart(4, '0');
+
+              const transferRcData = {
+                receipt_type: 'OTHER',
+                student_id: sid,
+                buyer_name: stData.full_name,
+                citizen_id: (stData.citizen_id || '').toString().replace(/[^0-9A-Za-z]/g, '').slice(0, 13),
+                address: stData.address || '',
+                year_be: rcYear,
+                term: rcTerm,
+                item_code: 'FEE-TRANSFER',
+                item_name: `ค่าธรรมเนียมย้ายคอร์ส (${oldCourse} -> ${newCourse})`,
+                schedule: newSchedule || oldSchedule,
+                base_amount: fee,
+                reg_fee: 0,
+                card_fee: 0,
+                other_reg_fee: 0,
+                discount_normal: 0,
+                discount_other: 0,
+                grand_total: fee,
+                payment_method: params.paymentMethod || 'โอนเงิน',
+                claim_token: 'CLAIM-TRANSFER-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+                claim_status: 'NOT_REQUIRED',
+                material_type: 'ไม่มี',
+                delivery_method: 'รับเอง',
+                learning_mode: 'Online',
+                open_date: '',
+                room: '',
+                email: (stData.email && stData.email.includes('@')) ? stData.email.trim() : null,
+                email_status: (stData.email && stData.email.includes('@')) ? 'PROCESSING' : 'NO_EMAIL'
+              };
+
+              for (let attempt = 0; attempt < 10; attempt++) {
+                const { error: rcErr } = await _supabase.from('receipts').insert([{ ...transferRcData, receipt_no: assignedRcNo }]);
+                if (!rcErr) {
+                  createdReceiptNo = assignedRcNo;
+                  break;
+                }
+                if (rcErr.code === '23505' || rcErr.code === '23502') {
+                  const { data: retryRc } = await _supabase.from('receipts')
+                    .select('receipt_no')
+                    .like('receipt_no', `${rcPrefix}%`)
+                    .order('receipt_no', { ascending: false })
+                    .limit(1);
+                  let rSeq = 1;
+                  if (retryRc && retryRc.length > 0 && retryRc[0].receipt_no) {
+                    const cNum = parseInt(retryRc[0].receipt_no.slice(-4), 10);
+                    if (!isNaN(cNum)) rSeq = cNum + 1 + attempt;
+                  }
+                  assignedRcNo = rcPrefix + String(rSeq).padStart(4, '0');
+                } else {
+                  console.warn('Transfer fee receipt creation error:', rcErr);
+                  break;
+                }
+              }
+            }
+
+            // 4. Record Audit Log
+            try {
+              await _supabase.from('security_audit_logs').insert([{
+                action: 'COURSE_TRANSFER',
+                username: officer.username,
+                full_name: officer.fullName,
+                role: officer.role || 'Staff',
+                device_id: params.deviceId || 'OCA-SECURE',
+                device_info: params.deviceInfo || (navigator ? navigator.userAgent : 'Browser WebApp'),
+                details: `ย้ายคอร์สสำเร็จ: ${stData.full_name} (${sid}) จาก [${oldCourse} / ${oldSchedule}] เป็น [${newCourse} / ${newSchedule}] | ค่าธรรมเนียม: ${fee} บาท | เหตุผล: ${reason}`,
+                records: 1,
+                status: 'SUCCESS'
+              }]);
+            } catch (_) {}
+
+            return {
+              success: true,
+              message: 'ย้ายคอร์สเรียนสำเร็จ เรียบร้อยแล้ว',
+              oldCourse,
+              newCourse,
+              newSchedule,
+              receiptNo: createdReceiptNo,
+              student: { ...stData, ...studentUpdate }
+            };
+          } catch (e) {
+            console.error('transferStudentCourse error:', e);
+            return { success: false, message: e.message };
+          }
+        }
+
         if (action === 'updateStudentProfile') {
           const updateData = {};
           if (params.fullName !== undefined) updateData.full_name = params.fullName;
@@ -10992,7 +11331,7 @@
             }
           }
           if (params && params.search) {
-            const s = String(params.search).trim().replace(/[%_"]/g, '');
+            const s = String(params.search).trim().replace(/[,()"%_]/g, ' ').trim();
             if (s) {
               query = query.or(`receipt_no.ilike.%${s}%,student_id.ilike.%${s}%,buyer_name.ilike.%${s}%`);
             }
@@ -11115,6 +11454,8 @@
 
         if (action === 'updateShippingStatus' || action === 'updateShippingRecipient') {
           const rcNo = String(params.receiptNo || params.orderId || '').trim();
+          const targetIds = Array.isArray(params.orderIds) && params.orderIds.length > 0 ? params.orderIds : (rcNo ? [rcNo] : []);
+          
           const updateObj = {};
           const tracking = params.trackingNumber || params.trackingNo || '';
           if (tracking && tracking !== '-') {
@@ -11126,22 +11467,29 @@
           if (params.fullName) {
             updateObj.buyer_name = params.fullName;
           }
-          if (params.status) {
-            updateObj.shipping_status = params.status;
-          }
           if (params.carrier && !updateObj.tracking_number) {
             updateObj.edit_notes = `ขนส่ง: ${params.carrier}`;
           }
 
+          if (params.status === 'SHIPPED') {
+            if (!updateObj.tracking_number) {
+              updateObj.tracking_number = 'SHIPPED';
+            }
+            updateObj.claim_status = 'CLAIMED';
+            updateObj.claimed_at = new Date().toISOString();
+            updateObj.claimed_by = 'ฝ่ายจัดส่งตำราเรียน (Logistics)';
+          } else if (params.status === 'PRINTED') {
+            updateObj.edit_notes = (updateObj.edit_notes ? updateObj.edit_notes + ' | ' : '') + 'สถานะ: พิมพ์ใบปะหน้าแล้ว';
+          }
+
           let updateError = null;
-          if (rcNo) {
+          if (targetIds.length > 0) {
             const { error: rcErr, data: updatedRc } = await _supabase.from('receipts')
               .update(updateObj)
-              .eq('receipt_no', rcNo)
+              .in('receipt_no', targetIds)
               .select('student_id');
             updateError = rcErr;
 
-            // Keep student registration profile in sync with edited phone or address
             const targetSid = (updatedRc && updatedRc.length > 0 && updatedRc[0].student_id) || params.studentId;
             const phoneVal = String(params.phone || params.phoneNumber || '').trim();
             if (targetSid && (phoneVal || params.address)) {
@@ -11593,8 +11941,9 @@
         if (action === 'deleteUser') {
           try {
             const uname = (params.username || params.targetUsername || '').toString().trim();
-            if (uname.toLowerCase() === 'admin') {
-              return { success: false, message: 'ไม่อนุญาตให้ลบบัญชีผู้ดูแลระบบหลัก (Super Admin)' };
+            const protectedStaff = ['admin', 'registrar', 'cashier', 'shipping'];
+            if (protectedStaff.includes(uname.toLowerCase())) {
+              return { success: false, message: `ไม่อนุญาตให้ลบบัญชีเจ้าหน้าที่หลักของระบบ (${uname})` };
             }
             await _supabase.from('staff_users').delete().eq('username', uname);
             return { success: true, message: `ลบผู้ใช้งาน ${uname} เรียบร้อยแล้ว` };
@@ -11985,7 +12334,8 @@
         '๐': '0', '๑': '1', '๒': '2', '๓': '3', '๔': '4',
         '๕': '5', '๖': '6', '๗': '7', '๘': '8', '๙': '9'
       };
-      return String(val).replace(/[๐-๙]/g, d => thaiMap[d]);
+      const converted = String(val).replace(/[๐-๙]/g, d => thaiMap[d]);
+      return (typeof escapeHtml === 'function') ? escapeHtml(converted) : converted;
     }
 
     // State
@@ -12027,7 +12377,7 @@
       }
 
       document.querySelectorAll('.oca-view-tab').forEach(el => el.classList.remove('active'));
-      document.querySelectorAll('.oca-menu-item-btn').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.oca-sidebar .oca-menu-item-btn').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.oca-mob-nav-btn').forEach(el => el.classList.remove('active'));
       toggleSidebar(false);
 
@@ -13497,9 +13847,9 @@
           '    <div style="font-size:12px; color:var(--text-muted);">' + escapeHtml(schedule) + '</div>' +
           '  </td>' +
           '  <td style="padding:12px 10px; text-align:center; font-family:monospace; font-size:12px;">' + toArabicDigits(yearBE) + ' / ' + toArabicDigits(term) + '</td>' +
-          '  <td style="padding:12px 10px; text-align:center;">' + deliveryBadge + '</td>' +
-          '  <td style="padding:12px 10px; text-align:center;">' + statusBadge + '</td>' +
-          '  <td style="padding:12px 10px; text-align:center;">' +
+          '  <td style="padding:12px 10px; text-align:center; min-width:380px; white-space:nowrap;">' + deliveryBadge + '</td>' +
+          '  <td style="padding:12px 10px; text-align:center; min-width:380px; white-space:nowrap;">' + statusBadge + '</td>' +
+          '  <td style="padding:12px 10px; text-align:center; min-width:380px; white-space:nowrap;">' +
           '    <div style="display:flex; justify-content:center; gap:4px; flex-wrap:nowrap;">' +
           '      <button type="button" class="oca-btn-gold-submit" style="padding:4px 8px; font-size:12px; background:linear-gradient(135deg, #10b981 0%, #059669 100%); border-color:#34d399; display:inline-flex; align-items:center; gap:3px;" onclick="quickRenewStudentById(\'' + escapeHtml(studentId) + '\')" title="ต่อคอร์สด่วน">' +
           '        <i class="fa-solid fa-bolt"></i> ต่อคอร์ส' +
@@ -13509,6 +13859,9 @@
           '      </button>' +
           '      <button type="button" class="oca-btn-gold-submit" style="padding:4px 8px; font-size:12px; display:inline-flex; align-items:center; gap:3px;" onclick="openEditStudentModal(\'' + escapeHtml(studentId) + '\')">' +
           '        <i class="fa-solid fa-user-pen"></i> แก้ไข' +
+          '      </button>' +
+          '      <button type="button" class="oca-btn-gold-submit" style="padding:4px 8px; font-size:12px; background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border-color:#60a5fa; display:inline-flex; align-items:center; gap:3px;" onclick="openTransferCourseModal(\'' + escapeHtml(studentId) + '\')" title="ย้ายคอร์สเรียน">' +
+          '        <i class="fa-solid fa-right-left"></i> ย้ายคอร์ส' +
           '      </button>' +
           '      <button type="button" class="oca-btn-cancel-custom" style="padding:4px 6px; font-size:12px; display:inline-flex; align-items:center; gap:3px;" onclick="viewStudentDetailFromSearch(\'' + escapeHtml(studentId) + '\')">' +
           '        <i class="fa-solid fa-eye"></i> ดู' +
@@ -13652,6 +14005,280 @@
       if (activeSearchStudent && activeSearchStudent.studentId) {
         openEditStudentModal(activeSearchStudent.studentId);
       }
+    }
+
+    function openTransferCourseModalFromCard() {
+      if (activeSearchStudent && activeSearchStudent.studentId) {
+        openTransferCourseModal(activeSearchStudent.studentId);
+      }
+    }
+
+    let currentTransferStudent = null;
+
+    function openTransferCourseModal(studentId) {
+      if (!studentId) return;
+      const modal = document.getElementById('modalTransferCourse');
+      if (!modal) return;
+
+      let student = cachedSearchStudentsData.find(item => item.studentId === studentId);
+      if (!student && activeSearchStudent && activeSearchStudent.studentId === studentId) {
+        student = activeSearchStudent;
+      }
+
+      if (!student) {
+        showToast('กำลังค้นหาข้อมูลนักเรียน...', '', '⏳');
+        callGasApi('checkStatus', { query: studentId })
+          .then(res => {
+            if (res && res.success && res.student) {
+              populateAndShowTransferModal(res.student);
+            } else {
+              showModal('ไม่พบข้อมูล', 'ไม่พบข้อมูลนักเรียนรหัส ' + toArabicDigits(studentId), '⚠️');
+            }
+          })
+          .catch(e => showModal('เกิดข้อผิดพลาด', e.message || '', '❌'));
+        return;
+      }
+
+      populateAndShowTransferModal(student);
+    }
+
+    function populateAndShowTransferModal(student) {
+      currentTransferStudent = student;
+      const modal = document.getElementById('modalTransferCourse');
+      if (!modal) return;
+
+      const lblName = document.getElementById('lblTransferStudentName');
+      const lblId = document.getElementById('lblTransferStudentId');
+      const lblCit = document.getElementById('lblTransferCitizenId');
+      const lblOldCourse = document.getElementById('lblTransferOldCourse');
+      const lblOldSch = document.getElementById('lblTransferOldSchedule');
+      const lblOldTermYear = document.getElementById('lblTransferOldTermYear');
+
+      const sName = ((student.prefix || '') + ' ' + (student.fullName || student.rawName || '')).trim();
+      if (lblName) lblName.textContent = sName;
+      if (lblId) lblId.textContent = toArabicDigits(student.studentId || '-');
+      if (lblCit) lblCit.textContent = student.citizenId ? toArabicDigits(student.citizenId) : '-';
+
+      const curCourse = student.course || student.current_course || 'ยังไม่ระบุคอร์ส';
+      const curSch = student.schedule || student.current_schedule || 'ยังไม่ระบุรอบเวลา';
+      if (lblOldCourse) lblOldCourse.textContent = curCourse;
+      if (lblOldSch) lblOldSch.textContent = curSch;
+      const curYear = student.yearBE || (new Date().getFullYear() + 543);
+      const curTerm = student.term || 1;
+      if (lblOldTermYear) lblOldTermYear.textContent = 'ปี พ.ศ. ' + toArabicDigits(curYear) + ' (เทอม ' + toArabicDigits(curTerm) + ')';
+
+      // Populate Courses Dropdown
+      const selCourse = document.getElementById('selTransferNewCourse');
+      if (selCourse) {
+        selCourse.innerHTML = '<option value="">-- เลือกคอร์สเรียนปลายทาง --</option>';
+        const list = (cachedCoursesList && cachedCoursesList.length > 0) ? cachedCoursesList : [];
+        list.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.course_code || c.code || c.name || c.course_name;
+          const cCode = c.course_code || c.code || '';
+          const cName = c.course_name || c.name || '';
+          opt.textContent = cCode ? (cCode + ' - ' + cName) : cName;
+          selCourse.appendChild(opt);
+        });
+        if (list.length === 0) {
+          callGasApi('getCoursesAndSchedules').then(res => {
+            if (res && res.courses) {
+              cachedCoursesList = res.courses;
+              res.courses.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.course_code || c.code || c.name || c.course_name;
+                const cCode = c.course_code || c.code || '';
+                const cName = c.course_name || c.name || '';
+                opt.textContent = cCode ? (cCode + ' - ' + cName) : cName;
+                selCourse.appendChild(opt);
+              });
+            }
+          });
+        }
+      }
+
+      // Populate Schedules Dropdown
+      const selSch = document.getElementById('selTransferNewSchedule');
+      if (selSch) {
+        selSch.innerHTML = '<option value="">-- เลือกรอบเวลาเรียน --</option>';
+        const sList = (cachedSchedulesList && cachedSchedulesList.length > 0) ? cachedSchedulesList : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES : []);
+        sList.forEach(s => {
+          const opt = document.createElement('option');
+          const schName = s.schedule_name || s.name || s.time_slot || (s.day_of_week ? `${s.day_of_week} ${s.start_time || ''}-${s.end_time || ''}` : '');
+          const schCode = s.schedule_code || s.code || s.schedule_id || '';
+          opt.value = schCode ? `${schCode}: ${schName}` : schName;
+          opt.textContent = schCode ? `${schCode} — ${schName}` : schName;
+          selSch.appendChild(opt);
+        });
+      }
+
+      // Populate Year and Term
+      const inpYear = document.getElementById('inpTransferNewYearBE');
+      const selTerm = document.getElementById('selTransferNewTerm');
+      if (inpYear) inpYear.value = curYear;
+      if (selTerm) selTerm.value = curTerm;
+
+      // Reset fee & options
+      const selFee = document.getElementById('selTransferFeeType');
+      if (selFee) selFee.value = '0';
+      const boxCustom = document.getElementById('boxTransferCustomFee');
+      if (boxCustom) boxCustom.style.display = 'none';
+      const inpCustom = document.getElementById('inpTransferCustomFee');
+      if (inpCustom) inpCustom.value = '';
+
+      const selTb = document.getElementById('selTransferTextbookOption');
+      if (selTb) selTb.value = 'keep';
+
+      const inpReason = document.getElementById('inpTransferReason');
+      if (inpReason) inpReason.value = 'นักเรียนขอย้ายคอร์สและรอบเวลาเรียน';
+
+      modal.classList.add('active');
+      modal.style.display = 'flex';
+    }
+
+    function closeTransferCourseModal() {
+      const modal = document.getElementById('modalTransferCourse');
+      if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+      }
+      currentTransferStudent = null;
+    }
+
+    function onTransferFeeTypeChange() {
+      const selFee = document.getElementById('selTransferFeeType');
+      const boxCustom = document.getElementById('boxTransferCustomFee');
+      if (!selFee || !boxCustom) return;
+      boxCustom.style.display = (selFee.value === 'custom') ? 'block' : 'none';
+    }
+
+    function submitTransferCourse(e) {
+      if (e) e.preventDefault();
+      if (!currentTransferStudent || !currentTransferStudent.studentId) {
+        showToast('ไม่พบข้อมูลนักเรียนที่จะย้ายคอร์ส', '', '⚠️');
+        return;
+      }
+
+      const selCourse = document.getElementById('selTransferNewCourse');
+      const selSch = document.getElementById('selTransferNewSchedule');
+      const inpYear = document.getElementById('inpTransferNewYearBE');
+      const selTerm = document.getElementById('selTransferNewTerm');
+      const selFee = document.getElementById('selTransferFeeType');
+      const inpCustom = document.getElementById('inpTransferCustomFee');
+      const chkRcpt = document.getElementById('chkTransferIssueReceipt');
+      const selTb = document.getElementById('selTransferTextbookOption');
+      const inpReason = document.getElementById('inpTransferReason');
+
+      const newCourse = (selCourse ? selCourse.value : '').trim();
+      const newSchedule = (selSch ? selSch.value : '').trim();
+      const newYearBE = (inpYear ? inpYear.value : '').trim();
+      const newTerm = (selTerm ? selTerm.value : '1').trim();
+
+      if (!newCourse) {
+        showToast('กรุณาเลือกคอร์สเรียนปลายทาง', '', '⚠️');
+        if (selCourse) selCourse.focus();
+        return;
+      }
+
+      const oldCourse = currentTransferStudent.course || currentTransferStudent.current_course || '';
+      const oldSchedule = currentTransferStudent.schedule || currentTransferStudent.current_schedule || '';
+
+      if (newCourse === oldCourse && newSchedule === oldSchedule) {
+        showModal('แจ้งเตือน', 'คอร์สเรียนและรอบเวลาที่เลือกตรงกับข้อมูลเดิม กรุณาเลือกคอร์สหรือรอบเวลาใหม่ที่แตกต่างจากเดิม', '⚠️');
+        return;
+      }
+
+      let feeAmount = 0;
+      if (selFee && selFee.value === 'custom') {
+        feeAmount = Number(inpCustom ? inpCustom.value : 0);
+      } else if (selFee) {
+        feeAmount = Number(selFee.value || 0);
+      }
+
+      const payload = {
+        studentId: currentTransferStudent.studentId,
+        oldCourse: oldCourse,
+        oldSchedule: oldSchedule,
+        newCourse: newCourse,
+        newSchedule: newSchedule,
+        newYearBE: newYearBE,
+        newTerm: newTerm,
+        feeAmount: feeAmount,
+        issueReceipt: (chkRcpt ? chkRcpt.checked : false) && feeAmount > 0,
+        textbookOption: selTb ? selTb.value : 'keep',
+        reason: inpReason ? inpReason.value : 'ย้ายคอร์ส/รอบเวลาเรียน'
+      };
+
+      const btnSubmit = document.getElementById('btnSubmitTransferCourse');
+      if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังดำเนินการย้ายคอร์ส...';
+      }
+
+      showToast('กำลังดำเนินการย้ายคอร์สเรียน...', '', '⏳');
+
+      callGasApi('transferStudentCourse', payload, 'POST')
+        .then(res => {
+          if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<i class="fa-solid fa-right-left"></i> ยืนยันการย้ายคอร์ส';
+          }
+
+          if (!res || !res.success) {
+            showModal('ย้ายคอร์สไม่สำเร็จ', (res && res.message) || 'เกิดข้อผิดพลาดในการย้ายคอร์ส', '❌');
+            return;
+          }
+
+          // Update memory cache
+          const sid = currentTransferStudent.studentId;
+          const idx = cachedSearchStudentsData.findIndex(item => item.studentId === sid);
+          if (idx !== -1) {
+            cachedSearchStudentsData[idx].course = newCourse;
+            cachedSearchStudentsData[idx].current_course = newCourse;
+            if (newSchedule) {
+              cachedSearchStudentsData[idx].schedule = newSchedule;
+              cachedSearchStudentsData[idx].current_schedule = newSchedule;
+            }
+            if (newYearBE) cachedSearchStudentsData[idx].yearBE = Number(newYearBE);
+            if (newTerm) cachedSearchStudentsData[idx].term = Number(newTerm);
+          }
+
+          if (activeSearchStudent && activeSearchStudent.studentId === sid) {
+            activeSearchStudent.course = newCourse;
+            activeSearchStudent.current_course = newCourse;
+            if (newSchedule) {
+              activeSearchStudent.schedule = newSchedule;
+              activeSearchStudent.current_schedule = newSchedule;
+            }
+            if (newYearBE) activeSearchStudent.yearBE = Number(newYearBE);
+            if (newTerm) activeSearchStudent.term = Number(newTerm);
+
+            if (typeof displayStudentDetailCard === 'function') {
+              displayStudentDetailCard(activeSearchStudent);
+            }
+          }
+
+          // Clear roster cache so it refreshes immediately
+          if (typeof cachedStudentReportData !== 'undefined') {
+            cachedStudentReportData = [];
+          }
+
+          closeTransferCourseModal();
+
+          let succMsg = 'ย้ายนักเรียนไปยังคอร์ส "' + escapeHtml(newCourse) + '" เรียบร้อยแล้ว';
+          if (res.receiptNo) {
+            succMsg += '<br><span style="color:var(--color-gold); font-size:13px;">ออกใบเสร็จค่าธรรมเนียมเลขที่: <strong>' + escapeHtml(res.receiptNo) + '</strong></span>';
+          }
+          showModal('ย้ายคอร์สเรียนสำเร็จ', succMsg, '✅');
+          showToast('ย้ายคอร์สสำเร็จ', newCourse, '🎓');
+        })
+        .catch(err => {
+          if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<i class="fa-solid fa-right-left"></i> ยืนยันการย้ายคอร์ส';
+          }
+          showModal('เกิดข้อผิดพลาด', (err && err.message) || '', '❌');
+        });
     }
 
     /**
@@ -25152,8 +25779,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=68' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=68' : (window.location.pathname + '/sw.js?v=48'));
+        ? './sw.js?v=92' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=92' : (window.location.pathname + '/sw.js?v=48'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
       }).catch(function(err) {
