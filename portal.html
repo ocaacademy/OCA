@@ -5656,6 +5656,24 @@
               <input type="file" id="inpQrPhotoUpload" accept="image/*" capture="environment" style="display:none;" onchange="handleQrPhotoUpload(event)">
             </div>
 
+            <!-- Active Scanning Officer Stamp Bar -->
+            <div id="boxActiveClaimOfficerStamp" style="width:100%; max-width:540px; background:rgba(0,0,0,0.35); border:1px solid rgba(215,166,0,0.35); border-radius:8px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-top:6px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="width:30px; height:30px; border-radius:50%; background:rgba(16,185,129,0.18); border:1px solid #10b981; display:flex; align-items:center; justify-content:center; color:#10b981; font-size:13px;">
+                  <i class="fa-solid fa-stamp"></i>
+                </div>
+                <div style="text-align:left;">
+                  <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.4px;">เจ้าหน้าที่ผู้บันทึกสแกนตำรา (Scanner Officer Stamp):</div>
+                  <div id="lblActiveClaimOfficer" style="font-size:13.5px; font-weight:800; color:#38bdf8; display:flex; align-items:center; gap:6px;">
+                    <span>-</span>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <input type="text" id="inpTextbookClaimOfficer" class="oca-input" style="width:160px; padding:5px 10px; font-size:12px; height:30px; border-radius:6px; background:rgba(0,0,0,0.3); border:1px solid var(--border-soft);" placeholder="เปลี่ยนชื่อผู้สแกน..." oninput="handleTextbookOfficerChange(this.value)" title="สามารถระบุหรือเปลี่ยนชื่อเจ้าหน้าที่ที่ทำหน้าที่สแกนจ่ายตำราได้">
+              </div>
+            </div>
+
             <!-- Manual Token Claim Input (Fallback for USB/Barcode Scanner or Manual entry) -->
             <div style="width:100%; max-width:540px; display:flex; gap:8px; margin-top:8px;">
               <input type="text" id="txtManualTokenClaim" class="oca-input" placeholder="พิมพ์เลขที่ใบเสร็จ เช่น 69050001" onkeydown="if(event.key==='Enter') doVerifyClaimByInput()">
@@ -18942,7 +18960,53 @@
       loadTextbooksData();
     }
 
+    function getActiveTextbookClaimStaffName() {
+      const inp = document.getElementById('inpTextbookClaimOfficer');
+      if (inp && inp.value && inp.value.trim()) {
+        return inp.value.trim();
+      }
+      if (typeof getSavedCurrentUser === 'function') {
+        const user = getSavedCurrentUser();
+        if (user) {
+          if (user.fullName && user.fullName.trim()) return user.fullName.trim();
+          if (user.displayName && user.displayName.trim()) return user.displayName.trim();
+          if (user.name && user.name.trim()) return user.name.trim();
+          if (user.username && user.username.trim()) return user.username.trim();
+        }
+      }
+      const topbarName = document.getElementById('topbarUserName');
+      if (topbarName && topbarName.textContent && topbarName.textContent.trim()) {
+        const t = topbarName.textContent.trim();
+        if (t !== 'Admin' && t !== '-' && t !== '') return t;
+      }
+      if (window._ocaPayeeSetting && window._ocaPayeeSetting.name && window._ocaPayeeSetting.name.trim()) {
+        return window._ocaPayeeSetting.name.trim();
+      }
+      return 'เจ้าหน้าที่ฝ่ายทะเบียนและตำราเรียน';
+    }
+
+    function initTextbookClaimOfficerStamp() {
+      const staffName = getActiveTextbookClaimStaffName();
+      const lbl = document.getElementById('lblActiveClaimOfficer');
+      const inp = document.getElementById('inpTextbookClaimOfficer');
+      if (lbl) {
+        lbl.innerHTML = '<i class="fa-solid fa-stamp" style="color:var(--color-gold); font-size:12px;"></i> ' + escapeHtml(staffName);
+      }
+      if (inp && (!inp.value || !inp.value.trim())) {
+        inp.value = staffName;
+      }
+    }
+
+    function handleTextbookOfficerChange(val) {
+      const cleanVal = (val || '').trim() || getActiveTextbookClaimStaffName();
+      const lbl = document.getElementById('lblActiveClaimOfficer');
+      if (lbl) {
+        lbl.innerHTML = '<i class="fa-solid fa-stamp" style="color:var(--color-gold); font-size:12px;"></i> ' + escapeHtml(cleanVal);
+      }
+    }
+
     function initTextbooksModule() {
+      initTextbookClaimOfficerStamp();
       loadTextbooksData();
       loadTextbookClaimLogs();
     }
@@ -19680,7 +19744,8 @@
                '</div>';
       }
 
-      callGasApi('verifyAndClaimTextbook', { tokenString: cleanToken, operatorName: 'ฝ่ายทะเบียนและตำราเรียน' }, 'POST')
+      const activeScanningOfficer = getActiveTextbookClaimStaffName();
+      callGasApi('verifyAndClaimTextbook', { tokenString: cleanToken, operatorName: activeScanningOfficer }, 'POST')
         .then(res => {
           if (!card || !content) return;
 
