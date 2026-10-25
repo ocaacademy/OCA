@@ -3954,22 +3954,28 @@
                     <input type="text" id="addrZipcode" class="oca-input" placeholder="เช่น 10110" maxlength="5" required>
                   </div>
 
-                  <!-- อีเมล (Email) -->
-                  <div class="oca-input-group">
-                    <label class="oca-label" for="email">อีเมล (Email) *</label>
-                    <input type="email" id="email" class="oca-input" placeholder="yourname@gmail.com" required>
-                  </div>
-
                   <!-- หมายเลขโทรศัพท์ -->
                   <div class="oca-input-group">
                     <label class="oca-label" for="phoneNumber">หมายเลขโทรศัพท์ *</label>
                     <input type="tel" id="phoneNumber" class="oca-input" placeholder="เช่น 0812345678" maxlength="12" oninput="formatPhone(this)" required>
                   </div>
 
+                  <!-- เบอร์ติดต่อฉุกเฉิน -->
+                  <div class="oca-input-group">
+                    <label class="oca-label" for="emergencyPhone">เบอร์ติดต่อฉุกเฉิน *</label>
+                    <input type="tel" id="emergencyPhone" class="oca-input" placeholder="เช่น 0891234567" maxlength="12" oninput="formatPhone(this)" required>
+                  </div>
+
+                  <!-- อีเมล (Email) -->
+                  <div class="oca-input-group">
+                    <label class="oca-label" for="email">อีเมล (Email) *</label>
+                    <input type="email" id="email" class="oca-input" placeholder="yourname@gmail.com" required>
+                  </div>
+
                   <!-- LINE ID -->
                   <div class="oca-input-group">
-                    <label class="oca-label" for="lineId">LINE ID</label>
-                    <input type="text" id="lineId" class="oca-input" placeholder="oca_student">
+                    <label class="oca-label" for="lineId">LINE ID *</label>
+                    <input type="text" id="lineId" class="oca-input" placeholder="oca_student" required>
                   </div>
 
                   <!-- ระดับภาษาเดิม -->
@@ -4181,6 +4187,7 @@
               <div><span style="color:var(--text-muted);"><i class="fa-solid fa-book-open" style="margin-right:6px;"></i>ภาคเรียน:</span> <strong id="srTerm">-</strong></div>
               <div><span style="color:var(--text-muted);"><i class="fa-solid fa-id-badge" style="margin-right:6px;"></i>บัตร Mifare 1K:</span> <code id="srCardUid" style="color:var(--color-gold);">-</code></div>
               <div><span style="color:var(--text-muted);"><i class="fa-solid fa-phone" style="margin-right:6px;"></i>เบอร์โทรศัพท์:</span> <strong id="srPhone">-</strong></div>
+              <div><span style="color:var(--text-muted);"><i class="fa-solid fa-phone-volume" style="margin-right:6px; color:#f87171;"></i>เบอร์ฉุกเฉิน:</span> <strong id="srEmergencyPhone" style="color:#fca5a5;">-</strong></div>
               <div><span style="color:var(--text-muted);"><i class="fa-solid fa-envelope" style="margin-right:6px;"></i>อีเมล:</span> <strong id="srEmail">-</strong></div>
               <div><span style="color:var(--text-muted);"><i class="fa-solid fa-address-card" style="margin-right:6px;"></i>เลขบัตรประชาชน:</span> <strong id="srCitizen">-</strong></div>
               <div><span style="color:var(--text-muted);"><i class="fa-brands fa-line" style="margin-right:6px;"></i>LINE ID:</span> <strong id="srLineId">-</strong></div>
@@ -8866,15 +8873,27 @@
                   </div>
                 </div>
 
-                <!-- Phone & Email -->
-                <div class="oca-reg-grid-2">
+                <!-- Phone & Emergency Phone -->
+                <div class="oca-reg-grid-2" style="margin-bottom:14px;">
                   <div>
                     <label class="oca-reg-label" id="lblPhone">เบอร์โทรศัพท์มือถือที่ติดต่อได้ *</label>
-                    <input type="tel" id="txtPubPhone" class="oca-reg-input" placeholder="08xxxxxxxx" required>
+                    <input type="tel" id="txtPubPhone" class="oca-reg-input" placeholder="08xxxxxxxx" maxlength="12" oninput="if(typeof formatPhone==='function')formatPhone(this); savePublicRegisterDraft();" required>
                   </div>
                   <div>
+                    <label class="oca-reg-label" id="lblEmergencyPhone">เบอร์ติดต่อฉุกเฉิน *</label>
+                    <input type="tel" id="txtPubEmergencyPhone" class="oca-reg-input" placeholder="08xxxxxxxx" maxlength="12" oninput="if(typeof formatPhone==='function')formatPhone(this); savePublicRegisterDraft();" required>
+                  </div>
+                </div>
+
+                <!-- Email & LINE ID -->
+                <div class="oca-reg-grid-2">
+                  <div>
                     <label class="oca-reg-label" id="lblEmail">อีเมล (สำหรับรับเอกสารยืนยัน) *</label>
-                    <input type="email" id="txtPubEmail" class="oca-reg-input" placeholder="example@email.com" required>
+                    <input type="email" id="txtPubEmail" class="oca-reg-input" placeholder="example@email.com" oninput="savePublicRegisterDraft();" required>
+                  </div>
+                  <div>
+                    <label class="oca-reg-label" id="lblLineId">LINE ID *</label>
+                    <input type="text" id="txtPubLineId" class="oca-reg-input" placeholder="ระบุ LINE ID" oninput="savePublicRegisterDraft();" required>
                   </div>
                 </div>
               </div>
@@ -10416,11 +10435,16 @@
                   photo_url: params.photoBase64 || params.photo || existingSt.photo_url || ''
                 };
                 if (params.prefix) updatedPayload.prefix = params.prefix;
-                if (params.fullNameEn) {
-                  let n = existingSt.notes || '';
-                  if (!n.includes('EN:')) n = n ? (n + ' | EN: ' + params.fullNameEn) : ('EN: ' + params.fullNameEn);
-                  updatedPayload.notes = n;
+                if (params.lineId) updatedPayload.line_id = params.lineId;
+                let n = existingSt.notes || '';
+                if (params.fullNameEn && !n.includes('EN:')) {
+                  n = n ? (n + ' | EN: ' + params.fullNameEn) : ('EN: ' + params.fullNameEn);
                 }
+                const emResume = (params.emergencyPhone || params.emergencyContact || '').trim();
+                if (emResume && !n.includes('ฉุกเฉิน:')) {
+                  n = n ? (n + ' | ฉุกเฉิน: ' + emResume) : ('ฉุกเฉิน: ' + emResume);
+                }
+                updatedPayload.notes = n;
                 await _supabase.from('students').update(updatedPayload).eq('student_id', existingSt.student_id);
                 return {
                   success: true,
@@ -10466,6 +10490,10 @@
               const en = (params.fullNameEn || '').trim();
               if (en && !n.includes('EN:')) {
                 n = n ? (n + ' | EN: ' + en) : ('EN: ' + en);
+              }
+              const em = (params.emergencyPhone || params.emergencyContact || '').trim();
+              if (em && !n.includes('ฉุกเฉิน:')) {
+                n = n ? (n + ' | ฉุกเฉิน: ' + em) : ('ฉุกเฉิน: ' + em);
               }
               return n;
             })()
@@ -13148,6 +13176,7 @@
       const fullName = document.getElementById('fullName').value.trim();
       const fullNameEn = (document.getElementById('fullNameEn')?.value || '').trim();
       const phone = document.getElementById('phoneNumber').value.trim();
+      const emergencyPhone = (document.getElementById('emergencyPhone')?.value || '').trim();
       const email = document.getElementById('email').value.trim();
       const course = document.getElementById('course')?.value || '-';
       const cardUidEl = document.getElementById('smartCardUid');
@@ -13186,6 +13215,21 @@
 
       if (!phone.startsWith('0') || phone.length < 9) {
         showModal('เบอร์โทรศัพท์ไม่ถูกต้อง', 'เบอร์โทรศัพท์ต้องเริ่มต้นด้วย 0 และมีความยาว 9-10 หลัก (ห้ามตัดเลขศูนย์)', '⚠️');
+        return;
+      }
+
+      if (!emergencyPhone || !emergencyPhone.startsWith('0') || emergencyPhone.length < 9) {
+        showModal('กรุณากรอกเบอร์ติดต่อฉุกเฉิน', 'โปรดระบุเบอร์ติดต่อฉุกเฉินที่เริ่มต้นด้วย 0 และมีความยาว 9-10 หลัก (บังคับกรอก)', '⚠️');
+        return;
+      }
+
+      if (!email || email.indexOf('@') === -1) {
+        showModal('อีเมลไม่ถูกต้อง', 'โปรดระบุอีเมลที่ถูกต้อง เช่น example@gmail.com (บังคับกรอก)', '⚠️');
+        return;
+      }
+
+      if (!lineId) {
+        showModal('กรุณากรอก LINE ID', 'โปรดระบุ LINE ID สำหรับใช้ติดต่อสื่อสารกับผู้เรียน (บังคับกรอก)', '⚠️');
         return;
       }
 
@@ -13235,6 +13279,7 @@
         fullName: fullName,
         fullNameEn: fullNameEn,
         phoneNumber: phone,
+        emergencyPhone: emergencyPhone,
         email: email,
         course: course,
         smartCardUid: cardUid,
@@ -13948,6 +13993,13 @@
       if (elTerm) elTerm.textContent = 'เทอม ' + toArabicDigits(s.term || '-');
       if (elCardUid) elCardUid.textContent = s.smartCardUid ? toArabicDigits(s.smartCardUid) : 'รอออกบัตร';
       if (elPhone) elPhone.textContent = s.phone ? toArabicDigits(s.phone) : (s.phoneNumber ? toArabicDigits(s.phoneNumber) : '-');
+      const elEmergency = document.getElementById('srEmergencyPhone');
+      let emVal = s.emergencyPhone || s.emergency_phone || '';
+      if (!emVal && s.notes) {
+        const emMatch = s.notes.match(/(?:ฉุกเฉิน|Emergency)[:\s]+([0-9\-]+)/i);
+        if (emMatch) emVal = emMatch[1];
+      }
+      if (elEmergency) elEmergency.textContent = emVal ? toArabicDigits(emVal) : '-';
       if (elEmail) elEmail.textContent = s.email || '-';
       if (elCitizen) elCitizen.textContent = s.citizenId ? toArabicDigits(s.citizenId) : (s.citizenIdMasked ? toArabicDigits(s.citizenIdMasked) : '-');
       if (elLineId) elLineId.textContent = s.lineId || '-';
@@ -25170,7 +25222,9 @@
         genderMale: 'ชาย (Male)',
         genderFemale: 'หญิง (Female)',
         phone: 'เบอร์โทรศัพท์มือถือที่ติดต่อได้ *',
+        emergencyPhone: 'เบอร์ติดต่อฉุกเฉิน *',
         email: 'อีเมล (สำหรับรับเอกสารยืนยัน) *',
+        lineId: 'LINE ID *',
         sec2Heading: 'ข้อมูลที่อยู่สำหรับติดต่อและจัดส่งเอกสาร (Address)',
         addrLine: 'ที่อยู่ (บ้านเลขที่, หมู่, อาคาร/หมู่บ้าน, ซอย, ถนน) *',
         addrLinePlace: 'เช่น 123/45 หมู่บ้านสุขสันต์ ซอย 5 ถนนสุขุมวิท',
@@ -25201,7 +25255,9 @@
         valName: 'กรุณาระบุชื่อ-นามสกุลของผู้สมัคร',
         valCitizen: 'กรุณาระบุเลขประจำตัวประชาชน 13 หลัก หรือเลขพาสปอร์ต',
         valPhone: 'กรุณาระบุเบอร์โทรศัพท์มือถือที่สามารถติดต่อได้',
+        valEmergencyPhone: 'กรุณาระบุเบอร์ติดต่อฉุกเฉินที่สามารถติดต่อได้',
         valEmail: 'กรุณาระบุอีเมลที่ถูกต้องสำหรับรับเอกสารยืนยัน',
+        valLineId: 'กรุณาระบุ LINE ID ของผู้สมัคร',
         valAddr: 'กรุณาระบุข้อมูลที่อยู่ให้ครบถ้วน (บ้านเลขที่, ตำบล, อำเภอ, จังหวัด, รหัสไปรษณีย์)',
         submitting: 'กำลังบันทึกข้อมูลและออกรหัสนักศึกษา...'
       },
@@ -25227,7 +25283,9 @@
         genderMale: 'Male',
         genderFemale: 'Female',
         phone: 'Mobile Phone Number *',
+        emergencyPhone: 'Emergency Contact Phone *',
         email: 'Email Address (for Confirmation) *',
+        lineId: 'LINE ID *',
         sec2Heading: '2. Contact & Mailing Address',
         addrLine: 'Address (House No., Village/Building, Soi, Road) *',
         addrLinePlace: 'e.g. 123/45 Sukhsan Village, Soi 5, Sukhumvit Rd.',
@@ -25258,7 +25316,9 @@
         valName: 'Please enter applicant full name.',
         valCitizen: 'Please enter 13-digit National ID or Passport number.',
         valPhone: 'Please enter a valid mobile phone number.',
+        valEmergencyPhone: 'Please enter an emergency contact phone number.',
         valEmail: 'Please enter a valid email address.',
+        valLineId: 'Please enter applicant LINE ID.',
         valAddr: 'Please fill in complete address details (House No, Sub-district, District, Province, Postal Code).',
         submitting: 'Saving application and generating Student ID...'
       }
@@ -25303,7 +25363,9 @@
       setTxt('lblDob', dict.dob);
       setTxt('lblGender', dict.gender);
       setTxt('lblPhone', dict.phone);
+      setTxt('lblEmergencyPhone', dict.emergencyPhone);
       setTxt('lblEmail', dict.email);
+      setTxt('lblLineId', dict.lineId);
 
       setTxt('lblSec2Heading', dict.sec2Heading);
       setTxt('lblAddrLine', dict.addrLine);
@@ -25363,7 +25425,9 @@
           dob: document.getElementById('txtPubDob')?.value || '',
           gender: document.getElementById('selPubGender')?.value || '',
           phone: (document.getElementById('txtPubPhone')?.value || '').trim(),
+          emergencyPhone: (document.getElementById('txtPubEmergencyPhone')?.value || '').trim(),
           email: (document.getElementById('txtPubEmail')?.value || '').trim(),
+          lineId: (document.getElementById('txtPubLineId')?.value || '').trim(),
           addrLine: (document.getElementById('txtPubAddrLine')?.value || '').trim(),
           subdistrict: (document.getElementById('txtPubSubdistrict')?.value || '').trim(),
           district: (document.getElementById('txtPubDistrict')?.value || '').trim(),
@@ -25405,7 +25469,14 @@
       setVal('txtPubDob', data.dob || data.birth_date);
       setVal('selPubGender', data.gender);
       setVal('txtPubPhone', data.phone || data.phoneNumber || data.phone_number);
+      let draftEm = data.emergencyPhone || data.emergency_phone || '';
+      if (!draftEm && data.notes) {
+        const emM = data.notes.match(/(?:ฉุกเฉิน|Emergency)[:\s]+([0-9\-]+)/i);
+        if (emM) draftEm = emM[1];
+      }
+      setVal('txtPubEmergencyPhone', draftEm);
       setVal('txtPubEmail', data.email);
+      setVal('txtPubLineId', data.lineId || data.line_id);
 
       if (data.addrLine) {
         setVal('txtPubAddrLine', data.addrLine);
@@ -25648,7 +25719,9 @@
       const dob = document.getElementById('txtPubDob')?.value || '';
       const gender = document.getElementById('selPubGender')?.value || '';
       const phone = (document.getElementById('txtPubPhone')?.value || '').trim();
+      const emergencyPhone = (document.getElementById('txtPubEmergencyPhone')?.value || '').trim();
       const email = (document.getElementById('txtPubEmail')?.value || '').trim();
+      const lineId = (document.getElementById('txtPubLineId')?.value || '').trim();
 
       const addrLine = (document.getElementById('txtPubAddrLine')?.value || '').trim();
       const subdistrict = (document.getElementById('txtPubSubdistrict')?.value || '').trim();
@@ -25664,12 +25737,20 @@
         showModal('กรุณากรอกข้อมูล / Required', dict.valCitizen, '⚠️');
         return;
       }
-      if (!phone) {
+      if (!phone || phone.length < 9) {
         showModal('กรุณากรอกข้อมูล / Required', dict.valPhone, '⚠️');
+        return;
+      }
+      if (!emergencyPhone || emergencyPhone.length < 9) {
+        showModal('กรุณากรอกข้อมูล / Required', dict.valEmergencyPhone, '⚠️');
         return;
       }
       if (!email || email.indexOf('@') === -1) {
         showModal('อีเมลไม่ถูกต้อง / Invalid Email', dict.valEmail, '⚠️');
+        return;
+      }
+      if (!lineId) {
+        showModal('กรุณากรอกข้อมูล / Required', dict.valLineId, '⚠️');
         return;
       }
       if (!addrLine || !province || !postalCode) {
@@ -25702,7 +25783,9 @@
         dob: dob,
         gender: gender,
         phoneNumber: phone,
+        emergencyPhone: emergencyPhone,
         email: email,
+        lineId: lineId,
         address: combinedAddress,
         level: 'รอจัดระดับหลักสูตร',
         course: 'รอจัดระดับหลักสูตร (Basic Chinese)',
