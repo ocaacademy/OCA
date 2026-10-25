@@ -4501,6 +4501,77 @@
             </div>
           </div>
 
+          <!-- Online Enrollment Schedule Card (กำหนดช่วงเวลาเปิด-ปิดรับสมัครเรียนออนไลน์ผ่าน QR Code) -->
+          <div class="oca-chart-card" style="margin-bottom:20px; border:1px solid rgba(215,166,0,0.35); background:linear-gradient(135deg, rgba(215,166,0,0.05) 0%, rgba(1,35,28,0.4) 100%);">
+            <div class="oca-chart-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <span><i class="fa-solid fa-clock" style="color:var(--color-gold); margin-right:8px;"></i>กำหนดช่วงเวลาเปิด-ปิดรับสมัครเรียนออนไลน์ผ่าน QR Code</span>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span id="badgeOnlineEnrollLiveStatus" style="padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#34d399; display:inline-flex; align-items:center; gap:6px;">
+                  <span style="width:7px; height:7px; border-radius:50%; background:#10b981;"></span> กำลังเปิดรับสมัคร
+                </span>
+                <button type="button" class="oca-btn-gold-submit" style="padding:6px 16px; font-size:12.5px;" onclick="saveOnlineEnrollScheduleFromUI()">
+                  <i class="fa-solid fa-floppy-disk" style="margin-right:4px;"></i> บันทึกกำหนดการ
+                </button>
+              </div>
+            </div>
+            <div style="font-size:12.5px; color:var(--text-muted); margin-top:4px; margin-bottom:14px; line-height:1.5;">
+              กำหนดช่วงวันและเวลาเปิด-ปิดรับสมัครสำหรับผู้เรียนที่สแกน QR Code หรือเข้าผ่านลิงก์รับสมัครออนไลน์ (<code style="color:var(--color-gold);">?page=register</code>) เมื่ออยู่นอกช่วงเวลา ระบบจะล็อกฟอร์มและแสดงประกาศประชาสัมพันธ์รอบถัดไปอัตโนมัติ
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; margin-bottom:14px;">
+              <!-- 1. โหมดการรับสมัคร -->
+              <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 14px;">
+                <label style="display:block; font-size:12px; font-weight:700; color:var(--color-gold-cream); margin-bottom:8px;">
+                  1. โหมดควบคุมการรับสมัคร
+                </label>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-main); cursor:pointer;">
+                    <input type="radio" name="optEnrollMode" value="SCHEDULED" checked onchange="onEnrollModeChange()" style="accent-color:var(--color-gold);">
+                    <span>🕒 เปิด-ปิดอัตโนมัติตามกำหนดเวลา (Scheduled Window)</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-main); cursor:pointer;">
+                    <input type="radio" name="optEnrollMode" value="ALWAYS_OPEN" onchange="onEnrollModeChange()" style="accent-color:var(--color-gold);">
+                    <span>🟢 เปิดรับสมัครตลอดเวลา (Always Open)</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-main); cursor:pointer;">
+                    <input type="radio" name="optEnrollMode" value="FORCE_CLOSED" onchange="onEnrollModeChange()" style="accent-color:#ef4444;">
+                    <span>🔴 ปิดรับสมัครชั่วคราว (Force Closed)</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- 2. วัน-เวลาเริ่มต้น -->
+              <div id="boxEnrollStartWrapper" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 14px;">
+                <label style="display:block; font-size:12px; font-weight:700; color:var(--color-gold-cream); margin-bottom:8px;">
+                  2. วันและเวลาเริ่มต้นเปิดรับสมัคร (Open From)
+                </label>
+                <input type="datetime-local" id="cfgEnrollOpenDatetime" class="oca-input" style="width:100%; height:40px; padding:0 12px; font-size:13px; background:rgba(0,0,0,0.25); border:1px solid var(--border-soft); border-radius:8px; color:#fff;" onchange="updateOnlineEnrollStatusPreview()">
+                <div style="font-size:11.5px; color:var(--text-muted); margin-top:6px;">
+                  ก่อนเวลานี้ ผู้เรียนจะเห็นหน้า "ยังไม่เปิดรับสมัคร" พร้อมเวลานับถอยหลัง
+                </div>
+              </div>
+
+              <!-- 3. วัน-เวลาสิ้นสุด -->
+              <div id="boxEnrollEndWrapper" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 14px;">
+                <label style="display:block; font-size:12px; font-weight:700; color:var(--color-gold-cream); margin-bottom:8px;">
+                  3. วันและเวลาปิดรับสมัคร (Close At)
+                </label>
+                <input type="datetime-local" id="cfgEnrollCloseDatetime" class="oca-input" style="width:100%; height:40px; padding:0 12px; font-size:13px; background:rgba(0,0,0,0.25); border:1px solid var(--border-soft); border-radius:8px; color:#fff;" onchange="updateOnlineEnrollStatusPreview()">
+                <div style="font-size:11.5px; color:var(--text-muted); margin-top:6px;">
+                  หลังเวลานี้ ระบบจะปิดรับสมัครและล็อกแบบฟอร์มทันที
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. ข้อความประกาศประชาสัมพันธ์ -->
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 14px;">
+              <label style="display:block; font-size:12px; font-weight:700; color:var(--color-gold-cream); margin-bottom:6px;">
+                4. ข้อความประกาศประชาสัมพันธ์เมื่ออยู่นอกช่วงเวลาสมัคร (Notice Message)
+              </label>
+              <input type="text" id="cfgEnrollNoticeMsg" class="oca-input" style="width:100%; height:38px; padding:0 12px; font-size:13px; background:rgba(0,0,0,0.25); border:1px solid var(--border-soft); border-radius:8px; color:#fff;" placeholder="เช่น จะเปิดรับสมัครรอบถัดไปวันที่... หรือสอบถามข้อมูลเพิ่มเติมได้ที่สำนักงานโทร 02-xxx-xxxx" oninput="updateOnlineEnrollStatusPreview()">
+            </div>
+          </div>
+
           <!-- General Fees & Discounts Card Container -->
           <div id="containerCoursesFeeCard">
             <!-- General Fees & Discounts Card (การตั้งค่าอัตราค่าธรรมเนียมและส่วนลดทั่วไป) -->
@@ -7045,7 +7116,10 @@
                     <span style="font-size:11.5px; color:var(--text-muted); font-weight:700;">ลิงก์รับสมัครเรียน (OCA Web Form):</span>
                     <span style="font-size:10.5px; color:#10b981; background:rgba(16,185,129,0.15); padding:2px 6px; border-radius:4px; font-weight:700;">● ฟอร์มทางการ OCA</span>
                   </div>
-                  <div id="lblOcaEnrollUrlPreview" style="font-size:12px; font-family:monospace; color:var(--color-gold); word-break:break-all; user-select:all;">
+                  <div id="lblStandeeEnrollSchedule" style="font-size:12.5px; font-weight:700; color:#FBBF24; margin-top:8px; display:inline-flex; align-items:center; gap:6px; background:rgba(215,166,0,0.15); padding:4px 14px; border-radius:20px; border:1px solid rgba(215,166,0,0.35);">
+                  <i class="fa-solid fa-clock"></i> <span>กำลังตรวจสอบกำหนดการ...</span>
+                </div>
+                <div id="lblOcaEnrollUrlPreview" style="font-size:12px; font-family:monospace; color:var(--color-gold); word-break:break-all; user-select:all;">
                     -
                   </div>
                 </div>
@@ -9180,6 +9254,14 @@
         <!-- Main Form Card -->
         <div class="oca-reg-card" style="background:#FFFFFF; border-radius:18px; border:1.5px solid rgba(16,185,129,0.25); box-shadow:0 12px 36px rgba(4,78,57,0.08); padding:28px 24px; margin-bottom:20px;">
           
+          <!-- Schedule Active Banner -->
+          <div id="bannerPubRegOpenSchedule" style="display:none; background:linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); border:1.5px solid #10B981; border-radius:12px; padding:12px 16px; margin-bottom:18px; color:#065F46; font-size:13.5px; font-weight:700; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(16,185,129,0.12);">
+          </div>
+
+          <!-- Closed / Upcoming Screen Container -->
+          <div id="boxPublicRegisterClosedScreen" style="display:none; text-align:center; padding:36px 16px;">
+          </div>
+
           <div id="boxPublicRegisterFormBody">
             <form id="formPublicRegister" onsubmit="event.preventDefault(); submitPublicRegister();">
               
@@ -10586,6 +10668,23 @@
             courses: mappedCourses,
             schedules: schedules || [],
             feeSettings: fullFeeSettings,
+            onlineEnrollSchedule: (() => {
+              const schedSetting = (fees || []).find(f => f.key === 'online_enroll_schedule');
+              if (schedSetting) {
+                return {
+                  mode: schedSetting.name || 'SCHEDULED',
+                  startDate: schedSetting.start_date || '',
+                  endDate: schedSetting.end_date || '',
+                  noticeMsg: schedSetting.note || schedSetting.notes || ''
+                };
+              }
+              return {
+                mode: 'ALWAYS_OPEN',
+                startDate: '',
+                endDate: '',
+                noticeMsg: ''
+              };
+            })(),
             termOpenDates: (() => {
               const termDates = {
                 "1": "1 ม.ค. 2569",
@@ -12069,6 +12168,26 @@
             items: feeObj
           };
           return { success: true, feeSettings: fullFeeSettings, message: 'บันทึกค่าธรรมเนียมและส่วนลดสำเร็จ' };
+        }
+
+        if (action === 'saveOnlineEnrollSchedule') {
+          try {
+            const sched = params.schedule || {};
+            const upsertItem = {
+              key: 'online_enroll_schedule',
+              name: sched.mode || 'SCHEDULED',
+              start_date: sched.startDate || null,
+              end_date: sched.endDate || null,
+              note: sched.noticeMsg || '',
+              mode: sched.mode || 'SCHEDULED',
+              updated_at: new Date().toISOString()
+            };
+            await _supabase.from('fee_settings').upsert([upsertItem], { onConflict: 'key' });
+            return { success: true, message: 'บันทึกกำหนดการรับสมัครเรียนออนไลน์เรียบร้อยแล้ว', schedule: sched };
+          } catch(e) {
+            console.warn('saveOnlineEnrollSchedule error:', e);
+            return { success: false, message: e.message };
+          }
         }
 
         if (action === 'saveTermOpenDates') {
@@ -13906,6 +14025,8 @@
     }
 
     function openOcaEnrollStandeeModal() {
+      if (typeof updateOnlineEnrollStatusPreview === 'function') updateOnlineEnrollStatusPreview();
+      
       const modal = document.getElementById('modalOcaEnrollStandee');
       if (modal) modal.style.display = 'flex';
       generateOcaEnrollQrCode();
@@ -15871,6 +15992,13 @@
             populateGeneralFeeInputs(globalFeePresets);
           }
 
+          if (res.onlineEnrollSchedule) {
+            populateOnlineEnrollScheduleInputs(res.onlineEnrollSchedule);
+          } else {
+            const cachedSched = (typeof getOnlineEnrollScheduleStatus === 'function') ? window.CACHED_ONLINE_ENROLL_SCHEDULE : null;
+            if (cachedSched) populateOnlineEnrollScheduleInputs(cachedSched);
+          }
+
           if (res.termOpenDates) {
             renderTermOpeningDatesInputs(res.termOpenDates);
             updateReceiptOpenDateByTerm();
@@ -15998,6 +16126,322 @@
           hid.value = thaiDate;
         }
       }
+    }
+
+    
+    // Global Cache for Online Enrollment Schedule
+    window.CACHED_ONLINE_ENROLL_SCHEDULE = (() => {
+      try {
+        const stored = localStorage.getItem('oca_online_enroll_schedule');
+        return stored ? JSON.parse(stored) : null;
+      } catch(_) { return null; }
+    })();
+
+    /**
+     * ดึงสถานะปัจจุบันของกำหนดการรับสมัครออนไลน์ (OPEN / UPCOMING / CLOSED)
+     */
+    function getOnlineEnrollScheduleStatus() {
+      let cfg = window.CACHED_ONLINE_ENROLL_SCHEDULE;
+      if (!cfg) {
+        try {
+          const stored = localStorage.getItem('oca_online_enroll_schedule');
+          if (stored) cfg = JSON.parse(stored);
+        } catch(_) {}
+      }
+      if (!cfg) {
+        cfg = { mode: 'ALWAYS_OPEN', startDate: '', endDate: '', noticeMsg: '' };
+      }
+
+      const mode = cfg.mode || 'ALWAYS_OPEN';
+      const noticeMsg = cfg.noticeMsg || '';
+
+      if (mode === 'ALWAYS_OPEN') {
+        return {
+          isOpen: true,
+          status: 'OPEN',
+          label: 'เปิดรับสมัครตลอดเวลา',
+          badgeClass: 'status-open',
+          badgeText: '🟢 กำลังเปิดรับสมัคร (ตลอดเวลา)',
+          badgeColor: '#10b981',
+          startDate: cfg.startDate,
+          endDate: cfg.endDate,
+          noticeMsg
+        };
+      }
+
+      if (mode === 'FORCE_CLOSED') {
+        return {
+          isOpen: false,
+          status: 'CLOSED',
+          label: 'ปิดรับสมัครชั่วคราว',
+          badgeClass: 'status-closed',
+          badgeText: '🔴 ปิดรับสมัครชั่วคราว',
+          badgeColor: '#ef4444',
+          startDate: cfg.startDate,
+          endDate: cfg.endDate,
+          noticeMsg: noticeMsg || 'ขณะนี้ระบบรับสมัครเรียนออนไลน์ปิดให้บริการชั่วคราว กรุณาติดต่อสำนักงานสถาบัน'
+        };
+      }
+
+      // Mode: SCHEDULED (ตรวจสอบเวลาตามจริง)
+      const now = new Date().getTime();
+      const start = cfg.startDate ? new Date(cfg.startDate).getTime() : 0;
+      const end = cfg.endDate ? new Date(cfg.endDate).getTime() : 0;
+
+      if (start && now < start) {
+        const diffMs = start - now;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const countdownText = diffDays > 0 ? `อีก ${diffDays} วัน ${diffHours} ชั่วโมง` : `อีก ${diffHours} ชั่วโมง`;
+
+        return {
+          isOpen: false,
+          status: 'UPCOMING',
+          label: 'ยังไม่ถึงเวลาเปิดรับสมัคร',
+          badgeClass: 'status-upcoming',
+          badgeText: `🟡 จะเปิดรับสมัคร (${countdownText})`,
+          badgeColor: '#f59e0b',
+          startDate: cfg.startDate,
+          endDate: cfg.endDate,
+          countdownText,
+          noticeMsg: noticeMsg || `ระบบรับสมัครเรียนออนไลน์จะเปิดรับสมัครในวันที่ ${formatThaiDateTime(cfg.startDate)}`
+        };
+      }
+
+      if (end && now > end) {
+        return {
+          isOpen: false,
+          status: 'CLOSED',
+          label: 'หมดเขตรับสมัครแล้ว',
+          badgeClass: 'status-closed',
+          badgeText: '🔴 หมดเขตรับสมัครแล้ว',
+          badgeColor: '#ef4444',
+          startDate: cfg.startDate,
+          endDate: cfg.endDate,
+          noticeMsg: noticeMsg || `หมดเขตรอบรับสมัครเรียนออนไลน์ประจำภาคเรียนนี้แล้ว (สิ้นสุดเมื่อ ${formatThaiDateTime(cfg.endDate)})`
+        };
+      }
+
+      // Currently OPEN within window
+      let remainingText = '';
+      if (end) {
+        const diffMs = end - now;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        remainingText = diffDays > 0 ? `เหลือเวลา ${diffDays} วัน ${diffHours} ชม.` : `เหลือเวลา ${diffHours} ชม.`;
+      }
+
+      return {
+        isOpen: true,
+        status: 'OPEN',
+        label: 'กำลังเปิดรับสมัคร',
+        badgeClass: 'status-open',
+        badgeText: remainingText ? `🟢 กำลังเปิดรับสมัคร (${remainingText})` : '🟢 กำลังเปิดรับสมัคร',
+        badgeColor: '#10b981',
+        startDate: cfg.startDate,
+        endDate: cfg.endDate,
+        remainingText,
+        noticeMsg
+      };
+    }
+
+    /**
+     * เปลี่ยนโหมดเปิด-ปิดในหน้าคอร์สเรียน
+     */
+    function onEnrollModeChange() {
+      const mode = document.querySelector('input[name="optEnrollMode"]:checked')?.value || 'SCHEDULED';
+      const boxStart = document.getElementById('boxEnrollStartWrapper');
+      const boxEnd = document.getElementById('boxEnrollEndWrapper');
+
+      if (boxStart && boxEnd) {
+        if (mode === 'SCHEDULED') {
+          boxStart.style.opacity = '1';
+          boxStart.style.pointerEvents = 'auto';
+          boxEnd.style.opacity = '1';
+          boxEnd.style.pointerEvents = 'auto';
+        } else {
+          boxStart.style.opacity = '0.45';
+          boxStart.style.pointerEvents = 'none';
+          boxEnd.style.opacity = '0.45';
+          boxEnd.style.pointerEvents = 'none';
+        }
+      }
+      updateOnlineEnrollStatusPreview();
+    }
+
+    /**
+     * อัปเดตตัวอย่างสถานะในแท็บคอร์สเรียนแบบเรียลไทม์
+     */
+    function updateOnlineEnrollStatusPreview() {
+      const mode = document.querySelector('input[name="optEnrollMode"]:checked')?.value || 'SCHEDULED';
+      const startDate = document.getElementById('cfgEnrollOpenDatetime')?.value || '';
+      const endDate = document.getElementById('cfgEnrollCloseDatetime')?.value || '';
+      const noticeMsg = document.getElementById('cfgEnrollNoticeMsg')?.value || '';
+
+      const tempCfg = { mode, startDate, endDate, noticeMsg };
+      window.CACHED_ONLINE_ENROLL_SCHEDULE = tempCfg;
+
+      const statusObj = getOnlineEnrollScheduleStatus();
+      const badge = document.getElementById('badgeOnlineEnrollLiveStatus');
+      if (badge) {
+        badge.innerHTML = `<span style="width:7px; height:7px; border-radius:50%; background:${statusObj.badgeColor};"></span> ${statusObj.badgeText}`;
+        badge.style.borderColor = statusObj.badgeColor;
+        badge.style.color = statusObj.badgeColor;
+        badge.style.background = statusObj.badgeColor + '22';
+      }
+
+      // Update standee preview if open
+      const lblStandee = document.getElementById('lblStandeeEnrollSchedule');
+      if (lblStandee) {
+        if (mode === 'ALWAYS_OPEN') {
+          lblStandee.innerHTML = '<i class="fa-solid fa-circle-check"></i> <span>เปิดรับสมัครตลอดเวลา</span>';
+          lblStandee.style.color = '#34D399';
+        } else if (mode === 'FORCE_CLOSED') {
+          lblStandee.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> <span>ปิดรับสมัครชั่วคราว</span>';
+          lblStandee.style.color = '#F87171';
+        } else if (startDate || endDate) {
+          const sText = startDate ? formatThaiDateTime(startDate).split(' ')[0] : 'วันนี้';
+          const eText = endDate ? formatThaiDateTime(endDate).split(' ')[0] : 'ตลอดไป';
+          lblStandee.innerHTML = `<i class="fa-solid fa-calendar-days"></i> <span>เปิดรับสมัคร: ${sText} - ${eText}</span>`;
+          lblStandee.style.color = '#FBBF24';
+        }
+      }
+    }
+
+    /**
+     * แสดงข้อมูลลงในฟอร์มแท็บคอร์สเรียน
+     */
+    function populateOnlineEnrollScheduleInputs(cfg) {
+      if (!cfg) return;
+      window.CACHED_ONLINE_ENROLL_SCHEDULE = cfg;
+      try {
+        localStorage.setItem('oca_online_enroll_schedule', JSON.stringify(cfg));
+      } catch(_) {}
+
+      const mode = cfg.mode || 'ALWAYS_OPEN';
+      const rad = document.querySelector(`input[name="optEnrollMode"][value="${mode}"]`);
+      if (rad) rad.checked = true;
+
+      const inpStart = document.getElementById('cfgEnrollOpenDatetime');
+      if (inpStart) inpStart.value = cfg.startDate ? cfg.startDate.slice(0, 16) : '';
+
+      const inpEnd = document.getElementById('cfgEnrollCloseDatetime');
+      if (inpEnd) inpEnd.value = cfg.endDate ? cfg.endDate.slice(0, 16) : '';
+
+      const inpNotice = document.getElementById('cfgEnrollNoticeMsg');
+      if (inpNotice) inpNotice.value = cfg.noticeMsg || '';
+
+      onEnrollModeChange();
+    }
+
+    /**
+     * บันทึกกำหนดการเปิด-ปิดรับสมัครออนไลน์จากแท็บคอร์สเรียน
+     */
+    async function saveOnlineEnrollScheduleFromUI() {
+      const mode = document.querySelector('input[name="optEnrollMode"]:checked')?.value || 'SCHEDULED';
+      const startDate = (document.getElementById('cfgEnrollOpenDatetime')?.value || '').trim();
+      const endDate = (document.getElementById('cfgEnrollCloseDatetime')?.value || '').trim();
+      const noticeMsg = (document.getElementById('cfgEnrollNoticeMsg')?.value || '').trim();
+
+      if (mode === 'SCHEDULED' && startDate && endDate) {
+        if (new Date(startDate).getTime() >= new Date(endDate).getTime()) {
+          showToast('วันเริ่มต้นต้องอยู่ก่อนวันปิดรับสมัคร', 'warning');
+          return;
+        }
+      }
+
+      const schedulePayload = { mode, startDate, endDate, noticeMsg };
+
+      showToast('กำลังบันทึกกำหนดการรับสมัครออนไลน์...', 'info');
+
+      try {
+        const res = await callGasApi('saveOnlineEnrollSchedule', { schedule: schedulePayload }, 'POST');
+        if (res && res.success) {
+          window.CACHED_ONLINE_ENROLL_SCHEDULE = schedulePayload;
+          localStorage.setItem('oca_online_enroll_schedule', JSON.stringify(schedulePayload));
+          updateOnlineEnrollStatusPreview();
+          showToast('บันทึกกำหนดการรับสมัครออนไลน์สำเร็จ!', 'success');
+        } else {
+          showToast('เกิดข้อผิดพลาด: ' + (res?.message || 'ไม่สามารถบันทึกได้'), 'error');
+        }
+      } catch(err) {
+        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + (err.message || ''), 'error');
+      }
+    }
+
+    /**
+     * แสดงหน้าจอแจ้งเตือนเมื่อระบบปิดรับสมัคร หรือยังไม่ถึงเวลาเปิดรับสมัคร
+     */
+    function renderPublicRegisterClosedScreen(schedStatus) {
+      const box = document.getElementById('boxPublicRegisterClosedScreen');
+      if (!box) return;
+
+      const isUpcoming = schedStatus.status === 'UPCOMING';
+      const iconClass = isUpcoming ? 'fa-solid fa-hourglass-half' : 'fa-solid fa-lock';
+      const iconColor = isUpcoming ? '#F59E0B' : '#EF4444';
+      const iconBg = isUpcoming ? 'rgba(245, 158, 11, 0.12)' : 'rgba(239, 68, 68, 0.12)';
+      const iconBorder = isUpcoming ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)';
+
+      const headline = isUpcoming
+        ? 'ระบบรับสมัครเรียนออนไลน์ยังไม่เปิดรับสมัคร'
+        : 'ปิดรับสมัครเรียนออนไลน์แล้ว';
+
+      const subhead = isUpcoming
+        ? `จะเปิดรับสมัครอย่างเป็นทางการในวันที่ ${formatThaiDateTime(schedStatus.startDate)}`
+        : `หมดเขตรอบรับสมัครเรียนออนไลน์ประจำภาคเรียนนี้แล้ว`;
+
+      const noticeHtml = schedStatus.noticeMsg
+        ? `<div style="background:#FEF3C7; border:1.5px solid #F59E0B; border-radius:12px; padding:14px 18px; color:#92400E; font-size:13.5px; font-weight:600; line-height:1.6; max-width:540px; margin:0 auto 20px;">
+             📢 <strong>ประกาศจากสถาบัน:</strong> ${escapeHtml(schedStatus.noticeMsg)}
+           </div>`
+        : '';
+
+      const countdownHtml = (isUpcoming && schedStatus.countdownText)
+        ? `<div style="display:inline-flex; align-items:center; gap:8px; background:#EFF6FF; border:1.5px solid #3B82F6; color:#1D4ED8; font-size:14px; font-weight:800; padding:8px 20px; border-radius:24px; margin-bottom:20px;">
+             ⏳ นับถอยหลัง: ${schedStatus.countdownText}
+           </div>`
+        : '';
+
+      const scheduleDetailsHtml = (schedStatus.startDate || schedStatus.endDate)
+        ? `<div style="background:#F9FAFB; border:1px solid #E5E7EB; border-radius:12px; padding:12px 18px; max-width:480px; margin:0 auto 24px; font-size:13px; color:#4B5563; line-height:1.7;">
+             <div>📅 <strong>กำหนดการรับสมัครเรียน:</strong></div>
+             <div>• เริ่มต้น: ${schedStatus.startDate ? formatThaiDateTime(schedStatus.startDate) : 'ตามประกาศ'}</div>
+             <div>• สิ้นสุด: ${schedStatus.endDate ? formatThaiDateTime(schedStatus.endDate) : 'ตามประกาศ'}</div>
+           </div>`
+        : '';
+
+      box.innerHTML = `
+        <div style="max-width:600px; margin:0 auto; padding:20px 10px;">
+          <div style="width:72px; height:72px; border-radius:50%; background:${iconBg}; border:2px solid ${iconBorder}; color:${iconColor}; display:flex; align-items:center; justify-content:center; font-size:32px; margin:0 auto 18px; box-shadow:0 8px 20px rgba(0,0,0,0.06);">
+            <i class="${iconClass}"></i>
+          </div>
+
+          <h2 style="font-size:22px; font-weight:800; color:#111827; margin-bottom:8px;">${headline}</h2>
+          <p style="font-size:14.5px; color:#6B7280; margin-bottom:20px; line-height:1.5;">${subhead}</p>
+
+          ${countdownHtml}
+          ${noticeHtml}
+          ${scheduleDetailsHtml}
+
+          <!-- Institutional Contact Card -->
+          <div style="background:#ECFDF5; border:1.5px solid #10B981; border-radius:14px; padding:16px 20px; max-width:480px; margin:0 auto 24px; text-align:left;">
+            <div style="font-size:13.5px; font-weight:700; color:#065F46; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-headset"></i> ติดต่อสอบถาม / สำรองที่นั่งโดยตรง
+            </div>
+            <div style="font-size:13px; color:#047857; line-height:1.7;">
+              <div>🏫 <strong>東方文化書院 (ORIENTAL CULTURE ACADEMY)</strong></div>
+              <div>📞 โทรศัพท์สำนักงาน: 02-xxx-xxxx</div>
+              <div>💬 LINE Official: @ocaacademy</div>
+            </div>
+          </div>
+
+          <div>
+            <button type="button" class="oca-btn-cancel-custom" onclick="closePublicRegisterView()" style="height:42px; padding:0 24px; font-size:14px; font-weight:700; background:#FFFFFF; border:1.5px solid #D1D5DB; color:#374151; box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+              <i class="fa-solid fa-arrow-left" style="margin-right:6px;"></i> กลับสู่หน้าหลัก
+            </button>
+          </div>
+        </div>
+      `;
     }
 
     function saveTermOpeningDatesFromUI() {
@@ -26116,6 +26560,32 @@
         regView.style.display = 'block';
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
+      // Check Online Enrollment Schedule Gate
+      const schedStatus = getOnlineEnrollScheduleStatus();
+      const formBody = document.getElementById('boxPublicRegisterFormBody');
+      const closedScreen = document.getElementById('boxPublicRegisterClosedScreen');
+      const bannerOpen = document.getElementById('bannerPubRegOpenSchedule');
+
+      if (!schedStatus.isOpen) {
+        if (formBody) formBody.style.display = 'none';
+        if (closedScreen) {
+          closedScreen.style.display = 'block';
+          renderPublicRegisterClosedScreen(schedStatus);
+        }
+        if (bannerOpen) bannerOpen.style.display = 'none';
+      } else {
+        if (formBody) formBody.style.display = 'block';
+        if (closedScreen) closedScreen.style.display = 'none';
+        if (bannerOpen) {
+          if (schedStatus.endDate) {
+            bannerOpen.style.display = 'flex';
+            bannerOpen.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> <span>เปิดรับสมัครเรียนออนไลน์ถึงวันที่ <strong>${formatThaiDateTime(schedStatus.endDate)}</strong></span>`;
+          } else {
+            bannerOpen.style.display = 'none';
+          }
+        }
+      }
+
       setRegisterLanguage(currentRegLanguage);
 
       initPublicRegisterAutoSave();
@@ -27121,8 +27591,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=97' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=97' : (window.location.pathname + '/sw.js?v=97'));
+        ? './sw.js?v=98' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=98' : (window.location.pathname + '/sw.js?v=98'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
       }).catch(function(err) {
