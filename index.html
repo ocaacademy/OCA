@@ -14307,9 +14307,6 @@
       isDuplicateDismissed = true;
       const box = document.getElementById('boxDuplicateWarning');
       if (box) box.style.display = 'none';
-      if (typeof showToast === 'function') {
-        showToast('รับทราบข้อมูลซ้ำ', 'สามารถลงทะเบียนซ้ำซ้อนต่อไปได้', 'ℹ️');
-      }
     }
 
     function goToRenewalFromDuplicate() {
@@ -14462,7 +14459,6 @@
 
           if (res && res.success) {
             const savedStudentId = res.studentId || studentId;
-            toast('ลงทะเบียนสำเร็จ', 'รหัสนักศึกษา: ' + savedStudentId, '✓');
             hideDuplicateWarningBox();
             cachedSearchStudentsData = [];
             if (typeof loadAllStudentsStatus === 'function') {
@@ -14474,7 +14470,7 @@
             if (chkAuto && chkAuto.checked) {
               document.getElementById('enrollForm').reset();
               if (typeof initAcademicYearSelect === 'function') initAcademicYearSelect();
-              showToast('ลงทะเบียนสำเร็จ!', 'กำลังนำทางไปหน้าออกใบเสร็จรับเงินทันที...', '✓');
+              showToast('ลงทะเบียนสำเร็จ!', 'รหัส ' + savedStudentId + ' — กำลังนำทางไปหน้าออกใบเสร็จรับเงินทันที...', '✓');
               openReceiptForStudent(savedStudentId, false);
               return;
             }
@@ -14568,23 +14564,6 @@
         if (chkDisc && chkDisc.checked) { chkDisc.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('discountNormal'); }
         
         if (typeof calcReceiptTotals === 'function') calcReceiptTotals();
-
-        // คำนวณข้อความแจ้งเตือนตามอัตราค่าธรรมเนียมปัจจุบันในระบบ (Dynamic Fee Calculation)
-        const regAmount = Number(document.getElementById('inpRcptRegFee')?.value) || 0;
-        const cardAmount = Number(document.getElementById('inpRcptCardFee')?.value) || 0;
-
-        let feeMessage = '';
-        if (regAmount > 0 && cardAmount > 0) {
-          feeMessage = 'คิดค่าสมัคร ' + toArabicDigits(regAmount) + ' + ค่าบัตร ' + toArabicDigits(cardAmount) + ' (เลือกส่วนลดเพิ่มเติมได้หากมีสิทธิ์)';
-        } else if (regAmount > 0) {
-          feeMessage = 'คิดค่าสมัคร ' + toArabicDigits(regAmount) + ' (ยกเว้นค่าบัตร)';
-        } else if (cardAmount > 0) {
-          feeMessage = 'คิดค่าบัตร ' + toArabicDigits(cardAmount) + ' (ยกเว้นค่าสมัคร)';
-        } else {
-          feeMessage = 'ยกเว้นค่าสมัครและค่าบัตร (ไม่มีค่าธรรมเนียมแรกเข้า)';
-        }
-
-        showToast('เลือกแพ็กเกจ: นักเรียนใหม่', feeMessage, '🎓');
       } else if (type === 'renewal') {
         document.getElementById('btnPresetRenewal')?.classList.add('active');
         if (typeof setReceiptType === 'function') setReceiptType('tuition');
@@ -14600,19 +14579,16 @@
         if (chkDisc && chkDisc.checked) { chkDisc.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('discountNormal'); }
         
         if (typeof calcReceiptTotals === 'function') calcReceiptTotals();
-        showToast('เลือกแพ็กเกจ: ต่อคอร์ส', 'ยกเว้นค่าสมัครและค่าบัตร (เลือกส่วนลดเพิ่มเติมได้หากมีสิทธิ์)', '🔄');
       } else if (type === 'book') {
         document.getElementById('btnPresetBookOnly')?.classList.add('active');
         if (typeof setReceiptType === 'function') setReceiptType('textbook');
         if (typeof calcReceiptTotals === 'function') calcReceiptTotals();
-        showToast('เลือกแพ็กเกจ: ซื้อเฉพาะตำราเรียน', 'เปลี่ยนเป็นใบเสร็จซื้อหนังสือ', '📚');
       }
     }
 
     
     function openCardIssuerForStudent(studentId) {
       if (!studentId) return;
-      showToast('กำลังเตรียมข้อมูลบัตรนักศึกษา...', '', '🪪');
       switchNav('card');
       setTimeout(() => {
         const inp = document.getElementById('inpCardStudentSearch');
@@ -14627,7 +14603,6 @@
 
     function quickRenewStudentById(studentId) {
       if (!studentId) return;
-      showToast('กำลังเตรียมข้อมูลต่อคอร์สด่วน...', '', '⚡');
       openReceiptForStudent(studentId, true);
     }
 
@@ -15102,7 +15077,6 @@
       if (!studentId) return;
       const s = cachedSearchStudentsData.find(item => item.studentId === studentId);
       if (!s) {
-        showToast('กำลังโหลดข้อมูลนักเรียน...', '', '⏳');
         callGasApi('checkStatus', { query: studentId })
           .then(rec => {
             if (rec && rec.studentId) {
@@ -15271,7 +15245,6 @@
       }
 
       if (!student) {
-        showToast('กำลังค้นหาข้อมูลนักเรียน...', '', '⏳');
         callGasApi('checkStatus', { query: studentId })
           .then(res => {
             if (res && res.success && res.student) {
@@ -15460,8 +15433,6 @@
         btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังดำเนินการย้ายคอร์ส...';
       }
 
-      showToast('กำลังดำเนินการย้ายคอร์สเรียน...', '', '⏳');
-
       callGasApi('transferStudentCourse', payload, 'POST')
         .then(res => {
           if (btnSubmit) {
@@ -15529,12 +15500,8 @@
 
           closeTransferCourseModal();
 
-          let succMsg = 'ย้ายนักเรียนไปยังคอร์ส "' + escapeHtml(newCourse) + '" เรียบร้อยแล้ว';
-          if (res.receiptNo) {
-            succMsg += '<br><span style="color:var(--color-gold); font-size:13px;">ออกใบเสร็จค่าธรรมเนียมเลขที่: <strong>' + escapeHtml(res.receiptNo) + '</strong></span>';
-          }
-          showModal('ย้ายคอร์สเรียนสำเร็จ', succMsg, '✅');
-          showToast('ย้ายคอร์สสำเร็จ', newCourse, '🎓');
+          const rcptSuffix = res.receiptNo ? (' (ใบเสร็จ: ' + res.receiptNo + ')') : '';
+          showToast('ย้ายคอร์สเรียนสำเร็จ', newCourse + rcptSuffix, '🎓');
         })
         .catch(err => {
           if (btnSubmit) {
@@ -15572,7 +15539,6 @@
       }
 
       if (!student) {
-        showToast('กำลังโหลดข้อมูลนักเรียน...', '', '⏳');
         callGasApi('getStudentProfileAndHistory', { query: studentId })
           .then(res => {
             if (res && res.success && res.selectedStudent && res.selectedStudent.profile) {
@@ -15673,7 +15639,6 @@
 
       editStudentPhotoDataUri = canvas.toDataURL('image/jpeg', 0.88);
       stopEditStudentCamera();
-      showToast('ถ่ายภาพใหม่เรียบร้อย', 'อย่าลืมกดบันทึกข้อมูลเพื่ออัปเดต', '📸');
     }
 
     function handleEditStudentPhotoFile(e) {
@@ -15704,7 +15669,6 @@
           editStudentPhotoDataUri = canvas.toDataURL('image/jpeg', 0.88);
           stopEditStudentCamera();
           updateEditPhotoPreview(editStudentPhotoDataUri);
-          showToast('โหลดรูปภาพเรียบร้อย', 'อย่าลืมกดบันทึกข้อมูลเพื่ออัปเดต', '📁');
         };
         img.src = evt.target.result;
       };
@@ -15731,7 +15695,6 @@
       editStudentPhotoDataUri = '';
       stopEditStudentCamera();
       updateEditPhotoPreview('');
-      showToast('ลบรูปภาพแล้ว', 'กดบันทึกข้อมูลเพื่อยืนยัน', '🗑️');
     }
 
     function populateEditStudentForm(student) {
@@ -15847,7 +15810,6 @@
         confirmBorder: '#f87171',
         confirmColor: '#ffffff',
         onConfirm: () => {
-          showToast('กำลังลบข้อมูลนักเรียนและใบเสร็จ...', '', '🗑️');
           callGasApi('deleteStudent', { studentId })
             .then(res => {
               if (res && res.success) {
@@ -15902,7 +15864,6 @@
         confirmBg: 'linear-gradient(135deg, #ef4444, #b91c1c)',
         confirmBorder: '#ef4444',
         onConfirm: () => {
-          showToast('กำลังลบใบเสร็จ...', '', '🗑️');
           callGasApi('deleteReceipt', { receiptNo: receiptNo })
             .then(res => {
               if (res && res.success) {
@@ -15974,8 +15935,6 @@
         btnSubmit.disabled = true;
         btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
       }
-
-      showToast('กำลังบันทึกการแก้ไขข้อมูลนักเรียน...', '', '⏳');
 
       const payload = {
         studentId: studentId,
@@ -16572,7 +16531,6 @@
         try { calcReceiptTotals(); } catch(_) {}
       }
 
-      toast('กำลังบันทึก', 'บันทึกการตั้งค่าค่าธรรมเนียมและส่วนลดขึ้นระบบ...', 'info');
       callGasApi('saveFeeSettings', {
         regFee: items.regFee.amount,
         cardFee: items.cardFee.amount,
@@ -16975,8 +16933,6 @@
 
       const schedulePayload = { mode, startDate, endDate, noticeMsg };
 
-      showToast('กำลังบันทึกกำหนดการรับสมัครออนไลน์...', 'info');
-
       try {
         const res = await callGasApi('saveOnlineEnrollSchedule', { schedule: schedulePayload }, 'POST');
         if (res && res.success) {
@@ -17074,7 +17030,6 @@
         dates[t] = hid ? hid.value.trim() : (cachedTermOpenDates[t] || '');
       }
 
-      showToast('กำลังบันทึกวันเปิดเรียน...', '', '⏳');
       callGasApi('saveTermOpenDates', { termOpenDates: dates }, 'POST')
         .then(res => {
           if (res && res.success) {
@@ -17334,7 +17289,6 @@
       const btnSubmit = document.getElementById('btnSubmitCourse');
       if (btnSubmit) btnSubmit.disabled = true;
 
-      toast('กำลังบันทึก', 'บันทึกคอร์ส "' + name + '"...', 'info');
       callGasApi('saveCourse', { id, code: id, name, price, desc, materialType })
         .then(res => {
           if (btnSubmit) btnSubmit.disabled = false;
@@ -17364,7 +17318,6 @@
         confirmBg: '#dc2626',
         confirmBorder: '#ef4444',
         onConfirm: () => {
-          toast('กำลังลบ', 'กำลังลบคอร์ส "' + name + '"...', 'info');
           callGasApi('deleteCourse', { id })
             .then(res => {
               toast('สำเร็จ', 'ลบคอร์ส ' + name + ' เรียบร้อยแล้ว', '✓');
@@ -17377,7 +17330,6 @@
       });
     }
     function _unusedDeleteCourseItem(id, name) {
-      toast('กำลังลบ', 'กำลังลบคอร์ส "' + name + '"...', 'info');
       callGasApi('deleteCourse', { id })
         .then(res => {
           toast('สำเร็จ', 'ลบคอร์ส ' + name + ' เรียบร้อยแล้ว', '✓');
@@ -17471,7 +17423,6 @@
       const btnSubmit = document.getElementById('btnSubmitSchedule');
       if (btnSubmit) btnSubmit.disabled = true;
 
-      toast('กำลังบันทึก', 'บันทึกรอบเวลา "' + name + '"...', 'info');
       callGasApi('saveSchedule', { id, name, day_time: name, learningMode: 'Hybrid' })
         .then(res => {
           if (btnSubmit) btnSubmit.disabled = false;
@@ -17515,7 +17466,6 @@
         confirmBg: '#dc2626',
         confirmBorder: '#ef4444',
         onConfirm: () => {
-          toast('กำลังลบ', 'กำลังลบรอบเวลา "' + name + '"...', 'info');
           callGasApi('deleteSchedule', { id })
             .then(res => {
               toast('สำเร็จ', 'ลบรอบเวลา ' + name + ' เรียบร้อยแล้ว', '✓');
@@ -17528,7 +17478,6 @@
       });
     }
     function _unusedDeleteScheduleItem(id, name) {
-      toast('กำลังลบ', 'กำลังลบรอบเวลา "' + name + '"...', 'info');
       callGasApi('deleteSchedule', { id })
         .then(res => {
           toast('สำเร็จ', 'ลบรอบเวลา ' + name + ' เรียบร้อยแล้ว', '✓');
@@ -17552,7 +17501,6 @@
         iconBorder: '#0284c7',
         confirmText: 'เริ่มซิงค์รอบเวลา',
         onConfirm: () => {
-          showToast('กำลังปรับปรุงรอบเวลาเรียน...', '', '⏳');
           callGasApi('syncOfficialSchedules', {}, 'POST')
             .then(res => {
               if (res && res.schedules) {
@@ -17571,7 +17519,6 @@
       });
     }
     function _unusedSyncOfficialSchedulesList() {
-      showToast('กำลังปรับปรุงรอบเวลาเรียน...', '', '⏳');
       callGasApi('syncOfficialSchedules', {}, 'POST')
         .then(res => {
           if (res && res.schedules) {
@@ -17601,7 +17548,6 @@
         iconBorder: '#0284c7',
         confirmText: 'เริ่มซิงค์หลักสูตร',
         onConfirm: () => {
-          showToast('กำลังปรับปรุงรายการคอร์สเรียน...', '', '⏳');
           callGasApi('syncOfficialCourses', {}, 'POST')
             .then(res => {
               if (res && res.courses) {
@@ -17620,7 +17566,6 @@
       });
     }
     function _unusedSyncOfficialCoursesList() {
-      showToast('กำลังปรับปรุงรายการคอร์สเรียน...', '', '⏳');
       callGasApi('syncOfficialCourses', {}, 'POST')
         .then(res => {
           if (res && res.courses) {
@@ -17870,9 +17815,6 @@
       syncPresetUI(cardPrintPreset);
       applyCardCalibration(x, y);
       savePrinterPresetOffsets(cardPrintPreset, x, y);
-
-      const info = getCardPrinterPresetInfo(cardPrintPreset);
-      toast('เปลี่ยนรุ่นเครื่องพิมพ์บัตร', `${info.label} · โหลดระยะชดเชยอัตโนมัติ (X: ${x.toFixed(1)}, Y: ${y.toFixed(1)} มม.)`, '🖨️');
     }
 
     function syncPresetUI(preset) {
@@ -18132,10 +18074,6 @@
 
       // Parse name and populate form & preview
       resetCardFormFields();
-
-      if (!silent) {
-        toast('เลือกนักศึกษาเรียบร้อย', (st.fullName || st.studentId), '✓');
-      }
     }
 
     function resetCardFormFields() {
@@ -18216,7 +18154,6 @@
         if (currentCardStudent) {
           currentCardStudent.photoUrl = dataUrl;
         }
-        toast('เปลี่ยนรูปถ่ายสำเร็จ', 'อัปเดตรูปถ่ายบนบัตรสำเร็จ', '✓');
       };
       reader.readAsDataURL(file);
     }
@@ -18871,7 +18808,6 @@
             if (res.candidates.length === 1) {
               selectReceiptStudent(res.candidates[0].studentId);
               if (dropdown) dropdown.style.display = 'none';
-              showToast('พบข้อมูลนักเรียน!', res.candidates[0].fullName + ' (รหัส ' + toArabicDigits(res.candidates[0].studentId) + ')', '✓');
             } else {
               renderReceiptSearchResults(res.candidates, q);
             }
@@ -18985,8 +18921,6 @@
     function selectReceiptStudent(studentId) {
       const dropdown = document.getElementById('listRcptSearchResults');
       if (dropdown) dropdown.style.display = 'none';
-
-      showToast('กำลังโหลดข้อมูลและประวัตินักเรียน...', '', '⏳');
 
       callGasApi('getStudentProfileAndHistory', { query: studentId })
         .then(res => {
@@ -19190,8 +19124,6 @@
           fetchNextReceiptNumber();
           updateReceiptOpenDateByTerm();
           updateReceiptLivePreview();
-
-          showToast('โหลดข้อมูลนักเรียนสำเร็จ!', student.profile.fullName + ' (รหัส ' + toArabicDigits(student.profile.studentId) + ')', '✓');
         })
         .catch(err => {
           showToast('เกิดข้อผิดพลาดในการโหลดข้อมูลนักเรียน', err.message || '', '❌');
@@ -19231,7 +19163,6 @@
         selCourse.scrollIntoView({ behavior: 'smooth', block: 'center' });
         selCourse.focus();
       }
-      showToast('ต่อคอร์สเรียน', 'กรุณาเลือกคอร์สเรียนและรอบเวลาเพื่อต่อคอร์ส', '⚡');
     }
 
     /**
@@ -19349,9 +19280,7 @@
         txtAddr.value = regAddr;
         updateReceiptLivePreview();
       }
-      if (regAddr) {
-        showToast('ดึงที่อยู่ตามที่ลงทะเบียนไว้เรียบร้อย', regAddr, '✓');
-      } else {
+      if (!regAddr) {
         showToast('นักเรียนท่านนี้ไม่ได้ระบุที่อยู่ตอนลงทะเบียน', 'สามารถพิมพ์ที่อยู่จัดส่งลงในช่องนี้ได้โดยตรง', 'ℹ️');
       }
     }
@@ -20076,7 +20005,6 @@
 
       const btnSave = document.getElementById('btnSaveReceiptForm');
       setButtonLoading(btnSave, true, isCourseRenewal ? 'กำลังบันทึกต่อคอร์ส...' : 'กำลังออกใบเสร็จ...');
-      showToast(isCourseRenewal ? 'กำลังบันทึกการต่อคอร์สและออกใบเสร็จ...' : 'กำลังบันทึกใบเสร็จรับเงิน...', '', '💾');
 
       callGasApi(apiAction, payload, 'POST')
         .then(res => {
@@ -20176,7 +20104,6 @@
 
       const rcNo = (receiptCurrentOfficialNo && receiptCurrentOfficialNo !== '-') ? receiptCurrentOfficialNo : 'Preview';
       const isDigital = false;
-      showToast('กำลังประมวลผลรูปภาพใบเสร็จ...', 'ความละเอียดสูง 2x คมชัดพิเศษ', '⏳');
 
       try {
         if (typeof html2canvas === 'undefined') {
@@ -20573,7 +20500,6 @@
       }
 
       const rcptNo = currentModalSendRcptNo;
-      showToast('กำลังจัดส่งอีเมล...', 'เลขที่ ' + toArabicDigits(rcptNo), '⏳');
 
       callGasApi('sendReceiptEmail', { receiptNo: rcptNo, email: email }, 'POST')
         .then(res => {
@@ -21095,8 +21021,6 @@
         sendEmail: sendEmail
       };
 
-      showToast('กำลังบันทึกการแก้ไขใบเสร็จ...', '', '💾');
-
       callGasApi('updateReceipt', payload, 'POST')
         .then(res => {
           if (res && res.success) {
@@ -21291,7 +21215,6 @@
             }
 
             window.scrollTo({ top: 300, behavior: 'smooth' });
-            showToast('โหลดข้อมูลใบเสร็จ', 'เลขที่ ' + toArabicDigits(item.receiptNo), '📄');
           }
         });
     }
@@ -21340,7 +21263,6 @@
           const rev = window._activeReceiptRevisions[idx];
           const snap = rev.snapshot;
           previewReceiptFromHistory(snap.receipt_no || snap.receiptNo, snap);
-          showToast('กำลังดูฉบับก่อนหน้า', `ฉบับก่อนแก้ไขเมื่อ ${formatThaiDateTime(rev.createdAt)} (${escapeHtml(rev.editReason || '')})`, '🕒');
         }
       }
     }
@@ -21693,8 +21615,6 @@
         unit: unit
       };
 
-      showToast('กำลังบันทึกตำราเรียน...', '', '💾');
-
       callGasApi('saveTextbook', bookData, 'POST')
         .then(res => {
           if (res && res.success) {
@@ -21720,7 +21640,6 @@
         confirmBg: '#dc2626',
         confirmBorder: '#ef4444',
         onConfirm: () => {
-          showToast('กำลังลบตำราเรียน...', '', '🗑️');
           callGasApi('deleteTextbook', { id: bookId }, 'POST')
             .then(res => {
               if (res && res.success) {
@@ -21735,8 +21654,6 @@
       });
     }
     function _unusedDeleteTextbook(bookId) {
-
-      showToast('กำลังลบตำราเรียน...', '', '🗑️');
       callGasApi('deleteTextbook', { id: bookId }, 'POST')
         .then(res => {
           if (res && res.success) {
@@ -21960,12 +21877,10 @@
       // 1. หากรันอยู่ภายใน Iframe (เช่นบน GitHub Pages ocaacademy.github.io)
       // ส่งคำขอเปิดกล้องสแกน QR ไปยังหน้าแม่ window.top พร้อม MessageChannel
       if (window.top && window.top !== window) {
-        showToast('เปิดกล้องสแกน QR', 'กำลังเปิดกล้องสแกนเนอร์รับตำราเรียน...', '📷');
         window.ocaActiveQrChannel = new MessageChannel();
         window.ocaActiveQrChannel.port1.onmessage = (event) => {
           if (event.data && event.data.action === 'OCA_QR_SCANNED' && event.data.token) {
             handleScannedQrToken(event.data.token);
-            showToast('สแกน QR สำเร็จ', event.data.token, '✅');
           }
         };
         try {
@@ -22045,7 +21960,6 @@
 
           if (detectedText) {
             handleScannedQrToken(detectedText);
-            showToast('สแกน QR สำเร็จ', detectedText, '✅');
           } else {
             showToast('ตรวจไม่พบ QR ในภาพ', 'กรุณาถ่ายภาพให้ชัดเจน หรือพิมพ์เลขใบเสร็จ 8 หลัก', '⚠️');
           }
@@ -22145,8 +22059,6 @@
         showClaimAlertPopup('สแกนไม่สำเร็จ', 'ไม่พบรหัส QR Code หรือรหัสว่างเปล่า กรุณาสแกนใหม่อีกครั้ง หรือพิมพ์ค้นหาจากเลขที่ใบเสร็จ');
         return;
       }
-
-      showToast('กำลังตรวจสอบสิทธิ์รับตำรา...', '', 'info');
 
       function parseCourseMaterialItems(rawType, fallbackCourseTitle = '') {
         let s = (rawType || '').toString().trim();
@@ -22308,7 +22220,6 @@
               '<div style="font-size:12px; color:#38bdf8; margin-top:8px; font-weight:700; border-top:1px dashed rgba(56,189,248,0.4); padding-top:6px;">' +
               '  <i class="fa-solid fa-truck-fast" style="margin-right:4px;"></i> สถาบันจะจัดส่งพัสดุตามที่อยู่ข้างต้น ไม่ต้องจ่ายอุปกรณ์ที่เคาน์เตอร์' +
               '</div>';
-            showToast('จัดส่งทางพัสดุ', 'ไม่ต้องจ่ายของที่เคาน์เตอร์', 'info');
             const parsedDeliv = parseCourseMaterialItems(res.materialType, res.itemTitle);
             const delivItemsHtml = parsedDeliv.items.map((it) => '<div style="padding:2px 0;">• ' + escapeHtml(it) + '</div>').join('');
             const delivModalBody =
@@ -22367,7 +22278,6 @@
               '<div style="font-size:12px; color:#ef4444; margin-top:8px; font-weight:700; border-top:1px dashed rgba(239,68,68,0.4); padding-top:6px;">' +
               '  สแกนซ้ำไม่ได้: รหัส QR Code นี้ถูกใช้ตัดสิทธิ์ไปแล้ว' +
               '</div>';
-            showToast('แจ้งเตือน!', 'รับตำราไปแล้วเมื่อ ' + toArabicDigits(res.claimedAt), 'warn');
 
             const parsedClaim = parseCourseMaterialItems(res.materialType, res.itemTitle);
             const claimItemsHtml = parsedClaim.items.map((it) => '<div style="padding:2px 0;">• ' + escapeHtml(it) + '</div>').join('');
@@ -22417,7 +22327,6 @@
               '<div style="font-size:13px; color:#cbd5e1; margin-top:4px;">' +
               '  ' + (res.message || 'ใบเสร็จนี้เป็นการชำระค่าบัตรนักเรียน/บริการอื่นๆ เท่านั้น ไม่มีสิทธิ์ขอรับตำราเรียน') +
               '</div>';
-            showToast('ไม่มีสิทธิ์รับตำรา', res.message || '', 'error');
             showClaimAlertPopup(
               'ไม่มีสิทธิ์รับตำราเรียน',
               res.message || 'ใบเสร็จนี้เป็นการชำระค่าบัตรนักเรียนหรือบริการอื่นๆ เท่านั้น ไม่มีสิทธิ์ขอรับตำราเรียน',
@@ -22443,7 +22352,6 @@
               '  วันเวลาที่บันทึก: <strong>' + toArabicDigits(res.claimedAt) + '</strong><br>' +
               '  ผู้บันทึกจ่าย: <strong>' + (res.claimedBy || '') + '</strong>' +
               '</div>';
-            showToast('สแกนสำเร็จ!', 'บันทึกรับของให้ ' + res.buyerName + ' เรียบร้อย', '✓');
             loadTextbookClaimLogs();
             loadTextbooksData();
             loadReceiptsHistoryTable();
@@ -22496,7 +22404,6 @@
               '<div style="font-size:13px; color:#cbd5e1; margin-top:4px;">' +
               '  ' + ((res && res.message) ? res.message : 'รหัส QR ไม่ตรงกับฐานข้อมูลใบเสร็จในระบบ') +
               '</div>';
-            showToast('ไม่พบข้อมูล', res?.message || '', 'error');
             showClaimAlertPopup(
               'ไม่พบข้อมูลสิทธิ์ใบเสร็จนี้',
               ((res && res.message) ? res.message : 'รหัส QR หรือเลขที่ใบเสร็จไม่ตรงกับฐานข้อมูลในระบบ กรุณาตรวจสอบเลขที่ใบเสร็จ หรือสแกนจากใบเสร็จฉบับจริงอีกครั้ง'),
@@ -22506,7 +22413,6 @@
           }
         })
         .catch(err => {
-          showToast('เกิดข้อผิดพลาดในการตรวจสอบ', err.message || '', 'error');
           showClaimAlertPopup(
             'เกิดข้อผิดพลาดในการตรวจสอบ',
             err.message || 'ระบบไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
@@ -22611,7 +22517,6 @@
 
       // หากเปิดตรงๆ บน Google Apps Script (ไม่ใช่ผ่าน GitHub Pages) ให้พาไปยังหน้าเว็บ PWA ทันที
       if (!isUnderGitHub && (window.location.hostname.indexOf('google.com') !== -1 || window.location.hostname.indexOf('googleusercontent.com') !== -1)) {
-        try { showToast('กำลังนำคุณไปยังหน้าติดตั้งแอป OCA...', '', '📲'); } catch(e){}
         setTimeout(() => {
           if (window.top && window.top !== window) {
             window.top.location.href = pwaUrl;
@@ -22621,9 +22526,6 @@
         }, 500);
         return;
       }
-
-      // แสดง Toast แจ้งเตือนทันทีว่าได้รับคำสั่งกดปุ่มแล้ว
-      try { showToast('กำลังเตรียมหน้าต่างติดตั้งแอป...', '', '📲'); } catch(e){}
 
       // ส่งสัญญาณแจ้งหน้าต่างหลัก (GitHub Pages Shell) ทั้งสองทาง
       const msg = { action: 'TRIGGER_PWA_INSTALL' };
@@ -24644,7 +24546,6 @@
       }
 
       const statusText = newStatus === 'SHIPPED' ? 'จัดส่งแล้ว' : 'พิมพ์ใบปะหน้าแล้ว';
-      showToast('กำลังอัปเดตสถานะ...', `จำนวน ${toArabicDigits(ids.length)} รายการ`, '⏳');
 
       callGasApi('updateShippingStatus', { orderIds: ids, status: newStatus }, 'POST')
         .then(res => {
@@ -24737,7 +24638,6 @@
 
       closeEditShippingModal();
       filterShippingOrders();
-      showToast('กำลังบันทึกข้อมูลจัดส่ง...', `อัปเดตข้อมูลของ ${fullName}`, '⏳');
 
       // บันทึกข้อมูลผู้รับ, สถานะ และเลขพัสดุไปยังชีต
       callGasApi('updateShippingRecipient', { 
@@ -26140,7 +26040,6 @@
         iconColor: '#ef4444',
         confirmText: 'ลบบัญชีผู้ใช้',
         onConfirm: () => {
-          showToast('กำลังลบผู้ใช้งาน...', username, '⏳');
           callGasApi('deleteUser', { username: username }, 'POST')
             .then(res => {
               if (res && res.success) {
