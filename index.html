@@ -11548,7 +11548,7 @@
             grand_total: Number(params.grandTotal) || 0,
             payment_method: params.paymentMethod || 'โอนเงิน',
             claim_token: generatedClaimToken,
-            claim_status: params.claimStatus || (params.deliveryMethod === 'ส่งตำรา' ? 'จัดส่งตามที่อยู่' : 'PENDING'),
+            claim_status: params.claimStatus || ((String(params.materialType || '').includes('ไม่มี') || params.materialType === 'NONE' || params.materialType === 'บัตรนักเรียน') ? 'NO_BOOK_CLAIM' : (params.deliveryMethod === 'ส่งตำรา' ? 'จัดส่งตามที่อยู่' : 'PENDING')),
             material_type: params.materialType || 'หนังสือและสมุด',
             delivery_method: params.deliveryMethod || 'รับเอง',
             learning_mode: params.learningMode || 'Online',
@@ -11878,7 +11878,7 @@
             if (params.textbookOption === 'new') {
               try {
                 const { data: rList } = await _supabase.from('receipts')
-                  .select('receipt_no, notes, item_name')
+                  .select('receipt_no, edit_notes, item_name')
                   .eq('student_id', sid)
                   .eq('receipt_type', 'tuition')
                   .order('created_at', { ascending: false })
@@ -11886,7 +11886,7 @@
 
                 if (rList && rList.length > 0) {
                   const r = rList[0];
-                  const rNote = (r.notes || '') + ` [สิทธิ์ตำราใหม่: ${newCourse}]`;
+                  const rNote = (r.edit_notes || '') + ` [สิทธิ์ตำราใหม่: ${newCourse}]`;
                   await _supabase.from('receipts')
                     .update({
                       item_code: newCourse,
@@ -11895,7 +11895,7 @@
                       claimed_at: null,
                       claimed_by: null,
                       material_type: 'หนังสือและสมุด',
-                      notes: rNote
+                      edit_notes: rNote
                     })
                     .eq('receipt_no', r.receipt_no);
                 }
@@ -12159,9 +12159,10 @@
             }
           }
 
-          // Scenario 17 Fraud Protection: Card replacement or receipts with NO textbook entitlement
-          const isCardOnly = rcpt.receipt_type === 'card' || (rcpt.item_name && rcpt.item_name.includes('บัตร'));
-          const hasNoBook = rcpt.material_type === 'NONE' || rcpt.material_type === 'บัตรนักเรียน' || rcpt.claim_status === 'NO_BOOK_CLAIM';
+          // Scenario 17 Fraud Protection: Card replacement, transfer fee, or receipts with NO textbook entitlement
+          const matStr = String(rcpt.material_type || '').trim();
+          const isCardOnly = rcpt.receipt_type === 'card' || rcpt.receipt_type === 'OTHER' || (rcpt.item_name && (rcpt.item_name.includes('บัตร') || rcpt.item_name.includes('ค่าธรรมเนียมย้าย')));
+          const hasNoBook = matStr === 'NONE' || matStr === 'ไม่มี' || matStr === 'ไม่มีอุปกรณ์' || matStr.includes('ไม่มี') || matStr === 'บัตรนักเรียน' || rcpt.claim_status === 'NO_BOOK_CLAIM' || rcpt.claim_status === 'NOT_REQUIRED';
           if (isCardOnly || hasNoBook) {
             return {
               success: false,
@@ -28159,13 +28160,18 @@
       try {
         // 1. Update in Supabase receipts table
         if (_supabase) {
-          const { error: upErr } = await _supabase.from('receipts')
-            .update({ room: newRoom })
+          const { data: latestRcList } = await _supabase.from('receipts')
+            .select('id')
             .eq('student_id', sid)
             .order('created_at', { ascending: false })
             .limit(1);
 
-          if (upErr) console.warn('Supabase update room error:', upErr);
+          if (latestRcList && latestRcList.length > 0) {
+            const { error: upErr } = await _supabase.from('receipts')
+              .update({ room: newRoom })
+              .eq('id', latestRcList[0].id);
+            if (upErr) console.warn('Supabase update room error:', upErr);
+          }
         }
 
         // 2. Update memory caches
