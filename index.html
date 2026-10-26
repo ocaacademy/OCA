@@ -5196,145 +5196,215 @@
              =================================================================== -->
         <div id="tabCard" class="oca-view-tab">
           <!-- Page Header -->
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
             <div>
               <div class="chinese-calligraphy" style="font-size:24px; color:var(--color-gold);">學生證發行系統</div>
-              <h2 style="font-size:20px; font-weight:700; color:var(--text-main); margin:2px 0 0 0;">ออกบัตรประจำตัวนักศึกษา (Smart Card Issuer)</h2>
-              <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">รองรับเครื่องพิมพ์ POINMAN N15 และเครื่องพิมพ์บัตร CR-80 พิมพ์ตรงลงบัตรสำเร็จรูปพิมพ์ลายทอง</div>
+              <h2 style="font-size:20px; font-weight:700; color:var(--text-main); margin:2px 0 0 0;">ออกบัตรประจำตัวนักศึกษา (Express Smart Card Studio)</h2>
+              <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">เลือกนักศึกษา · แตะบัตร Mifare 1K บันทึกอัตโนมัติ · สั่งพิมพ์ตรงลงบัตรทองในคลิกเดียว</div>
             </div>
-            <div class="oca-card-actions-bar" style="display:flex; gap:10px;">
-              <button class="oca-btn-gold-submit" style="padding:9px 18px; font-size:13px; display:inline-flex; align-items:center; gap:6px;" onclick="openCardPrintModal()">
-                <i class="fa-solid fa-print"></i> พิมพ์บัตร
+            <div class="oca-card-actions-bar" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <button type="button" class="oca-btn-cancel-custom" style="height:38px; padding:0 14px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px; border:1px solid rgba(215,166,0,0.45); color:var(--color-gold); background:rgba(215,166,0,0.08);" onclick="openCardPrintModal()">
+                <i class="fa-solid fa-sliders"></i> ตั้งค่าเครื่องพิมพ์ / ชดเชยระยะ
+              </button>
+              <button type="button" class="oca-btn-gold-submit" style="height:38px; padding:0 20px; font-size:13px; border-radius:8px; display:inline-flex; align-items:center; gap:7px;" onclick="startExecutingCardPrint()">
+                <i class="fa-solid fa-print"></i> พิมพ์บัตรทันที (1-Click Print)
               </button>
             </div>
           </div>
 
-          <!-- Helper Note: Pre-printed Gold Card Stock -->
-          <div class="oca-helper-note" style="margin-bottom:16px;">
-            <div style="font-size:16px; line-height:1;"><i class="fa-solid fa-lightbulb" style="color:var(--color-gold);"></i></div>
-            <div style="font-size:12.5px;">
-              <strong>คำแนะนำการออกบัตรสำเร็จรูปพิมพ์ลายทอง (Pre-printed Gold Card Stock):</strong><br>
-              • <strong>เครื่องพิมพ์บัตรหลัก:</strong> <code>POINMAN N15 Card Printer</code> (รองรับ Zebra, Evolis, Fargo ด้วยการปรับชดเชยระยะ X, Y มม.)<br>
-              • <strong>การพิมพ์เฉพาะด้านหน้า:</strong> บัตรมีลายทอง โลโก้ และข้อความสถาบันพิมพ์สำเร็จรูปอยู่แล้ว ระบบจะพิมพ์เฉพาะ ชื่อ-นามสกุล, รหัสนักเรียน, รูปถ่าย และวันออกบัตร โดยไม่พิมพ์ทับลายทอง<br>
-              • <strong>Mifare 1K (13.56MHz):</strong> แตะบัตรบนเครื่องอ่าน RFID USB เพื่อผูกรหัส UID สำหรับเช็คชื่อเข้าชั้นเรียน
-            </div>
-          </div>
+          <input type="file" id="inpCardDirectPhotoUpload" accept="image/*" style="display:none;" onchange="handleCardPhotoFileSelected(event)">
 
-          <!-- Section 1: Search & Pick Student -->
-          <div class="oca-chart-card oca-card-search-section" style="margin-bottom:20px;">
-            <div class="oca-chart-header"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px; color:var(--color-gold);"></i>ค้นหาและเลือกนักศึกษา (ดึงข้อมูลนักศึกษาใหม่ & เก่าทุกปีการศึกษา)</div>
-            <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
-              <input type="text" id="inpCardStudentSearch" class="oca-input" style="flex:1 1 200px; min-width:0;" placeholder="พิมพ์รหัสนักเรียน, ชื่อ หรือรหัสบัตร..." onkeydown="if(event.key==='Enter') searchStudentsForCard()">
-              <button class="oca-btn-gold-submit" style="padding:10px 24px;" onclick="searchStudentsForCard()">
-                ค้นหา
-              </button>
-            </div>
-
-            <!-- Student Search Results Dropdown / Picker -->
-            <div id="cardSearchResultsBox" style="display:none; max-height:220px; overflow-y:auto; background:rgba(1, 29, 23, 0.95); border:1px solid var(--border-card); border-radius:8px; padding:8px; margin-bottom:14px;"></div>
-
-            <!-- Active Selected Student Info Bar -->
-            <div id="cardSelectedStudentBanner" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); border:1px solid var(--border-card); border-radius:10px; padding:14px 18px; flex-wrap:wrap; gap:14px;">
-              <div style="display:flex; align-items:center; gap:14px;">
-                <div id="cardStudentAvatarBox" style="width:52px; height:52px; border-radius:50%; border:2px solid var(--color-gold); overflow:hidden; background:#01231C; display:flex; align-items:center; justify-content:center;">
-                  <img id="cardStudentAvatarPreview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" alt="Avatar" style="width:100%; height:100%; object-fit:cover; display:none;">
-                  <svg id="cardStudentAvatarFallback" width="28" height="28" viewBox="0 0 24 24" fill="var(--color-gold)"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+          <!-- 2-Column Express Card Studio Grid -->
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:18px; align-items:start;">
+            
+            <!-- Left Column: Step 1 (Select Student), Step 2 (Mifare Auto-Bind), Step 3 (On-Card Quick Edit) -->
+            <div style="display:flex; flex-direction:column; gap:16px;">
+              
+              <!-- Section 1: Instant Search & Pick Student -->
+              <div class="oca-chart-card oca-card-search-section" style="margin-bottom:0; padding:18px;">
+                <div class="oca-chart-header" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+                  <span><i class="fa-solid fa-user-check" style="margin-right:6px; color:var(--color-gold);"></i>1. เลือกนักศึกษา (ค้นหาอัตโนมัติทันทีที่พิมพ์)</span>
+                  <span style="font-size:11px; color:#10b981; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); padding:2px 8px; border-radius:10px; font-weight:600;">Instant Search</span>
                 </div>
-                <div>
-                  <div style="font-size:16px; font-weight:700; color:var(--text-main);" id="cardSelStudentName">กรุณาเลือกนักศึกษาจากช่องค้นหา</div>
-                  <div style="font-size:13px; color:var(--color-gold);">
-                    รหัส: <strong id="cardSelStudentId">-</strong> | ปีการศึกษา: <span id="cardSelStudentYear">-</span> (<span id="cardSelStudentTerm">-</span>)
+                <div style="display:flex; gap:8px; margin-bottom:12px;">
+                  <div style="position:relative; flex:1; min-width:0;">
+                    <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--color-gold); font-size:13px; pointer-events:none;"></i>
+                    <input type="text" id="inpCardStudentSearch" class="oca-input" style="width:100%; padding-left:34px; height:38px; font-size:13px;" placeholder="พิมพ์ชื่อ, รหัสนักเรียน, เลขบัตร หรือคลิกเพื่อเลือกจากรายชื่อล่าสุด..." oninput="onCardStudentSearchInput(this.value)" onfocus="onCardStudentSearchInput(this.value)" onkeydown="if(event.key==='Enter') searchStudentsForCard()" autocomplete="off">
                   </div>
-                  <div style="font-size:12px; color:var(--text-muted);" id="cardSelStudentCourse">คอร์ส: -</div>
+                  <button type="button" class="oca-btn-gold-submit" style="height:38px; padding:0 16px; border-radius:8px; font-size:12.5px; flex-shrink:0;" onclick="searchStudentsForCard()">
+                    ค้นหา
+                  </button>
+                </div>
+
+                <!-- Student Search Results Dropdown / Picker -->
+                <div id="cardSearchResultsBox" style="display:none; max-height:200px; overflow-y:auto; background:rgba(1, 24, 19, 0.96); border:1px solid rgba(215,166,0,0.35); border-radius:8px; padding:8px; margin-bottom:12px;"></div>
+
+                <!-- Active Selected Student Info Bar -->
+                <div id="cardSelectedStudentBanner" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.35); border:1px solid var(--border-card); border-radius:10px; padding:12px 14px; flex-wrap:wrap; gap:10px;">
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <div id="cardStudentAvatarBox" style="width:48px; height:48px; border-radius:50%; border:2px solid var(--color-gold); overflow:hidden; background:#01231C; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;" onclick="document.getElementById('inpCardDirectPhotoUpload').click()" title="คลิกเพื่อเปลี่ยนรูปถ่ายบนบัตร">
+                      <img id="cardStudentAvatarPreview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" alt="Avatar" style="width:100%; height:100%; object-fit:cover; display:none;">
+                      <svg id="cardStudentAvatarFallback" width="26" height="26" viewBox="0 0 24 24" fill="var(--color-gold)"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    </div>
+                    <div>
+                      <div style="font-size:15px; font-weight:700; color:var(--text-main);" id="cardSelStudentName">กรุณาเลือกนักศึกษาจากช่องค้นหา</div>
+                      <div style="font-size:12.5px; color:var(--color-gold);">
+                        รหัส: <strong id="cardSelStudentId">-</strong> | ปีการศึกษา: <span id="cardSelStudentYear">-</span> (<span id="cardSelStudentTerm">-</span>)
+                      </div>
+                      <div style="font-size:11.5px; color:var(--text-muted);" id="cardSelStudentCourse">คอร์ส: -</div>
+                    </div>
+                  </div>
+                  <div style="text-align:right;">
+                    <span id="cardMifareStatusBadge" class="oca-badge-status-inactive">ยังไม่ได้ผูกบัตร</span>
+                  </div>
                 </div>
               </div>
-              <div style="text-align:right;">
-                <span id="cardMifareStatusBadge" class="oca-badge-status-inactive">ยังไม่ได้ผูกบัตร</span>
-              </div>
-            </div>
-          </div>
 
-          <!-- Section 2: Mifare 1K (13.56 MHz) UID Input & Save -->
-          <div class="oca-chart-card oca-card-uid-section" style="margin-bottom:20px;">
-            <div class="oca-chart-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-              <span><i class="fa-solid fa-id-card" style="margin-right:6px; color:var(--color-gold);"></i>บันทึกรหัสบัตร Mifare 1K (13.56 MHz)</span>
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#10b981; font-size:11.5px; font-weight:700; padding:2px 10px; border-radius:12px; display:inline-flex; align-items:center; gap:5px;"><i class="fa-solid fa-bolt"></i> รองรับระบบบันทึกอัตโนมัติ (Auto-Save)</span>
-                <span style="font-size:12px; color:var(--color-gold); font-weight:normal;">ISO/IEC 14443 Type A</span>
+              <!-- Section 2: Mifare 1K (13.56 MHz) UID Auto-Save -->
+              <div class="oca-chart-card oca-card-uid-section" style="margin-bottom:0; padding:18px;">
+                <div class="oca-chart-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+                  <span><i class="fa-solid fa-wifi" style="margin-right:6px; color:var(--color-gold);"></i>2. แตะบัตร Mifare 1K (13.56 MHz)</span>
+                  <span id="lblMifareAutoSaveStatus" style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#34d399; font-size:11px; font-weight:700; padding:2px 9px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;">
+                    <i class="fa-solid fa-bolt"></i> แตะบัตรแล้วบันทึกอัตโนมัติ (Auto-Save)
+                  </span>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                  <div style="flex:1; min-width:200px;">
+                    <input type="text" id="cardMifareUidInput" class="oca-input" placeholder="แตะบัตรบนเครื่องอ่าน RFID USB หรือพิมพ์รหัส UID..." style="height:38px; font-family:monospace; font-size:15px; font-weight:700; letter-spacing:1px; color:var(--color-gold-light);" oninput="onMifareUidChanged(this.value)" onkeydown="if(event.key==='Enter') saveCardMifareUid(true)">
+                  </div>
+                  <button type="button" class="oca-btn-gold-submit" style="height:38px; padding:0 16px; border-radius:8px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px; flex-shrink:0;" onclick="saveCardMifareUid()">
+                    <i class="fa-solid fa-floppy-disk"></i> บันทึก UID
+                  </button>
+                </div>
               </div>
+
+              <!-- Section 3: Quick On-Card Field & Photo Adjustment -->
+              <div class="oca-chart-card" style="margin-bottom:0; padding:18px;">
+                <div class="oca-chart-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
+                  <span><i class="fa-solid fa-pen-ruler" style="margin-right:6px; color:var(--color-gold);"></i>3. ปรับข้อความและรูปถ่ายบนหน้าบัตร (Real-time)</span>
+                  <div style="display:flex; gap:6px;">
+                    <button type="button" class="oca-btn-cancel-custom" style="padding:3px 9px; font-size:11px; border-radius:6px; color:var(--color-gold); border-color:rgba(215,166,0,0.4);" onclick="document.getElementById('inpCardDirectPhotoUpload').click()">
+                      <i class="fa-solid fa-camera"></i> เปลี่ยนรูปบนบัตร
+                    </button>
+                    <button type="button" class="oca-btn-cancel-custom" style="padding:3px 9px; font-size:11px; border-radius:6px;" onclick="resetCardFormFields()">
+                      <i class="fa-solid fa-rotate-left"></i> คืนค่าเดิม
+                    </button>
+                  </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                  <div class="oca-input-group">
+                    <label class="oca-label" for="inpCardFirstName" style="font-size:11.5px; margin-bottom:2px;">ชื่อ (บรรทัดที่ 1)</label>
+                    <input type="text" id="inpCardFirstName" class="oca-input" style="height:34px; font-size:12.5px;" placeholder="ชื่อ" oninput="onCardFieldValueChanged('firstName', this.value)">
+                  </div>
+                  <div class="oca-input-group">
+                    <label class="oca-label" for="inpCardLastName" style="font-size:11.5px; margin-bottom:2px;">นามสกุล (บรรทัดที่ 2)</label>
+                    <input type="text" id="inpCardLastName" class="oca-input" style="height:34px; font-size:12.5px;" placeholder="นามสกุล" oninput="onCardFieldValueChanged('lastName', this.value)">
+                  </div>
+                  <div class="oca-input-group">
+                    <label class="oca-label" for="inpCardStudentId" style="font-size:11.5px; margin-bottom:2px;">รหัสนักศึกษา (บรรทัดที่ 3)</label>
+                    <input type="text" id="inpCardStudentId" class="oca-input" style="height:34px; font-size:12.5px; font-family:monospace;" placeholder="6950001" oninput="onCardFieldValueChanged('studentId', this.value)">
+                  </div>
+                  <div class="oca-input-group">
+                    <label class="oca-label" for="inpCardIssueDate" style="font-size:11.5px; margin-bottom:2px;">วันออกบัตร (มุมขวาล่าง)</label>
+                    <input type="text" id="inpCardIssueDate" class="oca-input" style="height:34px; font-size:12.5px; font-family:monospace;" placeholder="วว/ดด/ปปปป" oninput="onCardFieldValueChanged('issueDate', this.value)">
+                  </div>
+                </div>
+              </div>
+
             </div>
-            <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-              <div style="flex:1; min-width:260px;">
-                <label class="oca-label" for="cardMifareUidInput" style="font-size:12px; margin-bottom:4px;">รหัสบัตร Mifare 1K (สแกนผ่านเครื่องอ่าน RFID USB หรือพิมพ์รหัส UID) *</label>
-                <input type="text" id="cardMifareUidInput" class="oca-input" placeholder="เช่น 04A1B2C3 หรือแตะบัตรบนเครื่องอ่าน RFID USB..." style="font-family:monospace; font-size:16px; font-weight:700; letter-spacing:1px; color:var(--color-gold-light);" oninput="onMifareUidChanged(this.value)" onkeydown="if(event.key==='Enter') saveCardMifareUid(true)">
+
+            <!-- Right Column: Live Pre-printed Gold Card Preview Stage + Auto-Calibration Bar -->
+            <div class="oca-card-preview-stage" id="cardPreviewStage" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px 18px; background:radial-gradient(circle at center, rgba(3, 51, 42, 0.5) 0%, rgba(1, 24, 19, 0.9) 100%); border:1px solid rgba(215,166,0,0.35); border-radius:14px; box-shadow:0 12px 36px rgba(0,0,0,0.35); margin-bottom:0;">
+              
+              <!-- Preview Top Info Bar -->
+              <div style="display:flex; justify-content:space-between; align-items:center; width:100%; max-width:480px; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
+                  <strong style="color:var(--color-gold); font-size:12.5px;">ตัวอย่างหน้าบัตรจริง (CR-80 85.6 × 54 มม.)</strong>
+                </div>
+                <span id="lblActiveCardPrinterBadge" style="background:rgba(215,166,0,0.15); border:1px solid rgba(215,166,0,0.45); color:#fde68a; font-size:11px; font-weight:700; padding:2px 9px; border-radius:10px; display:inline-flex; align-items:center; gap:4px; cursor:pointer;" onclick="openCardPrintModal()" title="คลิกเพื่อตั้งค่าเครื่องพิมพ์">
+                  <i class="fa-solid fa-print"></i> POINMAN N15 (X: 0.0, Y: 0.0 มม.)
+                </span>
               </div>
-              <div style="padding-top:20px;">
-                <button class="oca-btn-gold-submit" style="padding:10px 22px; display:inline-flex; align-items:center; gap:6px;" onclick="saveCardMifareUid()">
-                  <i class="fa-solid fa-floppy-disk"></i> บันทึกรหัสบัตรลงระบบ
+
+              <!-- FRONT SIDE CARD (CR80) -->
+              <div class="oca-cr80-card-wrapper" id="wrapCardFront">
+                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.jpg') center/cover no-repeat; box-sizing:border-box;">
+                  
+                  <!-- Gloss Sheen Overlay for realistic PVC card look -->
+                  <div class="card-gloss-sheen" style="position:absolute; inset:0; background:linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.18) 100%); pointer-events:none; z-index:3;"></div>
+
+                  <!-- First Name (Line 1) -->
+                  <div id="cardFrontFirstName" class="cr80-dynamic-text" style="position:absolute; left:22.0%; top:28.5%; font-size:19px; font-weight:800; color:#0f172a; line-height:1.2; font-family:'Prompt', sans-serif; letter-spacing:0.3px; z-index:2; transition:transform 0.12s ease;">
+                    -
+                  </div>
+
+                  <!-- Last Name (Line 2) -->
+                  <div id="cardFrontLastName" class="cr80-dynamic-text" style="position:absolute; left:22.0%; top:41.0%; font-size:19px; font-weight:800; color:#0f172a; line-height:1.2; font-family:'Prompt', sans-serif; letter-spacing:0.3px; z-index:2; transition:transform 0.12s ease;">
+                    -
+                  </div>
+
+                  <!-- Student ID (Line 3) -->
+                  <div id="cardFrontStudentId" class="cr80-dynamic-text" style="position:absolute; left:22.0%; top:53.5%; font-size:20px; font-weight:800; color:#0f172a; line-height:1.2; font-family:'Prompt', monospace, sans-serif; letter-spacing:1px; z-index:2; transition:transform 0.12s ease;">
+                    -
+                  </div>
+
+                  <!-- Student Photo (100% Border-Free Fit + Click to Change Photo) -->
+                  <div id="cardFrontPhotoBox" onclick="document.getElementById('inpCardDirectPhotoUpload').click()" title="คลิกเพื่ออัปโหลดหรือเปลี่ยนรูปถ่ายบนบัตร" style="position:absolute; left:64.0%; top:26.5%; width:30.8%; height:55.8%; border-radius:0 !important; border:none !important; background:transparent !important; overflow:hidden; display:flex; align-items:center; justify-content:center; box-shadow:none; z-index:2; cursor:pointer; transition:transform 0.12s ease;">
+                    <img id="cardFrontPhoto" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" alt="Student Photo" style="width:100%; height:100%; object-fit:cover; display:none; border:none !important; border-radius:0 !important; background:transparent;">
+                    <div id="cardFrontPhotoFallback" style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(2, 35, 28, 0.55); border:1.5px dashed rgba(215, 166, 0, 0.45); color:var(--color-gold); font-size:11.5px; text-align:center; padding:6px; box-sizing:border-box;">
+                      <i class="fa-solid fa-camera" style="font-size:22px; margin-bottom:4px; color:var(--color-gold);"></i>
+                      <span>คลิกเพื่อใส่รูปถ่าย</span>
+                    </div>
+                  </div>
+
+                  <!-- Issue Date -->
+                  <div id="cardFrontIssueDate" class="cr80-dynamic-text" style="position:absolute; left:75.5%; top:85.0%; font-size:11.5px; font-weight:700; color:#0f172a; font-family:'Prompt', monospace, sans-serif; line-height:1.2; z-index:2; transition:transform 0.12s ease;">
+                    -
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- Inline Auto-Calibration & Printer Preset Bar -->
+              <div style="width:100%; max-width:480px; margin-top:14px; background:rgba(0,0,0,0.35); border:1px solid rgba(215,166,0,0.28); border-radius:10px; padding:10px 12px; box-sizing:border-box;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+                  <div style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--color-gold);">
+                    <i class="fa-solid fa-arrows-up-down-left-right"></i> ชดเชยระยะพิมพ์ละเอียด (Auto-Save ผูกตามรุ่นเครื่องพิมพ์)
+                  </div>
+                  <span id="lblCardCalibSaveStatus" style="font-size:10.5px; color:#34d399; font-weight:600;">
+                    ✓ บันทึกอัตโนมัติแล้ว
+                  </span>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+                  <select id="selQuickCardPrinterPreset" class="oca-input" style="height:30px; padding:0 8px; font-size:11.5px; width:auto; flex:1; min-width:155px;" onchange="selectCardPrinterPreset(this.value)">
+                    <option value="poinman_n15">POINMAN N15 (เครื่องหลัก)</option>
+                    <option value="zebra_zxp">Zebra ZXP 3 / ZC300</option>
+                    <option value="evolis">Evolis Zenius / Primacy</option>
+                    <option value="fargo_dtc">Fargo DTC Series</option>
+                    <option value="generic_cr80">เครื่องพิมพ์ CR-80 ทั่วไป</option>
+                  </select>
+                  <div style="display:inline-flex; align-items:center; gap:4px;">
+                    <button type="button" class="oca-btn-cancel-custom" style="height:28px; padding:0 7px; font-size:11px; border-radius:6px;" onclick="nudgeCardCalibration(-0.2, 0)" title="ขยับซ้าย 0.2 มม.">◀ ซ้าย</button>
+                    <button type="button" class="oca-btn-cancel-custom" style="height:28px; padding:0 7px; font-size:11px; border-radius:6px;" onclick="nudgeCardCalibration(0.2, 0)" title="ขยับขวา 0.2 มม.">ขวา ▶</button>
+                    <button type="button" class="oca-btn-cancel-custom" style="height:28px; padding:0 7px; font-size:11px; border-radius:6px;" onclick="nudgeCardCalibration(0, -0.2)" title="ขยับขึ้น 0.2 มม.">▲ ขึ้น</button>
+                    <button type="button" class="oca-btn-cancel-custom" style="height:28px; padding:0 7px; font-size:11px; border-radius:6px;" onclick="nudgeCardCalibration(0, 0.2)" title="ขยับลง 0.2 มม.">▼ ลง</button>
+                    <button type="button" class="oca-btn-cancel-custom" style="height:28px; padding:0 7px; font-size:11px; border-radius:6px; color:var(--color-gold);" onclick="resetCardCalibration()" title="คืนค่าเริ่มต้นของเครื่องรุ่นนี้">↺ 0.0</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Action Buttons below card -->
+              <div style="margin-top:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center; width:100%; max-width:480px;">
+                <button type="button" class="oca-btn-gold-submit" style="flex:1; height:42px; padding:0 20px; border-radius:9px; font-size:14px; display:inline-flex; align-items:center; justify-content:center; gap:8px;" onclick="startExecutingCardPrint()">
+                  <i class="fa-solid fa-print"></i> พิมพ์บัตรทันที (Print Now)
+                </button>
+                <button type="button" class="oca-btn-cancel-custom" style="height:42px; padding:0 14px; border-radius:9px; font-size:12.5px; display:inline-flex; align-items:center; justify-content:center; gap:6px;" onclick="openCardPrintModal()" title="เปิดหน้าต่างตั้งค่าละเอียดและคู่มือไดรเวอร์">
+                  <i class="fa-solid fa-gear"></i> ตั้งค่าละเอียด
                 </button>
               </div>
             </div>
-          </div>
 
-          <!-- Section 4: Live Pre-printed Gold Card Preview Stage -->
-          <div class="oca-card-preview-stage" id="cardPreviewStage" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:26px 20px; background:radial-gradient(circle at center, rgba(3, 51, 42, 0.5) 0%, rgba(1, 24, 19, 0.9) 100%); border:1px solid rgba(215,166,0,0.35); border-radius:14px; box-shadow:0 12px 36px rgba(0,0,0,0.35); margin-bottom:20px;">
-            
-            <!-- Preview Top Info Bar -->
-            <div style="display:flex; justify-content:space-between; align-items:center; width:100%; max-width:480px; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:#10b981; box-shadow:0 0 8px #10b981;"></span>
-                <strong style="color:var(--color-gold); font-size:13px;">ตัวอย่างจำลองหน้าบัตรจริง (CR-80 85.6 × 54 มม.)</strong>
-              </div>
-              <span style="background:rgba(16,185,129,0.18); border:1px solid #10b981; color:#a7f3d0; font-size:11px; font-weight:700; padding:3px 10px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;">
-                <i class="fa-solid fa-circle-check"></i> ไร้ขอบขาว 100% (Border-Free)
-              </span>
-            </div>
-
-            <!-- FRONT SIDE CARD (CR80) -->
-            <div class="oca-cr80-card-wrapper" id="wrapCardFront">
-              <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.jpg') center/cover no-repeat; box-sizing:border-box;">
-                
-                <!-- Gloss Sheen Overlay for realistic PVC card look -->
-                <div class="card-gloss-sheen" style="position:absolute; inset:0; background:linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.18) 100%); pointer-events:none; z-index:3;"></div>
-
-                <!-- First Name (Line 1) -->
-                <div id="cardFrontFirstName" class="cr80-dynamic-text" style="position:absolute; left:22.0%; top:28.5%; font-size:19px; font-weight:800; color:#0f172a; line-height:1.2; font-family:'Prompt', sans-serif; letter-spacing:0.3px; z-index:2;">
-                  -
-                </div>
-
-                <!-- Last Name (Line 2) -->
-                <div id="cardFrontLastName" class="cr80-dynamic-text" style="position:absolute; left:22.0%; top:41.0%; font-size:19px; font-weight:800; color:#0f172a; line-height:1.2; font-family:'Prompt', sans-serif; letter-spacing:0.3px; z-index:2;">
-                  -
-                </div>
-
-                <!-- Student ID (Line 3) -->
-                <div id="cardFrontStudentId" class="cr80-dynamic-text" style="position:absolute; left:22.0%; top:53.5%; font-size:20px; font-weight:800; color:#0f172a; line-height:1.2; font-family:'Prompt', monospace, sans-serif; letter-spacing:1px; z-index:2;">
-                  -
-                </div>
-
-                <!-- Student Photo (100% Border-Free Fit) -->
-                <div id="cardFrontPhotoBox" style="position:absolute; left:64.0%; top:26.5%; width:30.8%; height:55.8%; border-radius:0 !important; border:none !important; background:transparent !important; overflow:hidden; display:flex; align-items:center; justify-content:center; box-shadow:none; z-index:2;">
-                  <img id="cardFrontPhoto" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" alt="Student Photo" style="width:100%; height:100%; object-fit:cover; display:none; border:none !important; border-radius:0 !important; background:transparent;">
-                  <div id="cardFrontPhotoFallback" style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(2, 35, 28, 0.55); border:1.5px dashed rgba(215, 166, 0, 0.45); color:var(--color-gold); font-size:11.5px; text-align:center; padding:6px; box-sizing:border-box;">
-                    <i class="fa-solid fa-camera" style="font-size:24px; margin-bottom:5px; color:var(--color-gold);"></i>
-                    <span>ไม่มีรูปถ่าย</span>
-                  </div>
-                </div>
-
-                <!-- Issue Date -->
-                <div id="cardFrontIssueDate" class="cr80-dynamic-text" style="position:absolute; left:75.5%; top:85.0%; font-size:11.5px; font-weight:700; color:#0f172a; font-family:'Prompt', monospace, sans-serif; line-height:1.2; z-index:2;">
-                  -
-                </div>
-
-              </div>
-            </div>
-
-            <!-- Action Buttons below card -->
-            <div style="margin-top:18px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center;">
-              <button type="button" class="oca-btn-gold-submit" style="padding:10px 28px; font-size:14px; display:inline-flex; align-items:center; gap:8px;" onclick="openCardPrintModal()">
-                <i class="fa-solid fa-print"></i> สั่งพิมพ์บัตรด้วย POINMAN N15 (Print Card)
-              </button>
-            </div>
           </div>
         </div>
 
@@ -9125,30 +9195,41 @@
                 </div>
               </div>
 
-              <!-- Setting 3: Micro-Calibration (ปรับแต่งระยะพิมพ์ละเอียด มม.) -->
+              <!-- Setting 3: Micro-Calibration (ปรับแต่งระยะพิมพ์ละเอียด มม. ผูกตามรุ่นเครื่องพิมพ์) -->
               <div style="background:rgba(215,166,0,0.06); border:1px solid rgba(215,166,0,0.25); border-radius:10px; padding:12px 16px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
                   <div style="font-weight:700; color:var(--color-gold); font-size:12.5px; display:flex; align-items:center; gap:6px;">
-                    <i class="fa-solid fa-arrows-up-down-left-right"></i> ระบบปรับชดเชยระยะพิมพ์ละเอียด (Micro-Calibration)
+                    <i class="fa-solid fa-arrows-up-down-left-right"></i> ระบบปรับชดเชยระยะพิมพ์ละเอียด (Auto-Calibration Preset)
                   </div>
-                  <button type="button" class="oca-btn-secondary" style="padding:3px 10px; font-size:11.5px;" onclick="resetCardCalibration()">
-                    คืนค่า (0.0, 0.0)
-                  </button>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span id="lblModalCardCalibSaveStatus" style="font-size:11px; color:#34d399; font-weight:600;">✓ บันทึกอัตโนมัติตามรุ่นเครื่องพิมพ์</span>
+                    <button type="button" class="oca-btn-secondary" style="padding:3px 10px; font-size:11.5px;" onclick="resetCardCalibration()">
+                      คืนค่าเริ่มต้นรุ่นนี้
+                    </button>
+                  </div>
                 </div>
-                <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
-                  <div style="display:flex; align-items:center; gap:6px;">
-                    <label style="font-size:12px; color:var(--text-muted);">แกน X (แนวนอน):</label>
-                    <input type="number" id="inpCardCalibX" step="0.1" value="0.0" style="width:75px; text-align:center; padding:4px 6px; border-radius:6px; background:rgba(0,0,0,0.4); border:1px solid var(--border-card); color:#FFFFFF; font-weight:700; font-family:monospace;" oninput="onCardCalibOffsetChanged()">
-                    <span style="font-size:12px; color:var(--text-muted);">มม.</span>
+                <div style="display:flex; gap:14px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+                  <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <label style="font-size:12px; color:var(--text-muted);">แกน X (แนวนอน):</label>
+                      <input type="number" id="inpCardCalibX" step="0.1" value="0.0" style="width:72px; text-align:center; padding:4px 6px; border-radius:6px; background:rgba(0,0,0,0.4); border:1px solid var(--border-card); color:#FFFFFF; font-weight:700; font-family:monospace;" oninput="onCardCalibOffsetChanged()">
+                      <span style="font-size:12px; color:var(--text-muted);">มม.</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <label style="font-size:12px; color:var(--text-muted);">แกน Y (แนวตั้ง):</label>
+                      <input type="number" id="inpCardCalibY" step="0.1" value="0.0" style="width:72px; text-align:center; padding:4px 6px; border-radius:6px; background:rgba(0,0,0,0.4); border:1px solid var(--border-card); color:#FFFFFF; font-weight:700; font-family:monospace;" oninput="onCardCalibOffsetChanged()">
+                      <span style="font-size:12px; color:var(--text-muted);">มม.</span>
+                    </div>
                   </div>
-                  <div style="display:flex; align-items:center; gap:6px;">
-                    <label style="font-size:12px; color:var(--text-muted);">แกน Y (แนวตั้ง):</label>
-                    <input type="number" id="inpCardCalibY" step="0.1" value="0.0" style="width:75px; text-align:center; padding:4px 6px; border-radius:6px; background:rgba(0,0,0,0.4); border:1px solid var(--border-card); color:#FFFFFF; font-weight:700; font-family:monospace;" oninput="onCardCalibOffsetChanged()">
-                    <span style="font-size:12px; color:var(--text-muted);">มม.</span>
+                  <div style="display:inline-flex; align-items:center; gap:4px;">
+                    <button type="button" class="oca-btn-cancel-custom" style="height:28px; padding:0 8px; font-size:11px; border-radius:6px;" onclick="nudgeCardCalibration(-0.2, 0)">◀ ซ้าย</button>
+                    <button type="button" class="oca-btn-cancel-custom" style="height:28px; padding:0 8px; font-size:11px; border-radius:6px;" onclick="nudgeCardCalibration(0.2, 0)">ขวา ▶</button>
+                    <button type="button" class="oca-btn-cancel-custom" style="height:28px; padding:0 8px; font-size:11px; border-radius:6px;" onclick="nudgeCardCalibration(0, -0.2)">▲ ขึ้น</button>
+                    <button type="button" class="oca-btn-cancel-custom" style="height:28px; padding:0 8px; font-size:11px; border-radius:6px;" onclick="nudgeCardCalibration(0, 0.2)">▼ ลง</button>
                   </div>
                 </div>
                 <div style="font-size:11.5px; color:var(--text-muted); margin-top:6px;">
-                  * ชดเชยระยะคลาดเคลื่อนของลูกกลิ้งฟีดบัตร โดยค่าจะถูกบันทึกลงในเครื่องนี้โดยอัตโนมัติ
+                  * เมื่อเลือกเครื่องพิมพ์หรือแก้ไขตัวเลข ระบบจะโหลด/บันทึกค่าชดเชยแยกตามรุ่นเครื่องพิมพ์ลงในเครื่องและระบบ Cloud อัตโนมัติทันที
                 </div>
               </div>
 
@@ -11973,7 +12054,7 @@
         }
 
         // --- 11. UPDATE STUDENT PROFILE & CARD UID ---
-        if (action === 'updateStudentCardUid') {
+        if (action === 'updateStudentCardUid' || action === 'saveStudentSmartCardUid') {
           const targetUid = (params.smartCardUid || params.cardUid || '').trim().toUpperCase();
           const targetId = extractCleanId(params.studentId);
           if (!targetId) return { success: false, message: 'ไม่พบรหัสนักศึกษา' };
@@ -17565,10 +17646,133 @@
     let cardSideView = 'front';
     let cardPrintOrient = 'landscape';
     let cardPrintSides = 'front';
+    let _cardCalibCloudTimer = null;
+    let _mifareAutoSaveTimer = null;
 
-    function initCardIssuer() {
+    const CARD_PRINTER_PRESET_DEFAULTS = {
+      poinman_n15: { label: 'POINMAN N15', x: 0.0, y: 0.0 },
+      zebra_zxp:   { label: 'Zebra ZXP/ZC', x: 0.2, y: -0.2 },
+      evolis:      { label: 'Evolis Zenius', x: -0.2, y: 0.1 },
+      fargo_dtc:   { label: 'Fargo DTC', x: 0.3, y: 0.0 },
+      generic_cr80:{ label: 'CR-80 ทั่วไป', x: 0.0, y: 0.0 }
+    };
+
+    function getCardPrinterPresetInfo(preset) {
+      return CARD_PRINTER_PRESET_DEFAULTS[preset] || CARD_PRINTER_PRESET_DEFAULTS.poinman_n15;
+    }
+
+    function getSavedPrinterPresetOffsets(preset) {
+      const def = getCardPrinterPresetInfo(preset);
+      try {
+        const rawMap = localStorage.getItem('oca_card_calib_map');
+        if (rawMap) {
+          const parsed = JSON.parse(rawMap);
+          if (parsed && parsed[preset] && typeof parsed[preset].x === 'number' && typeof parsed[preset].y === 'number') {
+            return { x: parsed[preset].x, y: parsed[preset].y };
+          }
+        }
+        const legacyX = localStorage.getItem('oca_card_x_offset_' + preset);
+        const legacyY = localStorage.getItem('oca_card_y_offset_' + preset);
+        if (legacyX !== null && legacyY !== null) {
+          return { x: parseFloat(legacyX) || 0, y: parseFloat(legacyY) || 0 };
+        }
+        if (preset === 'poinman_n15') {
+          const gx = localStorage.getItem('oca_card_x_offset');
+          const gy = localStorage.getItem('oca_card_y_offset');
+          if (gx !== null && gy !== null) {
+            return { x: parseFloat(gx) || 0, y: parseFloat(gy) || 0 };
+          }
+        }
+      } catch (_) {}
+      return { x: def.x, y: def.y };
+    }
+
+    function savePrinterPresetOffsets(preset, x, y) {
+      const cleanX = Number((parseFloat(x) || 0).toFixed(1));
+      const cleanY = Number((parseFloat(y) || 0).toFixed(1));
+      const info = getCardPrinterPresetInfo(preset);
+
+      try {
+        localStorage.setItem('oca_card_printer_preset', preset);
+        localStorage.setItem('oca_card_x_offset', cleanX.toFixed(1));
+        localStorage.setItem('oca_card_y_offset', cleanY.toFixed(1));
+        localStorage.setItem('oca_card_x_offset_' + preset, cleanX.toFixed(1));
+        localStorage.setItem('oca_card_y_offset_' + preset, cleanY.toFixed(1));
+
+        let map = {};
+        try { map = JSON.parse(localStorage.getItem('oca_card_calib_map') || '{}') || {}; } catch (_) {}
+        map[preset] = { x: cleanX, y: cleanY, updatedAt: new Date().toISOString() };
+        map._activePreset = preset;
+        localStorage.setItem('oca_card_calib_map', JSON.stringify(map));
+
+        const statusText = `✓ บันทึกอัตโนมัติ (${info.label}: X ${cleanX.toFixed(1)}, Y ${cleanY.toFixed(1)} มม.)`;
+        const lbl1 = document.getElementById('lblCardCalibSaveStatus');
+        const lbl2 = document.getElementById('lblModalCardCalibSaveStatus');
+        if (lbl1) lbl1.textContent = statusText;
+        if (lbl2) lbl2.textContent = statusText;
+
+        if (_cardCalibCloudTimer) clearTimeout(_cardCalibCloudTimer);
+        _cardCalibCloudTimer = setTimeout(async () => {
+          try {
+            if (typeof _supabase !== 'undefined' && _supabase) {
+              await _supabase.from('settings').upsert(
+                { key: 'card_printer_calibration_json', value: JSON.stringify(map) },
+                { onConflict: 'key' }
+              );
+            }
+          } catch (_) {}
+        }, 650);
+      } catch (_) {}
+    }
+
+    async function initCardIssuer() {
       loadCardCalibrationSettings();
       updateCardDefaultIssueDate();
+
+      // Auto-select latest student immediately so card preview is ready in 0ms
+      if (Array.isArray(cachedSearchStudentsData) && cachedSearchStudentsData.length > 0) {
+        if (!currentCardStudent) {
+          selectStudentForCard(cachedSearchStudentsData[0], true);
+        }
+      } else {
+        callGasApi('searchStudentsForCard', { query: '' })
+          .then(res => {
+            const list = (res && res.students) || [];
+            if (list.length > 0) {
+              if (!Array.isArray(cachedSearchStudentsData) || cachedSearchStudentsData.length === 0) {
+                cachedSearchStudentsData = list;
+              }
+              if (!currentCardStudent) {
+                selectStudentForCard(list[0], true);
+              }
+            }
+          })
+          .catch(() => {});
+      }
+
+      // Sync from Cloud settings if available
+      try {
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          const { data } = await _supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'card_printer_calibration_json')
+            .maybeSingle();
+          if (data && data.value) {
+            const cloudMap = JSON.parse(data.value);
+            if (cloudMap && typeof cloudMap === 'object') {
+              const localRaw = localStorage.getItem('oca_card_calib_map');
+              if (!localRaw) {
+                localStorage.setItem('oca_card_calib_map', JSON.stringify(cloudMap));
+                if (cloudMap._activePreset) {
+                  localStorage.setItem('oca_card_printer_preset', cloudMap._activePreset);
+                }
+                loadCardCalibrationSettings();
+              }
+            }
+          }
+        }
+      } catch (_) {}
     }
 
     function loadCardTemplatesFromDrive() {
@@ -17578,26 +17782,43 @@
     function loadCardCalibrationSettings() {
       try {
         const savedPreset = localStorage.getItem('oca_card_printer_preset') || 'poinman_n15';
-        const savedX = localStorage.getItem('oca_card_x_offset') || '0.0';
-        const savedY = localStorage.getItem('oca_card_y_offset') || '0.0';
-
         cardPrintPreset = savedPreset;
-        applyCardCalibration(parseFloat(savedX) || 0, parseFloat(savedY) || 0);
+        const { x, y } = getSavedPrinterPresetOffsets(savedPreset);
 
         const inpX = document.getElementById('inpCardCalibX');
         const inpY = document.getElementById('inpCardCalibY');
-        if (inpX) inpX.value = savedX;
-        if (inpY) inpY.value = savedY;
+        if (inpX) inpX.value = x.toFixed(1);
+        if (inpY) inpY.value = y.toFixed(1);
 
         syncPresetUI(savedPreset);
+        applyCardCalibration(x, y);
       } catch (err) {
         console.warn('loadCardCalibrationSettings error:', err);
       }
     }
 
     function applyCardCalibration(x, y) {
-      document.documentElement.style.setProperty('--card-x-offset', `${x}mm`);
-      document.documentElement.style.setProperty('--card-y-offset', `${y}mm`);
+      const numX = parseFloat(x) || 0;
+      const numY = parseFloat(y) || 0;
+      document.documentElement.style.setProperty('--card-x-offset', `${numX}mm`);
+      document.documentElement.style.setProperty('--card-y-offset', `${numY}mm`);
+
+      // Live visual feedback on 480px preview card (480px / 85.6mm = 5.6075 px/mm)
+      const pxX = (numX * 5.6075).toFixed(1);
+      const pxY = (numY * 5.6075).toFixed(1);
+      const previewIds = ['cardFrontFirstName', 'cardFrontLastName', 'cardFrontStudentId', 'cardFrontPhotoBox', 'cardFrontIssueDate'];
+      previewIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.style.transform = (numX === 0 && numY === 0) ? '' : `translate(${pxX}px, ${pxY}px)`;
+        }
+      });
+
+      const info = getCardPrinterPresetInfo(cardPrintPreset);
+      const badge = document.getElementById('lblActiveCardPrinterBadge');
+      if (badge) {
+        badge.innerHTML = `<i class="fa-solid fa-print"></i> ${escapeHtml(info.label)} (X: ${numX.toFixed(1)}, Y: ${numY.toFixed(1)} มม.)`;
+      }
     }
 
     function onCardCalibOffsetChanged() {
@@ -17607,32 +17828,51 @@
       const y = parseFloat(inpY ? inpY.value : 0) || 0;
 
       applyCardCalibration(x, y);
-      try {
-        localStorage.setItem('oca_card_x_offset', x.toFixed(1));
-        localStorage.setItem('oca_card_y_offset', y.toFixed(1));
-      } catch (_) {}
+      savePrinterPresetOffsets(cardPrintPreset, x, y);
+    }
+
+    function nudgeCardCalibration(dx, dy) {
+      const inpX = document.getElementById('inpCardCalibX');
+      const inpY = document.getElementById('inpCardCalibY');
+      const cur = getSavedPrinterPresetOffsets(cardPrintPreset);
+      const curX = inpX ? (parseFloat(inpX.value) || 0) : cur.x;
+      const curY = inpY ? (parseFloat(inpY.value) || 0) : cur.y;
+      const nextX = Number((curX + dx).toFixed(1));
+      const nextY = Number((curY + dy).toFixed(1));
+
+      if (inpX) inpX.value = nextX.toFixed(1);
+      if (inpY) inpY.value = nextY.toFixed(1);
+
+      applyCardCalibration(nextX, nextY);
+      savePrinterPresetOffsets(cardPrintPreset, nextX, nextY);
     }
 
     function resetCardCalibration() {
+      const def = getCardPrinterPresetInfo(cardPrintPreset);
       const inpX = document.getElementById('inpCardCalibX');
       const inpY = document.getElementById('inpCardCalibY');
-      if (inpX) inpX.value = '0.0';
-      if (inpY) inpY.value = '0.0';
+      if (inpX) inpX.value = def.x.toFixed(1);
+      if (inpY) inpY.value = def.y.toFixed(1);
 
-      applyCardCalibration(0, 0);
-      try {
-        localStorage.setItem('oca_card_x_offset', '0.0');
-        localStorage.setItem('oca_card_y_offset', '0.0');
-      } catch (_) {}
-      toast('รีเซ็ตระยะพิมพ์', 'คืนค่าตำแหน่งเริ่มต้น (0.0 มม., 0.0 มม.) เรียบร้อย', '✓');
+      applyCardCalibration(def.x, def.y);
+      savePrinterPresetOffsets(cardPrintPreset, def.x, def.y);
+      toast('คืนค่าระยะพิมพ์', `ตั้งค่าเริ่มต้นของ ${def.label} (X: ${def.x.toFixed(1)}, Y: ${def.y.toFixed(1)} มม.) เรียบร้อย`, '✓');
     }
 
     function selectCardPrinterPreset(preset) {
-      cardPrintPreset = preset;
-      try {
-        localStorage.setItem('oca_card_printer_preset', preset);
-      } catch (_) {}
-      syncPresetUI(preset);
+      cardPrintPreset = preset || 'poinman_n15';
+      const { x, y } = getSavedPrinterPresetOffsets(cardPrintPreset);
+      const inpX = document.getElementById('inpCardCalibX');
+      const inpY = document.getElementById('inpCardCalibY');
+      if (inpX) inpX.value = x.toFixed(1);
+      if (inpY) inpY.value = y.toFixed(1);
+
+      syncPresetUI(cardPrintPreset);
+      applyCardCalibration(x, y);
+      savePrinterPresetOffsets(cardPrintPreset, x, y);
+
+      const info = getCardPrinterPresetInfo(cardPrintPreset);
+      toast('เปลี่ยนรุ่นเครื่องพิมพ์บัตร', `${info.label} · โหลดระยะชดเชยอัตโนมัติ (X: ${x.toFixed(1)}, Y: ${y.toFixed(1)} มม.)`, '🖨️');
     }
 
     function syncPresetUI(preset) {
@@ -17641,12 +17881,14 @@
       const btnEvolis = document.getElementById('btnPresetEvolis');
       const btnFargo = document.getElementById('btnPresetFargo');
       const btnGeneric = document.getElementById('btnPresetGeneric');
+      const selQuick = document.getElementById('selQuickCardPrinterPreset');
 
       if (btnPoinman) btnPoinman.classList.toggle('active', preset === 'poinman_n15');
       if (btnZebra) btnZebra.classList.toggle('active', preset === 'zebra_zxp');
       if (btnEvolis) btnEvolis.classList.toggle('active', preset === 'evolis');
       if (btnFargo) btnFargo.classList.toggle('active', preset === 'fargo_dtc');
       if (btnGeneric) btnGeneric.classList.toggle('active', preset === 'generic_cr80');
+      if (selQuick && selQuick.value !== preset) selQuick.value = preset;
     }
 
     function togglePoinmanGuideHelp() {
@@ -17676,28 +17918,113 @@
       return dateStr;
     }
 
-    function searchStudentsForCard() {
-      const q = document.getElementById('inpCardStudentSearch').value.trim();
+    function renderCardStudentResultsList(students, headerTitle) {
       const resultsBox = document.getElementById('cardSearchResultsBox');
+      if (!resultsBox) return;
 
-      if (!q) {
-        toast('ค้นหานักศึกษา', 'กรุณาระบุชื่อ, รหัสนักศึกษา หรือเลขประจำตัวประชาชน เพื่อค้นหา', 'info');
-        if (resultsBox) {
-          resultsBox.style.display = 'block';
-          resultsBox.innerHTML = '<div style="padding:16px; text-align:center; color:var(--text-muted); font-size:13px;"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px; color:var(--color-gold);"></i> กรุณาพิมพ์คำค้นหา (ชื่อ-นามสกุล, รหัสประจำตัว หรือเลขบัตร) แล้วกดค้นหา</div>';
-        }
-        const inp = document.getElementById('inpCardStudentSearch');
-        if (inp) inp.focus();
+      if (!students || students.length === 0) {
+        resultsBox.style.display = 'block';
+        resultsBox.innerHTML = '<div style="padding:12px; text-align:center; color:var(--text-muted); font-size:13px;"><i class="fa-solid fa-triangle-exclamation" style="color:var(--color-gold); margin-right:6px;"></i>ไม่พบข้อมูลนักศึกษาตามเงื่อนไขที่ระบุ</div>';
         return;
       }
 
-      toast('กำลังค้นหา', 'ค้นหานักศึกษา "' + q + '"...', 'info');
+      window._cardSearchStudentsList = students;
+      resultsBox.style.display = 'block';
+      const titleText = headerTitle || ('พบ ' + students.length + ' รายการ (คลิกเพื่อเลือกทันที):');
+      let html = `<div style="display:flex; align-items:center; justify-content:space-between; font-size:11.5px; font-weight:700; color:var(--color-gold); margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(229,204,162,0.2);">
+        <span>${titleText}</span>
+        <button type="button" onclick="document.getElementById('cardSearchResultsBox').style.display='none'" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:11px;">✕ ปิด</button>
+      </div>`;
+
+      students.slice(0, 25).forEach((st, idx) => {
+        const avatarHtml = st.photoUrl
+          ? `<img src="${st.photoUrl}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid var(--color-gold);">`
+          : `<div style="width:32px; height:32px; border-radius:50%; background:#02231C; border:1px solid var(--color-gold); display:flex; align-items:center; justify-content:center; color:var(--color-gold); font-size:12px;"><i class="fa-solid fa-user"></i></div>`;
+        const cardBadge = st.smartCardUid
+          ? `<span style="font-size:10px; color:#10b981; background:rgba(16,185,129,0.15); padding:2px 7px; border-radius:10px; border:1px solid #10b981; font-weight:600;"><i class="fa-solid fa-id-card"></i> ${toArabicDigits(st.smartCardUid)}</span>`
+          : `<span style="font-size:10px; color:var(--text-muted); background:rgba(255,255,255,0.06); padding:2px 7px; border-radius:10px;">ยังไม่มีบัตร</span>`;
+
+        html += `
+          <div onclick="selectStudentForCardByIndex(${idx})" style="display:flex; align-items:center; justify-content:space-between; padding:7px 10px; border-bottom:1px solid rgba(255,255,255,0.06); cursor:pointer; border-radius:6px; transition:background 0.15s;" onmouseover="this.style.background='rgba(215,166,0,0.15)'" onmouseout="this.style.background='transparent'">
+            <div style="display:flex; align-items:center; gap:10px;">
+              ${avatarHtml}
+              <div>
+                <div style="font-size:13px; font-weight:700; color:#FFFFFF;">${escapeHtml(st.fullName || st.rawName || '-')}</div>
+                <div style="font-size:11px; color:var(--color-gold-light);">รหัส: <strong>${escapeHtml(toArabicDigits(st.studentId || '-'))}</strong> | คอร์ส: ${escapeHtml(st.course || '-')}</div>
+              </div>
+            </div>
+            <div>${cardBadge}</div>
+          </div>
+        `;
+      });
+      resultsBox.innerHTML = html;
+    }
+
+    function onCardStudentSearchInput(rawVal) {
+      const q = (rawVal || '').trim();
+      const pool = Array.isArray(cachedSearchStudentsData) ? cachedSearchStudentsData : [];
+
+      if (!q) {
+        if (pool.length > 0) {
+          renderCardStudentResultsList(pool.slice(0, 10), `รายชื่อนักศึกษาล่าสุด (${Math.min(10, pool.length)} รายการ) · คลิกเพื่อเลือก:`);
+        } else {
+          const resultsBox = document.getElementById('cardSearchResultsBox');
+          if (resultsBox) resultsBox.style.display = 'none';
+        }
+        return;
+      }
+
+      if (pool.length > 0) {
+        const cleanQ = q.replace(/[^0-9A-Za-z]/g, '').toLowerCase();
+        const lowerQ = q.toLowerCase();
+        const filtered = pool.filter(s => {
+          const card = (s.smartCardUid || '').replace(/[^0-9A-Za-z]/g, '').toLowerCase();
+          const sid = (s.studentId || '').toLowerCase();
+          const cid = (s.citizenId || '').toLowerCase();
+          const nm = (s.fullName || s.rawName || '').toLowerCase();
+          return (cleanQ && (card.includes(cleanQ) || sid.includes(cleanQ) || cid.includes(cleanQ))) || (nm && nm.includes(lowerQ));
+        });
+
+        if (filtered.length > 0) {
+          // If RFID exact match on card UID, auto-select immediately
+          if (cleanQ.length >= 6) {
+            const exactUidMatch = filtered.find(s => (s.smartCardUid || '').replace(/[^0-9A-Za-z]/g, '').toLowerCase() === cleanQ);
+            if (exactUidMatch) {
+              selectStudentForCard(exactUidMatch);
+              return;
+            }
+          }
+          renderCardStudentResultsList(filtered, `พบ ${filtered.length} รายการสำหรับ "${escapeHtml(q)}" (คลิกเพื่อเลือก):`);
+          return;
+        }
+      }
+    }
+
+    function searchStudentsForCard() {
+      const inp = document.getElementById('inpCardStudentSearch');
+      const q = inp ? inp.value.trim() : '';
+
+      if (!q) {
+        if (Array.isArray(cachedSearchStudentsData) && cachedSearchStudentsData.length > 0) {
+          renderCardStudentResultsList(cachedSearchStudentsData.slice(0, 15), `รายชื่อนักศึกษาล่าสุด (${Math.min(15, cachedSearchStudentsData.length)} รายการ) · คลิกเพื่อเลือก:`);
+          return;
+        }
+        callGasApi('searchStudentsForCard', { query: '' })
+          .then(res => {
+            const list = (res && res.students) || [];
+            if (list.length > 0) {
+              if (!Array.isArray(cachedSearchStudentsData) || cachedSearchStudentsData.length === 0) {
+                cachedSearchStudentsData = list;
+              }
+              renderCardStudentResultsList(list.slice(0, 15), `รายชื่อนักศึกษาล่าสุด (${Math.min(15, list.length)} รายการ) · คลิกเพื่อเลือก:`);
+            }
+          })
+          .catch(() => {});
+        return;
+      }
 
       callGasApi('searchStudentsForCard', { query: q })
         .then(res => {
-          const resultsBox = document.getElementById('cardSearchResultsBox');
-          if (!resultsBox) return;
-
           let students = (res && res.students) || [];
 
           if (students.length === 0 && Array.isArray(cachedSearchStudentsData) && cachedSearchStudentsData.length > 0) {
@@ -17711,43 +18038,12 @@
             });
           }
 
-          if (students.length === 0) {
-            resultsBox.style.display = 'block';
-            resultsBox.innerHTML = '<div style="padding:12px; text-align:center; color:var(--text-muted); font-size:13px;"><i class="fa-solid fa-triangle-exclamation" style="color:var(--color-gold); margin-right:6px;"></i>ไม่พบข้อมูลนักศึกษาตามเงื่อนไขที่ระบุ (ค้นหาด้วยรหัสนักศึกษา, ชื่อ, บัตรประชาชน หรือแตะบัตร Mifare 1K)</div>';
-            return;
-          }
-
           if (students.length === 1) {
             selectStudentForCard(students[0]);
-            toast('พบข้อมูลนักศึกษา!', (students[0].fullName || students[0].studentId) + ' (เลือกอัตโนมัติ)', '✓');
             return;
           }
 
-          window._cardSearchStudentsList = students;
-          resultsBox.style.display = 'block';
-          let html = '<div style="font-size:12px; font-weight:700; color:var(--color-gold); margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(229,204,162,0.2);">พบ ' + students.length + ' รายการ (คลิกเพื่อเลือก):</div>';
-          students.forEach((st, idx) => {
-            const avatarHtml = st.photoUrl
-              ? `<img src="${st.photoUrl}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid var(--color-gold);">`
-              : `<div style="width:32px; height:32px; border-radius:50%; background:#02231C; border:1px solid var(--color-gold); display:flex; align-items:center; justify-content:center; color:var(--color-gold); font-size:12px;"><i class="fa-solid fa-user"></i></div>`;
-            const cardBadge = st.smartCardUid
-              ? `<span style="font-size:10px; color:#10b981; background:rgba(16,185,129,0.15); padding:1px 6px; border-radius:10px; border:1px solid #10b981;"><i class="fa-solid fa-id-card"></i> ${toArabicDigits(st.smartCardUid)}</span>`
-              : `<span style="font-size:10px; color:var(--text-muted); background:rgba(255,255,255,0.06); padding:1px 6px; border-radius:10px;">ยังไม่มีบัตร</span>`;
-
-            html += `
-              <div onclick="selectStudentForCardByIndex(${idx})" style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-bottom:1px solid rgba(255,255,255,0.06); cursor:pointer; border-radius:6px; transition:background 0.15s;" onmouseover="this.style.background='rgba(215,166,0,0.15)'" onmouseout="this.style.background='transparent'">
-                <div style="display:flex; align-items:center; gap:10px;">
-                  ${avatarHtml}
-                  <div>
-                    <div style="font-size:13.5px; font-weight:700; color:#FFFFFF;">${escapeHtml(st.fullName || st.rawName || '-')}</div>
-                    <div style="font-size:11.5px; color:var(--color-gold-light);">รหัส: <strong>${escapeHtml(toArabicDigits(st.studentId || '-'))}</strong> | คอร์ส: ${escapeHtml(st.course || '-')}</div>
-                  </div>
-                </div>
-                <div>${cardBadge}</div>
-              </div>
-            `;
-          });
-          resultsBox.innerHTML = html;
+          renderCardStudentResultsList(students, `พบ ${students.length} รายการสำหรับ "${escapeHtml(q)}" (คลิกเพื่อเลือก):`);
         })
         .catch(err => {
           showModal('ข้อผิดพลาด', 'ค้นหานักศึกษาไม่สำเร็จ: ' + (err.message || ''), '❌');
@@ -17755,7 +18051,13 @@
     }
 
     function loadRecentStudentsForCard() {
-      searchStudentsForCard();
+      const inp = document.getElementById('inpCardStudentSearch');
+      if (inp) inp.value = '';
+      if (Array.isArray(cachedSearchStudentsData) && cachedSearchStudentsData.length > 0) {
+        renderCardStudentResultsList(cachedSearchStudentsData.slice(0, 15), `รายชื่อนักศึกษาล่าสุด (${Math.min(15, cachedSearchStudentsData.length)} รายการ) · คลิกเพื่อเลือก:`);
+      } else {
+        searchStudentsForCard();
+      }
     }
 
     function selectStudentForCardByIndex(idx) {
@@ -17773,7 +18075,8 @@
       return { firstName, lastName };
     }
 
-    function selectStudentForCard(st) {
+    function selectStudentForCard(st, silent = false) {
+      if (!st) return;
       currentCardStudent = st;
 
       const resultsBox = document.getElementById('cardSearchResultsBox');
@@ -17787,6 +18090,7 @@
       const courseEl = document.getElementById('cardSelStudentCourse');
       const statusBadge = document.getElementById('cardMifareStatusBadge');
       const uidInp = document.getElementById('cardMifareUidInput');
+      const lblMifareAuto = document.getElementById('lblMifareAutoSaveStatus');
 
       if (nameEl) nameEl.textContent = st.fullName || st.rawName || '-';
       if (idEl) idEl.textContent = toArabicDigits(st.studentId) || '-';
@@ -17806,6 +18110,12 @@
           statusBadge.textContent = 'ยังไม่ได้ผูกบัตร';
         }
       }
+      if (lblMifareAuto) {
+        lblMifareAuto.innerHTML = st.smartCardUid
+          ? `<i class="fa-solid fa-circle-check"></i> ผูกบัตรแล้ว (${escapeHtml(toArabicDigits(st.smartCardUid))})`
+          : `<i class="fa-solid fa-bolt"></i> แตะบัตรเพื่อบันทึกอัตโนมัติ`;
+        lblMifareAuto.style.color = st.smartCardUid ? '#34d399' : '#94a3b8';
+      }
 
       // Update Avatar
       const avatarImg = document.getElementById('cardStudentAvatarPreview');
@@ -17823,7 +18133,9 @@
       // Parse name and populate form & preview
       resetCardFormFields();
 
-      toast('เลือกนักศึกษาเรียบร้อย', (st.fullName || st.studentId), '✓');
+      if (!silent) {
+        toast('เลือกนักศึกษาเรียบร้อย', (st.fullName || st.studentId), '✓');
+      }
     }
 
     function resetCardFormFields() {
@@ -17910,10 +18222,51 @@
     }
 
     function onMifareUidChanged(val) {
-      // UID input change listener
+      const uid = toArabicDigits((val || '').trim().toUpperCase());
+      const lblMifareAuto = document.getElementById('lblMifareAutoSaveStatus');
+      if (_mifareAutoSaveTimer) clearTimeout(_mifareAutoSaveTimer);
+
+      if (!currentCardStudent) {
+        if (lblMifareAuto) {
+          lblMifareAuto.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> เลือกนักศึกษาก่อนผูกบัตร`;
+          lblMifareAuto.style.color = '#fbbf24';
+        }
+        return;
+      }
+
+      if (!uid || uid.length < 4) {
+        if (lblMifareAuto) {
+          lblMifareAuto.innerHTML = `<i class="fa-solid fa-bolt"></i> แตะบัตรเพื่อบันทึกอัตโนมัติ`;
+          lblMifareAuto.style.color = '#94a3b8';
+        }
+        return;
+      }
+
+      if (uid === toArabicDigits(currentCardStudent.smartCardUid || '').toUpperCase()) {
+        if (lblMifareAuto) {
+          lblMifareAuto.innerHTML = `<i class="fa-solid fa-circle-check"></i> ผูกบัตรแล้ว (${escapeHtml(uid)})`;
+          lblMifareAuto.style.color = '#34d399';
+        }
+        return;
+      }
+
+      if (lblMifareAuto) {
+        lblMifareAuto.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก UID อัตโนมัติ...`;
+        lblMifareAuto.style.color = '#fbbf24';
+      }
+
+      _mifareAutoSaveTimer = setTimeout(() => {
+        saveCardMifareUid(true);
+      }, 600);
     }
 
-    function saveCardMifareUid(isEnter) {
+    function saveCardMifareUid(isAutoOrEnter) {
+      if (_mifareAutoSaveTimer) {
+        clearTimeout(_mifareAutoSaveTimer);
+        _mifareAutoSaveTimer = null;
+      }
+      const lblMifareAuto = document.getElementById('lblMifareAutoSaveStatus');
+
       if (!currentCardStudent) {
         toast('กรุณาเลือกนักศึกษา', 'ค้นหาและเลือกนักศึกษาก่อนบันทึกรหัสบัตร Mifare 1K', 'warning');
         return;
@@ -17927,7 +18280,10 @@
         return;
       }
 
-      toast('กำลังบันทึกรหัสบัตร', 'กำลังผูกบัตร UID ' + uid + ' กับ ' + (currentCardStudent.fullName || currentCardStudent.studentId) + '...', 'info');
+      if (lblMifareAuto) {
+        lblMifareAuto.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก UID ${escapeHtml(uid)}...`;
+        lblMifareAuto.style.color = '#fbbf24';
+      }
 
       callGasApi('saveStudentSmartCardUid', {
         studentId: currentCardStudent.studentId,
@@ -17942,12 +18298,24 @@
               statusBadge.className = 'oca-badge-status-active';
               statusBadge.textContent = 'ผูกบัตรแล้ว (' + uid + ')';
             }
-            toast('บันทึกสำเร็จ!', 'ผูกรหัสบัตร ' + uid + ' เข้ากับนักศึกษาเรียบร้อย', '✓');
+            if (lblMifareAuto) {
+              lblMifareAuto.innerHTML = `<i class="fa-solid fa-circle-check"></i> บันทึกอัตโนมัติแล้ว (${escapeHtml(uid)})`;
+              lblMifareAuto.style.color = '#34d399';
+            }
+            toast('ผูกบัตร RFID สำเร็จ!', 'บันทึกรหัสบัตร ' + uid + ' เข้ากับ ' + (currentCardStudent.fullName || currentCardStudent.studentId) + ' อัตโนมัติแล้ว', '✓');
           } else {
+            if (lblMifareAuto) {
+              lblMifareAuto.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> บันทึกไม่สำเร็จ`;
+              lblMifareAuto.style.color = '#f87171';
+            }
             showModal('ข้อผิดพลาด', (res && res.message) || 'ไม่สามารถบันทึกรหัสบัตรได้', '❌');
           }
         })
         .catch(err => {
+          if (lblMifareAuto) {
+            lblMifareAuto.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> บันทึกไม่สำเร็จ`;
+            lblMifareAuto.style.color = '#f87171';
+          }
           showModal('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการบันทึกรหัสบัตร: ' + (err.message || ''), '❌');
         });
     }
@@ -18037,7 +18405,8 @@
       if (!printContainer || !cardFront) return;
 
       closeCardPrintModal();
-      showToast('เตรียมพิมพ์บัตรนักเรียน', 'กำลังส่งข้อมูลไปยังเครื่องพิมพ์ POINMAN N15 (CR-80 Card Printer)...', '⏳');
+      const presetInfo = getCardPrinterPresetInfo(cardPrintPreset);
+      showToast('เตรียมพิมพ์บัตรนักเรียน', `กำลังส่งข้อมูลไปยังเครื่องพิมพ์ ${presetInfo.label} (CR-80 Card Printer)...`, '⏳');
 
       // Clear container
       printContainer.innerHTML = '';
@@ -18052,6 +18421,12 @@
       frontClone.style.margin = '0';
       frontClone.style.background = 'transparent';
       frontClone.style.backgroundImage = 'none';
+
+      // Clear live-preview pixel shift on cloned elements so @media print uses --card-x-offset / --card-y-offset on .cr80-card-scaler without double shifting
+      ['#cardFrontFirstName', '#cardFrontLastName', '#cardFrontStudentId', '#cardFrontPhotoBox', '#cardFrontIssueDate'].forEach(sel => {
+        const el = frontClone.querySelector(sel);
+        if (el) el.style.transform = '';
+      });
 
       // Dynamic Page CSS Injection for Direct Card Printer (CR-80: 85.6mm x 54mm Full Bleed 0-Margin)
       let pageStyleEl = document.getElementById('dynamicCardPrintPageStyle');
@@ -18082,7 +18457,7 @@
         const stdId = frontId ? frontId.textContent.trim() : '';
         const stdName = ((frontFirst ? frontFirst.textContent.trim() : '') + ' ' + (frontLast ? frontLast.textContent.trim() : '')).trim();
         if (typeof logSecurityAuditAction === 'function') {
-          logSecurityAuditAction('PRINT_STUDENT_CARD', `พิมพ์บัตรประจำตัวนักเรียน POINMAN N15 รหัส: ${stdId} (${stdName})`, 1);
+          logSecurityAuditAction('PRINT_STUDENT_CARD', `พิมพ์บัตรประจำตัวนักเรียน (${presetInfo.label}) รหัส: ${stdId} (${stdName})`, 1);
         }
       } catch (_) {}
 
