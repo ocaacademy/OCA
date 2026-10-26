@@ -6801,7 +6801,7 @@
 
               <!-- 4. ปุ่มสร้างและรีเฟรช -->
               <div style="display:flex; gap:8px;">
-                <button type="button" class="oca-btn-gold-submit" style="flex:1; padding:9px 14px; font-size:13px; display:inline-flex; align-items:center; justify-content:center; gap:6px;" onclick="generateCourseRosters()">
+                <button type="button" class="oca-btn-gold-submit" style="flex:1; padding:9px 14px; font-size:13px; display:inline-flex; align-items:center; justify-content:center; gap:6px;" onclick="generateCourseRosters(true)">
                   <i class="fa-solid fa-rotate"></i> สร้างใบรายชื่อ
                 </button>
               </div>
@@ -8836,8 +8836,8 @@
 
                 <!-- Course Dropdown -->
                 <div>
-                  <label class="oca-label" for="selRosterCourse" style="font-size:12px;">เลือกคอร์สเรียน *</label>
-                  <select id="selRosterCourse" class="oca-input" onchange="onRosterFilterChanged()">
+                  <label class="oca-label" for="selModalRosterCourse" style="font-size:12px;">เลือกคอร์สเรียน *</label>
+                  <select id="selModalRosterCourse" class="oca-input" onchange="onRosterFilterChanged()">
                     <option value="">-- กรุณาเลือกคอร์สเรียน --</option>
                   </select>
                 </div>
@@ -23298,31 +23298,64 @@
 
     /**
      * สร้างใบรายชื่อและตารางเช็คชื่อ แยกตามคอร์สเรียน (Course Rosters)
+     * @param {boolean} forceRefresh
      */
-    function generateCourseRosters() {
-      checkReportSecurityAccess(() => {
-        _doGenerateCourseRosters();
-      });
+    async function generateCourseRosters(forceRefresh = false) {
+      await _doGenerateCourseRosters(forceRefresh);
     }
 
-    function _doGenerateCourseRosters() {
+    async function _doGenerateCourseRosters(forceRefresh = false) {
       const container = document.getElementById('courseRosterContainer');
       if (!container) return;
 
+      // 1. ถ้า forceRefresh หรือยังไม่มี cachedStudentReportData ให้โหลดข้อมูล
+      if (forceRefresh || !cachedStudentReportData || cachedStudentReportData.length === 0) {
+        if (!forceRefresh && Array.isArray(cachedSearchStudentsData) && cachedSearchStudentsData.length > 0) {
+          cachedStudentReportData = cachedSearchStudentsData.slice();
+        } else {
+          container.innerHTML =
+            '<div style="text-align:center; padding:40px; color:var(--text-muted);">' +
+            '  <i class="fa-solid fa-spinner fa-spin" style="font-size:28px; color:var(--color-gold); margin-bottom:10px;"></i>' +
+            '  <div style="font-size:14px; font-weight:600; color:var(--text-main);">กำลังโหลดข้อมูลทะเบียนนักเรียนเพื่อจัดทำใบรายชื่อ...</div>' +
+            '  <div style="font-size:12px; margin-top:4px; color:var(--text-muted);">ระบบกำลังดึงข้อมูลนักเรียนจากฐานข้อมูลทะเบียน</div>' +
+            '</div>';
+          try {
+            const res = await callGasApi('getStudentReport', { year: 'ALL', course: 'ALL', query: '' }, 'GET');
+            if (res && res.success && Array.isArray(res.students)) {
+              cachedStudentReportData = res.students;
+            } else {
+              cachedStudentReportData = [];
+            }
+          } catch (err) {
+            console.error('Error fetching student report for rosters:', err);
+            container.innerHTML =
+              '<div class="oca-chart-card no-print" style="text-align:center; padding:36px; color:#ef4444;">' +
+              '  <i class="fa-solid fa-triangle-exclamation" style="font-size:32px; margin-bottom:10px;"></i>' +
+              '  <div style="font-size:15px; font-weight:700;">เกิดข้อผิดพลาดในการโหลดข้อมูลทะเบียนนักเรียน</div>' +
+              '  <div style="font-size:12.5px; margin-top:4px; color:var(--text-muted);">' + escapeHtml((err && err.message) ? err.message : 'ไม่สามารถติดต่อฐานข้อมูลได้') + '</div>' +
+              '  <button class="oca-btn-gold-submit" style="margin-top:14px; padding:7px 20px; font-size:13px;" onclick="generateCourseRosters(true)"><i class="fa-solid fa-arrow-rotate-right" style="margin-right:6px;"></i> ลองใหม่อีกครั้ง</button>' +
+              '</div>';
+            const bCourses = document.getElementById('badgeRosterTotalCourses');
+            const bStudents = document.getElementById('badgeRosterTotalStudents');
+            if (bCourses) bCourses.textContent = '0 คอร์ส';
+            if (bStudents) bStudents.textContent = 'นักเรียน 0 คน';
+            return;
+          }
+        }
+      }
+
+      // ถ้าในระบบยังไม่มีนักเรียนเลย (0 คน) ให้แสดงข้อความแจ้งเตือนทันที ไม่ค้าง
       if (!cachedStudentReportData || cachedStudentReportData.length === 0) {
         container.innerHTML =
-          '<div style="text-align:center; padding:40px; color:var(--text-muted);">' +
-          '  <i class="fa-solid fa-spinner fa-spin" style="font-size:28px; color:var(--color-gold); margin-bottom:10px;"></i>' +
-          '  <div style="font-size:14px; font-weight:600; color:var(--text-main);">กำลังโหลดข้อมูลทะเบียนนักเรียนเพื่อจัดทำใบรายชื่อ...</div>' +
+          '<div class="oca-chart-card no-print" style="text-align:center; padding:40px; color:var(--text-muted);">' +
+          '  <i class="fa-solid fa-folder-open" style="font-size:32px; color:var(--color-gold); margin-bottom:10px;"></i>' +
+          '  <div style="font-size:15px; font-weight:700; color:var(--text-main);">ยังไม่มีข้อมูลนักเรียนที่ลงทะเบียนในระบบ</div>' +
+          '  <div style="font-size:12.5px; margin-top:4px;">กรุณาลงทะเบียนนักเรียนก่อนสร้างใบรายชื่อและบันทึกเวลาเรียน</div>' +
           '</div>';
-        loadStudentReport(true);
-        const checkTimer = setInterval(() => {
-          if (!isStudentReportLoading && cachedStudentReportData && cachedStudentReportData.length > 0) {
-            clearInterval(checkTimer);
-            _doGenerateCourseRosters();
-          }
-        }, 300);
-        setTimeout(() => clearInterval(checkTimer), 10000);
+        const bCourses = document.getElementById('badgeRosterTotalCourses');
+        const bStudents = document.getElementById('badgeRosterTotalStudents');
+        if (bCourses) bCourses.textContent = '0 คอร์ส';
+        if (bStudents) bStudents.textContent = 'นักเรียน 0 คน';
         return;
       }
 
@@ -23334,7 +23367,20 @@
       const filterCourse = selCourse ? (selCourse.value || 'ALL') : 'ALL';
       const weeksCount = selWeeks ? parseInt(selWeeks.value || '10', 10) : 10;
 
-      // 1. อัปเดตรายการคอร์สใน selRosterCourse Dropdown ถ้ามีคอร์สใหม่
+      // 1. อัปเดตรายการปีการศึกษาใน selRosterYear ถ้ามีปีใหม่
+      if (selYear && selYear.options.length <= 3) {
+        const uniqueYears = Array.from(new Set(cachedStudentReportData.map(s => String(s.yearBE || '').trim()).filter(Boolean))).sort().reverse();
+        uniqueYears.forEach(y => {
+          if (!Array.from(selYear.options).some(opt => opt.value === y)) {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = 'ปีการศึกษา ' + toArabicDigits(y);
+            selYear.appendChild(opt);
+          }
+        });
+      }
+
+      // 2. อัปเดตรายการคอร์สใน selRosterCourse Dropdown ถ้ามีคอร์สใหม่
       if (selCourse && selCourse.options.length <= 1) {
         const uniqueCourses = Array.from(new Set(cachedStudentReportData.map(s => (s.course || '').trim()).filter(Boolean))).sort();
         uniqueCourses.forEach(c => {
@@ -23345,7 +23391,7 @@
         });
       }
 
-      // 2. กรองข้อมูลตามปีและคอร์ส
+      // 3. กรองข้อมูลตามปีและคอร์ส
       let filtered = cachedStudentReportData.slice();
       if (filterYear !== 'ALL') {
         filtered = filtered.filter(s => String(s.yearBE || '').trim() === filterYear);
@@ -27831,7 +27877,7 @@
       if (!modal) return;
 
       // Populate courses dropdown
-      const selCourse = document.getElementById('selRosterCourse');
+      const selCourse = document.getElementById('selModalRosterCourse');
       if (selCourse) {
         selCourse.innerHTML = '<option value="">-- กรุณาเลือกคอร์สเรียน --</option>';
         const list = (cachedCoursesList && cachedCoursesList.length > 0) ? cachedCoursesList : [];
@@ -27894,7 +27940,7 @@
     async function onRosterFilterChanged() {
       const selYT = document.getElementById('selRosterYearTerm')?.value || '2569_5';
       const [yearBE, termNo] = selYT.split('_').map(Number);
-      const selCourse = document.getElementById('selRosterCourse');
+      const selCourse = document.getElementById('selModalRosterCourse');
       const selSched = document.getElementById('selRosterSchedule');
 
       const courseVal = selCourse ? selCourse.value : '';
@@ -28039,7 +28085,7 @@
       try { saveClassroomAndInstructorConfig(); } catch (e) {}
       const selYT = document.getElementById('selRosterYearTerm')?.value || '2569_5';
       const [yearBE, termNo] = selYT.split('_').map(Number);
-      const selCourse = document.getElementById('selRosterCourse');
+      const selCourse = document.getElementById('selModalRosterCourse');
       const selSched = document.getElementById('selRosterSchedule');
 
       const courseCode = selCourse ? selCourse.value : 'P0001';
@@ -28365,7 +28411,7 @@
     async function saveClassroomAndInstructorConfig() {
       const selYT = document.getElementById('selRosterYearTerm')?.value || '2569_5';
       const [yearBE, termNo] = selYT.split('_').map(Number);
-      const selCourse = document.getElementById('selRosterCourse');
+      const selCourse = document.getElementById('selModalRosterCourse');
       const selSched = document.getElementById('selRosterSchedule');
 
       const courseVal = selCourse ? selCourse.value : '';
@@ -28629,8 +28675,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=104' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=104' : (window.location.pathname + '/sw.js?v=104'));
+        ? './sw.js?v=112' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=112' : (window.location.pathname + '/sw.js?v=112'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
       }).catch(function(err) {
