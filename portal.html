@@ -7918,10 +7918,10 @@
                 ข้อความยืนยัน
               </div>
               <div style="display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap;">
-                <button type="button" id="btnConfirmCancel" class="oca-btn-cancel-custom" style="min-height:38px;" onclick="closeConfirmModal(false)">
+                <button type="button" id="btnConfirmCancel" class="oca-btn-cancel-custom" style="min-height:38px; height:38px; padding:0 18px; border-radius:8px; font-size:13px; font-weight:600;" onclick="closeConfirmModal(false)">
                   ยกเลิก
                 </button>
-                <button type="button" id="btnConfirmAction" class="oca-btn-gold-submit" style="min-height:38px; height:auto; padding:6px 20px; display:inline-flex; align-items:center; justify-content:center; gap:6px; font-size:13.5px; font-weight:700; text-align:center;" onclick="closeConfirmModal(true)">
+                <button type="button" id="btnConfirmAction" class="oca-btn-gold-submit" style="min-height:38px; height:38px; padding:0 20px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; gap:6px; font-size:13px; font-weight:700; text-align:center; white-space:nowrap;" onclick="closeConfirmModal(true)">
                   ตกลง
                 </button>
               </div>
@@ -15727,16 +15727,44 @@
     function confirmDeleteStudent(studentId, fullName) {
       if (!studentId) return;
 
+      const found = (cachedSearchStudentsData || []).find(item => item.studentId === studentId) ||
+                    (activeSearchStudent && activeSearchStudent.studentId === studentId ? activeSearchStudent : null);
+      const prefix = found && found.prefix ? found.prefix + ' ' : '';
+      const dispName = (prefix + (fullName || (found && (found.fullName || found.rawName)) || '')).trim() || '-';
+      const dispCourse = (found && found.course) ? found.course : '-';
+      const dispSchedule = (found && found.schedule) ? found.schedule : '';
+
+      const htmlMsg =
+        '<div style="margin-bottom:12px; color:#f1f5f9; font-size:13.5px;">คุณต้องการลบรายชื่อนักเรียนนี้ออกจากระบบใช่หรือไม่?</div>' +
+        '<div style="background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px 14px; margin-bottom:12px; font-size:12.5px; line-height:1.65;">' +
+        '  <div><span style="color:var(--text-muted);">รหัสนักเรียน:</span> <strong style="color:var(--color-gold-light); font-family:monospace; font-size:13.5px;">' + escapeHtml(toArabicDigits(studentId)) + '</strong></div>' +
+        '  <div><span style="color:var(--text-muted);">ชื่อ-นามสกุล:</span> <strong style="color:#ffffff;">' + escapeHtml(dispName) + '</strong></div>' +
+        '  <div><span style="color:var(--text-muted);">คอร์สเรียน:</span> <span style="color:var(--color-gold);">' + escapeHtml(dispCourse + (dispSchedule ? ' (' + dispSchedule + ')' : '')) + '</span></div>' +
+        '</div>' +
+        '<div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:8px; padding:10px 12px; color:#fca5a5; font-size:12px; line-height:1.5;">' +
+        '  <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444; margin-right:5px;"></i>' +
+        '  <strong>คำเตือน:</strong> ระบบจะลบข้อมูลนักเรียนและใบเสร็จรับเงินที่ผูกกับรหัสนักเรียนนี้ออกอย่างถาวร ไม่สามารถกู้คืนได้' +
+        '</div>';
+
       showConfirmModal({
         title: 'ยืนยันการลบข้อมูลนักเรียน',
-        message: 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนักเรียน "' + (fullName || '') + '" (รหัส: ' + studentId + ') ออกจากระบบอย่างถาวร?\n\n⚠️ ระบบจะทำการลบข้อมูลนักเรียนพร้อมใบเสร็จรับเงินทั้งหมดที่ผูกกับรหัสนักเรียนนี้ออกด้วยอย่างถาวร',
+        subtitle: 'แจ้งเตือนการลบข้อมูลถาวร (Permanent Deletion)',
+        titleColor: '#fca5a5',
+        subtitleColor: '#f87171',
+        message: htmlMsg,
+        isHtml: true,
         icon: 'fa-trash-can',
         iconColor: '#ef4444',
-        iconBg: 'rgba(239,68,68,0.18)',
+        iconBg: 'rgba(239,68,68,0.2)',
         iconBorder: '#ef4444',
-        confirmText: 'ยืนยันการลบนักเรียนและใบเสร็จ',
-        confirmBg: '#dc2626',
-        confirmBorder: '#ef4444',
+        boxBorder: '1.5px solid rgba(239,68,68,0.6)',
+        headerBg: 'rgba(239,68,68,0.14)',
+        headerBorderBottom: '1px solid rgba(239,68,68,0.3)',
+        confirmText: 'ยืนยันการลบข้อมูล',
+        cancelText: 'ยกเลิก',
+        confirmBg: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+        confirmBorder: '#f87171',
+        confirmColor: '#ffffff',
         onConfirm: () => {
           showToast('กำลังลบข้อมูลนักเรียนและใบเสร็จ...', '', '🗑️');
           callGasApi('deleteStudent', { studentId })
@@ -15776,44 +15804,7 @@
       const studentId = (document.getElementById('inpEditStudentId')?.value || '').trim();
       const fullName = (document.getElementById('inpEditFullName')?.value || '').trim();
       if (!studentId) return;
-
-      showConfirmModal({
-        title: 'ยืนยันการลบข้อมูลนักเรียน',
-        message: 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนักเรียน "' + fullName + '" (รหัส: ' + studentId + ') ออกจากระบบอย่างถาวร?\n\n⚠️ ระบบจะทำการลบข้อมูลนักเรียนพร้อมใบเสร็จรับเงินทั้งหมดที่ผูกกับรหัสนักเรียนนี้ออกด้วยอย่างถาวร',
-        icon: 'fa-trash',
-        iconColor: '#ef4444',
-        iconBg: 'rgba(239,68,68,0.18)',
-        iconBorder: '#ef4444',
-        confirmText: 'ลบข้อมูลนักเรียนและใบเสร็จ',
-        confirmBg: '#dc2626',
-        confirmBorder: '#ef4444',
-        onConfirm: () => {
-          showToast('กำลังลบข้อมูลนักเรียนและใบเสร็จ...', '', '🗑️');
-          callGasApi('deleteStudent', { studentId })
-            .then(res => {
-              if (res && res.success) {
-                showToast('ลบข้อมูลเรียบร้อย', res.message || '', '✅');
-                closeEditStudentModal();
-                closeStudentDetailCard();
-                cachedSearchStudentsData = [];
-                loadAllStudentsStatus(true);
-                try { loadDashData(); } catch(_) {}
-                if (typeof loadReceiptsHistoryTable === 'function') {
-                  try { loadReceiptsHistoryTable(); } catch(_) {}
-                }
-                try { loadFinancialReport(); } catch(_) {}
-                if (typeof loadTextbookClaimLogs === 'function') {
-                  try { loadTextbookClaimLogs(); } catch(_) {}
-                }
-              } else {
-                showToast('ไม่สามารถลบข้อมูลได้', res?.message || '', '❌');
-              }
-            })
-            .catch(err => {
-              showToast('เกิดข้อผิดพลาดในการลบ', err.message || '', '❌');
-            });
-        }
-      });
+      confirmDeleteStudent(studentId, fullName);
     }
 
     function confirmDeleteReceipt(receiptNo) {
