@@ -3124,6 +3124,37 @@
       box-shadow: 0 1px 0 rgba(215, 166, 0, 0.2);
     }
 
+    /* Audit Logs Table Scrollbar and Sticky Header */
+    #boxAuditLogsTableWrap {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(56, 189, 248, 0.45) rgba(1, 35, 28, 0.6);
+    }
+    #boxAuditLogsTableWrap::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    #boxAuditLogsTableWrap::-webkit-scrollbar-track {
+      background: rgba(1, 35, 28, 0.6);
+      border-radius: 4px;
+    }
+    #boxAuditLogsTableWrap::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.4);
+      border-radius: 4px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      transition: background 0.2s ease;
+    }
+    #boxAuditLogsTableWrap::-webkit-scrollbar-thumb:hover {
+      background: #38bdf8;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+    }
+    #tblAuditLogs thead th {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: #022a21 !important;
+      box-shadow: 0 1px 0 rgba(56, 189, 248, 0.3), 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
 
     /* Dedicated Print CSS for Counter Standee & PR Poster (A4) */
     @media print {
@@ -6975,12 +7006,26 @@
               </button>
             </div>
 
-            <!-- Audit Logs Table -->
-            <div class="oca-table-card" style="background:var(--bg-card); border-radius:12px; border:1px solid var(--border-soft); overflow:hidden;">
-              <div style="overflow-x:auto;">
+            <!-- Audit Logs Table with Scrollbar & Sticky Header -->
+            <div class="oca-table-card" style="background:var(--bg-card); border-radius:12px; border:1px solid var(--border-soft); overflow:hidden; padding:16px 18px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+                <div style="font-size:13px; font-weight:700; color:#ffffff; display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-clock-rotate-left" style="color:#38bdf8;"></i>
+                  <span>บันทึกประวัติการใช้งาน (Audit Logs Stream)</span>
+                  <span id="lblAuditTableRecordCountBadge" style="font-size:11px; font-weight:700; color:#38bdf8; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3); padding:1px 7px; border-radius:10px;">0 รายการ</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-arrows-up-down" style="font-size:10px; margin-right:3px;"></i>เลื่อน Scroll Bar เพื่อดูประวัติย้อนหลัง</span>
+                  <button type="button" class="oca-btn-secondary" onclick="scrollAuditTableToTop()" style="height:28px; padding:0 8px; font-size:11px; display:inline-flex; align-items:center; gap:4px;" title="เลื่อนกลับไปบนสุดของตาราง">
+                    <i class="fa-solid fa-arrow-up"></i> บนสุด
+                  </button>
+                </div>
+              </div>
+
+              <div id="boxAuditLogsTableWrap" style="max-height:500px; min-height:220px; overflow-y:auto; overflow-x:auto; border-radius:8px; border:1px solid rgba(56,189,248,0.2); background:rgba(0,0,0,0.18); position:relative;">
                 <table class="oca-table" style="width:100%; border-collapse:collapse;" id="tblAuditLogs">
                   <thead>
-                    <tr style="background:rgba(2,132,199,0.12); border-bottom:1px solid rgba(56,189,248,0.25);">
+                    <tr style="background:#022a21; border-bottom:1.5px solid rgba(56,189,248,0.35);">
                       <th style="padding:12px 14px; text-align:left; font-size:12px; color:#38bdf8; width:150px;">วัน-เวลา (Timestamp)</th>
                       <th style="padding:12px 14px; text-align:center; font-size:12px; color:#38bdf8; width:130px;">กิจกรรม (Action)</th>
                       <th style="padding:12px 14px; text-align:left; font-size:12px; color:#38bdf8; width:140px;">ผู้ใช้งาน (User)</th>
@@ -6994,6 +7039,16 @@
                     <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดประวัติกิจกรรม 90 วัน...</td></tr>
                   </tbody>
                 </table>
+              </div>
+
+              <!-- Footer info bar -->
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.08); font-size:11.5px; color:var(--text-muted);">
+                <div>
+                  <i class="fa-solid fa-shield-halved" style="color:#10b981; margin-right:4px;"></i> บันทึกกิจกรรมทั้งหมดจัดเก็บตามมาตรฐาน PDPA พร้อมเข้ารหัสความปลอดภัย
+                </div>
+                <div id="lblAuditTableFilteredCount">
+                  แสดงทั้งหมด 0 รายการ
+                </div>
               </div>
             </div>
           </div>
@@ -25760,6 +25815,12 @@
       const tbody = document.getElementById('tbodyAuditLogs');
       if (!tbody) return;
 
+      const bBadge = document.getElementById('lblAuditTableRecordCountBadge');
+      const bFoot = document.getElementById('lblAuditTableFilteredCount');
+      const totalCountStr = toArabicDigits((logs || []).length);
+      if (bBadge) bBadge.textContent = totalCountStr + ' รายการ';
+      if (bFoot) bFoot.textContent = 'แสดงทั้งหมด ' + totalCountStr + ' รายการ (เลื่อน Scroll Bar เพื่อดูย้อนหลัง)';
+
       if (!logs || logs.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-clock-rotate-left" style="margin-right:6px;"></i>ไม่พบประวัติกิจกรรมตามเงื่อนไขค้นหา</td></tr>';
         return;
@@ -25846,6 +25907,11 @@
     /**
      * เรียกคำสั่ง Prune Audit Log ที่เกิน 90 วันทันที
      */
+
+    function scrollAuditTableToTop() {
+      const box = document.getElementById('boxAuditLogsTableWrap');
+      if (box) box.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     function triggerPruneAuditLogs() {
       if (!confirm('คุณต้องการประมวลผลล้าง Audit Log ที่เก่ากว่า 90 วัน (3 เดือน) ทันที ใช่หรือไม่?')) return;
 
@@ -27941,8 +28007,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=100' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=100' : (window.location.pathname + '/sw.js?v=100'));
+        ? './sw.js?v=101' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=101' : (window.location.pathname + '/sw.js?v=101'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
       }).catch(function(err) {
