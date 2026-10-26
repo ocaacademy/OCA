@@ -14314,10 +14314,10 @@
         document.getElementById('btnPresetNewStudent')?.classList.add('active');
         if (typeof setReceiptType === 'function') setReceiptType('tuition');
         
-        // ค่าลงทะเบียน 100
+        // อัตราค่าลงทะเบียนตามการตั้งค่าปัจจุบัน
         const chkReg = document.getElementById('chkRcptApplyRegFee');
         if (chkReg && !chkReg.checked) { chkReg.checked = true; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('regFee'); }
-        // ค่าบัตร 100
+        // อัตราค่าบัตรตามการตั้งค่าปัจจุบัน
         const chkCard = document.getElementById('chkRcptApplyCardFee');
         if (chkCard && !chkCard.checked) { chkCard.checked = true; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('cardFee'); }
         // ส่วนลดปกติ (ไม่นำเข้าอัตโนมัติ - ให้เลือกจากใบเสร็จ)
@@ -14325,7 +14325,23 @@
         if (chkDisc && chkDisc.checked) { chkDisc.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('discountNormal'); }
         
         if (typeof calcReceiptTotals === 'function') calcReceiptTotals();
-        showToast('เลือกแพ็กเกจ: นักเรียนใหม่', 'คิดค่าสมัคร 100 + ค่าบัตร 100 (เลือกส่วนลดเพิ่มเติมได้หากมีสิทธิ์)', '🎓');
+
+        // คำนวณข้อความแจ้งเตือนตามอัตราค่าธรรมเนียมปัจจุบันในระบบ (Dynamic Fee Calculation)
+        const regAmount = Number(document.getElementById('inpRcptRegFee')?.value) || 0;
+        const cardAmount = Number(document.getElementById('inpRcptCardFee')?.value) || 0;
+
+        let feeMessage = '';
+        if (regAmount > 0 && cardAmount > 0) {
+          feeMessage = 'คิดค่าสมัคร ' + toArabicDigits(regAmount) + ' + ค่าบัตร ' + toArabicDigits(cardAmount) + ' (เลือกส่วนลดเพิ่มเติมได้หากมีสิทธิ์)';
+        } else if (regAmount > 0) {
+          feeMessage = 'คิดค่าสมัคร ' + toArabicDigits(regAmount) + ' (ยกเว้นค่าบัตร)';
+        } else if (cardAmount > 0) {
+          feeMessage = 'คิดค่าบัตร ' + toArabicDigits(cardAmount) + ' (ยกเว้นค่าสมัคร)';
+        } else {
+          feeMessage = 'ยกเว้นค่าสมัครและค่าบัตร (ไม่มีค่าธรรมเนียมแรกเข้า)';
+        }
+
+        showToast('เลือกแพ็กเกจ: นักเรียนใหม่', feeMessage, '🎓');
       } else if (type === 'renewal') {
         document.getElementById('btnPresetRenewal')?.classList.add('active');
         if (typeof setReceiptType === 'function') setReceiptType('tuition');
@@ -28187,8 +28203,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=103' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=103' : (window.location.pathname + '/sw.js?v=103'));
+        ? './sw.js?v=104' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=104' : (window.location.pathname + '/sw.js?v=104'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
       }).catch(function(err) {
