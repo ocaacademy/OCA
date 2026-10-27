@@ -13317,10 +13317,15 @@
           const cleanRc = extractCleanId(rawRc) || rawRc;
           if (!cleanRc) return { success: false, message: 'กรุณาระบุเลขที่ใบเสร็จ' };
 
-          const { data: foundRc } = await _supabase.from('receipts')
-            .select('id, receipt_no, buyer_name, grand_total, student_id')
-            .or(`receipt_no.eq.${cleanRc},id.eq.${cleanRc}`)
-            .limit(1);
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanRc);
+          let query = _supabase.from('receipts').select('id, receipt_no, buyer_name, grand_total, student_id');
+          if (isUuid) {
+            query = query.or(`receipt_no.eq.${cleanRc},id.eq.${cleanRc}`);
+          } else {
+            query = query.eq('receipt_no', cleanRc);
+          }
+          const { data: foundRc, error: findErr } = await query.limit(1);
+          if (findErr) throw findErr;
 
           if (!foundRc || foundRc.length === 0) {
             return { success: false, message: 'ไม่พบใบเสร็จเลขที่ ' + cleanRc + ' ในระบบ' };
@@ -16068,11 +16073,18 @@
           // Update room directly in Supabase receipts for this transferred student
           if (_supabase && transferNewRoom) {
             _supabase.from('receipts')
-              .update({ room: transferNewRoom, schedule: newSchedule })
+              .select('id')
               .eq('student_id', sid)
               .order('created_at', { ascending: false })
               .limit(1)
-              .then(() => console.log('Transferred student room updated in Supabase receipts'));
+              .then(({ data: rList }) => {
+                if (rList && rList.length > 0) {
+                  _supabase.from('receipts')
+                    .update({ room: transferNewRoom, schedule: newSchedule })
+                    .eq('id', rList[0].id)
+                    .then(() => console.log('Transferred student room updated in Supabase receipts'));
+                }
+              });
           }
           if (idx !== -1) {
             cachedSearchStudentsData[idx].course = newCourse;
@@ -29561,9 +29573,12 @@
 
         // Query Supabase receipts if not found or to get most updated room
         if (_supabase) {
+          const cleanQ = (query || '').replace(/[,()"]/g, ' ').trim();
+          const idMatch = cleanQ.match(/\d{7,8}/);
+          const targetId = idMatch ? idMatch[0] : cleanQ;
           const { data: rcData } = await _supabase.from('receipts')
             .select('*')
-            .or(`student_id.eq.${query},buyer_name.ilike.%${query}%`)
+            .or(`student_id.eq.${targetId},buyer_name.ilike.%${cleanQ}%`)
             .order('created_at', { ascending: false })
             .limit(1);
 
@@ -29941,8 +29956,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=138' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=138' : (window.location.pathname + '/sw.js?v=126'));
+        ? './sw.js?v=141' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=141' : (window.location.pathname + '/sw.js?v=126'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
         if (typeof reg.update === 'function') reg.update();
