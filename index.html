@@ -5596,7 +5596,7 @@
 
               <!-- FRONT SIDE CARD (CR80) -->
               <div class="oca-cr80-card-wrapper" id="wrapCardFront">
-                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.png?v=oca-pwa-v127') center/cover no-repeat; box-sizing:border-box;">
+                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.png?v=oca-pwa-v128') center/cover no-repeat; box-sizing:border-box;">
                   
                   <!-- Gloss Sheen Overlay for realistic PVC card look -->
                   <div class="card-gloss-sheen" style="position:absolute; inset:0; background:linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.18) 100%); pointer-events:none; z-index:3;"></div>
@@ -13417,14 +13417,20 @@
         if (action === 'logSecurityAudit') {
           try {
             const actor = getAuditActor(params);
+            const resolvedUsername = (params.username && params.username !== 'Staff/Registrar')
+              ? params.username
+              : ((params.staffUser && params.staffUser !== 'Staff/Registrar') ? params.staffUser : actor.username);
+            const resolvedFullName = params.fullName || params.operator || actor.fullName;
+            const resolvedRole = params.role || actor.role;
+
             const auditRow = {
               action: params.action || 'AUTH_EVENT',
               details: params.details || '',
               device_id: params.deviceId || actor.deviceId,
               device_info: params.deviceInfo || actor.deviceInfo,
-              username: params.username || params.staffUser || actor.username,
-              full_name: params.fullName || params.operator || actor.fullName,
-              role: params.role || actor.role,
+              username: resolvedUsername,
+              full_name: resolvedFullName,
+              role: resolvedRole,
               records: Number(params.recordCount || params.records || 1),
               status: params.status || 'SUCCESS'
             };
@@ -23769,12 +23775,18 @@
      * @param {number} recordCount
      */
     function logSecurityAuditAction(action, details, recordCount) {
-      const staffUser = (window.currentUser && (window.currentUser.name || window.currentUser.email)) || 'Staff/Registrar';
+      const actor = (typeof getAuditActor === 'function') ? getAuditActor() : (window.currentUser || {});
+      const username = actor.username || (window.currentUser && window.currentUser.username) || 'admin';
+      const fullName = actor.fullName || actor.full_name || (window.currentUser && window.currentUser.fullName) || '';
+      const role = actor.role || (window.currentUser && window.currentUser.role) || 'Staff';
+
       callGasApi('logSecurityAudit', {
         action: action,
         details: details || '',
         recordCount: recordCount || 0,
-        staffUser: staffUser,
+        username: username,
+        fullName: fullName,
+        role: role,
         status: 'SUCCESS'
       }, 'POST').catch(e => console.warn('Audit log error:', e));
     }
@@ -27126,8 +27138,12 @@
               ${badge}
             </td>
             <td style="padding:10px 14px;">
-              <strong style="color:#ffffff;">${escapeHtml(item.username || '-')}</strong>
-              <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(item.fullName || item.full_name || '')} (${escapeHtml(item.role || 'Staff')})</div>
+              <strong style="color:#ffffff; font-size:12.5px;">${escapeHtml(item.fullName || item.full_name || item.username || '-')}</strong>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+                <span style="color:#94a3b8; font-family:monospace;">@${escapeHtml((item.username === 'Staff/Registrar' ? (item.fullName && item.fullName.includes('นฤเบศร์') ? 'cake' : 'admin') : (item.username || '-')))}</span>
+                <span style="margin:0 4px; color:rgba(255,255,255,0.2);">•</span>
+                <span style="color:var(--color-gold); font-weight:600;">${escapeHtml(item.role || 'Staff')}</span>
+              </div>
             </td>
             <td style="padding:10px 14px; text-align:center; font-family:monospace; font-size:11px; color:var(--color-gold); white-space:nowrap;">
               <span style="cursor:pointer; text-decoration:underline dotted;" title="คลิกเพื่อกรองเฉพาะ Device ID นี้" onclick="filterByDeviceId('${escapeHtml(devId)}')">
