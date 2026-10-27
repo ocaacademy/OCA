@@ -5578,7 +5578,7 @@
 
               <!-- FRONT SIDE CARD (CR80) -->
               <div class="oca-cr80-card-wrapper" id="wrapCardFront">
-                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.png?v=oca-pwa-v123') center/cover no-repeat; box-sizing:border-box;">
+                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.png?v=oca-pwa-v124') center/cover no-repeat; box-sizing:border-box;">
                   
                   <!-- Gloss Sheen Overlay for realistic PVC card look -->
                   <div class="card-gloss-sheen" style="position:absolute; inset:0; background:linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.18) 100%); pointer-events:none; z-index:3;"></div>
@@ -17158,18 +17158,31 @@
      */
     function toDateTimeLocalValue(dtStr, defaultTime = '00:00') {
       if (!dtStr) return '';
-      const s = String(dtStr).trim();
-      if (!s) return '';
+      let s = String(dtStr).trim();
+      if (!s || s === 'null' || s === 'undefined' || s === '-') return '';
+      if (s.includes(' ') && !s.includes('T')) {
+        s = s.replace(' ', 'T');
+      }
       if (s.includes('T')) {
         const parts = s.split('T');
         const datePart = parts[0];
         let timePart = parts[1] || defaultTime;
         if (timePart.length < 5) timePart = defaultTime;
-        return `${datePart}T${timePart.slice(0, 5)}`;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          return `${datePart}T${timePart.slice(0, 5)}`;
+        }
       }
-      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-        return `${s}T${defaultTime}`;
+      const dateMatch = s.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (dateMatch) {
+        return `${dateMatch[1]}T${defaultTime}`;
       }
+      try {
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) {
+          const pad = n => String(n).padStart(2, '0');
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+      } catch(_) {}
       return '';
     }
 
@@ -29023,12 +29036,20 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=113' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=113' : (window.location.pathname + '/sw.js?v=113'));
+        ? './sw.js?v=124' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=124' : (window.location.pathname + '/sw.js?v=124'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
+        if (typeof reg.update === 'function') reg.update();
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
+      });
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
       });
     });
   }
