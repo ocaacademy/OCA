@@ -5596,7 +5596,7 @@
 
               <!-- FRONT SIDE CARD (CR80) -->
               <div class="oca-cr80-card-wrapper" id="wrapCardFront">
-                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.png?v=oca-pwa-v129') center/cover no-repeat; box-sizing:border-box;">
+                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.png?v=oca-pwa-v130') center/cover no-repeat; box-sizing:border-box;">
                   
                   <!-- Gloss Sheen Overlay for realistic PVC card look -->
                   <div class="card-gloss-sheen" style="position:absolute; inset:0; background:linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.18) 100%); pointer-events:none; z-index:3;"></div>
@@ -14949,6 +14949,9 @@
 
     function openReceiptForStudent(studentId, isRenewal = false) {
       switchNav('receipts');
+      if (typeof syncAllTermDropdownsWithOpenDates === 'function') {
+        syncAllTermDropdownsWithOpenDates();
+      }
       setTimeout(() => {
         if (typeof selectReceiptStudent === 'function' && studentId) {
           selectReceiptStudent(studentId);
@@ -17156,12 +17159,7 @@
       // 2. ซิงค์หน้าแคชเชียร์และออกใบเสร็จ (tabReceipts)
       const selRcptTerm = document.getElementById('selRcptTerm');
       const selRcptYear = document.getElementById('selRcptYear');
-      if (selRcptYear && !selRcptYear.dataset.userModified) {
-        if (selRcptYear.querySelector(`option[value="${activeYearStr}"]`)) {
-          selRcptYear.value = activeYearStr;
-        }
-      }
-      if (selRcptTerm && !selRcptTerm.dataset.userModified) {
+      if (selRcptTerm) {
         for (let t = 1; t <= 5; t++) {
           const opt = selRcptTerm.querySelector(`option[value="${t}"]`);
           const openDateText = (cachedTermOpenDates && (cachedTermOpenDates[t] || cachedTermOpenDates[String(t)])) || '';
@@ -17169,10 +17167,17 @@
             opt.textContent = openDateText ? `ภาคเรียนที่ ${t} (เปิดเรียน ${openDateText})` : `ภาคเรียนที่ ${t}`;
           }
         }
-        selRcptTerm.value = activeTermStr;
-        if (typeof onReceiptTermOrYearChange === 'function') {
-          onReceiptTermOrYearChange();
+        if (!selRcptTerm.dataset.userModified) {
+          selRcptTerm.value = activeTermStr;
         }
+      }
+      if (selRcptYear && !selRcptYear.dataset.userModified) {
+        if (selRcptYear.querySelector(`option[value="${activeYearStr}"]`)) {
+          selRcptYear.value = activeYearStr;
+        }
+      }
+      if (typeof onReceiptTermOrYearChange === 'function') {
+        onReceiptTermOrYearChange();
       }
 
       // 3. ซิงค์หน้าจัดกลุ่มเรียน (tabRoster / selRosterYearTerm)
@@ -19248,6 +19253,11 @@
       // สร้าง draft token
       receiptDraftToken = 'OCA-CLAIM://V1:DRAFT:' + Math.random().toString(36).substring(2, 10).toUpperCase();
 
+      // ซิงค์ภาคเรียนและปีการศึกษาเริ่มต้นตามกำหนดวันเปิดเรียนทันที
+      if (typeof syncAllTermDropdownsWithOpenDates === 'function') {
+        syncAllTermDropdownsWithOpenDates();
+      }
+
       loadReceiptCoursesDropdown();
       loadReceiptBooksDropdown();
       updateReceiptFeeStatusBadges();
@@ -19634,24 +19644,21 @@
             selDel.value = isDelivery ? 'ส่งตำรา' : 'รับเอง';
           }
 
-          // 6. คำนวณปีและเทอมสำหรับการลงทะเบียน/ต่อคอร์ส
-          const selYear = document.getElementById('selRcptYearBE');
+          // 6. คำนวณปีและเทอมสำหรับการลงทะเบียน/ต่อคอร์ส (ยึดตามกำหนดวันเปิดเรียนประจำภาคเรียน)
+          const selYear = document.getElementById('selRcptYear');
           const selTerm = document.getElementById('selRcptTerm');
+          const activeInfo = (typeof resolveCurrentAcademicTerm === 'function')
+            ? resolveCurrentAcademicTerm(cachedTermOpenDates)
+            : { term: 5, yearBE: 2569 };
           const isBrandNewStudent = !student.profile.latestCourse || student.profile.latestCourse === '-' || student.profile.latestCourse === 'หลักสูตรทั่วไป';
           if (isBrandNewStudent) {
-            // นักศึกษาใหม่ที่เพิ่งลงทะเบียน: คงปีและเทอมที่ระบุตอนลงทะเบียนไว้
-            if (selYear && student.profile.latestYearBE) selYear.value = student.profile.latestYearBE;
-            if (selTerm && student.profile.latestTerm) selTerm.value = student.profile.latestTerm;
+            // นักศึกษาใหม่ที่เพิ่งลงทะเบียน: คงปีและเทอมที่ระบุตอนลงทะเบียนไว้ หากไม่มีให้ยึดตามวันเปิดเรียน
+            if (selYear) selYear.value = student.profile.latestYearBE || String(activeInfo.yearBE);
+            if (selTerm) selTerm.value = student.profile.latestTerm || String(activeInfo.term);
           } else {
-            // ต่อคอร์สสำหรับเทอมถัดไป
-            const lastTermNum = parseInt(student.profile.latestTerm || '4', 10);
-            const nextTerm = (isNaN(lastTermNum) || lastTermNum >= 5) ? 1 : (lastTermNum + 1);
-            const nextYear = (lastTermNum >= 5) ?
-              (parseInt(student.profile.latestYearBE || '2569', 10) + 1).toString() :
-              (student.profile.latestYearBE || '2569');
-
-            if (selYear) selYear.value = nextYear;
-            if (selTerm) selTerm.value = nextTerm.toString();
+            // ต่อคอร์ส / ออกใบเสร็จ: ยึดภาคเรียนและปีการศึกษาตามกำหนดวันเปิดเรียนประจำภาคเรียนปัจจุบันเป็นหลัก
+            if (selYear) selYear.value = String(activeInfo.yearBE);
+            if (selTerm) selTerm.value = String(activeInfo.term);
           }
 
           fetchNextReceiptNumber();
@@ -20683,6 +20690,10 @@
       const selMode = document.getElementById('selRcptLearningMode');
       const txtOpen = document.getElementById('txtRcptOpenDate');
       const txtRoom = document.getElementById('txtRcptRoom');
+      const selRcptTerm = document.getElementById('selRcptTerm');
+      const selRcptYear = document.getElementById('selRcptYear');
+      if (selRcptTerm) delete selRcptTerm.dataset.userModified;
+      if (selRcptYear) delete selRcptYear.dataset.userModified;
       if (txtName) txtName.value = '';
       if (txtId) txtId.value = '';
       if (txtEmail) txtEmail.value = '';
