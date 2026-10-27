@@ -13996,6 +13996,7 @@
         if (typeof initProvinceDropdown === 'function') initProvinceDropdown();
         if (typeof loadCoursesManager === 'function') loadCoursesManager(true);
         if (typeof initGoogleFormModule === 'function') initGoogleFormModule();
+        if (typeof resetEnrollCameraAndPhotoState === 'function') resetEnrollCameraAndPhotoState();
       } else if (navKey === 'search') {
         document.getElementById('tabSearch').classList.add('active');
         document.getElementById('btnNavSearch').classList.add('active');
@@ -14739,6 +14740,79 @@
       }
     }
 
+    /**
+     * รีเซ็ตระบบกล้องถ่ายภาพและภาพตัวอย่างนักศึกษาให้สะอาดสมบูรณ์ 100% ไม่ค้างรูปถ่ายเดิม
+     */
+    function resetEnrollCameraAndPhotoState() {
+      photoDataUri = '';
+      if (typeof shutWebcam === 'function') shutWebcam();
+
+      const preview = document.getElementById('capturedPreview');
+      if (preview) {
+        preview.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E";
+        preview.style.display = 'none';
+      }
+
+      const placeholder = document.getElementById('camPlaceholder');
+      if (placeholder) {
+        placeholder.style.display = 'block';
+      }
+
+      const vid = document.getElementById('liveWebcam');
+      if (vid) {
+        vid.style.display = 'none';
+        if (vid.srcObject) {
+          try {
+            vid.srcObject.getTracks().forEach(t => t.stop());
+          } catch (_) {}
+          vid.srcObject = null;
+        }
+      }
+
+      const retakeBtn = document.getElementById('btnRetake');
+      if (retakeBtn) retakeBtn.style.display = 'none';
+
+      const snapBtn = document.getElementById('btnSnapPhoto');
+      if (snapBtn) {
+        snapBtn.style.display = 'none';
+        snapBtn.disabled = true;
+      }
+
+      const flipBtn = document.getElementById('btnFlipEnrollCam');
+      if (flipBtn) flipBtn.style.display = 'none';
+
+      const zoomBox = document.getElementById('camZoomControls');
+      if (zoomBox) zoomBox.style.display = 'none';
+
+      const toggleText = document.getElementById('btnCamText');
+      if (toggleText) toggleText.textContent = 'เปิดกล้องสด';
+
+      const fileInput = document.getElementById('fileFallback');
+      if (fileInput) fileInput.value = '';
+
+      const lblPhoto = document.getElementById('lblPhotoName');
+      if (lblPhoto) {
+        lblPhoto.textContent = '';
+        lblPhoto.style.display = 'none';
+      }
+
+      const frontPhoto = document.getElementById('cardFrontPhoto');
+      const frontPhotoFb = document.getElementById('cardFrontPhotoFallback');
+      if (frontPhoto) {
+        frontPhoto.src = '';
+        frontPhoto.style.display = 'none';
+      }
+      if (frontPhotoFb) frontPhotoFb.style.display = 'block';
+
+      const frontPhotoPort = document.getElementById('cardFrontPhotoPort');
+      const frontPhotoPortFb = document.getElementById('cardFrontPhotoPortFallback');
+      if (frontPhotoPort) {
+        frontPhotoPort.src = '';
+        frontPhotoPort.style.display = 'none';
+      }
+      if (frontPhotoPortFb) frontPhotoPortFb.style.display = 'block';
+    }
+
     // Submit Enrollment
     function submitEnrollment(event) {
       if (event) event.preventDefault();
@@ -14892,6 +14966,7 @@
             if (chkAuto && chkAuto.checked) {
               document.getElementById('enrollForm').reset();
               if (typeof initAcademicYearSelect === 'function') initAcademicYearSelect();
+              resetEnrollCameraAndPhotoState();
               showToast('ลงทะเบียนสำเร็จ!', 'รหัส ' + savedStudentId + ' — กำลังนำทางไปหน้าออกใบเสร็จรับเงินทันที...', '✓');
               openReceiptForStudent(savedStudentId, false);
               return;
@@ -14932,9 +15007,7 @@
             if (zInp) zInp.value = '';
             initProvinceDropdown();
 
-            photoDataUri = '';
-            document.getElementById('capturedPreview').style.display = 'none';
-            document.getElementById('camPlaceholder').style.display = 'block';
+            resetEnrollCameraAndPhotoState();
             calcNextStudentId();
             loadDashData();
           } else {
@@ -14953,11 +15026,7 @@
       const form = document.getElementById('enrollForm');
       if (form) form.reset();
       if (typeof initAcademicYearSelect === 'function') initAcademicYearSelect();
-      photoDataUri = '';
-      const preview = document.getElementById('capturedPreview');
-      if (preview) preview.style.display = 'none';
-      const camPlaceholder = document.getElementById('camPlaceholder');
-      if (camPlaceholder) camPlaceholder.style.display = 'block';
+      resetEnrollCameraAndPhotoState();
       calcNextStudentId();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -20465,6 +20534,62 @@
       container.appendChild(img);
     }
 
+    /**
+     * เคลียร์ข้อมูลฟอร์มออกใบเสร็จทันทีหลังบันทึกสำเร็จ เพื่อให้เจ้าหน้าที่กรอกคนใหม่ได้ทันที
+     */
+    function resetReceiptFormAfterSuccess(issuedReceiptNo) {
+      // 1. เคลียร์ข้อมูลการค้นหานักศึกษาและสถานะเดิม
+      clearReceiptStudentSearch();
+
+      // 2. เคลียร์ช่องข้อมูลผู้ซื้อ/ผู้เรียนทั้งหมด
+      const txtName = document.getElementById('txtRcptBuyerName'); if (txtName) txtName.value = '';
+      const txtId = document.getElementById('txtRcptBuyerId'); if (txtId) txtId.value = '';
+      const txtEmail = document.getElementById('txtRcptEmail'); if (txtEmail) txtEmail.value = '';
+      const txtPhone = document.getElementById('txtRcptPhone'); if (txtPhone) txtPhone.value = '';
+      const txtAddr = document.getElementById('txtRcptAddress'); if (txtAddr) txtAddr.value = '';
+      const selDel = document.getElementById('selRcptDeliveryMethod'); if (selDel) selDel.value = 'รับเอง';
+      const selMode = document.getElementById('selRcptLearningMode'); if (selMode) selMode.value = 'Online';
+      const txtOpen = document.getElementById('txtRcptOpenDate'); if (txtOpen) txtOpen.value = '';
+      const txtRoom = document.getElementById('txtRcptRoom'); if (txtRoom) txtRoom.value = '';
+
+      // 3. เคลียร์ค่าธรรมเนียมและส่วนลดทั้งหมด
+      const chkReg = document.getElementById('chkRcptApplyRegFee'); if (chkReg) chkReg.checked = false;
+      const chkCard = document.getElementById('chkRcptApplyCardFee'); if (chkCard) chkCard.checked = false;
+      const chkOther = document.getElementById('chkRcptApplyOtherRegFee'); if (chkOther) chkOther.checked = false;
+      const chkDiscNorm = document.getElementById('chkRcptApplyDiscountNormal'); if (chkDiscNorm) chkDiscNorm.checked = false;
+      const chkDiscOther = document.getElementById('chkRcptApplyDiscountOther'); if (chkDiscOther) chkDiscOther.checked = false;
+
+      const inpReg = document.getElementById('inpRcptRegFee'); if (inpReg) inpReg.value = 0;
+      const inpCard = document.getElementById('inpRcptCardFee'); if (inpCard) inpCard.value = 0;
+      const inpOther = document.getElementById('inpRcptOtherRegFee'); if (inpOther) inpOther.value = 0;
+      const inpDiscNorm = document.getElementById('inpRcptDiscountNormal'); if (inpDiscNorm) inpDiscNorm.value = 0;
+      const inpDiscOther = document.getElementById('inpRcptDiscountOther'); if (inpDiscOther) inpDiscOther.value = 0;
+
+      // 4. รีเซ็ตคอร์สและตำราเรียนกลับเป็นค่าเริ่มต้น
+      const selC = document.getElementById('selRcptCourse'); if (selC) selC.selectedIndex = 0;
+      const selS = document.getElementById('selRcptSchedule'); if (selS) selS.selectedIndex = 0;
+      const selB = document.getElementById('selRcptCatalogBook'); if (selB) selB.selectedIndex = 0;
+      const inpBQty = document.getElementById('inpRcptBookQty'); if (inpBQty) inpBQty.value = 1;
+
+      // 5. ปลดการเลือกปุ่มทางลัด Preset
+      document.getElementById('btnPresetNewStudent')?.classList.remove('active');
+      document.getElementById('btnPresetRenewal')?.classList.remove('active');
+      document.getElementById('btnPresetBookOnly')?.classList.remove('active');
+
+      // 6. คงชื่อผู้รับเงิน (Cashier) ตามผู้ใช้งานที่กำลังล็อกอินอยู่เสมอ
+      const txtResetCashier = document.getElementById('txtRcptCashier');
+      if (txtResetCashier) {
+        txtResetCashier.value = (typeof getEffectivePayeeName === 'function') ? getEffectivePayeeName() : 'เจ้าหน้าที่การเงิน (Cashier)';
+      }
+
+      // 7. รีเซ็ตยอดรวมสุทธิบนหน้าจอ
+      const elNetSummary = document.getElementById('lblRcptNetTotalSummary');
+      if (elNetSummary) elNetSummary.textContent = '0.00';
+
+      // 8. ดึงเลขที่ใบเสร็จถัดไปเตรียมพร้อมสำหรับคนใหม่ทันที
+      fetchNextReceiptNumber();
+    }
+
     async function saveReceiptForm() {
       const buyerName = document.getElementById('txtRcptBuyerName')?.value.trim();
       if (!buyerName) {
@@ -20703,6 +20828,9 @@
             const lblIssuedNo = document.getElementById('lblRcptIssuedNoBadge');
             if (lblIssuedNo) lblIssuedNo.textContent = toArabicDigits(res.receiptNo);
             if (boxBanner) boxBanner.style.display = 'block';
+
+            // ล้างฟอร์มฝั่งซ้ายทันที ไม่ค้างประวัติเดิม เพื่อให้เจ้าหน้าที่กรอกคนใหม่ได้ทันที
+            resetReceiptFormAfterSuccess(res.receiptNo);
 
             loadReceiptsHistoryTable();
             loadTextbookClaimLogs();
@@ -29694,8 +29822,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=136' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=136' : (window.location.pathname + '/sw.js?v=126'));
+        ? './sw.js?v=137' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=137' : (window.location.pathname + '/sw.js?v=126'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
         if (typeof reg.update === 'function') reg.update();
