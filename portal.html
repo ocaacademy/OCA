@@ -6598,7 +6598,7 @@
 
             <!-- Manual Token Claim Input (Fallback for USB/Barcode Scanner or Manual entry) -->
             <div style="width:100%; max-width:540px; display:flex; gap:8px; margin-top:8px;">
-              <input type="text" id="txtManualTokenClaim" class="oca-input" placeholder="พิมพ์เลขที่ใบเสร็จ เช่น 69050001" onkeydown="if(event.key==='Enter') doVerifyClaimByInput()">
+              <input type="text" id="txtManualTokenClaim" onfocus="if(typeof dismissClaimFeedbackCard==='function')dismissClaimFeedbackCard();" class="oca-input" placeholder="พิมพ์เลขที่ใบเสร็จ เช่น 69050001" onkeydown="if(event.key==='Enter') doVerifyClaimByInput()">
               <button type="button" class="oca-btn-gold-submit" style="padding:10px 18px; font-size:13.5px; white-space:nowrap;" onclick="doVerifyClaimByInput()">
                 ตรวจสอบ
               </button>
@@ -13968,6 +13968,9 @@
     }
 
     function switchNav(navKey) {
+      if (typeof dismissClaimFeedbackCard === 'function') {
+        dismissClaimFeedbackCard();
+      }
       if (typeof hasUserPermission === 'function' && navKey && !hasUserPermission(navKey)) {
         if (typeof showToast === 'function') {
           showToast('ไม่มีสิทธิ์เข้าถึง', `คุณไม่ได้รับอนุญาตให้เข้าใช้งานเมนู (${navKey})`, '⚠️');
@@ -21111,6 +21114,11 @@
         }
       }
       globalConfirmCallback = null;
+
+      // ปิดและเคลียร์การแจ้งเตือนสแกนตำราทันทีเมื่อกดรับทราบใน Modal ป้องกันค้างบนหน้าจอมือถือ
+      if (typeof dismissClaimFeedbackCard === 'function') {
+        dismissClaimFeedbackCard();
+      }
     }
 
     function confirmSendReceiptEmail() {
@@ -22090,6 +22098,9 @@
     }
 
     function initTextbooksModule() {
+      if (typeof dismissClaimFeedbackCard === 'function') {
+        dismissClaimFeedbackCard();
+      }
       updateTextbookOfficerFromLoggedInUser();
       loadTextbooksData();
       loadTextbookClaimLogs();
@@ -22670,6 +22681,67 @@
       }, 250);
     }
 
+    let tbClaimFeedbackTimer = null;
+
+    /**
+     * ปิดและซ่อนการแจ้งเตือนผลการสแกนตำราเรียน (Dismiss Feedback Card)
+     */
+    function dismissClaimFeedbackCard() {
+      if (tbClaimFeedbackTimer) {
+        clearTimeout(tbClaimFeedbackTimer);
+        tbClaimFeedbackTimer = null;
+      }
+      const card = document.getElementById('claimFeedbackCard');
+      if (card) {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(-6px)';
+        setTimeout(() => {
+          card.style.display = 'none';
+          card.className = 'oca-claim-feedback-card';
+          const content = document.getElementById('claimFeedbackContent');
+          if (content) content.innerHTML = '';
+        }, 220);
+      }
+    }
+
+    /**
+     * แสดงผลการสแกนตำราเรียนพร้อมปุ่มปิดและตั้งเวลายุบอัตโนมัติ (ป้องกันค้างบนมือถือ)
+     */
+    function displayClaimFeedbackCard(type, innerHtml, autoDismissSec = 12) {
+      if (tbClaimFeedbackTimer) {
+        clearTimeout(tbClaimFeedbackTimer);
+        tbClaimFeedbackTimer = null;
+      }
+      const card = document.getElementById('claimFeedbackCard');
+      const content = document.getElementById('claimFeedbackContent');
+      if (!card || !content) return;
+
+      card.style.display = 'block';
+      card.style.opacity = '1';
+      card.style.transform = 'translateY(0)';
+      card.className = 'oca-claim-feedback-card ' + type;
+
+      const closeHeaderHtml = 
+        '<div style="display:flex; justify-content:flex-end; margin-bottom:-26px; position:relative; z-index:5;">' +
+        '  <button type="button" onclick="dismissClaimFeedbackCard()" style="background:rgba(0,0,0,0.45); border:1px solid rgba(255,255,255,0.25); color:#ffffff; width:30px; height:30px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px;" title="ปิดการแจ้งเตือน">✕</button>' +
+        '</div>';
+
+      const bottomBarHtml = 
+        '<div style="margin-top:12px; padding-top:10px; border-top:1px dashed rgba(255,255,255,0.15); display:flex; justify-content:flex-end; gap:8px;">' +
+        '  <button type="button" onclick="dismissClaimFeedbackCard()" style="height:32px; font-size:12px; font-weight:600; padding:0 14px; border-radius:6px; color:#ffffff; border:1px solid rgba(255,255,255,0.25); background:rgba(0,0,0,0.35); cursor:pointer; display:inline-flex; align-items:center; gap:6px;">' +
+        '    <i class="fa-solid fa-xmark"></i> <span>ปิดการแจ้งเตือน (สแกนต่อ)</span>' +
+        '  </button>' +
+        '</div>';
+
+      content.innerHTML = closeHeaderHtml + innerHtml + bottomBarHtml;
+
+      if (autoDismissSec > 0) {
+        tbClaimFeedbackTimer = setTimeout(() => {
+          dismissClaimFeedbackCard();
+        }, autoDismissSec * 1000);
+      }
+    }
+
     function handleScannedQrToken(rawToken) {
       const now = Date.now();
       if (rawToken === tbLastScannedToken && now - tbLastScanTime < 2500) {
@@ -22683,14 +22755,12 @@
 
       const cleanToken = (rawToken || '').toString().trim();
       if (!cleanToken) {
-        if (card && content) {
-          card.className = 'oca-claim-feedback-card warning';
-          content.innerHTML =
-            '<div style="font-size:16px; font-weight:800; color:#ef4444;">' +
-            '  <i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i>ไม่พบรหัส QR Code' +
-            '</div>' +
-            '<div style="font-size:13px; color:#cbd5e1; margin-top:4px;">กรุณาสแกนใหม่อีกครั้ง หรือพิมพ์เลขที่ใบเสร็จ</div>';
-        }
+        displayClaimFeedbackCard('warning',
+          '<div style="font-size:16px; font-weight:800; color:#ef4444;">' +
+          '  <i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i>ไม่พบรหัส QR Code' +
+          '</div>' +
+          '<div style="font-size:13px; color:#cbd5e1; margin-top:4px;">กรุณาสแกนใหม่อีกครั้ง หรือพิมพ์เลขที่ใบเสร็จ</div>'
+        );
         showClaimAlertPopup('สแกนไม่สำเร็จ', 'ไม่พบรหัส QR Code หรือรหัสว่างเปล่า กรุณาสแกนใหม่อีกครั้ง หรือพิมพ์ค้นหาจากเลขที่ใบเสร็จ');
         return;
       }
@@ -22837,9 +22907,8 @@
           if (!card || !content) return;
 
           if (res && res.deliveryOrder) {
-            card.className = 'oca-claim-feedback-card warning';
             const matBox = renderMaterialClaimBox(res.materialType, res.itemTitle);
-            content.innerHTML =
+            displayClaimFeedbackCard('warning',
               '<div style="font-size:17px; font-weight:800; color:#38bdf8; display:flex; align-items:center; gap:8px;">' +
               '  <span><i class="fa-solid fa-truck" style="margin-right:6px;"></i> แจ้งเตือน: ใบเสร็จนี้เลือก "จัดส่งทางพัสดุตามที่อยู่"</span>' +
               '</div>' +
@@ -22854,7 +22923,8 @@
               '</div>' +
               '<div style="font-size:12px; color:#38bdf8; margin-top:8px; font-weight:700; border-top:1px dashed rgba(56,189,248,0.4); padding-top:6px;">' +
               '  <i class="fa-solid fa-truck-fast" style="margin-right:4px;"></i> สถาบันจะจัดส่งพัสดุตามที่อยู่ข้างต้น ไม่ต้องจ่ายอุปกรณ์ที่เคาน์เตอร์' +
-              '</div>';
+              '</div>'
+            );
             const parsedDeliv = parseCourseMaterialItems(res.materialType, res.itemTitle);
             const delivItemsHtml = parsedDeliv.items.map((it) => '<div style="padding:2px 0;">• ' + escapeHtml(it) + '</div>').join('');
             const delivModalBody =
@@ -22895,9 +22965,8 @@
 
           if (res && res.alreadyClaimed) {
             // Already Claimed Warning (Repeat Scan -> High Visibility RED Alert)
-            card.className = 'oca-claim-feedback-card warning';
             const matBox = renderMaterialClaimBox(res.materialType, res.itemTitle);
-            content.innerHTML =
+            displayClaimFeedbackCard('warning',
               '<div style="font-size:17px; font-weight:800; color:#ef4444; display:flex; align-items:center; gap:8px;">' +
               '  <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>บันทึกเตือน: รับอุปกรณ์/ตำราเรียนไปแล้ว!</span>' +
               '</div>' +
@@ -22912,7 +22981,8 @@
               '</div>' +
               '<div style="font-size:12px; color:#ef4444; margin-top:8px; font-weight:700; border-top:1px dashed rgba(239,68,68,0.4); padding-top:6px;">' +
               '  สแกนซ้ำไม่ได้: รหัส QR Code นี้ถูกใช้ตัดสิทธิ์ไปแล้ว' +
-              '</div>';
+              '</div>'
+            );
 
             const parsedClaim = parseCourseMaterialItems(res.materialType, res.itemTitle);
             const claimItemsHtml = parsedClaim.items.map((it) => '<div style="padding:2px 0;">• ' + escapeHtml(it) + '</div>').join('');
@@ -22954,14 +23024,14 @@
             );
 
           } else if (res && res.isCardReceipt) {
-            card.className = 'oca-claim-feedback-card warning';
-            content.innerHTML =
+            displayClaimFeedbackCard('warning',
               '<div style="font-size:16px; font-weight:800; color:#ef4444;">' +
               '  <i class="fa-solid fa-id-card" style="margin-right:6px;"></i>ไม่มีสิทธิ์ขอรับตำราเรียน' +
               '</div>' +
               '<div style="font-size:13px; color:#cbd5e1; margin-top:4px;">' +
               '  ' + (res.message || 'ใบเสร็จนี้เป็นการชำระค่าบัตรนักเรียน/บริการอื่นๆ เท่านั้น ไม่มีสิทธิ์ขอรับตำราเรียน') +
-              '</div>';
+              '</div>'
+            );
             showClaimAlertPopup(
               'ไม่มีสิทธิ์รับตำราเรียน',
               res.message || 'ใบเสร็จนี้เป็นการชำระค่าบัตรนักเรียนหรือบริการอื่นๆ เท่านั้น ไม่มีสิทธิ์ขอรับตำราเรียน',
@@ -22971,9 +23041,8 @@
 
           } else if (res && res.success) {
             // Success Claim (First Scan -> High Visibility GREEN Alert)
-            card.className = 'oca-claim-feedback-card success';
             const matBox = renderMaterialClaimBox(res.materialType, res.itemTitle);
-            content.innerHTML =
+            displayClaimFeedbackCard('success',
               '<div style="font-size:18px; font-weight:800; color:#10b981; display:flex; align-items:center; gap:8px;">' +
               '  <span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>สแกนสำเร็จ: บันทึกรับอุปกรณ์การเรียนเรียบร้อยแล้ว!</span>' +
               '</div>' +
@@ -22986,7 +23055,8 @@
               '  เลขที่ใบเสร็จ: <strong>' + toArabicDigits(res.receiptNo) + '</strong><br>' +
               '  วันเวลาที่บันทึก: <strong>' + toArabicDigits(res.claimedAt) + '</strong><br>' +
               '  ผู้บันทึกจ่าย: <strong>' + (res.claimedBy || '') + '</strong>' +
-              '</div>';
+              '</div>'
+            );
             loadTextbookClaimLogs();
             loadTextbooksData();
             loadReceiptsHistoryTable();
@@ -23031,14 +23101,14 @@
             );
 
           } else {
-            card.className = 'oca-claim-feedback-card warning';
-            content.innerHTML =
+            displayClaimFeedbackCard('warning',
               '<div style="font-size:16px; font-weight:800; color:#ef4444;">' +
               '  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>ไม่พบข้อมูลสิทธิ์ใบเสร็จนี้' +
               '</div>' +
               '<div style="font-size:13px; color:#cbd5e1; margin-top:4px;">' +
               '  ' + ((res && res.message) ? res.message : 'รหัส QR ไม่ตรงกับฐานข้อมูลใบเสร็จในระบบ') +
-              '</div>';
+              '</div>'
+            );
             showClaimAlertPopup(
               'ไม่พบข้อมูลสิทธิ์ใบเสร็จนี้',
               ((res && res.message) ? res.message : 'รหัส QR หรือเลขที่ใบเสร็จไม่ตรงกับฐานข้อมูลในระบบ กรุณาตรวจสอบเลขที่ใบเสร็จ หรือสแกนจากใบเสร็จฉบับจริงอีกครั้ง'),
@@ -29624,8 +29694,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=135' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=135' : (window.location.pathname + '/sw.js?v=126'));
+        ? './sw.js?v=136' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=136' : (window.location.pathname + '/sw.js?v=126'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
         if (typeof reg.update === 'function') reg.update();
