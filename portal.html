@@ -4065,9 +4065,27 @@
       white-space: nowrap !important;
       text-align: center !important;
     }
+
+    /* Instant Public Registration Isolation (Zero-flash Welcome/Login) */
+    html.oca-register-direct #viewWelcome,
+    html.oca-register-direct #viewLoginSplit {
+      display: none !important;
+    }
+    html.oca-register-direct #viewPublicRegister {
+      display: block !important;
+    }
 </style>
 </head>
 <body>
+  <script>
+    (function() {
+      try {
+        if (window.location.search.indexOf('page=register') !== -1 || window.location.hash === '#register') {
+          document.documentElement.classList.add('oca-register-direct');
+        }
+      } catch(e) {}
+    })();
+  </script>
 
 
   <!-- Root Container -->
@@ -5578,7 +5596,7 @@
 
               <!-- FRONT SIDE CARD (CR80) -->
               <div class="oca-cr80-card-wrapper" id="wrapCardFront">
-                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.png?v=oca-pwa-v126') center/cover no-repeat; box-sizing:border-box;">
+                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.png?v=oca-pwa-v127') center/cover no-repeat; box-sizing:border-box;">
                   
                   <!-- Gloss Sheen Overlay for realistic PVC card look -->
                   <div class="card-gloss-sheen" style="position:absolute; inset:0; background:linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.18) 100%); pointer-events:none; z-index:3;"></div>
@@ -10021,13 +10039,8 @@
 
       <div style="max-width:820px; margin:0 auto;">
         
-        <!-- Top Toolbar: Language Selector with Flag Buttons -->
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
-          <div>
-            <button type="button" onclick="closePublicRegisterView()" style="background:#FFFFFF; border:1px solid #D1D5DB; border-radius:20px; padding:6px 14px; font-size:12.5px; font-weight:700; color:#047857; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 4px rgba(0,0,0,0.03);">
-              <i class="fa-solid fa-arrow-left"></i> <span id="lblBtnBackHome">กลับสู่หน้าหลัก</span>
-            </button>
-          </div>
+        <!-- Top Toolbar: Language Selector with Flag Buttons (Pure Registration Mode) -->
+        <div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="font-size:12px; font-weight:700; color:#047857;" id="lblLangSelectHint">เปลี่ยนภาษา / Language:</span>
             <!-- Flag Thai Button -->
@@ -10294,15 +10307,15 @@
             </div>
 
             <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-              <button type="button" onclick="window.print()" style="padding:10px 22px; font-size:14px; font-weight:700; background:#047857; color:#FFFFFF; border:none; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
+              <button type="button" onclick="window.print()" style="padding:10px 22px; font-size:14px; font-weight:700; background:#047857; color:#FFFFFF; border:none; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; box-shadow:0 3px 8px rgba(4,120,87,0.3);">
                 <i class="fa-solid fa-print"></i> <span id="lblBtnPrintSuccess">พิมพ์ใบยืนยันการสมัคร</span>
               </button>
               <button type="button" onclick="resetPublicRegisterForm()" style="padding:10px 20px; font-size:14px; font-weight:700; background:#FFFFFF; color:#047857; border:1.5px solid #047857; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
                 <i class="fa-solid fa-user-plus"></i> <span id="lblBtnNewSuccess">สมัครนักเรียนใหม่อีก 1 คน</span>
               </button>
-              <button type="button" onclick="closePublicRegisterView()" style="padding:10px 20px; font-size:14px; font-weight:700; background:#F3F4F6; color:#4B5563; border:1px solid #D1D5DB; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
-                <i class="fa-solid fa-xmark"></i> <span id="lblBtnCloseSuccess">ปิดหน้านี้</span>
-              </button>
+            </div>
+            <div id="lblSuccessCloseHint" style="font-size:12.5px; color:#4B5563; margin-top:14px; text-align:center; line-height:1.6;">
+              💡 ท่านสามารถพิมพ์หรือบันทึกภาพหน้าจอใบยืนยันการสมัครนี้ไว้เป็นหลักฐาน หรือปิดหน้าต่างเบราว์เซอร์ได้เลย
             </div>
           </div>
 
@@ -14998,7 +15011,8 @@
     }
 
     function openActiveEnrollLink() {
-      openPublicRegisterView();
+      const url = typeof getOcaPublicRegisterUrl === 'function' ? getOcaPublicRegisterUrl() : '?page=register';
+      window.open(url, '_blank');
     }
 
     // Compatibility stubs
@@ -17447,15 +17461,9 @@
             </div>
             <div style="font-size:13px; color:#047857; line-height:1.7;">
               <div>🏫 <strong>東方文化書院 (ORIENTAL CULTURE ACADEMY)</strong></div>
-              <div>📞 โทรศัพท์สำนักงาน: 02-xxx-xxxx</div>
+              <div>📞 เบอร์โทรศัพท์: 02-216-2826, 02-216-2827, 02-216-2828</div>
               <div>💬 LINE Official: @ocaacademy</div>
             </div>
-          </div>
-
-          <div>
-            <button type="button" class="oca-btn-cancel-custom" onclick="closePublicRegisterView()" style="height:42px; padding:0 24px; font-size:14px; font-weight:700; background:#FFFFFF; border:1.5px solid #D1D5DB; color:#374151; box-shadow:0 2px 6px rgba(0,0,0,0.05);">
-              <i class="fa-solid fa-arrow-left" style="margin-right:6px;"></i> กลับสู่หน้าหลัก
-            </button>
           </div>
         </div>
       `;
@@ -22920,11 +22928,14 @@
     // - iOS: อธิบายขั้นตอนการติดตั้งเป็นข้อๆ ชัดเจน (1, 2, 3)
     // =========================================================================
     // Check initial route parameter (defaults to Welcome Screen first)
-    (function checkInitialRoute() {
+    function checkInitialRoute() {
+      let isPublicReg = false;
       try {
         const urlParams = new URLSearchParams(window.location.search);
         const page = urlParams.get('page');
         if (page === 'register' || window.location.hash === '#register') {
+          isPublicReg = true;
+          document.documentElement.classList.add('oca-register-direct');
           const welcomeOverlay = document.getElementById('viewWelcome');
           if (welcomeOverlay) welcomeOverlay.style.display = 'none';
           const splitView = document.getElementById('viewLoginSplit');
@@ -22943,13 +22954,18 @@
           showWelcomeScreen();
         }
       } catch (e) {
-        showWelcomeScreen();
+        console.warn('[OCA Router Warning]:', e);
+        if (!isPublicReg) {
+          showWelcomeScreen();
+        }
       }
       if (typeof initAcademicYearSelect === 'function') initAcademicYearSelect();
       calcNextStudentId();
       if (typeof loadThaiAddressData === 'function') loadThaiAddressData();
       if (typeof loadCoursesManager === 'function') loadCoursesManager(true);
-    })();
+    }
+    // Execute routing
+    checkInitialRoute();
 
     // =========================================================================
     // SINGLE PWA CONTROLLER (ส่งสัญญาณให้ GitHub Pages Shell ทำการติดตั้ง)
@@ -27649,6 +27665,7 @@
     });
 
     document.addEventListener('DOMContentLoaded', () => {
+      checkInitialRoute();
       syncAllTermDropdownsWithOpenDates();
       checkInitialAuthState();
       // Restore payee & fee settings from localStorage immediately to guarantee instant persistence
@@ -27861,6 +27878,7 @@
         btnPrint: 'พิมพ์ใบยืนยันการสมัคร',
         btnNew: 'สมัครนักเรียนใหม่อีก 1 คน',
         btnClose: 'ปิดหน้านี้',
+        closeHint: '💡 ท่านสามารถพิมพ์หรือบันทึกภาพหน้าจอใบยืนยันการสมัครนี้ไว้เป็นหลักฐาน หรือปิดหน้าต่างเบราว์เซอร์ได้เลย',
         valName: 'กรุณาระบุชื่อ-นามสกุลของผู้สมัคร',
         valCitizen: 'กรุณาระบุเลขประจำตัวประชาชน 13 หลัก หรือเลขพาสปอร์ต',
         valPhone: 'กรุณาระบุเบอร์โทรศัพท์มือถือที่สามารถติดต่อได้',
@@ -27922,6 +27940,7 @@
         btnPrint: 'Print Confirmation Slip',
         btnNew: 'Register Another Student',
         btnClose: 'Close Window',
+        closeHint: '💡 You may print/save this confirmation slip as official proof or close this browser window.',
         valName: 'Please enter applicant full name.',
         valCitizen: 'Please enter 13-digit National ID or Passport number.',
         valPhone: 'Please enter a valid mobile phone number.',
@@ -28005,6 +28024,7 @@
       setTxt('lblBtnPrintSuccess', dict.btnPrint);
       setTxt('lblBtnNewSuccess', dict.btnNew);
       setTxt('lblBtnCloseSuccess', dict.btnClose);
+      setTxt('lblSuccessCloseHint', dict.closeHint);
     }
 
     let isPubRegAutoSaveInited = false;
@@ -28301,6 +28321,14 @@
     }
 
     function closePublicRegisterView() {
+      // Guard: If accessing via public registration route (?page=register or #register), strictly block exiting to welcome or login screen
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('page') === 'register' || window.location.hash === '#register') {
+          return;
+        }
+      } catch (e) {}
+
       const regView = document.getElementById('viewPublicRegister');
       if (regView) regView.style.display = 'none';
       if (typeof showWelcomeScreen === 'function') {
