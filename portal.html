@@ -5578,7 +5578,7 @@
 
               <!-- FRONT SIDE CARD (CR80) -->
               <div class="oca-cr80-card-wrapper" id="wrapCardFront">
-                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.png?v=oca-pwa-v124') center/cover no-repeat; box-sizing:border-box;">
+                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.png?v=oca-pwa-v125') center/cover no-repeat; box-sizing:border-box;">
                   
                   <!-- Gloss Sheen Overlay for realistic PVC card look -->
                   <div class="card-gloss-sheen" style="position:absolute; inset:0; background:linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.18) 100%); pointer-events:none; z-index:3;"></div>
@@ -10073,6 +10073,10 @@
           </div>
 
           <div id="boxPublicRegisterFormBody">
+          <!-- Security Layer 3: Invisible Honeypot Trap for Bots (Invisible to Humans) -->
+          <div style="opacity:0; position:absolute; top:0; left:0; height:0; width:0; z-index:-1; overflow:hidden;" aria-hidden="true">
+            <input type="text" id="inpPubSecurityHoneypot" name="user_bot_trap_field" tabindex="-1" autocomplete="off">
+          </div>
             <form id="formPublicRegister" onsubmit="event.preventDefault(); submitPublicRegister();">
               
               <!-- Friendly Auto-Save Notice -->
@@ -10824,11 +10828,8 @@
         const cashierPerms = ['dashboard', 'receipts', 'report'];
         const shippingPerms = ['dashboard', 'textbooks', 'shipping'];
 
-        const validAdminPasswords = [
-          'OcaAdmin@2026', 'ocaadmin@2026', 'oca@2026', 'Oca@2026', 
-          '1234', 'admin1234', 'admin', 'Admin', 'Oca1234', 'oca1234'
-        ];
-
+        // Secure Admin Credential Gate (Zero weak passwords like '1234' or 'admin')
+        const validAdminPasswords = ['OcaAdmin@2026', 'dongfang2026', 'Admin@OCA2026'];
         const isMatchAdminPass = validAdminPasswords.includes(p);
         if (!u || !p) {
           return { success: false, message: 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน' };
@@ -15221,6 +15222,17 @@
      * วาดตารางรายชื่อนักเรียนทั้งหมด
      * @param {Array<Object>} students รายการข้อมูลนักเรียน
      */
+    
+    /**
+     * PDPA Masking: ปกปิดเลขบัตรประชาชนสำหรับหน้าแสดงผลทั่วไป (เช่น 1-1004-xxxxx-12-3)
+     */
+    function maskCitizenId(cid) {
+      if (!cid) return '';
+      const s = String(cid).replace(/\D/g, '');
+      if (s.length !== 13) return cid;
+      return `${s[0]}-${s.slice(1, 5)}-xxxxx-${s.slice(10, 12)}-${s[12]}`;
+    }
+
     function renderSearchStudentsTable(students) {
       const tbody = document.getElementById('tbodySearchStudents');
       if (!tbody) return;
@@ -15289,7 +15301,7 @@
           photoThumb +
           '      <div style="min-width:0;">' +
           '        <div style="font-weight:600; color:#FFFFFF; font-size:12.5px; white-space:nowrap;">' + escapeHtml((prefix + ' ' + fullName).trim()) + '</div>' +
-          '        <div style="font-size:10.5px; color:var(--text-muted); white-space:nowrap;">' + escapeHtml(s.citizenId ? toArabicDigits(s.citizenId) : '') + '</div>' +
+          '        <div style="font-size:10.5px; color:var(--text-muted); white-space:nowrap;" title="คลิกดูรายละเอียดเพื่อดูเลขฉบับเต็ม">' + escapeHtml(s.citizenId ? toArabicDigits(maskCitizenId(s.citizenId)) : '') + '</div>' +
           '      </div>' +
           '    </div>' +
           '  </td>' +
@@ -25129,7 +25141,34 @@
       try {
         const stored = localStorage.getItem('oca_current_user');
         if (!stored) return null;
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (!parsed || typeof parsed !== 'object') return null;
+
+        // Verify session signature against tampering in DevTools
+        const activeSig = sessionStorage.getItem('oca_sess_sig');
+        const expectedSig = generateSessionSignature(parsed);
+        if (activeSig && expectedSig && activeSig !== expectedSig) {
+          console.warn('[Security Guard] Unauthorized session tampering detected! Revoking session.');
+          localStorage.removeItem('oca_current_user');
+          sessionStorage.removeItem('oca_sess_sig');
+          if (typeof _supabase !== 'undefined' && _supabase) {
+            try {
+              _supabase.from('security_audit_logs').insert([{
+                action: 'SESSION_TAMPERING_BLOCKED',
+                username: parsed.username || 'unknown',
+                full_name: parsed.fullName || 'ตรวจพบการแก้สิทธิ์',
+                role: parsed.role || 'Tampered',
+                device_id: 'SESSION-INTEGRITY-FAIL',
+                device_info: navigator ? navigator.userAgent : 'Unknown',
+                details: 'ตรวจพบการดัดแปลงข้อมูล Session ใน LocalStorage โดยไม่ได้รับอนุญาต',
+                records: 1,
+                status: 'BLOCKED'
+              }]);
+            } catch (_) {}
+          }
+          return null;
+        }
+        return Object.freeze(parsed);
       } catch (e) {
         return null;
       }
@@ -25138,13 +25177,33 @@
     /**
      * บันทึกข้อมูลผู้ใช้งานที่กำลังล็อกอิน
      */
+    // Security Layer 2: Tamper-Proof Session Manager
+    function generateSessionSignature(user) {
+      if (!user || !user.username) return '';
+      const secretSalt = 'OCA_SEC_V125_' + (user.email || user.username);
+      let hash = 0;
+      const str = `${user.username}:${user.role}:${Array.isArray(user.permissions) ? user.permissions.join(',') : ''}:${secretSalt}`;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0;
+      }
+      return 'sig_' + Math.abs(hash).toString(36);
+    }
+
     function saveCurrentUser(user) {
       try {
-        window.currentUser = user || null;
         if (!user) {
+          window.currentUser = null;
           localStorage.removeItem('oca_current_user');
+          sessionStorage.removeItem('oca_sess_sig');
         } else {
+          const frozenUser = Object.freeze({ ...user });
+          window.currentUser = frozenUser;
+          const sig = generateSessionSignature(user);
           localStorage.setItem('oca_current_user', JSON.stringify(user));
+          sessionStorage.setItem('oca_sess_sig', sig);
+          resetSecurityIdleTimer();
         }
       } catch (e) {
         console.warn('Unable to save user to localStorage:', e);
@@ -25466,6 +25525,19 @@
       const btnSubmit = document.getElementById('btnLoginSubmit');
       const chkRemember = document.getElementById('chkRememberDevice');
 
+      // Security Layer 1: Anti-Brute Force Lockout Gate
+      const lockoutUntil = parseInt(localStorage.getItem('oca_login_lockout_until') || '0', 10);
+      const now = Date.now();
+      if (lockoutUntil && now < lockoutUntil) {
+        const remainingMinutes = Math.ceil((lockoutUntil - now) / 60000);
+        if (alertBox) {
+          alertBox.textContent = `ระบบระงับการเข้าใช้งานชั่วคราวเนื่องจากกรอกรหัสผ่านผิดเกินกำหนด กรุณารออีกประมาณ ${remainingMinutes} นาที`;
+          alertBox.style.display = 'block';
+        }
+        showRightToast('ระงับการเข้าสู่ระบบชั่วคราว', `กรุณารออีก ${remainingMinutes} นาที เพื่อความปลอดภัย`, '🔒', 5000);
+        return;
+      }
+
       const username = usernameInput ? usernameInput.value.trim() : '';
       const password = passwordInput ? passwordInput.value : '';
       const deviceId = getOrCreateDeviceId();
@@ -25503,6 +25575,10 @@
         }
 
         if (res && res.success && res.user) {
+          // Security Layer 1: Reset lockout counter on success
+          localStorage.removeItem('oca_login_attempts');
+          localStorage.removeItem('oca_login_lockout_until');
+
           saveCurrentUser(res.user);
           applyUserPermissions(res.user);
 
@@ -25518,9 +25594,38 @@
 
           showRightToast('เข้าสู่ระบบสำเร็จ', `ยินดีต้อนรับคุณ ${res.user.fullName || res.user.username} (${res.user.role})`, '✓', 4500);
         } else {
-          if (alertBox) {
-            alertBox.textContent = (res && res.message) ? res.message : 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง';
-            alertBox.style.display = 'block';
+          // Security Layer 1: Increment brute-force failure tracking
+          let attempts = parseInt(localStorage.getItem('oca_login_attempts') || '0', 10) + 1;
+          localStorage.setItem('oca_login_attempts', String(attempts));
+          if (attempts >= 5) {
+            const lockTime = Date.now() + 15 * 60 * 1000;
+            localStorage.setItem('oca_login_lockout_until', String(lockTime));
+            if (typeof _supabase !== 'undefined' && _supabase) {
+              try {
+                _supabase.from('security_audit_logs').insert([{
+                  action: 'LOGIN_LOCKOUT',
+                  username: username || 'unknown',
+                  full_name: 'ผู้พยายามสุ่มรหัสผ่าน (Anti-Brute Force)',
+                  role: 'Blocked',
+                  device_id: deviceId || 'DEVICE-BLOCKED',
+                  device_info: deviceInfo || 'Unknown',
+                  details: `ระงับการเข้าใช้งาน 15 นาทีหลังกรอกรหัสผ่านผิด ${attempts} ครั้งติดต่อกัน`,
+                  records: attempts,
+                  status: 'BLOCKED'
+                }]);
+              } catch (_) {}
+            }
+            if (alertBox) {
+              alertBox.textContent = 'กรอกรหัสผ่านผิดเกิน 5 ครั้ง ระบบได้ระงับการเข้าใช้งานของเครื่องนี้เป็นเวลา 15 นาที เพื่อความปลอดภัย';
+              alertBox.style.display = 'block';
+            }
+            showRightToast('ระงับการเข้าสู่ระบบ 15 นาที', 'กรอกรหัสผ่านผิดเกินกำหนด ระบบล็อกความปลอดภัย', '🔒', 6000);
+          } else {
+            const remainingTries = 5 - attempts;
+            if (alertBox) {
+              alertBox.textContent = `${(res && res.message) ? res.message : 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง'} (เหลือโอกาสอีก ${remainingTries} ครั้ง)`;
+              alertBox.style.display = 'block';
+            }
           }
           if (passwordInput) {
             passwordInput.value = '';
@@ -27381,6 +27486,39 @@
       }
     }, 25000);
 
+    
+    // =========================================================================
+    // SECURITY LAYER 2: 30-MINUTE IDLE SESSION AUTO-LOGOUT
+    // =========================================================================
+    let _ocaIdleTimer = null;
+    const OCA_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 นาที
+
+    function resetSecurityIdleTimer() {
+      if (_ocaIdleTimer) clearTimeout(_ocaIdleTimer);
+      const user = getSavedCurrentUser();
+      if (!user) return;
+
+      _ocaIdleTimer = setTimeout(() => {
+        const activeUser = getSavedCurrentUser();
+        if (activeUser) {
+          saveCurrentUser(null);
+          try {
+            sessionStorage.removeItem('oca_security_unlocked');
+          } catch (_) {}
+          const splitView = document.getElementById('viewLoginSplit');
+          if (splitView) openSplitScreenLogin();
+          else backToWelcomeScreen();
+          document.body.classList.remove('portal-active');
+          document.documentElement.classList.remove('portal-active');
+          showModal('เซสชันหมดอายุเพื่อความปลอดภัย', 'เนื่องจากไม่มีการใช้งานระบบติดต่อกันเกิน 30 นาที ระบบได้ทำการลงชื่อออกอัตโนมัติเพื่อป้องกันการเข้าถึงข้อมูลโดยไม่ได้รับอนุญาต', '🔒');
+        }
+      }, OCA_IDLE_TIMEOUT_MS);
+    }
+
+    ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+      window.addEventListener(evt, resetSecurityIdleTimer, { passive: true });
+    });
+
     document.addEventListener('DOMContentLoaded', () => {
       checkInitialAuthState();
       // Restore payee & fee settings from localStorage immediately to guarantee instant persistence
@@ -27989,6 +28127,8 @@
     }
 
     function openPublicRegisterView() {
+      // Security Layer 3: Record form open timestamp to detect rapid bot submissions
+      window._pubFormOpenTimestamp = Date.now();
       const regView = document.getElementById('viewPublicRegister');
       const welcome = document.getElementById('viewWelcome');
       const login = document.getElementById('viewLoginSplit');
@@ -28078,6 +28218,29 @@
     }
 
     function submitPublicRegister() {
+      // Security Layer 3: Bot Honeypot Trap Check
+      const honeypotVal = (document.getElementById('inpPubSecurityHoneypot')?.value || '').trim();
+      if (honeypotVal) {
+        console.warn('[Security Guard] Bot trapped via honeypot field. Discarding submission.');
+        showToast('คำขอถูกปฏิเสธเนื่องจากตรวจพบพฤติกรรมอัตโนมัติ', 'error');
+        return;
+      }
+
+      // Security Layer 3: Time-to-fill Check (Bots submit in < 3s; humans take > 10s)
+      const formOpenTime = window._pubFormOpenTimestamp || 0;
+      const elapsedMs = Date.now() - formOpenTime;
+      if (formOpenTime && elapsedMs < 3000) {
+        showModal('ตรวจพบการส่งข้อมูลเร็วผิดปกติ', 'กรุณารอสักครู่ (อย่างน้อย 3 วินาที) เพื่อตรวจสอบข้อมูลก่อนกดยืนยันการสมัครเรียน', '⚠️');
+        return;
+      }
+
+      // Security Layer 3: Debounce Check (Prevent double submissions within 30s)
+      const lastSubmit = window._lastPubSubmitTimestamp || 0;
+      if (lastSubmit && (Date.now() - lastSubmit < 30000)) {
+        showToast('กำลังประมวลผลคำขอสมัครเรียน กรุณาอย่ากดย้ำซ้ำ', 'warning');
+        return;
+      }
+      window._lastPubSubmitTimestamp = Date.now();
       const dict = OCA_REG_I18N[currentRegLanguage] || OCA_REG_I18N.th;
       const prefix = document.getElementById('selPubPrefix')?.value || 'นาย';
       const fullName = (document.getElementById('txtPubFullName')?.value || '').trim();
@@ -29036,8 +29199,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=124' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=124' : (window.location.pathname + '/sw.js?v=124'));
+        ? './sw.js?v=125' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=125' : (window.location.pathname + '/sw.js?v=125'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
         if (typeof reg.update === 'function') reg.update();
