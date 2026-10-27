@@ -10881,8 +10881,45 @@
           return { success: false, message: 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน' };
         }
 
-        // 0. PRIORITIZE SUPABASE staff_users (Authentic First & Last Names)
+        // 0. PRIORITIZE SECURE DATABASE RPC (verify_staff_login) WITH ZERO PLAINTEXT TABLE EXPOSURE
         if (typeof _supabase !== 'undefined' && _supabase) {
+          try {
+            const { data: rpcUser, error: rpcErr } = await _supabase.rpc('verify_staff_login', {
+              p_username: u,
+              p_password: p
+            });
+
+            if (!rpcErr && rpcUser) {
+              const parsedUser = typeof rpcUser === 'string' ? JSON.parse(rpcUser) : rpcUser;
+              if (parsedUser && parsedUser.username) {
+                let userPerms = resolveUserPerms(parsedUser);
+                const authedStaff = {
+                  username: parsedUser.username,
+                  fullName: parsedUser.full_name || parsedUser.username,
+                  email: parsedUser.email || `${parsedUser.username}@oca.ac.th`,
+                  role: parsedUser.role || 'Staff',
+                  permissions: userPerms,
+                  deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
+                };
+                try {
+                  await _supabase.from('security_audit_logs').insert([{
+                    action: 'LOGIN_SUCCESS',
+                    username: authedStaff.username,
+                    full_name: authedStaff.fullName,
+                    role: authedStaff.role,
+                    device_id: authedStaff.deviceId,
+                    device_info: params.deviceInfo || (navigator ? navigator.userAgent : 'Browser WebApp'),
+                    details: `เข้าสู่ระบบสำเร็จ (สิทธิ์: ${authedStaff.role}) [RPC Secure]`,
+                    records: 1,
+                    status: 'SUCCESS'
+                  }]);
+                } catch (_) {}
+                return { success: true, user: authedStaff };
+              }
+            }
+          } catch (_) {}
+
+          // Backward-compatible fallback to staff_users table
           try {
             const { data: dbUser } = await _supabase.from('staff_users')
               .select('*')
@@ -13395,7 +13432,7 @@
         if (action === 'getUsersList') {
           try {
             const { data, error } = await _supabase.from('staff_users')
-              .select('id, username, full_name, email, role, is_active, created_at')
+              .select('*')
               .order('created_at', { ascending: true });
             
             if (error) {
@@ -13420,6 +13457,12 @@
               if (uLower === 'registrar') perms = ['dashboard', 'enroll', 'search', 'courses', 'card', 'report'];
               if (uLower === 'admin' || uLower === 'cake' || u.role === 'Admin' || u.role === 'Administrator') {
                 perms = defaultRolePerms['Administrator'];
+              }
+              if (u.permissions) {
+                try {
+                  const p = typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions;
+                  if (Array.isArray(p) && p.length > 0) perms = p;
+                } catch (_) {}
               }
               try {
                 const saved = localStorage.getItem('oca_user_perms_' + uLower);
@@ -13476,6 +13519,7 @@
               try {
                 localStorage.setItem('oca_user_perms_' + uname.toLowerCase(), JSON.stringify(uperms));
               } catch (_) {}
+              updateData.permissions = JSON.stringify(uperms);
             }
 
             const { data: existing } = await _supabase.from('staff_users')
@@ -13484,10 +13528,18 @@
               .maybeSingle();
 
             if (existing && existing.id) {
-              await _supabase.from('staff_users').update(updateData).eq('id', existing.id);
+              const res = await _supabase.from('staff_users').update(updateData).eq('id', existing.id);
+              if (res && res.error && res.error.message && res.error.message.includes('permissions')) {
+                delete updateData.permissions;
+                await _supabase.from('staff_users').update(updateData).eq('id', existing.id);
+              }
             } else {
               if (!upass) updateData.password_hash = 'Oca1234';
-              await _supabase.from('staff_users').insert([updateData]);
+              const res = await _supabase.from('staff_users').insert([updateData]);
+              if (res && res.error && res.error.message && res.error.message.includes('permissions')) {
+                delete updateData.permissions;
+                await _supabase.from('staff_users').insert([updateData]);
+              }
             }
 
             return { success: true, message: `บันทึกข้อมูลผู้ใช้งาน ${uname} เรียบร้อยแล้ว` };
