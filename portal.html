@@ -5964,7 +5964,7 @@
                       </div>
                       <div class="oca-input-group" style="margin-bottom:0;">
                         <label class="oca-label" for="txtRcptCashier" style="font-size:12px; margin-bottom:2px;">ผู้รับเงิน (Cashier)</label>
-                        <input type="text" id="txtRcptCashier" class="oca-input" value="OCA Admin" oninput="updateReceiptLivePreview()" style="height:32px; font-size:12px; padding:3px 6px;">
+                        <input type="text" id="txtRcptCashier" class="oca-input" value="" placeholder="ชื่อ - นามสกุล ผู้รับเงิน" oninput="updateReceiptLivePreview()" style="height:32px; font-size:12px; padding:3px 6px;">
                       </div>
                     </div>
                   </div>
@@ -6389,7 +6389,7 @@
                 <!-- Signatures Block -->
                 <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:16px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:12px; color:#334155;">
                   <div>
-                    ผู้รับเงิน: <span class="oca-receipt-blue" id="lblPrevCashier">OCA Admin</span><br>
+                    ผู้รับเงิน: <span class="oca-receipt-blue" id="lblPrevCashier">-</span><br>
                     <small style="color:#94a3b8;">(ลงชื่อเจ้าหน้าที่ฝ่ายการเงิน)</small>
                   </div>
                   <div style="text-align:right;">
@@ -7581,12 +7581,12 @@
                     <div style="display:flex; flex-direction:column; gap:10px;">
                       
                       <!-- Option 1: Select Staff User -->
-                      <label style="display:flex; align-items:flex-start; gap:10px; background:rgba(215,166,0,0.12); border:1px solid var(--color-gold); border-radius:8px; padding:12px; cursor:pointer; transition:all 0.2s;" id="labelPayeeModeStaff">
-                        <input type="radio" name="radPayeeMode" value="staff" onchange="onPayeeModeChanged()" style="margin-top:3px; accent-color:var(--color-gold);" checked>
+                      <label style="display:flex; align-items:flex-start; gap:10px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; cursor:pointer; transition:all 0.2s;" id="labelPayeeModeStaff">
+                        <input type="radio" name="radPayeeMode" value="staff" onchange="onPayeeModeChanged()" style="margin-top:3px; accent-color:var(--color-gold);">
                         <div style="flex:1;">
                           <div style="font-size:13px; font-weight:700; color:#ffffff;">1. เลือกจากรายชื่อเจ้าหน้าที่ในระบบ (Staff User)</div>
                           <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">ใช้ชื่อของเจ้าหน้าที่ตามบัญชีผู้ใช้ที่กำหนดไว้ในระบบ</div>
-                          <div id="boxPayeeStaffSelect" style="margin-top:8px;">
+                          <div id="boxPayeeStaffSelect" style="margin-top:8px; display:none;">
                             <select id="selPayeeStaff" class="oca-input" onchange="updatePayeePreview()" style="font-size:12.5px; height:36px; border-color:rgba(215,166,0,0.4);">
                               <option value="cashier">เจ้าหน้าที่การเงิน (Cashier)</option>
                               <option value="admin">ผู้ดูแลระบบ OCA</option>
@@ -7610,8 +7610,8 @@
                       </label>
 
                       <!-- Option 3: Dynamic Logged-in User -->
-                      <label style="display:flex; align-items:flex-start; gap:10px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; cursor:pointer; transition:all 0.2s;" id="labelPayeeModeDynamic">
-                        <input type="radio" name="radPayeeMode" value="dynamic" onchange="onPayeeModeChanged()" style="margin-top:3px; accent-color:var(--color-gold);">
+                      <label style="display:flex; align-items:flex-start; gap:10px; background:rgba(215,166,0,0.12); border:1px solid var(--color-gold); border-radius:8px; padding:12px; cursor:pointer; transition:all 0.2s;" id="labelPayeeModeDynamic">
+                        <input type="radio" name="radPayeeMode" value="dynamic" onchange="onPayeeModeChanged()" style="margin-top:3px; accent-color:var(--color-gold);" checked>
                         <div style="flex:1;">
                           <div style="font-size:13px; font-weight:700; color:#ffffff;">3. ดึงชื่อเจ้าหน้าที่ที่ล็อกอินอยู่โดยอัตโนมัติ (Dynamic Logged-in Staff)</div>
                           <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">เมื่อเจ้าหน้าที่คนใดเข้าสู่ระบบและออกใบเสร็จ ระบบจะใส่ชื่อของเจ้าหน้าที่ผู้นั้นโดยอัตโนมัติ</div>
@@ -19346,8 +19346,15 @@
       updateReceiptFeeStatusBadges();
       fetchNextReceiptNumber();
       const txtInitCashier = document.getElementById('txtRcptCashier');
-      if (txtInitCashier && (!txtInitCashier.value || txtInitCashier.value === 'OCA Admin' || txtInitCashier.value.trim() === '')) {
-        txtInitCashier.value = (typeof getEffectivePayeeName === 'function') ? getEffectivePayeeName() : 'เจ้าหน้าที่การเงิน (Cashier)';
+      if (txtInitCashier) {
+        const effName = (typeof getEffectivePayeeName === 'function') ? getEffectivePayeeName() : '';
+        if (effName) {
+          txtInitCashier.value = effName;
+        }
+      }
+      const elCashierPrev = document.getElementById('lblPrevCashier');
+      if (elCashierPrev && txtInitCashier && txtInitCashier.value) {
+        elCashierPrev.textContent = txtInitCashier.value;
       }
       updateReceiptOpenDateByTerm();
       calcReceiptTotals();
@@ -20789,6 +20796,7 @@
       const txtResetCashier = document.getElementById('txtRcptCashier');
       if (txtResetCashier) {
         txtResetCashier.value = (typeof getEffectivePayeeName === 'function') ? getEffectivePayeeName() : 'เจ้าหน้าที่การเงิน (Cashier)';
+        if (typeof updateReceiptLivePreview === 'function') updateReceiptLivePreview();
       }
 
       const chkReg = document.getElementById('chkRcptApplyRegFee');
@@ -25588,6 +25596,18 @@
         updateTextbookOfficerFromLoggedInUser(user);
       }
 
+      // ผูกชื่อผู้รับเงินในใบเสร็จ (Cashier) กับชื่อ-นามสกุลของผู้ใช้ที่ล็อกอินเข้ามาทันที
+      const txtCashierOnLogin = document.getElementById('txtRcptCashier');
+      if (txtCashierOnLogin) {
+        const uName = (typeof getEffectivePayeeName === 'function')
+          ? getEffectivePayeeName()
+          : (user.fullName || user.full_name || user.username || '');
+        if (uName) {
+          txtCashierOnLogin.value = uName;
+          if (typeof updateReceiptLivePreview === 'function') updateReceiptLivePreview();
+        }
+      }
+
       // ปลดล็อกรายงานอัตโนมัติหากมีสิทธิ์เมนู report
       if (hasUserPermission('report')) {
         isReportSecurityUnlocked = true;
@@ -26242,25 +26262,44 @@
      * ดึงชื่อผู้รับเงินที่มีผลใช้งานจริง (Effective Payee Name)
      */
     function getEffectivePayeeName() {
-      const setting = window._ocaPayeeSetting || {};
-      const mode = setting.mode || 'staff';
+      // ดึงข้อมูลผู้ใช้งานที่เข้าสู่ระบบปัจจุบันเป็นลำดับแรก (Dynamic Logged-in Staff)
+      const authStaff = (typeof getAuthoritativeLoggedInStaff === 'function')
+        ? getAuthoritativeLoggedInStaff()
+        : null;
+      const loggedName = (authStaff && authStaff.fullName && authStaff.fullName.trim()) ? authStaff.fullName.trim() : '';
 
-      if (mode === 'dynamic') {
-        const curUser = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
-        if (curUser) {
-          return curUser.fullName || curUser.full_name || curUser.username || 'เจ้าหน้าที่การเงิน OCA';
-        }
-        return 'เจ้าหน้าที่การเงิน OCA';
-      } else if (mode === 'custom') {
-        return (setting.name && setting.name.trim()) ? setting.name.trim() : 'เจ้าหน้าที่การเงิน (Cashier)';
-      } else {
-        // staff mode
-        if (setting.staffUsername && typeof cachedUsersList !== 'undefined' && cachedUsersList && cachedUsersList.length > 0) {
-          const found = cachedUsersList.find(u => u.username === setting.staffUsername);
-          if (found) return found.fullName || found.full_name || found.username;
-        }
-        return (setting.name && setting.name.trim()) ? setting.name.trim() : 'เจ้าหน้าที่การเงิน (Cashier)';
+      const setting = window._ocaPayeeSetting || {};
+      const mode = setting.mode || 'dynamic';
+
+      // กรณีเลือกโหมดกำหนดชื่อตายตัว (Custom Fixed Name) โดยระบุชื่อเฉพาะ
+      if (mode === 'custom' && setting.name && setting.name.trim()) {
+        return setting.name.trim();
       }
+
+      // กรณีเลือกเฉพาะเจาะจงรายชื่อเจ้าหน้าที่คนอื่น (Staff User) ใน Settings
+      if (mode === 'staff' && setting.staffUsername && setting.staffUsername !== 'cashier') {
+        if (typeof cachedUsersList !== 'undefined' && cachedUsersList && cachedUsersList.length > 0) {
+          const found = cachedUsersList.find(u => u.username === setting.staffUsername);
+          if (found && (found.fullName || found.full_name)) {
+            return (found.fullName || found.full_name).trim();
+          }
+        }
+        if (setting.name && setting.name.trim() && setting.name !== 'เจ้าหน้าที่การเงิน (Cashier)') {
+          return setting.name.trim();
+        }
+      }
+
+      // โหมด Dynamic (ค่าเริ่มต้น): ใส่ ชื่อ - นามสกุล ตามผู้ใช้งานที่ login เข้ามา
+      if (loggedName && loggedName !== 'เจ้าหน้าที่ฝ่ายทะเบียนและตำราเรียน') {
+        return loggedName;
+      }
+
+      const curUser = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+      if (curUser && (curUser.fullName || curUser.full_name)) {
+        return (curUser.fullName || curUser.full_name).trim();
+      }
+
+      return 'เจ้าหน้าที่การเงิน (Cashier)';
     }
 
     /**
@@ -26364,7 +26403,7 @@
      * ดึงค่าการตั้งค่าผู้รับเงินมาแสดงบนฟอร์ม
      */
     function populatePayeeSettingsInputs() {
-      const setting = window._ocaPayeeSetting || { mode: 'staff', name: 'เจ้าหน้าที่การเงิน (Cashier)', staffUsername: 'cashier' };
+      const setting = window._ocaPayeeSetting || { mode: 'dynamic', name: 'ตามผู้ใช้ที่ล็อกอิน', staffUsername: '' };
       const rad = document.querySelector(`input[name="radPayeeMode"][value="${setting.mode}"]`);
       if (rad) rad.checked = true;
 
@@ -26472,13 +26511,13 @@
 
           if (!error && data && data.length > 0) {
             const row = data[0];
-            const rawMode = row.mode || 'staff';
+            const rawMode = row.mode || 'dynamic';
             const modeParts = rawMode.split(':');
-            const pMode = modeParts[0] || 'staff';
-            const pStaff = modeParts[1] || 'cashier';
+            const pMode = modeParts[0] || 'dynamic';
+            const pStaff = modeParts[1] || '';
             window._ocaPayeeSetting = {
               mode: pMode,
-              name: row.name || 'เจ้าหน้าที่การเงิน (Cashier)',
+              name: row.name || 'ตามผู้ใช้ที่ล็อกอิน',
               staffUsername: pStaff
             };
             try {
@@ -29585,8 +29624,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=134' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=134' : (window.location.pathname + '/sw.js?v=126'));
+        ? './sw.js?v=135' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=135' : (window.location.pathname + '/sw.js?v=126'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
         if (typeof reg.update === 'function') reg.update();
