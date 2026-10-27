@@ -5578,7 +5578,7 @@
 
               <!-- FRONT SIDE CARD (CR80) -->
               <div class="oca-cr80-card-wrapper" id="wrapCardFront">
-                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.png?v=oca-pwa-v121') center/cover no-repeat; box-sizing:border-box;">
+                <div class="oca-cr80-card landscape" id="cardFrontView" style="width:480px; height:302px; position:relative; border-radius:12px; overflow:hidden; box-shadow:0 20px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(215,166,0,0.45); background:url('./assets/images/oca_gold_card_template.png?v=oca-pwa-v122') center/cover no-repeat; box-sizing:border-box;">
                   
                   <!-- Gloss Sheen Overlay for realistic PVC card look -->
                   <div class="card-gloss-sheen" style="position:absolute; inset:0; background:linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.18) 100%); pointer-events:none; z-index:3;"></div>
@@ -11494,7 +11494,7 @@
           };
           if (fees) {
             fees.forEach(f => {
-              if (f.key && !f.key.startsWith('tb:')) {
+              if (f.key && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee') {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
@@ -11523,11 +11523,24 @@
             onlineEnrollSchedule: (() => {
               const schedSetting = (fees || []).find(f => f.key === 'online_enroll_schedule');
               if (schedSetting) {
+                const rawMode = schedSetting.mode || schedSetting.name || 'SCHEDULED';
+                const parts = rawMode.split('|');
+                const m = parts[0] || 'SCHEDULED';
+                const sTime = parts[1] || '00:00';
+                const eTime = parts[2] || '23:59';
+                const sDate = schedSetting.start_date ? String(schedSetting.start_date).split('T')[0] : '';
+                const eDate = schedSetting.end_date ? String(schedSetting.end_date).split('T')[0] : '';
+                const sDt = sDate ? `${sDate}T${sTime}` : '';
+                const eDt = eDate ? `${eDate}T${eTime}` : '';
+                let notice = schedSetting.name || '';
+                if (notice === 'กำหนดการรับสมัครเรียนออนไลน์' || notice === 'SCHEDULED' || notice === 'ALWAYS_OPEN' || notice === 'FORCE_CLOSED') {
+                  notice = '';
+                }
                 return {
-                  mode: schedSetting.name || 'SCHEDULED',
-                  startDate: schedSetting.start_date || '',
-                  endDate: schedSetting.end_date || '',
-                  noticeMsg: schedSetting.note || schedSetting.notes || ''
+                  mode: m,
+                  startDate: sDt,
+                  endDate: eDt,
+                  noticeMsg: notice
                 };
               }
               return {
@@ -13003,7 +13016,7 @@
           const feeObj = {};
           if (fees) {
             fees.forEach(f => {
-              if (f.key && !f.key.startsWith('tb:')) {
+              if (f.key && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee') {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
@@ -13028,16 +13041,30 @@
         if (action === 'saveOnlineEnrollSchedule') {
           try {
             const sched = params.schedule || {};
+            const m = sched.mode || 'SCHEDULED';
+            const sDt = sched.startDate || '';
+            const eDt = sched.endDate || '';
+            const sDate = sDt ? sDt.split('T')[0] : null;
+            const eDate = eDt ? eDt.split('T')[0] : null;
+            const sTime = (sDt.includes('T') && sDt.split('T')[1]) ? sDt.split('T')[1].slice(0, 5) : '00:00';
+            const eTime = (eDt.includes('T') && eDt.split('T')[1]) ? eDt.split('T')[1].slice(0, 5) : '23:59';
+            const modeVal = (m === 'SCHEDULED' && sDate) ? `${m}|${sTime}|${eTime}`.slice(0, 50) : m.slice(0, 50);
+            const notice = (sched.noticeMsg || 'กำหนดการรับสมัครเรียนออนไลน์').trim().slice(0, 100);
+
             const upsertItem = {
               key: 'online_enroll_schedule',
-              name: sched.mode || 'SCHEDULED',
-              start_date: sched.startDate || null,
-              end_date: sched.endDate || null,
-              note: sched.noticeMsg || '',
-              mode: sched.mode || 'SCHEDULED',
+              name: notice,
+              mode: modeVal,
+              start_date: sDate,
+              end_date: eDate,
+              amount: 0,
               updated_at: new Date().toISOString()
             };
-            await _supabase.from('fee_settings').upsert([upsertItem], { onConflict: 'key' });
+            const { error: schedErr } = await _supabase.from('fee_settings').upsert([upsertItem], { onConflict: 'key' });
+            if (schedErr) {
+              console.error('saveOnlineEnrollSchedule error:', schedErr);
+              return { success: false, message: schedErr.message };
+            }
             return { success: true, message: 'บันทึกกำหนดการรับสมัครเรียนออนไลน์เรียบร้อยแล้ว', schedule: sched };
           } catch(e) {
             console.warn('saveOnlineEnrollSchedule error:', e);
@@ -17893,12 +17920,29 @@
         if (lbl1) lbl1.textContent = statusText;
         if (lbl2) lbl2.textContent = statusText;
 
+        // Build compact cloud sync string (fits cleanly inside varchar(100))
+        const compactObj = { _p: preset };
+        Object.keys(CARD_PRINTER_PRESET_DEFAULTS).forEach(k => {
+          if (map[k] && typeof map[k].x === 'number' && typeof map[k].y === 'number') {
+            compactObj[k] = [map[k].x, map[k].y];
+          }
+        });
+        const cloudStr = JSON.stringify(compactObj).slice(0, 100);
+
         if (_cardCalibCloudTimer) clearTimeout(_cardCalibCloudTimer);
         _cardCalibCloudTimer = setTimeout(async () => {
           try {
             if (typeof _supabase !== 'undefined' && _supabase) {
               await _supabase.from('fee_settings').upsert(
-                { key: 'card_printer_calibration_json', name: JSON.stringify(map), mode: 'calibration' },
+                {
+                  key: 'card_printer_calibration_json',
+                  name: cloudStr,
+                  mode: 'calibration',
+                  amount: 0,
+                  start_date: null,
+                  end_date: null,
+                  updated_at: new Date().toISOString()
+                },
                 { onConflict: 'key' }
               );
             }
@@ -17941,17 +17985,29 @@
             .eq('key', 'card_printer_calibration_json')
             .maybeSingle();
           if (data && data.name) {
-            const cloudMap = JSON.parse(data.name);
-            if (cloudMap && typeof cloudMap === 'object') {
-              const localRaw = localStorage.getItem('oca_card_calib_map');
-              if (!localRaw) {
-                localStorage.setItem('oca_card_calib_map', JSON.stringify(cloudMap));
-                if (cloudMap._activePreset) {
-                  localStorage.setItem('oca_card_printer_preset', cloudMap._activePreset);
+            try {
+              const cloudMap = JSON.parse(data.name);
+              if (cloudMap && typeof cloudMap === 'object') {
+                const localRaw = localStorage.getItem('oca_card_calib_map');
+                if (!localRaw) {
+                  const restored = {};
+                  Object.keys(cloudMap).forEach(k => {
+                    if (k === '_p' || k === '_activePreset') {
+                      restored._activePreset = cloudMap[k];
+                    } else if (Array.isArray(cloudMap[k])) {
+                      restored[k] = { x: cloudMap[k][0], y: cloudMap[k][1] };
+                    } else if (typeof cloudMap[k] === 'object' && cloudMap[k] !== null) {
+                      restored[k] = cloudMap[k];
+                    }
+                  });
+                  localStorage.setItem('oca_card_calib_map', JSON.stringify(restored));
+                  if (restored._activePreset) {
+                    localStorage.setItem('oca_card_printer_preset', restored._activePreset);
+                  }
+                  loadCardCalibrationSettings();
                 }
-                loadCardCalibrationSettings();
               }
-            }
+            } catch (_) {}
           }
         }
       } catch (_) {}
@@ -25897,11 +25953,13 @@
 
       // บันทึกขึ้น Supabase fee_settings table
       try {
+        const staffCode = (mode === 'staff' && staffUsername) ? `staff:${staffUsername}`.slice(0, 50) : mode.slice(0, 50);
         const payload = {
           key: 'cfg_cashier_payee',
-          name: name,
-          mode: mode,
-          start_date: staffUsername ? staffUsername.slice(0, 10) : null,
+          name: (name || 'เจ้าหน้าที่การเงิน').slice(0, 100),
+          mode: staffCode,
+          start_date: null,
+          end_date: null,
           amount: 0,
           updated_at: new Date().toISOString()
         };
@@ -25941,10 +25999,14 @@
 
           if (!error && data && data.length > 0) {
             const row = data[0];
+            const rawMode = row.mode || 'staff';
+            const modeParts = rawMode.split(':');
+            const pMode = modeParts[0] || 'staff';
+            const pStaff = modeParts[1] || 'cashier';
             window._ocaPayeeSetting = {
-              mode: row.mode || 'staff',
+              mode: pMode,
               name: row.name || 'เจ้าหน้าที่การเงิน (Cashier)',
-              staffUsername: row.start_date || 'cashier'
+              staffUsername: pStaff
             };
             try {
               localStorage.setItem('oca_cashier_payee', JSON.stringify(window._ocaPayeeSetting));
@@ -28731,13 +28793,14 @@
       try {
         // 2. Save to Supabase fee_settings table as Key-Value
         if (_supabase) {
-          const settingKey = ('roster_assign:' + selYT + ':' + courseVal + ':' + schedVal).slice(0, 100);
+          const settingKey = ('ra:' + selYT + ':' + courseVal + ':' + schedVal).slice(0, 50);
           await _supabase.from('fee_settings').upsert({
             key: settingKey,
-            name: instructor || 'อาจารย์ประจำกลุ่มเรียน',
-            mode: roomNo,
-            start_date: (dateRange || '').slice(0, 50),
-            end_date: groupName,
+            name: (instructor || 'อาจารย์ประจำกลุ่มเรียน').slice(0, 100),
+            mode: (roomNo || '').slice(0, 50),
+            start_date: null,
+            end_date: null,
+            amount: 0,
             updated_at: new Date().toISOString()
           }, { onConflict: 'key' });
 
