@@ -3718,6 +3718,38 @@
     }
 
     /* 7. Smart Card Issuer (CR80) Responsive Scaling */
+    @media (max-width: 1024px) {
+      .oca-card-studio-grid {
+        grid-template-columns: 1fr !important;
+        gap: 20px !important;
+      }
+      #cardPreviewStage {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+    }
+    @media (max-width: 600px) {
+      .oca-cr80-card-wrapper {
+        width: 100% !important;
+        max-width: 480px !important;
+      }
+      #cardFrontView {
+        width: 100% !important;
+        max-width: 480px !important;
+        aspect-ratio: 480 / 302 !important;
+        height: auto !important;
+      }
+      #cardFrontFirstName, #cardFrontLastName {
+        font-size: clamp(13px, 4.2vw, 19px) !important;
+      }
+      #cardFrontStudentId {
+        font-size: clamp(13.5px, 4.4vw, 20px) !important;
+      }
+      #cardFrontIssueDate {
+        font-size: clamp(8.5px, 2.5vw, 11.5px) !important;
+        top: 86.5% !important;
+      }
+    }
     @media (max-width: 768px) {
       #cardPreviewStage {
         padding: 10px 4px !important;
@@ -5205,7 +5237,7 @@
           <input type="file" id="inpCardDirectPhotoUpload" accept="image/*" style="display:none;" onchange="handleCardPhotoFileSelected(event)">
 
           <!-- 2-Column Express Card Studio Grid -->
-          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:18px; align-items:start;">
+          <div class="oca-card-studio-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:18px; align-items:start;">
             
             <!-- Left Column: Step 1 (Select Student), Step 2 (Mifare Auto-Bind), Step 3 (On-Card Quick Edit) -->
             <div style="display:flex; flex-direction:column; gap:16px;">
@@ -17634,8 +17666,8 @@
         _cardCalibCloudTimer = setTimeout(async () => {
           try {
             if (typeof _supabase !== 'undefined' && _supabase) {
-              await _supabase.from('settings').upsert(
-                { key: 'card_printer_calibration_json', value: JSON.stringify(map) },
+              await _supabase.from('fee_settings').upsert(
+                { key: 'card_printer_calibration_json', name: JSON.stringify(map), mode: 'calibration' },
                 { onConflict: 'key' }
               );
             }
@@ -17673,12 +17705,12 @@
       try {
         if (typeof _supabase !== 'undefined' && _supabase) {
           const { data } = await _supabase
-            .from('settings')
-            .select('value')
+            .from('fee_settings')
+            .select('name')
             .eq('key', 'card_printer_calibration_json')
             .maybeSingle();
-          if (data && data.value) {
-            const cloudMap = JSON.parse(data.value);
+          if (data && data.name) {
+            const cloudMap = JSON.parse(data.name);
             if (cloudMap && typeof cloudMap === 'object') {
               const localRaw = localStorage.getItem('oca_card_calib_map');
               if (!localRaw) {
