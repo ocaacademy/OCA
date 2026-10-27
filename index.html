@@ -11725,21 +11725,63 @@
 
         // --- 3. FINANCIAL SUMMARY ---
         if (action === 'getFinancialSummary') {
-          const { data: rcpts } = await _supabase.from('receipts').select('grand_total, base_amount, reg_fee, card_fee, discount_normal, payment_method, receipt_type');
+          const { data: rcpts } = await _supabase.from('receipts').select('grand_total, base_amount, reg_fee, card_fee, other_reg_fee, discount_normal, discount_other, payment_method, receipt_type, year_be, created_at');
           let totalRev = 0;
           let totalTuition = 0;
           let totalReg = 0;
           let totalCard = 0;
           let totalDisc = 0;
+          const yearMap = {};
+          const monthMap = {};
+          const monthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
           if (rcpts) {
             rcpts.forEach(r => {
-              totalRev += Number(r.grand_total || 0);
-              totalTuition += Number(r.base_amount || 0);
-              totalReg += Number(r.reg_fee || 0);
-              totalCard += Number(r.card_fee || 0);
-              totalDisc += Number(r.discount_normal || 0);
+              const gt = Number(r.grand_total || 0);
+              const tu = Number(r.base_amount || 0);
+              const rg = Number(r.reg_fee || 0);
+              const cd = Number(r.card_fee || 0);
+              const ot = Number(r.other_reg_fee || 0);
+              const dc = Number(r.discount_normal || 0) + Number(r.discount_other || 0);
+
+              totalRev += gt;
+              totalTuition += tu;
+              totalReg += rg;
+              totalCard += cd;
+              totalDisc += dc;
+
+              let d = r.created_at ? new Date(r.created_at) : new Date();
+              let yBe = Number(r.year_be || (d.getFullYear() < 2400 ? d.getFullYear() + 543 : d.getFullYear()));
+              if (yBe < 2400) yBe += 543;
+
+              if (!yearMap[yBe]) {
+                yearMap[yBe] = { yearBE: yBe, receiptCount: 0, tuitionTotal: 0, otherFeesTotal: 0, discountTotal: 0, grandTotal: 0 };
+              }
+              yearMap[yBe].receiptCount += 1;
+              yearMap[yBe].tuitionTotal += tu;
+              yearMap[yBe].otherFeesTotal += (rg + cd + ot);
+              yearMap[yBe].discountTotal += dc;
+              yearMap[yBe].grandTotal += gt;
+
+              const mIdx = d.getMonth();
+              const mKey = `${yBe}_${String(mIdx + 1).padStart(2, '0')}`;
+              const mLabel = `${monthNames[mIdx]} ${yBe}`;
+              if (!monthMap[mKey]) {
+                monthMap[mKey] = { monthKey: mKey, monthLabel: mLabel, yearBE: yBe, receiptCount: 0, tuitionTotal: 0, otherFeesTotal: 0, discountTotal: 0, grandTotal: 0 };
+              }
+              monthMap[mKey].receiptCount += 1;
+              monthMap[mKey].tuitionTotal += tu;
+              monthMap[mKey].otherFeesTotal += (rg + cd + ot);
+              monthMap[mKey].discountTotal += dc;
+              monthMap[mKey].grandTotal += gt;
             });
+          }
+
+          const filterYear = params && params.filterYear && params.filterYear !== 'ALL' ? Number(params.filterYear) : null;
+          const yearlySummary = Object.values(yearMap).sort((a, b) => b.yearBE - a.yearBE);
+          let monthlySummary = Object.values(monthMap).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+          if (filterYear) {
+            monthlySummary = monthlySummary.filter(m => m.yearBE === filterYear);
           }
 
           const finKpis = {
@@ -11759,7 +11801,9 @@
               smartCard: totalCard,
               discount: totalDisc,
               net: totalRev
-            }
+            },
+            yearlySummary: yearlySummary,
+            monthlySummary: monthlySummary
           };
         }
 
@@ -28930,7 +28974,7 @@
       const dateRange = (document.getElementById('txtRosterDateRange')?.value || '').trim() || '19 ตุลาคม 2569 - 20 ธันวาคม 2569';
 
       const now = new Date();
-      const printDateStr = String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + now.getFullYear();
+      const printDateStr = String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + (now.getFullYear() + 543);
 
       // Build student rows
       let rowsHtml = '';
