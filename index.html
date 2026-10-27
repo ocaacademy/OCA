@@ -5744,7 +5744,7 @@
                     </div>
                     <div style="display:flex; gap:6px;">
                       <button type="button" class="oca-type-toggle-btn" id="btnToggleHistoryDrawer" style="padding:2px 8px; font-size:12px; display:inline-flex; align-items:center; gap:4px;" onclick="toggleStudentHistoryDrawer()">
-                        <i class="fa-solid fa-clock-rotate-left"></i> ประวัติ (<span id="badgeHistCount">0</span>)
+                        <i class="fa-solid fa-receipt"></i> ใบเสร็จ/ตำรา (<span id="badgeHistCount">0</span>)
                       </button>
                       <button type="button" class="oca-type-toggle-btn" id="btnToggleBuyerEdit" style="padding:2px 8px; font-size:12px; display:inline-flex; align-items:center; gap:4px;" onclick="toggleBuyerManualInputs()" title="แก้ไขชื่อ/อีเมล/เบอร์โทรผู้ซื้อสำหรับใบเสร็จนี้">
                         <i class="fa-solid fa-pen-to-square"></i> แก้ไขข้อมูลผู้ซื้อ
@@ -5755,39 +5755,17 @@
 
                 <!-- Complete History Panel (Drawer: Collapsible) -->
                 <div id="boxSelectedStudentHistory" style="display:none; margin-top:10px; background:rgba(6,95,70,0.25); border:1px solid rgba(215,166,0,0.35); border-radius:8px; padding:10px;">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <div style="display:flex; gap:6px;">
-                      <button type="button" class="oca-type-toggle-btn active" id="btnTabCourseHist" style="padding:3px 8px; font-size:12px; display:inline-flex; align-items:center; gap:4px;" onclick="switchStudentHistoryTab('course')">
-                        <i class="fa-solid fa-scroll"></i> ต่อคอร์ส (<span id="countCourseHist">0</span>)
-                      </button>
-                      <button type="button" class="oca-type-toggle-btn" id="btnTabRcptHist" style="padding:3px 8px; font-size:12px; display:inline-flex; align-items:center; gap:4px;" onclick="switchStudentHistoryTab('receipt')">
-                        <i class="fa-solid fa-receipt"></i> ใบเสร็จ/ตำรา (<span id="countRcptHist">0</span>)
-                      </button>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div style="font-size:12.5px; font-weight:700; color:var(--color-gold); display:inline-flex; align-items:center; gap:6px;">
+                      <i class="fa-solid fa-receipt"></i> ประวัติใบเสร็จและตำราเรียน (<span id="countRcptHist">0</span> รายการ)
                     </div>
                     <button type="button" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px; padding:2px 6px;" onclick="toggleStudentHistoryDrawer()" title="ปิดหน้าต่างประวัติ">
                       <i class="fa-solid fa-chevron-up"></i> พับเก็บ
                     </button>
                   </div>
 
-                  <!-- Course History Table -->
-                  <div id="subviewCourseHist" style="max-height:140px; overflow:auto;">
-                    <table style="width:100%; font-size:12px; border-collapse:collapse;" id="tblStudentCourseHist">
-                      <thead>
-                        <tr style="color:var(--color-gold); border-bottom:1px solid var(--border-soft); text-align:left;">
-                          <th style="padding:3px;">ปี/เทอม</th>
-                          <th style="padding:3px;">คอร์ส</th>
-                          <th style="padding:3px;">รอบเวลา</th>
-                          <th style="padding:3px; text-align:center;">สถานะ</th>
-                        </tr>
-                      </thead>
-                      <tbody id="tbodyStudentCourseHist">
-                        <tr><td colspan="4" style="text-align:center; padding:8px; color:var(--text-muted);">ไม่มีประวัติการต่อคอร์ส</td></tr>
-                      </tbody>
-                    </table>
-                  </div>
-
                   <!-- Receipt History Table (Rich itemized view with Course, Transaction Action, Amount, Status & Actions) -->
-                  <div id="subviewRcptHist" style="display:none; max-height:220px; overflow-y:auto; border-radius:8px; border:1px solid rgba(215,166,0,0.25); background:rgba(0,0,0,0.35); padding:4px;">
+                  <div id="subviewRcptHist" style="display:block; max-height:220px; overflow-y:auto; border-radius:8px; border:1px solid rgba(215,166,0,0.25); background:rgba(0,0,0,0.35); padding:4px;">
                     <table style="width:100%; font-size:12px; border-collapse:collapse;" id="tblStudentReceiptHist">
                       <thead>
                         <tr style="color:var(--color-gold); border-bottom:1px solid rgba(215,166,0,0.3); text-align:left; background:rgba(215,166,0,0.08);">
@@ -19778,7 +19756,7 @@
 
           const badgeHist = document.getElementById('badgeHistCount');
           if (badgeHist) {
-            const histTotal = (student.courseHistory || []).length + (student.receiptHistory || []).length;
+            const histTotal = (student.receiptHistory || []).length;
             badgeHist.textContent = toArabicDigits(histTotal);
           }
 
@@ -19814,33 +19792,7 @@
             elYearTerm.textContent = 'ปี ' + toArabicDigits(student.profile.latestYearBE || '-') + ' เทอม ' + toArabicDigits(student.profile.latestTerm || '-');
           }
 
-          // 3. แสดงตารางประวัติการต่อคอร์ส (Course History - Immutable / Read-only)
-          const tbodyCourse = document.getElementById('tbodyStudentCourseHist');
-          const countCourse = document.getElementById('countCourseHist');
-          if (countCourse) countCourse.textContent = toArabicDigits((student.courseHistory || []).length);
-
-          if (tbodyCourse) {
-            if (!student.courseHistory || student.courseHistory.length === 0) {
-              tbodyCourse.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:10px; color:var(--text-muted);">ไม่มีประวัติการต่อคอร์ส</td></tr>';
-            } else {
-              let cRows = '';
-              for (let i = 0; i < student.courseHistory.length; i++) {
-                const item = student.courseHistory[i];
-                const yt = 'ปี ' + toArabicDigits(item.yearBE || '-') + ' เทอม ' + toArabicDigits(item.term || '-');
-                const cName = escapeHtml(item.course || '-');
-                const sch = escapeHtml(item.schedule || '-');
-                const st = escapeHtml(item.status || 'ปกติ');
-                cRows +=
-                  '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">' +
-                  '  <td style="padding:6px 4px; font-weight:600; color:var(--color-gold);">' + yt + '</td>' +
-                  '  <td style="padding:6px 4px; color:#ffffff;">' + cName + '</td>' +
-                  '  <td style="padding:6px 4px; color:var(--text-muted);">' + sch + '</td>' +
-                  '  <td style="padding:6px 4px; text-align:center;"><span class="oca-badge-status-active" style="font-size:12px; padding:2px 6px;">' + st + '</span></td>' +
-                  '</tr>';
-              }
-              tbodyCourse.innerHTML = cRows;
-            }
-          }
+          // (ประวัติการต่อคอร์สถูกรวมเข้าสู่ตารางใบเสร็จ/ตำราด้านล่างเพื่อความกระชับ ไม่สับสน)
 
           // 4. แสดงตารางประวัติการซื้อตำราและใบเสร็จ (Receipt History - Immutable / Read-only)
           const tbodyRcpt = document.getElementById('tbodyStudentReceiptHist');
@@ -19960,22 +19912,8 @@
      * @param {string} tabKey - 'course' | 'receipt'
      */
     function switchStudentHistoryTab(tabKey) {
-      const btnCourse = document.getElementById('btnTabCourseHist');
-      const btnRcpt = document.getElementById('btnTabRcptHist');
-      const viewCourse = document.getElementById('subviewCourseHist');
       const viewRcpt = document.getElementById('subviewRcptHist');
-
-      if (tabKey === 'course') {
-        if (btnCourse) btnCourse.classList.add('active');
-        if (btnRcpt) btnRcpt.classList.remove('active');
-        if (viewCourse) viewCourse.style.display = 'block';
-        if (viewRcpt) viewRcpt.style.display = 'none';
-      } else {
-        if (btnCourse) btnCourse.classList.remove('active');
-        if (btnRcpt) btnRcpt.classList.add('active');
-        if (viewCourse) viewCourse.style.display = 'none';
-        if (viewRcpt) viewRcpt.style.display = 'block';
-      }
+      if (viewRcpt) viewRcpt.style.display = 'block';
     }
 
     /**
