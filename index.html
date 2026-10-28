@@ -6922,7 +6922,7 @@
                 <label class="oca-label" for="selReportYear" style="font-size:12.5px; font-weight:600;">
                   <i class="fa-solid fa-calendar-days" style="margin-right:6px; color:var(--color-gold);"></i>ปีการศึกษา (Academic Year)
                 </label>
-                <select id="selReportYear" class="oca-input" onchange="loadStudentReport()" style="width:100%; min-width:0;">
+                <select id="selReportYear" class="oca-input" onchange="onReportYearChange()" style="width:100%; min-width:0;">
                   <option value="ALL">-- ทุกปีการศึกษา (ALL Years) --</option>
                   <option value="2569" selected>ปีการศึกษา 2569</option>
                   <option value="2568">ปีการศึกษา 2568</option>
@@ -12761,11 +12761,38 @@
             obj[7] = s.status || 'Active';
             return obj;
           });
+          // 1. Identify distinct academic years present among registered students
+          const yearSet = new Set();
+          yearSet.add('2569');
+          (stList || []).forEach(s => {
+            const y = Number(s.year_be || (s.student_id ? ('25' + String(s.student_id).slice(0, 2)) : 2569));
+            if (y && !isNaN(y)) yearSet.add(String(y));
+          });
+          const availableYears = Array.from(yearSet).sort((a, b) => Number(b) - Number(a));
+
+          // 2. Identify distinct enrolled courses ONLY for the selected academic year!
+          const selectedYear = (params && params.year) ? String(params.year).trim() : 'ALL';
+          const studentsInSelectedYear = (selectedYear !== 'ALL')
+            ? (stList || []).filter(s => {
+                const y = Number(s.year_be || (s.student_id ? ('25' + String(s.student_id).slice(0, 2)) : 2569));
+                return y === Number(selectedYear);
+              })
+            : (stList || []);
+
+          const courseSet = new Set();
+          studentsInSelectedYear.forEach(s => {
+            const c = (s.current_course || '').trim();
+            if (c && c !== '-' && c !== 'ไม่มี' && c !== 'null' && c !== 'undefined' && c !== 'หลักสูตรทั่วไป') {
+              courseSet.add(c);
+            }
+          });
+          const availableCourses = Array.from(courseSet).sort((a, b) => a.localeCompare(b, 'th'));
+
           return {
             success: true,
             students: mapped,
-            availableYears: ['2569', '2568', '2567'],
-            availableCourses: ['HSK 1', 'HSK 2', 'HSK 3', 'HSK 4', 'HSK 5', 'HSK 6']
+            availableYears: availableYears,
+            availableCourses: availableCourses
           };
         }
 
@@ -23637,6 +23664,12 @@
      * ดึงข้อมูลรายงานนักเรียน พร้อมตัวกรองปีการศึกษา คอร์สเรียน และคำค้นหา
      * @param {boolean} forceRefresh
      */
+    function onReportYearChange() {
+      const selCourse = document.getElementById('selReportCourse');
+      if (selCourse) selCourse.value = 'ALL';
+      loadStudentReport(true);
+    }
+
     function loadStudentReport(forceRefresh = false, isSilent = false) {
       if (forceRefresh && window._lastRenderedSignatures) {
         delete window._lastRenderedSignatures['studentReportData'];
@@ -23729,17 +23762,21 @@
             selYear.innerHTML = yearHtml;
           }
 
-          // 2. อัปเดตรายการคอร์สใน Dropdown (ถ้ามีส่งกลับมา)
-          if (selCourse && Array.isArray(res.availableCourses) && res.availableCourses.length > 0) {
+          // 2. อัปเดตรายการคอร์สใน Dropdown (แสดงเฉพาะคอร์สที่มีการสมัครเรียนในปีนั้นเท่านั้น)
+          if (selCourse && Array.isArray(res.availableCourses)) {
             const currentSelectedCourse = selCourse.value;
             let courseHtml = '<option value="ALL">-- ทุกคอร์สเรียน (ALL Courses) --</option>';
-            res.availableCourses.forEach(c => {
-              const cStr = String(c).trim();
-              if (cStr) {
-                const isSel = (cStr === currentSelectedCourse) ? ' selected' : '';
-                courseHtml += '<option value="' + escapeHtml(cStr) + '"' + isSel + '>' + escapeHtml(cStr) + '</option>';
-              }
-            });
+            if (res.availableCourses.length === 0) {
+              courseHtml += '<option value="" disabled>(ไม่มีการสมัครเรียนในปีนี้)</option>';
+            } else {
+              res.availableCourses.forEach(c => {
+                const cStr = String(c).trim();
+                if (cStr) {
+                  const isSel = (cStr === currentSelectedCourse) ? ' selected' : '';
+                  courseHtml += '<option value="' + escapeHtml(cStr) + '"' + isSel + '>' + escapeHtml(cStr) + '</option>';
+                }
+              });
+            }
             selCourse.innerHTML = courseHtml;
           }
 
@@ -30142,8 +30179,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=145' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=145' : (window.location.pathname + '/sw.js?v=126'));
+        ? './sw.js?v=146' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=146' : (window.location.pathname + '/sw.js?v=126'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
         if (typeof reg.update === 'function') reg.update();
