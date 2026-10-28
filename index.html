@@ -5870,7 +5870,13 @@
                   <!-- Course & Schedule in 2 columns -->
                   <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
                     <div class="oca-input-group" style="margin-bottom:0;">
-                      <label class="oca-label" for="selRcptCourse" style="font-size:12px; margin-bottom:2px;">คอร์สเรียน (Course) *</label>
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                        <label class="oca-label" for="selRcptCourse" style="font-size:12px; margin-bottom:0;">คอร์สเรียน (Course) *</label>
+                        <span style="font-size:11px; color:var(--color-gold);"><i class="fa-solid fa-layer-group"></i> แยกตามระดับ HSK &amp; หมวดหมู่</span>
+                      </div>
+                      <div style="position:relative; margin-bottom:4px;">
+                        <input type="text" id="inpRcptCourseSearch" class="oca-input" placeholder="🔍 ค้นหาคอร์ส (เช่น HSK 3, สนทนา)..." oninput="filterReceiptCoursesDropdown(this.value)" style="height:28px; font-size:11.5px; padding:2px 8px; border-radius:6px; background:rgba(0,0,0,0.3); border:1px solid rgba(215,166,0,0.3);">
+                      </div>
                       <select id="selRcptCourse" class="oca-input" onchange="onReceiptCourseChanged()" required style="height:34px; font-size:12.5px; padding:4px 8px;">
                         <option value="">-- เลือกคอร์สเรียน --</option>
                       </select>
@@ -10851,9 +10857,6 @@
           return ['dashboard'];
         }
 
-        // Secure Admin Credential Gate (Zero weak passwords like '1234' or 'admin')
-        const validAdminPasswords = ['OcaAdmin@2026', 'dongfang2026', 'Admin@OCA2026'];
-        const isMatchAdminPass = validAdminPasswords.includes(p);
         if (!u || !p) {
           return { success: false, message: 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน' };
         }
@@ -10904,7 +10907,7 @@
               .limit(1)
               .maybeSingle();
 
-            if (dbUser && (dbUser.password === p || dbUser.password_hash === p || isMatchAdminPass)) {
+            if (dbUser && (dbUser.password === p || dbUser.password_hash === p)) {
               let userPerms = resolveUserPerms(dbUser);
               const authedStaff = {
                 username: dbUser.username,
@@ -10934,145 +10937,7 @@
           }
         }
 
-        const isAdminUser = (
-          u === 'admin' || 
-          u === 'admin@oca.ac.th' || 
-          u === 'administrator' || 
-          u === 'superadmin'
-        );
-
-        // 1. Super Admin Match (Offline fallback)
-        if ((isAdminUser && isMatchAdminPass) || (isMatchAdminPass && !['registrar', 'cashier', 'shipping'].includes(u))) {
-          const superUser = {
-            username: u || 'admin',
-            fullName: 'ผู้ดูแลระบบสูงสุด (Super Admin)',
-            email: 'admin@oca.ac.th',
-            role: 'Administrator',
-            permissions: allPerms,
-            deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
-          };
-          try {
-            await _supabase.from('security_audit_logs').insert([{
-              action: 'LOGIN_SUCCESS',
-              username: superUser.username,
-              full_name: superUser.fullName,
-              role: superUser.role,
-              device_id: superUser.deviceId,
-              device_info: params.deviceInfo || (navigator ? navigator.userAgent : 'Browser WebApp'),
-              details: 'เข้าสู่ระบบสำเร็จ (สิทธิ์: Administrator)',
-              records: 1,
-              status: 'SUCCESS'
-            }]);
-          } catch (_) {}
-          return { success: true, user: superUser };
-        }
-
-        // 2. Registrar Match
-        if (u === 'registrar' && (p === 'Oca1234' || p === '1234' || p === 'oca@2026' || p.toLowerCase() === 'oca1234')) {
-          const regUser = {
-            username: 'registrar',
-            fullName: 'ฝ่ายทะเบียนนักเรียน (Registrar)',
-            email: 'registrar@oca.ac.th',
-            role: 'Registrar',
-            permissions: registrarPerms,
-            deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
-          };
-          try {
-            await _supabase.from('security_audit_logs').insert([{
-              action: 'LOGIN_SUCCESS',
-              username: regUser.username,
-              full_name: regUser.fullName,
-              role: regUser.role,
-              device_id: regUser.deviceId,
-              device_info: params.deviceInfo || (navigator ? navigator.userAgent : 'Browser WebApp'),
-              details: 'เข้าสู่ระบบสำเร็จ (สิทธิ์: Registrar)',
-              records: 1,
-              status: 'SUCCESS'
-            }]);
-          } catch (_) {}
-          return { success: true, user: regUser };
-        }
-
-        // 3. Cashier Match
-        if (u === 'cashier' && (p === 'Oca1234' || p === '1234' || p.toLowerCase() === 'oca1234')) {
-          const cashUser = {
-            username: 'cashier',
-            fullName: 'ฝ่ายการเงินสถาบัน (Cashier)',
-            email: 'finance@oca.ac.th',
-            role: 'Cashier',
-            permissions: cashierPerms,
-            deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
-          };
-          try {
-            await _supabase.from('security_audit_logs').insert([{
-              action: 'LOGIN_SUCCESS',
-              username: cashUser.username,
-              full_name: cashUser.fullName,
-              role: cashUser.role,
-              device_id: cashUser.deviceId,
-              device_info: params.deviceInfo || (navigator ? navigator.userAgent : 'Browser WebApp'),
-              details: 'เข้าสู่ระบบสำเร็จ (สิทธิ์: Cashier)',
-              records: 1,
-              status: 'SUCCESS'
-            }]);
-          } catch (_) {}
-          return { success: true, user: cashUser };
-        }
-
-        // 4. Logistics / Shipping Match
-        if (u === 'shipping' && (p === 'Oca1234' || p === '1234' || p.toLowerCase() === 'oca1234')) {
-          const shipUser = {
-            username: 'shipping',
-            fullName: 'ฝ่ายจัดส่งตำรา (Logistics)',
-            email: 'shipping@oca.ac.th',
-            role: 'Staff',
-            permissions: shippingPerms,
-            deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
-          };
-          try {
-            await _supabase.from('security_audit_logs').insert([{
-              action: 'LOGIN_SUCCESS',
-              username: shipUser.username,
-              full_name: shipUser.fullName,
-              role: shipUser.role,
-              device_id: shipUser.deviceId,
-              device_info: params.deviceInfo || (navigator ? navigator.userAgent : 'Browser WebApp'),
-              details: 'เข้าสู่ระบบสำเร็จ (สิทธิ์: Logistics/Staff)',
-              records: 1,
-              status: 'SUCCESS'
-            }]);
-          } catch (_) {}
-          return { success: true, user: shipUser };
-        }
-
-        // 5. Check staff_users in Supabase if client is ready
-        if (typeof _supabase !== 'undefined' && _supabase) {
-          try {
-            const { data: dbUser } = await _supabase.from('staff_users')
-              .select('*')
-              .or(`username.ilike.${u},email.ilike.${u}`)
-              .limit(1)
-              .maybeSingle();
-
-            if (dbUser && (dbUser.password === p || dbUser.password_hash === p)) {
-              let userPerms = resolveUserPerms(dbUser);
-              return {
-                success: true,
-                user: {
-                  username: dbUser.username,
-                  fullName: dbUser.full_name || dbUser.username,
-                  email: dbUser.email || `${dbUser.username}@oca.ac.th`,
-                  role: dbUser.role || 'Staff',
-                  permissions: userPerms,
-                  deviceId: params.deviceId || 'OCA-DEVICE-SECURE'
-                }
-              };
-            }
-          } catch(dbErr) {
-            console.warn('DB user check notice:', dbErr);
-          }
-        }
-
+        // Authentication failed via secure database RPC
         try {
           await _supabase.from('security_audit_logs').insert([{
             action: 'LOGIN_FAILED',
@@ -11105,11 +10970,30 @@
       if (action === 'verifySecurityPin') {
         const pin = String(params.pin || '').trim();
         const customPin = localStorage.getItem('oca_custom_pin');
-        const validPins = [customPin, '1234', 'admin1234', 'OcaAdmin@2026', 'oca@2026', '0000'].filter(Boolean);
-        if (validPins.includes(pin)) {
+        // 1. Verify against custom PIN if configured by admin
+        if (customPin && pin === customPin) {
           return { success: true };
         }
-        return { success: false, message: 'รหัส PIN ความปลอดภัยไม่ถูกต้อง (ค่าเริ่มต้น: 1234)' };
+        // 2. Verify against active logged-in staff credentials via secure RPC
+        try {
+          const curUser = (typeof getSavedCurrentUser === 'function')
+            ? getSavedCurrentUser()
+            : JSON.parse(localStorage.getItem('oca_user') || '{}');
+          if (curUser && curUser.username && typeof _supabase !== 'undefined' && _supabase) {
+            const { data: rpcUser } = await _supabase.rpc('verify_staff_login', {
+              p_username: curUser.username,
+              p_password: pin
+            });
+            if (rpcUser && rpcUser.username) {
+              return { success: true };
+            }
+          }
+        } catch (_) {}
+        // 3. Fallback to default custom pin if never set yet
+        if (!customPin && pin === '1729') {
+          return { success: true };
+        }
+        return { success: false, message: 'รหัส PIN ความปลอดภัยไม่ถูกต้อง' };
       }
 
 
@@ -15923,7 +15807,14 @@
       }
       if (elEmergency) elEmergency.textContent = emVal ? toArabicDigits(emVal) : '-';
       if (elEmail) elEmail.textContent = s.email || '-';
-      if (elCitizen) elCitizen.textContent = s.citizenId ? toArabicDigits(s.citizenId) : (s.citizenIdMasked ? toArabicDigits(s.citizenIdMasked) : '-');
+      if (elCitizen) {
+        const rawCid = s.citizenId || s.citizenIdMasked || '';
+        if (rawCid && rawCid !== '-') {
+          elCitizen.innerHTML = '<span id="srCidVal" style="font-family:monospace;">' + toArabicDigits(formatCitizenIdMasked(rawCid, true)) + '</span> <button type="button" style="background:none; border:none; color:var(--color-gold); cursor:pointer; padding:0 4px; font-size:12px;" title="สลับแสดงเลขบัตรประชาชนเต็ม" onclick="toggleSrCitizenMask(\'' + escapeHtml(rawCid) + '\')"><i id="srCidEye" class="fa-solid fa-eye-slash"></i></button>';
+        } else {
+          elCitizen.textContent = '-';
+        }
+      }
       if (elLineId) elLineId.textContent = s.lineId || '-';
       if (elSchedule) elSchedule.textContent = s.schedule || '-';
       if (elAddress) elAddress.textContent = s.address || '-';
@@ -20216,16 +20107,7 @@
               updateReceiptOpenDateByTerm();
             }
             receiptCoursesList = res.courses || [];
-            const selCourse = document.getElementById('selRcptCourse');
-            if (selCourse) {
-              selCourse.innerHTML = '<option value="">-- เลือกคอร์สที่ต้องการสมัครเรียน --</option>';
-              receiptCoursesList.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c.id;
-                opt.textContent = c.name + ' (' + Number(c.price).toLocaleString() + ' ฿)';
-                selCourse.appendChild(opt);
-              });
-            }
+            renderGroupedReceiptCourses(receiptCoursesList);
             const selSch = document.getElementById('selRcptSchedule');
             if (selSch) {
               const scheds = (Array.isArray(res.schedules) && res.schedules.length > 0)
@@ -20241,6 +20123,73 @@
             }
           }
         });
+    }
+
+    
+    // =========================================================================
+    // CATEGORIZED & SEARCHABLE COURSE DROPDOWN (130 COURSES OPTIMIZATION)
+    // =========================================================================
+    function filterReceiptCoursesDropdown(filterText) {
+      if (!Array.isArray(receiptCoursesList)) return;
+      renderGroupedReceiptCourses(receiptCoursesList, filterText);
+    }
+
+    function renderGroupedReceiptCourses(courses, filterText = '') {
+      const selCourse = document.getElementById('selRcptCourse');
+      if (!selCourse) return;
+      const currentVal = selCourse.value;
+      selCourse.innerHTML = '<option value="">-- เลือกคอร์สที่ต้องการสมัครเรียน --</option>';
+
+      const q = (filterText || '').trim().toLowerCase();
+      const filtered = q
+        ? courses.filter(c => (c.name || '').toLowerCase().includes(q) || (c.code || '').toLowerCase().includes(q))
+        : courses;
+
+      const groups = {
+        'HSK ระดับ 1 - 2 (ระดับต้น)': [],
+        'HSK ระดับ 3 - 4 (ระดับกลาง)': [],
+        'HSK ระดับ 5 - 6 (ระดับสูง)': [],
+        'สนทนาภาษาจีน (Conversation)': [],
+        'หลักสูตรภาษาจีนทั่วไป & คอร์สเสริม': []
+      };
+
+      filtered.forEach(c => {
+        const name = (c.name || '').toUpperCase();
+        if (name.includes('HSK 1') || name.includes('HSK 2') || name.includes('HSK1') || name.includes('HSK2')) {
+          groups['HSK ระดับ 1 - 2 (ระดับต้น)'].push(c);
+        } else if (name.includes('HSK 3') || name.includes('HSK 4') || name.includes('HSK3') || name.includes('HSK4')) {
+          groups['HSK ระดับ 3 - 4 (ระดับกลาง)'].push(c);
+        } else if (name.includes('HSK 5') || name.includes('HSK 6') || name.includes('HSK5') || name.includes('HSK6')) {
+          groups['HSK ระดับ 5 - 6 (ระดับสูง)'].push(c);
+        } else if (name.includes('สนทนา') || name.includes('CONVERSATION') || name.includes('พูด') || name.includes('COMMUNICATION')) {
+          groups['สนทนาภาษาจีน (Conversation)'].push(c);
+        } else {
+          groups['หลักสูตรภาษาจีนทั่วไป & คอร์สเสริม'].push(c);
+        }
+      });
+
+      Object.entries(groups).forEach(([grpName, list]) => {
+        if (list.length > 0) {
+          const optGroup = document.createElement('optgroup');
+          optGroup.label = grpName + ' (' + list.length + ' คอร์ส)';
+          list.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name + ' (' + Number(c.price).toLocaleString() + ' ฿)';
+            if (c.id === currentVal) opt.selected = true;
+            optGroup.appendChild(opt);
+          });
+          selCourse.appendChild(optGroup);
+        }
+      });
+
+      if (filtered.length === 0) {
+        const emptyOpt = document.createElement('option');
+        emptyOpt.value = '';
+        emptyOpt.disabled = true;
+        emptyOpt.textContent = '❌ ไม่พบคอร์สที่ตรงกับ "' + filterText + '"';
+        selCourse.appendChild(emptyOpt);
+      }
     }
 
     function loadReceiptBooksDropdown() {
@@ -21895,7 +21844,7 @@
             '<strong>' + escapeHtml(row.buyerName) + '</strong>' +
             '<div style="font-size:12px; color:var(--text-muted); margin-top:2px; display:flex; gap:8px; flex-wrap:wrap;">' +
               '<span><i class="fa-solid fa-id-badge" style="color:var(--color-gold); margin-right:3px;"></i>' + toArabicDigits(row.buyerId) + '</span>' +
-              (citId && citId !== '-' ? ('<span><i class="fa-solid fa-address-card" style="color:#94a3b8; margin-right:3px;"></i>' + toArabicDigits(citId) + '</span>') : '') +
+              (citId && citId !== '-' ? ('<span><i class="fa-solid fa-address-card" style="color:#94a3b8; margin-right:3px;"></i>' + toArabicDigits(formatCitizenIdMasked(citId, true)) + '</span>') : '') +
             '</div>' +
           '</td>' +
           '<td>' + escapeHtml(row.itemName) + (row.learningMode && row.learningMode !== '-' ? '<div style="margin-top:2px;"><span style="font-size:12px; padding:1px 6px; border-radius:4px; background:rgba(56,189,248,0.15); color:#38bdf8; font-weight:600; display:inline-block;">[' + escapeHtml(row.learningMode) + ']</span></div>' : '') + (isDelivery ? '<div style="font-size:12px; color:#93c5fd;">[จัดส่งพัสดุ]</div>' : '') + '</td>' +
@@ -23718,6 +23667,55 @@
       loadStudentReport(true);
     }
 
+    
+    // =========================================================================
+    // PDPA CITIZEN ID MASKING & PRIVACY PROTECTION UTILITY
+    // =========================================================================
+    function formatCitizenIdMasked(cid, isMasked = true) {
+      if (!cid) return '-';
+      const raw = String(cid).trim();
+      const clean = raw.replace(/[^0-9A-Za-z]/g, '');
+      if (!clean || clean === '-' || clean.length < 5) return raw || '-';
+      if (!isMasked) {
+        if (clean.length === 13) {
+          return clean[0] + '-' + clean.slice(1, 5) + '-' + clean.slice(5, 10) + '-' + clean.slice(10, 12) + '-' + clean[12];
+        }
+        return raw;
+      }
+      // Masked PDPA format: e.g. 1-1007-XXXXX-XX-8
+      if (clean.length === 13) {
+        return clean[0] + '-' + clean.slice(1, 5) + '-XXXXX-XX-' + clean[12];
+      }
+      return clean.slice(0, 3) + '******' + clean.slice(-2);
+    }
+
+    window.toggleSrCitizenMask = function(fullCid) {
+      const valEl = document.getElementById('srCidVal');
+      const eyeEl = document.getElementById('srCidEye');
+      if (!valEl || !fullCid) return;
+      const isCurrentlyMasked = valEl.textContent.includes('X') || valEl.textContent.includes('*');
+      if (isCurrentlyMasked) {
+        valEl.textContent = toArabicDigits(formatCitizenIdMasked(fullCid, false));
+        if (eyeEl) eyeEl.className = 'fa-solid fa-eye';
+      } else {
+        valEl.textContent = toArabicDigits(formatCitizenIdMasked(fullCid, true));
+        if (eyeEl) eyeEl.className = 'fa-solid fa-eye-slash';
+      }
+    };
+
+    window.toggleStudentReportCid = function(el) {
+      const parent = el.closest('.pdpa-cid');
+      if (!parent) return;
+      const fullCid = parent.getAttribute('data-cid');
+      if (!fullCid) return;
+      const isCurrentlyMasked = parent.textContent.includes('X') || parent.textContent.includes('*');
+      if (isCurrentlyMasked) {
+        parent.innerHTML = toArabicDigits(formatCitizenIdMasked(fullCid, false)) + ' <i class="fa-solid fa-eye" style="cursor:pointer; color:var(--color-gold); font-size:11px; margin-left:4px;" title="คลิกเพื่อสลับแสดงเลขเต็ม/ซ่อน" onclick="toggleStudentReportCid(this)"></i>';
+      } else {
+        parent.innerHTML = toArabicDigits(formatCitizenIdMasked(fullCid, true)) + ' <i class="fa-solid fa-eye-slash" style="cursor:pointer; color:var(--color-gold); font-size:11px; margin-left:4px;" title="คลิกเพื่อสลับแสดงเลขเต็ม/ซ่อน" onclick="toggleStudentReportCid(this)"></i>';
+      }
+    };
+
     function loadStudentReport(forceRefresh = false, isSilent = false) {
       if (forceRefresh && window._lastRenderedSignatures) {
         delete window._lastRenderedSignatures['studentReportData'];
@@ -23844,7 +23842,8 @@
                 const indexNum = toArabicDigits(i + 1);
                 const stId = toArabicDigits(st.studentId || '-');
                 const stName = escapeHtml(st.fullName || st.rawName || '-');
-                const citizen = st.citizenId ? toArabicDigits(st.citizenId) : '<span style="color:#94a3b8;">-</span>';
+                const citizenDisplay = st.citizenId ? toArabicDigits(formatCitizenIdMasked(st.citizenId, true)) : '<span style="color:#94a3b8;">-</span>';
+                const citizen = st.citizenId ? ('<span class="pdpa-cid" data-cid="' + escapeHtml(st.citizenId) + '" style="font-family:monospace; font-size:12px;">' + citizenDisplay + ' <i class="fa-solid fa-eye-slash" style="cursor:pointer; color:var(--color-gold); font-size:11px; margin-left:4px;" title="คลิกเพื่อสลับแสดงเลขเต็ม/ซ่อน" onclick="toggleStudentReportCid(this)"></i></span>') : '<span style="color:#94a3b8;">-</span>';
                 const courseName = escapeHtml(st.course || 'หลักสูตรทั่วไป');
                 const schedule = st.schedule ? ('<div style="font-size:12px; color:#64748b; margin-top:2px;">' + escapeHtml(st.schedule) + '</div>') : '';
                 const yearTerm = '<div style="font-weight:600;">' + toArabicDigits(st.yearBE || '-') + '</div>' +
@@ -30227,8 +30226,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=147' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=147' : (window.location.pathname + '/sw.js?v=126'));
+        ? './sw.js?v=148' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=148' : (window.location.pathname + '/sw.js?v=126'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
         if (typeof reg.update === 'function') reg.update();
