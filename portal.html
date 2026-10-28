@@ -13853,26 +13853,24 @@
         // --- 18. STAFF USERS & SECURITY ---
         if (action === 'getUsersList') {
           try {
+            let rawData = null;
             // 1. Prioritize secure RPC (returns staff without exposing plaintext passwords)
             try {
               const { data: rpcUsers, error: rpcErr } = await _supabase.rpc('get_safe_staff_users');
               if (!rpcErr && Array.isArray(rpcUsers) && rpcUsers.length > 0) {
-                return { success: true, users: rpcUsers };
+                rawData = rpcUsers;
               }
             } catch (_) {}
 
             // 2. Fallback to direct query if RPC not yet created
-            let data = null;
-            try {
-              const { data: dbData, error } = await _supabase.from('staff_users')
-                .select('*')
-                .order('created_at', { ascending: true });
-              if (error) {
-                console.warn('getUsersList database warning:', error.message);
-              } else {
-                data = dbData;
-              }
-            } catch (_) {}
+            if (!rawData) {
+              try {
+                const { data: dbData } = await _supabase.from('staff_users')
+                  .select('*')
+                  .order('created_at', { ascending: true });
+                rawData = dbData;
+              } catch (_) {}
+            }
 
             const defaultRolePerms = {
               'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
@@ -13884,13 +13882,13 @@
               'Academic': ['dashboard', 'courses', 'report']
             };
 
-            const users = (data || []).map(u => {
+            const users = (rawData || []).map(u => {
               const uLower = (u.username || '').toLowerCase();
               let perms = defaultRolePerms[u.role] || ['dashboard'];
               if (uLower === 'shipping') perms = ['dashboard', 'textbooks', 'shipping'];
               if (uLower === 'cashier') perms = ['dashboard', 'receipts', 'report'];
               if (uLower === 'registrar') perms = ['dashboard', 'enroll', 'search', 'courses', 'card', 'report'];
-              if (uLower === 'admin' || uLower === 'cake' || u.role === 'Admin' || u.role === 'Administrator') {
+              if (uLower === 'admin' || uLower === 'cake' || (u.role && u.role.toLowerCase().includes('admin'))) {
                 perms = defaultRolePerms['Administrator'];
               }
               if (u.permissions) {
@@ -13909,12 +13907,12 @@
               return {
                 id: u.id,
                 username: u.username,
-                fullName: u.full_name || u.username,
+                fullName: u.fullName || u.full_name || u.username,
                 email: u.email || '-',
                 role: u.role || 'Staff',
-                status: u.is_active ? 'Active' : 'Suspended',
+                status: (u.status === 'Active' || u.is_active) ? 'Active' : 'Suspended',
                 permissions: perms,
-                createdAt: u.created_at || new Date().toISOString()
+                createdAt: u.createdAt || u.created_at || new Date().toISOString()
               };
             });
 
@@ -28131,15 +28129,41 @@
           '<span style="display:inline-flex; align-items:center; justify-content:center; gap:5px; padding:3px 10px; border-radius:12px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#ef4444; font-size:11.5px; font-weight:700; white-space:nowrap; letter-spacing:0.2px;"><i class="fa-solid fa-circle" style="font-size:7px;"></i> <span>Suspended</span></span>';
 
         let permBadges = '';
+        let perms = [];
         if (Array.isArray(u.permissions)) {
-          if (u.permissions.length >= 10) {
-            permBadges = '<span style="padding:2px 8px; border-radius:6px; background:rgba(215,166,0,0.2); color:var(--color-gold); font-size:11.5px; font-weight:700;">ทุกเมนู (10/10)</span>';
-          } else {
-            permBadges = u.permissions.map(p => {
-              const thName = menuNames[p] || p;
-              return `<span style="display:inline-block; margin:2px 3px; padding:2px 6px; border-radius:4px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); font-size:11px; color:#e2e8f0;">${thName}</span>`;
-            }).join('');
-          }
+          perms = u.permissions;
+        } else if (typeof u.permissions === 'string' && u.permissions.trim()) {
+          try {
+            const parsed = JSON.parse(u.permissions);
+            if (Array.isArray(parsed)) perms = parsed;
+          } catch(_) {}
+        }
+        if (!perms || perms.length === 0) {
+          const defaultRolePerms = {
+            'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
+            'Admin': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
+            'Registrar': ['dashboard', 'enroll', 'search', 'courses', 'card', 'report'],
+            'Cashier': ['dashboard', 'receipts', 'report'],
+            'Staff': ['dashboard', 'textbooks', 'shipping'],
+            'Logistics': ['dashboard', 'textbooks', 'shipping']
+          };
+          const uLower = (u.username || '').toLowerCase();
+          const rKey = (u.role || '');
+          perms = defaultRolePerms[rKey] || defaultRolePerms[u.role] || ['dashboard'];
+          if (uLower === 'admin' || uLower === 'cake') perms = defaultRolePerms['Admin'];
+          if (uLower === 'registrar') perms = defaultRolePerms['Registrar'];
+          if (uLower === 'cashier') perms = defaultRolePerms['Cashier'];
+          if (uLower === 'shipping') perms = defaultRolePerms['Staff'];
+        }
+        u.permissions = perms;
+
+        if (perms.length >= 10) {
+          permBadges = '<span style="padding:2px 8px; border-radius:6px; background:rgba(215,166,0,0.2); color:var(--color-gold); font-size:11.5px; font-weight:700;">ทุกเมนู (10/10)</span>';
+        } else if (perms.length > 0) {
+          permBadges = perms.map(p => {
+            const thName = menuNames[p] || p;
+            return `<span style="display:inline-block; margin:2px 3px; padding:2px 6px; border-radius:4px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); font-size:11px; color:#e2e8f0;">${thName}</span>`;
+          }).join('');
         }
 
         html += `
@@ -28300,7 +28324,33 @@
         alertBox.style.display = 'none';
       }
 
-      const userPerms = Array.isArray(user.permissions) ? user.permissions : [];
+      let userPerms = [];
+      if (Array.isArray(user.permissions)) {
+        userPerms = user.permissions;
+      } else if (typeof user.permissions === 'string' && user.permissions.trim()) {
+        try {
+          const parsed = JSON.parse(user.permissions);
+          if (Array.isArray(parsed)) userPerms = parsed;
+        } catch(_) {}
+      }
+      if (!userPerms || userPerms.length === 0) {
+        const defaultRolePerms = {
+          'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
+          'Admin': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
+          'Registrar': ['dashboard', 'enroll', 'search', 'courses', 'card', 'report'],
+          'Cashier': ['dashboard', 'receipts', 'report'],
+          'Staff': ['dashboard', 'textbooks', 'shipping'],
+          'Logistics': ['dashboard', 'textbooks', 'shipping']
+        };
+        const uLower = (user.username || '').toLowerCase();
+        const rKey = (user.role || '');
+        userPerms = defaultRolePerms[rKey] || defaultRolePerms[user.role] || ['dashboard'];
+        if (uLower === 'admin' || uLower === 'cake') userPerms = defaultRolePerms['Admin'];
+        if (uLower === 'registrar') userPerms = defaultRolePerms['Registrar'];
+        if (uLower === 'cashier') userPerms = defaultRolePerms['Cashier'];
+        if (uLower === 'shipping') userPerms = defaultRolePerms['Staff'];
+      }
+      user.permissions = userPerms;
       document.querySelectorAll('.chk-user-perm').forEach(cb => {
         cb.checked = userPerms.includes(cb.value);
       });
@@ -31113,8 +31163,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=165' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=165' : (window.location.pathname + '/sw.js?v=165'));
+        ? './sw.js?v=166' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=166' : (window.location.pathname + '/sw.js?v=166'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
         if (typeof reg.update === 'function') reg.update();
