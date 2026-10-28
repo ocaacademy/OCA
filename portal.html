@@ -6839,7 +6839,13 @@
                 <i class="fa-solid fa-door-open" style="margin-right:6px; color:var(--color-gold);"></i> 5. ตรวจสอบห้องเรียนนักเรียน
               </button>
             </div>
-            <div style="flex-shrink:0; margin-left:12px;">
+            <div style="flex-shrink:0; margin-left:12px; display:flex; align-items:center; gap:8px;">
+              <span id="badgeReportRealtimeStatus" style="font-size:11.5px; padding:5px 12px; border-radius:12px; background:rgba(16,185,129,0.15); color:#10B981; border:1px solid rgba(16,185,129,0.3); font-weight:600; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;">
+                <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block; box-shadow:0 0 6px #10b981;"></span> Real-time Sync
+              </span>
+              <button type="button" class="oca-btn-secondary" onclick="refreshReportsModuleRealtime('all', false)" title="ดึงข้อมูลรายงานล่าสุดจาก Cloud ทันที" style="padding:5px 12px; font-size:12px; display:inline-flex; align-items:center; gap:5px; height:30px;">
+                <i class="fa-solid fa-arrow-rotate-right"></i> <span>รีเฟรช</span>
+              </button>
               <span id="badgeSecurityStatus" style="font-size:12px; padding:6px 14px; border-radius:12px; background:rgba(16,185,129,0.15); color:#10B981; border:1px solid rgba(16,185,129,0.3); font-weight:600; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;">
                 <i class="fa-solid fa-shield-halved"></i> PDPA Secured
               </span>
@@ -10342,6 +10348,63 @@
       }
     }
 
+    /**
+     * ดึงค่าซับแท็บที่กำลังเปิดดูอยู่ในเมนู REPORTS
+     * @return {'students'|'roster'|'finance'|'classroom'|'checker'}
+     */
+    function getActiveReportSubTab() {
+      if (document.getElementById('btnReportSubnavFinance')?.classList.contains('active')) return 'finance';
+      if (document.getElementById('btnReportSubnavRoster')?.classList.contains('active')) return 'roster';
+      if (document.getElementById('btnReportSubnavClassroom')?.classList.contains('active')) return 'classroom';
+      if (document.getElementById('btnReportSubnavChecker')?.classList.contains('active')) return 'checker';
+      return 'students';
+    }
+
+    /**
+     * อัปเดตข้อมูลรายงานทั้งหมดในเมนู REPORTS แบบ Real-time ทันทีเมื่อมีการเปลี่ยนแปลงในฐานข้อมูล
+     * @param {string} sourceTable ตารางต้นทาง ('students'|'receipts'|'courses'|'schedules'|'all')
+     * @param {boolean} isSilent โหมดอัปเดตแบบเบื้องหลังไม่กวนหน้าจอ
+     */
+    function refreshReportsModuleRealtime(sourceTable = 'all', isSilent = true) {
+      // 1. ล้างแคชข้อมูลรายงานเดิมเพื่อให้ดึงข้อมูลสดใหม่ล่าสุดจาก Supabase เสมอ
+      if (typeof cachedStudentReportData !== 'undefined') cachedStudentReportData = [];
+      if (typeof cachedFinancialSummary !== 'undefined') cachedFinancialSummary = null;
+
+      // 2. อัปเดตข้อมูลรายงานนักเรียน (Student Directory)
+      if (typeof loadStudentReport === 'function') {
+        loadStudentReport(true, isSilent);
+      }
+
+      // 3. อัปเดตข้อมูลรายงานการเงิน (Financial Summary)
+      if (typeof loadFinancialReport === 'function') {
+        loadFinancialReport(true, isSilent);
+      }
+
+      // 4. ถ้ากำลังเปิดดูหรือมีคอนเทนเนอร์ ใบรายชื่อตามคอร์ส (Course Rosters) ให้สร้างใหม่
+      const viewRoster = document.getElementById('subviewReportRoster');
+      if (viewRoster && viewRoster.style.display !== 'none' && typeof generateCourseRosters === 'function') {
+        generateCourseRosters(true);
+      }
+
+      // 5. ถ้ากำลังเปิดดูหรือมีคอนเทนเนอร์ พิมพ์ใบแจ้งห้องเรียน (Classroom View) ให้อัปเดต
+      const viewClassroom = document.getElementById('subviewReportClassroom');
+      if (viewClassroom && viewClassroom.style.display !== 'none' && typeof onRosterFilterChanged === 'function') {
+        onRosterFilterChanged();
+      }
+
+      // 6. ถ้ากำลังเปิดดูแท็บ ตรวจสอบห้องเรียน (Classroom Checker) และมีคำค้นหาค้างอยู่ ให้ค้นหาใหม่
+      const viewChecker = document.getElementById('subviewReportChecker');
+      const inpChecker = document.getElementById('inpClassroomSearch');
+      if (viewChecker && viewChecker.style.display !== 'none' && inpChecker && inpChecker.value.trim() && typeof searchStudentClassroomNow === 'function') {
+        searchStudentClassroomNow();
+      }
+
+      // แจ้งเตือน Toast หากเป็นการกดปุ่มรีเฟรชด้วยมือ
+      if (!isSilent && typeof showToast === 'function') {
+        showToast('อัปเดตข้อมูลรายงานแบบ Real-time สำเร็จ', 'ดึงข้อมูลล่าสุดจาก Cloud เรียบร้อย', '✓');
+      }
+    }
+
     function handleRealtimeBroadcast(table, payload) {
       // 1. อัปเดตสถิติ Dashboard และ Storage เสมอ
       try {
@@ -10352,7 +10415,7 @@
       if (table === 'students') {
         if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus('silent');
         if (typeof loadRecentStudentsForCard === 'function') loadRecentStudentsForCard();
-        if (typeof loadStudentReport === 'function') loadStudentReport(false);
+        if (typeof refreshReportsModuleRealtime === 'function') refreshReportsModuleRealtime('students', true);
       } else if (table === 'receipts') {
         if (payload && payload.new && Array.isArray(receiptHistoryCachedLogs)) {
           const norm = (typeof normalizeReceiptObject === 'function') ? normalizeReceiptObject(payload.new) : payload.new;
@@ -10367,11 +10430,12 @@
         if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable();
         if (typeof loadShippingOrders === 'function') loadShippingOrders(true);
         if (typeof loadTextbookClaimLogs === 'function') loadTextbookClaimLogs();
-        if (typeof loadFinancialReport === 'function') loadFinancialReport(false);
         if (typeof fetchNextReceiptNumber === 'function') fetchNextReceiptNumber();
+        if (typeof refreshReportsModuleRealtime === 'function') refreshReportsModuleRealtime('receipts', true);
       } else if (table === 'courses') {
         if (typeof loadCoursesManager === 'function') loadCoursesManager(false);
         if (typeof loadReceiptCoursesDropdown === 'function') loadReceiptCoursesDropdown();
+        if (typeof refreshReportsModuleRealtime === 'function') refreshReportsModuleRealtime('courses', true);
       } else if (table === 'fee_settings' || table === 'system_settings') {
         if (typeof loadTextbooksData === 'function') loadTextbooksData();
         if (typeof loadReceiptBooksDropdown === 'function') loadReceiptBooksDropdown();
@@ -10379,6 +10443,7 @@
         if (typeof loadPayeeSettingFromDatabase === 'function') loadPayeeSettingFromDatabase();
       } else if (table === 'schedules') {
         if (typeof loadCoursesManager === 'function') loadCoursesManager(false);
+        if (typeof refreshReportsModuleRealtime === 'function') refreshReportsModuleRealtime('schedules', true);
       } else if (table === 'staff_users') {
         if (typeof loadUsersList === 'function') loadUsersList(true);
       } else if (table === 'security_audit_logs' || table === 'audit_logs') {
@@ -10440,8 +10505,12 @@
       } else if (tabId === 'tabSearch') {
         if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus('silent');
       } else if (tabId === 'tabReport') {
-        if (typeof loadStudentReport === 'function') loadStudentReport(true, true);
-        if (typeof loadFinancialReport === 'function') loadFinancialReport(false, true);
+        if (typeof refreshReportsModuleRealtime === 'function') {
+          refreshReportsModuleRealtime('all', true);
+        } else {
+          if (typeof loadStudentReport === 'function') loadStudentReport(true, true);
+          if (typeof loadFinancialReport === 'function') loadFinancialReport(true, true);
+        }
       } else if (tabId === 'tabCard') {
         if (typeof loadRecentStudentsForCard === 'function') loadRecentStudentsForCard();
       } else if (tabId === 'tabEnroll') {
@@ -13903,6 +13972,7 @@
         document.getElementById('tabReport').classList.add('active');
         const b = document.getElementById('btnNavReport'); if (b) b.classList.add('active');
         if (typeof initStudentReportModule === 'function') initStudentReportModule();
+        if (typeof refreshReportsModuleRealtime === 'function') refreshReportsModuleRealtime('all', true);
       } else if (navKey === 'settings') {
         const t = document.getElementById('tabSettings'); if (t) t.classList.add('active');
         const b = document.getElementById('btnNavSettings'); if (b) b.classList.add('active');
@@ -23410,15 +23480,11 @@
      */
     function initStudentReportModule() {
       updateSecurityBadge();
-      if (!hasStudentReportInit) {
-        hasStudentReportInit = true;
-        if (isReportSecurityUnlocked) {
-          loadStudentReport();
-        } else {
-          checkReportSecurityAccess(() => {
-            loadStudentReport();
-          });
-        }
+      hasStudentReportInit = true;
+      if (typeof refreshReportsModuleRealtime === 'function') {
+        refreshReportsModuleRealtime('all', true);
+      } else if (typeof loadStudentReport === 'function') {
+        loadStudentReport(true, true);
       }
     }
 
@@ -24637,9 +24703,7 @@
             btnFinance.style.color = '#111827';
           }
           if (viewFinance) viewFinance.style.display = 'block';
-          if (!cachedFinancialSummary) {
-            loadFinancialReport();
-          }
+          loadFinancialReport(true, false);
         } else if (subTab === 'roster') {
           if (btnRoster) {
             btnRoster.classList.add('active');
@@ -24647,10 +24711,7 @@
             btnRoster.style.color = '#111827';
           }
           if (viewRoster) viewRoster.style.display = 'block';
-          const container = document.getElementById('courseRosterContainer');
-          if (container && container.querySelectorAll('.oca-course-roster-sheet').length === 0) {
-            generateCourseRosters();
-          }
+          generateCourseRosters(true);
         } else if (subTab === 'classroom') {
           if (btnClassroom) {
             btnClassroom.classList.add('active');
@@ -24676,9 +24737,7 @@
             btnStudents.style.color = '#111827';
           }
           if (viewStudents) viewStudents.style.display = 'block';
-          if (!cachedStudentReportData || cachedStudentReportData.length === 0) {
-            loadStudentReport();
-          }
+          loadStudentReport(true, false);
         }
       }
 
@@ -24713,7 +24772,7 @@
         .then(res => {
           isFinanceReportLoading = false;
           if (!res || !res.success) {
-            showToast('ไม่สามารถดึงข้อมูลสรุปยอดเงินได้', (res && res.error) || '', '❌');
+            if (!isSilent) showToast('ไม่สามารถดึงข้อมูลสรุปยอดเงินได้', (res && res.error) || '', '❌');
             return;
           }
 
@@ -24722,7 +24781,7 @@
         })
         .catch(err => {
           isFinanceReportLoading = false;
-          showToast('เกิดข้อผิดพลาดในการโหลดรายงานการเงิน', err.message || '', '❌');
+          if (!isSilent) showToast('เกิดข้อผิดพลาดในการโหลดรายงานการเงิน', err.message || '', '❌');
         });
     }
 
@@ -29776,8 +29835,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=142' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=142' : (window.location.pathname + '/sw.js?v=126'));
+        ? './sw.js?v=143' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=143' : (window.location.pathname + '/sw.js?v=126'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
         if (typeof reg.update === 'function') reg.update();
