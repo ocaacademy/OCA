@@ -6863,12 +6863,6 @@
               </button>
             </div>
             <div style="flex-shrink:0; margin-left:12px; display:flex; align-items:center; gap:8px;">
-              <span id="badgeReportRealtimeStatus" style="font-size:11.5px; padding:5px 12px; border-radius:12px; background:rgba(16,185,129,0.15); color:#10B981; border:1px solid rgba(16,185,129,0.3); font-weight:600; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;">
-                <span style="width:7px; height:7px; border-radius:50%; background:#10B981; display:inline-block; box-shadow:0 0 6px #10b981;"></span> Real-time Sync
-              </span>
-              <button type="button" class="oca-btn-secondary" onclick="refreshReportsModuleRealtime('all', false)" title="ดึงข้อมูลรายงานล่าสุดจาก Cloud ทันที" style="padding:5px 12px; font-size:12px; display:inline-flex; align-items:center; gap:5px; height:30px;">
-                <i class="fa-solid fa-arrow-rotate-right"></i> <span>รีเฟรช</span>
-              </button>
               <span id="badgeSecurityStatus" style="font-size:12px; padding:6px 14px; border-radius:12px; background:rgba(16,185,129,0.15); color:#10B981; border:1px solid rgba(16,185,129,0.3); font-weight:600; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;">
                 <i class="fa-solid fa-shield-halved"></i> PDPA Secured
               </span>
@@ -12702,12 +12696,32 @@
 
         // --- 12. STUDENT REPORT ---
         if (action === 'getStudentReport') {
-          let qb = _supabase.from('students').select('*').order('created_at', { ascending: false }).limit(500);
-          if (params.year && params.year !== 'ALL') qb = qb.eq('year_be', Number(params.year));
-          if (params.course && params.course !== 'ALL') qb = qb.ilike('current_course', `%${params.course}%`);
-          
+          let qb = _supabase.from('students').select('*').order('created_at', { ascending: false }).limit(1000);
           const { data: stList } = await qb;
-          const mapped = (stList || []).map(s => {
+          let list = stList || [];
+
+          if (params && params.year && params.year !== 'ALL') {
+            const targetYear = Number(params.year);
+            list = list.filter(s => {
+              const y = Number(s.year_be || (s.student_id ? ('25' + String(s.student_id).slice(0, 2)) : 2569));
+              return y === targetYear;
+            });
+          }
+          if (params && params.course && params.course !== 'ALL') {
+            const targetCourse = String(params.course).toLowerCase();
+            list = list.filter(s => (s.current_course || '').toLowerCase().includes(targetCourse));
+          }
+          if (params && params.query && String(params.query).trim()) {
+            const q = String(params.query).trim().toLowerCase();
+            list = list.filter(s => {
+              return (s.student_id && String(s.student_id).toLowerCase().includes(q)) ||
+                     (s.full_name && s.full_name.toLowerCase().includes(q)) ||
+                     (s.citizen_id && String(s.citizen_id).toLowerCase().includes(q)) ||
+                     (s.phone_number && String(s.phone_number).toLowerCase().includes(q));
+            });
+          }
+
+          const mapped = list.map(s => {
             const y = s.year_be || (s.student_id ? ('25' + String(s.student_id).slice(0, 2)) : 2569);
             const tm = s.term || (s.student_id ? (String(s.student_id).length === 7 ? Number(String(s.student_id).charAt(2)) : Number(String(s.student_id).slice(2, 4))) : 4);
             const obj = {
@@ -23624,6 +23638,9 @@
      * @param {boolean} forceRefresh
      */
     function loadStudentReport(forceRefresh = false, isSilent = false) {
+      if (forceRefresh && window._lastRenderedSignatures) {
+        delete window._lastRenderedSignatures['studentReportData'];
+      }
       if (!isReportSecurityUnlocked) {
         const tbody = document.getElementById('tbodyStudentReport');
         if (tbody) {
@@ -23692,7 +23709,13 @@
           }
 
           cachedStudentReportData = res.students || [];
-          if (!ocaShouldUpdateDOM('studentReportData', res)) return;
+
+          // Only skip DOM updating if this is a background silent poll AND tbody is not showing loading spinner
+          const hasSpinner = tbody && tbody.innerHTML && (tbody.innerHTML.includes('กำลังโหลด') || tbody.innerHTML.includes('fa-spinner'));
+          if (isSilent && !forceRefresh && !hasSpinner && !ocaShouldUpdateDOM('studentReportData', res, tbody)) {
+            return;
+          }
+          if (window._lastRenderedSignatures) window._lastRenderedSignatures['studentReportData'] = typeof res === 'string' ? res : JSON.stringify(res);
 
           // 1. อัปเดตรายการปีการศึกษาใน Dropdown (ถ้ามีส่งกลับมา)
           if (selYear && Array.isArray(res.availableYears) && res.availableYears.length > 0) {
@@ -30119,8 +30142,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=144' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=144' : (window.location.pathname + '/sw.js?v=126'));
+        ? './sw.js?v=145' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=145' : (window.location.pathname + '/sw.js?v=126'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
         if (typeof reg.update === 'function') reg.update();
