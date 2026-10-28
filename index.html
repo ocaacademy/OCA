@@ -6110,7 +6110,7 @@
                     <div class="oca-input-group" style="margin-bottom:0;">
                       <label class="oca-label" for="selRcptCourse" style="font-size:12px; margin-bottom:2px;">คอร์สเรียน (Course) *</label>
                       <div style="position:relative; margin-bottom:4px;">
-                        <input type="text" id="inpRcptCourseSearch" class="oca-input" placeholder="🔍 ค้นหาคอร์ส (เช่น HSK 3, สนทนา)..." oninput="filterReceiptCoursesDropdown(this.value)" style="height:28px; font-size:11.5px; padding:2px 8px; border-radius:6px; background:rgba(0,0,0,0.3); border:1px solid rgba(215,166,0,0.3);">
+                        <input type="search" id="inpRcptCourseSearch" class="oca-input" placeholder="🔍 พิมพ์ค้นหาคอร์ส (เช่น CE101, HSK 3)..." oninput="filterReceiptCoursesDropdown(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault(); document.getElementById('selRcptSchedule')?.focus();}" onfocus="this.select()" autocomplete="off" style="height:28px; font-size:11.5px; padding:2px 8px; border-radius:6px; background:rgba(0,0,0,0.3); border:1px solid rgba(215,166,0,0.3);">
                       </div>
                       <select id="selRcptCourse" class="oca-input" onchange="onReceiptCourseChanged()" required style="height:34px; font-size:12.5px; padding:4px 8px;">
                         <option value="">-- เลือกคอร์สเรียน --</option>
@@ -20467,13 +20467,48 @@
     function renderGroupedReceiptCourses(courses, filterText = '') {
       const selCourse = document.getElementById('selRcptCourse');
       if (!selCourse) return;
-      const currentVal = selCourse.value;
+      const prevVal = selCourse.value;
       selCourse.innerHTML = '<option value="">-- เลือกคอร์สที่ต้องการสมัครเรียน --</option>';
 
       const q = (filterText || '').trim().toLowerCase();
       const filtered = q
-        ? courses.filter(c => (c.name || '').toLowerCase().includes(q) || (c.code || '').toLowerCase().includes(q))
+        ? courses.filter(c => 
+            (c.name || '').toLowerCase().includes(q) || 
+            (c.code || '').toLowerCase().includes(q) ||
+            (c.id || '').toLowerCase().includes(q)
+          )
         : courses;
+
+      // Smart Course Auto-Selection logic: auto-select match when typing
+      let targetCourseId = '';
+      if (q) {
+        // 1. Exact match on code, id, or exact name
+        const exact = filtered.find(c => 
+          (c.code || '').trim().toLowerCase() === q ||
+          (c.id || '').trim().toLowerCase() === q ||
+          (c.name || '').trim().toLowerCase() === q ||
+          (c.name || '').trim().toLowerCase() === 'คอร์ส ' + q
+        );
+        if (exact) {
+          targetCourseId = exact.id;
+        } else if (prevVal && filtered.some(c => c.id === prevVal)) {
+          targetCourseId = prevVal;
+        } else if (filtered.length === 1) {
+          targetCourseId = filtered[0].id;
+        } else if (filtered.length > 0) {
+          // Priority: Code or ID starts with query, else first matched course
+          const prefixMatch = filtered.find(c => 
+            (c.code || '').trim().toLowerCase().startsWith(q) ||
+            (c.id || '').trim().toLowerCase().startsWith(q)
+          );
+          targetCourseId = prefixMatch ? prefixMatch.id : filtered[0].id;
+        }
+      } else {
+        // If query is empty, keep previously selected course if it still exists
+        if (prevVal && courses.some(c => c.id === prevVal)) {
+          targetCourseId = prevVal;
+        }
+      }
 
       const groups = {
         'HSK ระดับ 1 - 2 (ระดับต้น)': [],
@@ -20506,7 +20541,7 @@
             const opt = document.createElement('option');
             opt.value = c.id;
             opt.textContent = c.name + ' (' + Number(c.price).toLocaleString() + ' ฿)';
-            if (c.id === currentVal) opt.selected = true;
+            if (c.id === targetCourseId) opt.selected = true;
             optGroup.appendChild(opt);
           });
           selCourse.appendChild(optGroup);
@@ -20519,6 +20554,24 @@
         emptyOpt.disabled = true;
         emptyOpt.textContent = '❌ ไม่พบคอร์สที่ตรงกับ "' + filterText + '"';
         selCourse.appendChild(emptyOpt);
+      }
+
+      // Automatically select matched course and trigger fee & preview updates
+      if (targetCourseId) {
+        selCourse.value = targetCourseId;
+        if (targetCourseId !== prevVal) {
+          onReceiptCourseChanged();
+          selCourse.style.transition = 'border-color 0.3s ease, box-shadow 0.3s ease';
+          selCourse.style.borderColor = 'var(--color-gold, #d7a600)';
+          selCourse.style.boxShadow = '0 0 10px rgba(215, 166, 0, 0.4)';
+          setTimeout(() => {
+            selCourse.style.borderColor = '';
+            selCourse.style.boxShadow = '';
+          }, 900);
+        }
+      } else if (!q && prevVal) {
+        selCourse.value = '';
+        onReceiptCourseChanged();
       }
     }
 
@@ -20561,6 +20614,11 @@
       const cId = selC.value;
       const course = receiptCoursesList.find(c => c.id === cId);
       if (course) {
+        // Sync search input if user clicked dropdown directly
+        const inpSearch = document.getElementById('inpRcptCourseSearch');
+        if (inpSearch && document.activeElement !== inpSearch) {
+          inpSearch.value = course.code || course.name || '';
+        }
         const inpFee = document.getElementById('inpRcptBaseFee');
         if (inpFee) {
           if (window.receiptActivePreset === 'transfer') {
@@ -21079,6 +21137,8 @@
 
       // 4. รีเซ็ตคอร์สและตำราเรียนกลับเป็นค่าเริ่มต้น
       const selC = document.getElementById('selRcptCourse'); if (selC) selC.selectedIndex = 0;
+      const inpCS = document.getElementById('inpRcptCourseSearch'); if (inpCS) inpCS.value = '';
+      if (Array.isArray(receiptCoursesList) && receiptCoursesList.length > 0) renderGroupedReceiptCourses(receiptCoursesList, '');
       const selS = document.getElementById('selRcptSchedule'); if (selS) selS.selectedIndex = 0;
       const selB = document.getElementById('selRcptCatalogBook'); if (selB) selB.selectedIndex = 0;
       const inpBQty = document.getElementById('inpRcptBookQty'); if (inpBQty) inpBQty.value = 1;
