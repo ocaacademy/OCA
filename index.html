@@ -174280,21 +174280,22 @@
 
 
       } else if (table === 'security_audit_logs' || table === 'audit_logs') {
+        // Instant Realtime Kick via security_audit_logs LOGIN_SUCCESS from another device
+        if (payload && payload.new && payload.new.action === 'LOGIN_SUCCESS') {
+          const kickedUser = String(payload.new.username || '').toLowerCase().trim();
+          const currUser = getSavedCurrentUser();
+          const currName = currUser ? String(currUser.username || '').toLowerCase().trim() : '';
+          const myDevId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
+          const incomingDevId = String(payload.new.device_id || '').trim();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          if (currName && currName === kickedUser && incomingDevId && myDevId && incomingDevId !== myDevId) {
+            console.warn('[Session Security] Realtime LOGIN_SUCCESS detected from another device:', incomingDevId, 'my device:', myDevId);
+            executeForcedSessionLogout({
+              username: currName,
+              deviceId: incomingDevId
+            });
+          }
+        }
         if (typeof loadSecurityAuditLogs === 'function') loadSecurityAuditLogs(true, true);
 
 
@@ -179895,7 +179896,18 @@
 
 
 
-                  await _supabase.from('security_audit_logs').insert([{
+                  try {
+                  const sessId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+                  authedStaff.sessionId = sessId;
+                  await _supabase.from('fee_settings').upsert({
+                    key: 'session:' + u,
+                    name: sessId,
+                    mode: authedStaff.deviceId,
+                    amount: 1,
+                    updated_at: new Date().toISOString()
+                  }, { onConflict: 'key' });
+                } catch (_) {}
+                await _supabase.from('security_audit_logs').insert([{
 
 
 
@@ -431573,7 +431585,7 @@
             key: 'session:' + u,
             name: sessionId,
             mode: devId,
-            amount: Date.now(),
+            amount: 1,
             updated_at: new Date().toISOString()
           }, { onConflict: 'key' });
 
@@ -431604,30 +431616,32 @@
       const currentUser = getSavedCurrentUser();
       if (!currentUser || !currentUser.username) return;
 
-      const currentUsername = currentUser.username.toLowerCase().trim();
-      const targetUsername = data.username.toLowerCase().trim();
+      const currentUsername = String(currentUser.username || '').toLowerCase().trim();
+      const targetUsername = String(data.username || '').toLowerCase().trim();
       if (currentUsername !== targetUsername) return;
 
       const mySessionId = localStorage.getItem('oca_active_session_id') || 
                           sessionStorage.getItem('oca_active_session_id') || 
-                          (currentUser && currentUser.sessionId);
+                          (currentUser && currentUser.sessionId) || '';
 
-      // หาก sessionId ใหม่ไม่ตรงกับของเครื่องนี้ ให้เตะออกทันที
-      if (data.sessionId && mySessionId && data.sessionId !== mySessionId) {
+      const myDeviceId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
+      const incomingDeviceId = String(data.deviceId || '').trim();
+
+      // 1. ถ้ามี Session ID ส่งมา และไม่ตรงกับของเครื่องนี้
+      if (data.sessionId && data.sessionId !== mySessionId) {
+        console.warn('[Session Security] Session ID mismatch kick:', data.sessionId, 'vs local:', mySessionId);
         executeForcedSessionLogout(data);
         return;
       }
 
-      // ตรวจสอบ Device ID เพิ่มเติมกรณีเซสชันว่างเปล่า
-      const myDeviceId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
-      if (data.deviceId && myDeviceId && data.deviceId !== myDeviceId && !data.sessionId) {
+      // 2. ถ้ามาจาก Device ID อื่นที่คนละเครื่องกัน
+      if (incomingDeviceId && myDeviceId && incomingDeviceId !== myDeviceId) {
+        console.warn('[Session Security] Device ID mismatch kick:', incomingDeviceId, 'vs local:', myDeviceId);
         executeForcedSessionLogout(data);
+        return;
       }
     }
 
-    /**
-     * ดำเนินการเตะออกจากระบบทันที พร้อมแสดงข้อความแจ้งเตือนระบุสาเหตุ
-     */
     function executeForcedSessionLogout(data) {
       if (_isKickingForcedSession) return;
       _isKickingForcedSession = true;
@@ -431702,14 +431716,9 @@
       const user = getSavedCurrentUser();
       if (!user || !user.username) return;
 
-      const mySessionId = localStorage.getItem('oca_active_session_id') || 
-                          sessionStorage.getItem('oca_active_session_id') || 
-                          user.sessionId;
-      if (!mySessionId) return;
-
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const u = user.username.toLowerCase().trim();
+          const u = String(user.username || '').toLowerCase().trim();
           const { data, error } = await _supabase
             .from('fee_settings')
             .select('name, mode, updated_at')
@@ -431717,8 +431726,14 @@
             .maybeSingle();
 
           if (!error && data && data.name) {
-            if (data.name !== mySessionId) {
-              console.warn('[Session Security] Active session mismatch in cloud:', data.name, mySessionId);
+            const mySessionId = localStorage.getItem('oca_active_session_id') || 
+                                sessionStorage.getItem('oca_active_session_id') || 
+                                (user && user.sessionId) || '';
+            const myDeviceId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
+            const incomingDeviceId = String(data.mode || '').trim();
+
+            if (data.name !== mySessionId || (incomingDeviceId && myDeviceId && incomingDeviceId !== myDeviceId)) {
+              console.warn('[Session Security] Active cloud session mismatch:', data.name, 'vs local:', mySessionId);
               executeForcedSessionLogout({
                 username: u,
                 sessionId: data.name,
@@ -470944,7 +470959,7 @@
       // Single-Device Session Listeners (Tab Focus, Visibility Change, and Periodic 20s Heartbeat)
     window.addEventListener('focus', () => { if (typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden && typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); });
-    setInterval(() => { if (typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); }, 20000);
+    setInterval(() => { if (typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); }, 5000);
 
     checkInitialAuthState();
 
