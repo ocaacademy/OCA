@@ -7409,7 +7409,7 @@
                   <span class="oca-stat-pill"><i class="fa-solid fa-award"></i>ปี <span id="lblKpiCurrentYear">2569</span></span>
                 </div>
                 <div class="oca-stat-cn-sub">年度總收入</div>
-                <div class="oca-stat-label">ยอดเงินประจำปี พ.ศ. 2569</div>
+                <div class="oca-stat-label">ยอดเงินประจำปี พ.ศ. <span id="lblKpiCurrentYearLabel">2569</span></div>
               </div>
               <div>
                 <div class="oca-stat-val" id="kpiFinanceYearRevenue" style="color:#34d399;">฿0</div>
@@ -7422,10 +7422,10 @@
               <div>
                 <div class="oca-stat-top">
                   <div class="oca-stat-icon"><i class="fa-solid fa-graduation-cap"></i></div>
-                  <span class="oca-stat-pill"><i class="fa-solid fa-book-open"></i>TERM 5</span>
+                  <span class="oca-stat-pill"><i class="fa-solid fa-book-open"></i>TERM <span id="lblKpiCurrentTermBadge">5</span></span>
                 </div>
                 <div class="oca-stat-cn-sub">本學期收入</div>
-                <div class="oca-stat-label">ยอดเงินประจำเทอม 5</div>
+                <div class="oca-stat-label">ยอดเงินประจำเทอม <span id="lblKpiCurrentTermLabel">5</span></div>
               </div>
               <div>
                 <div class="oca-stat-val" id="kpiFinanceTermRevenue" style="color:#facc15;">฿0</div>
@@ -11933,12 +11933,33 @@
           const thaiDays = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
           const thaiShortMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
-          const todayIso = new Date().toISOString().split('T')[0];
+          // Thailand Local Date Helper (YYYY-MM-DD) - Prevents UTC Timezone Skew
+          const toLocalIso = (dateObj) => {
+            const dt = dateObj ? new Date(dateObj) : new Date();
+            const yy = dt.getFullYear();
+            const mm = String(dt.getMonth() + 1).padStart(2, '0');
+            const dd = String(dt.getDate()).padStart(2, '0');
+            return `${yy}-${mm}-${dd}`;
+          };
+
+          const todayIso = toLocalIso(new Date());
           let todayRevenue = 0;
           let currentTermRevenue = 0;
           let currentYearRevenue = 0;
-          const currentYearBE = 2569;
-          const currentTerm = 5;
+
+          // Dynamic Active Academic Year & Term
+          let currentYearBE = 2569;
+          let currentTerm = 5;
+          try {
+            if (typeof resolveCurrentAcademicTerm === 'function') {
+              const act = resolveCurrentAcademicTerm();
+              if (act && act.yearBE) currentYearBE = Number(act.yearBE);
+              if (act && act.term) currentTerm = Number(act.term);
+            }
+          } catch (_) {}
+
+          const filterYear = params && params.filterYear && params.filterYear !== 'ALL' ? Number(params.filterYear) : null;
+          const targetKpiYearBE = filterYear || currentYearBE;
 
           if (rcpts) {
             rcpts.forEach(r => {
@@ -11982,8 +12003,8 @@
               termMap[termKey].discountTotal += dc;
               termMap[termKey].grandTotal += gt;
 
-              // 3. Group by Day (สรุปยอดเงิน รายวัน)
-              const dIso = d.toISOString().split('T')[0];
+              // 3. Group by Day (สรุปยอดเงิน รายวัน) - Local Calendar Date
+              const dIso = toLocalIso(d);
               const dateLabel = `${d.getDate()} ${thaiShortMonths[d.getMonth()]} ${yBe} (${thaiDays[d.getDay()]})`;
               if (!dailyMap[dIso]) {
                 dailyMap[dIso] = { dateIso: dIso, dateLabel, yearBE: yBe, receiptCount: 0, tuitionTotal: 0, otherFeesTotal: 0, discountTotal: 0, grandTotal: 0, receipts: [] };
@@ -12000,14 +12021,13 @@
                 paymentMethod: r.payment_method || 'เงินสด'
               });
 
-              // KPIs
+              // KPIs (Strict Accounting Calculation)
               if (dIso === todayIso) todayRevenue += gt;
-              if (yBe === currentYearBE) currentYearRevenue += gt;
-              if (yBe === currentYearBE && termNo === currentTerm) currentTermRevenue += gt;
+              if (yBe === targetKpiYearBE) currentYearRevenue += gt;
+              if (yBe === targetKpiYearBE && termNo === currentTerm) currentTermRevenue += gt;
             });
           }
 
-          const filterYear = params && params.filterYear && params.filterYear !== 'ALL' ? Number(params.filterYear) : null;
           const yearlySummary = Object.values(yearMap).sort((a, b) => b.yearBE - a.yearBE);
 
           let termSummary = Object.values(termMap).sort((a, b) => {
@@ -12023,10 +12043,12 @@
           const finKpis = {
             totalRevenue: totalRev,
             receiptCount: rcpts ? rcpts.length : 0,
-            currentYearRevenue: currentYearRevenue || totalRev,
-            currentTermRevenue: currentTermRevenue || totalRev,
+            currentYearRevenue: currentYearRevenue,
+            currentTermRevenue: currentTermRevenue,
             todayRevenue: todayRevenue,
-            totalReceipts: rcpts ? rcpts.length : 0
+            totalReceipts: rcpts ? rcpts.length : 0,
+            currentYearBE: targetKpiYearBE,
+            currentTerm: currentTerm
           };
 
           return {
@@ -25713,6 +25735,20 @@
       if (elTerm) elTerm.textContent = '฿' + toArabicDigits(Number(kpis.currentTermRevenue || 0).toLocaleString());
       if (elDaily) elDaily.textContent = '฿' + toArabicDigits(Number(kpis.todayRevenue || 0).toLocaleString());
       if (elRcpt) elRcpt.textContent = toArabicDigits(Number(kpis.totalReceipts || 0).toLocaleString()) + ' ใบ';
+
+      // Update Card 2 & 3 Dynamic Year/Term Labels
+      if (kpis.currentYearBE) {
+        const elYearBadge = document.getElementById('lblKpiCurrentYear');
+        const elYearLabel = document.getElementById('lblKpiCurrentYearLabel');
+        if (elYearBadge) elYearBadge.textContent = toArabicDigits(kpis.currentYearBE);
+        if (elYearLabel) elYearLabel.textContent = toArabicDigits(kpis.currentYearBE);
+      }
+      if (kpis.currentTerm) {
+        const elTermBadge = document.getElementById('lblKpiCurrentTermBadge');
+        const elTermLabel = document.getElementById('lblKpiCurrentTermLabel');
+        if (elTermBadge) elTermBadge.textContent = toArabicDigits(kpis.currentTerm);
+        if (elTermLabel) elTermLabel.textContent = toArabicDigits(kpis.currentTerm);
+      }
 
       // อัปเดตตัวเลือกใน selFinanceFilterYearTerm
       const selFilterYear = document.getElementById('selFinanceFilterYearTerm');
