@@ -4182,7 +4182,7 @@
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v153';
+      var LATEST_VERSION = 'oca-pwa-v154';
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
         if (active !== LATEST_VERSION) {
@@ -4200,13 +4200,26 @@
   <script>
     /* Capture the browser install prompt as early as possible (Android Chrome/Edge/Samsung) */
     window.__ocaDeferredPrompt = null;
+    window.__ocaWaitingForInstallPrompt = false;
     window.addEventListener('beforeinstallprompt', function (ev) {
       ev.preventDefault();
       window.__ocaDeferredPrompt = ev;
+      if (window.__ocaWaitingForInstallPrompt) {
+        window.__ocaWaitingForInstallPrompt = false;
+        if (typeof triggerPwaInstall === 'function') {
+          triggerPwaInstall();
+        }
+      }
     });
     window.addEventListener('appinstalled', function () {
       window.__ocaDeferredPrompt = null;
+      window.__ocaWaitingForInstallPrompt = false;
       try { localStorage.setItem('oca_pwa_installed', '1'); } catch (err) { console.warn('OCA PWA flag not saved', err); }
+      var wrap = document.getElementById('ocaWelcomePwaWrap');
+      if (wrap) wrap.style.display = 'none';
+      if (typeof showToast === 'function') {
+        showToast('ติดตั้งสำเร็จ', 'แอป OCA ถูกติดตั้งลงหน้าจอโทรศัพท์ของท่านแล้ว', '📱');
+      }
     });
   </script>
   <script>
@@ -23708,7 +23721,7 @@
       closePwaGuide();
       const content = {
         ios: {
-          title: 'ติดตั้งแอป OCA บน iPhone / iPad',
+          title: 'คู่มือวิธีติดตั้งแอป OCA บน iPhone / iPad',
           sub: 'Apple ไม่อนุญาตให้ติดตั้งด้วยปุ่มโดยตรง ทำตาม 3 ขั้นตอนนี้ได้เลย',
           steps: ['แตะปุ่ม <b>แชร์</b> (ไอคอนสี่เหลี่ยมมีลูกศรชี้ขึ้น) ที่แถบล่างของ Safari',
                   'เลื่อนลงแล้วเลือก <b>เพิ่มไปยังหน้าจอโฮม</b>',
@@ -23769,7 +23782,29 @@
      * @returns {Promise<void>}
      */
     async function triggerPwaInstall() {
-      if (isPwaStandalone()) { showPwaGuide('installed'); return; }
+      // 1) หากติดตั้งแล้ว
+      if (isPwaStandalone()) {
+        if (typeof showToast === 'function') {
+          showToast('ติดตั้งแอปแล้ว', 'ท่านกำลังใช้งานแอป OCA บนเครื่องนี้อยู่แล้ว', '📱');
+        } else {
+          showPwaGuide('installed');
+        }
+        return;
+      }
+
+      // 2) กรณี iOS (iPhone / iPad): แสดงคู่มือวิธีติดตั้ง 3 ขั้นตอนแทนทันที (Apple ไม่อนุญาตให้ติดตั้งอัตโนมัติ)
+      if (isIosDevice()) {
+        showPwaGuide('ios');
+        return;
+      }
+
+      // 3) กรณีเปิดใน In-App Browser (LINE / Facebook): แนะนำให้เปิดในเบราว์เซอร์หลัก
+      if (PWA_INAPP_PATTERN.test(navigator.userAgent || '')) {
+        showPwaGuide('inapp');
+        return;
+      }
+
+      // 4) กรณี Android: ติดตั้งโดยอัตโนมัติ (ยิง Native Prompt ระดับ OS ขึ้นมาทันที)
       const deferred = window.__ocaDeferredPrompt;
       if (deferred) {
         window.__ocaDeferredPrompt = null;
@@ -23781,12 +23816,28 @@
           }
         } catch (err) {
           console.warn('OCA PWA install prompt failed', err);
-          showPwaGuide('android');
+          if (typeof showToast === 'function') {
+            showToast('ติดตั้งแอป OCA', 'แตะเมนู ⋮ มุมขวาบนของเบราว์เซอร์ แล้วเลือก "ติดตั้งแอป"', '💡');
+          }
         }
         return;
       }
-      if (PWA_INAPP_PATTERN.test(navigator.userAgent || '')) { showPwaGuide('inapp'); return; }
-      showPwaGuide(isIosDevice() ? 'ios' : 'android');
+
+      // หาก Prompt ยังอยู่ในระหว่างเตรียมความพร้อม: แสดงข้อความแจ้งเตือน และยิงคำสั่งติดตั้งทันทีที่ Event มาถึง
+      window.__ocaWaitingForInstallPrompt = true;
+      if (typeof showToast === 'function') {
+        showToast('กำลังเตรียมการติดตั้ง', 'ระบบกำลังเรียกหน้าต่างติดตั้งอัตโนมัติ...', '⏳');
+      }
+
+      // Timeout fallback (กรณีเบราว์เซอร์ไม่ปล่อย beforeinstallprompt)
+      setTimeout(() => {
+        if (window.__ocaWaitingForInstallPrompt) {
+          window.__ocaWaitingForInstallPrompt = false;
+          if (typeof showToast === 'function') {
+            showToast('ติดตั้งแอป OCA', 'แตะเมนู ⋮ มุมขวาบนของ Chrome แล้วเลือก "ติดตั้งแอป"', '💡');
+          }
+        }
+      }, 3500);
     }
 
     /** Click handler for every "install app" button on the welcome screen. */
