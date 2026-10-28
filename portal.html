@@ -178451,7 +178451,7 @@
 
 
                   try {
-                  const sessId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+                  const sessId = params.sessionId || ('sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9));
                   authedStaff.sessionId = sessId;
                   await _supabase.from('fee_settings').upsert({
                     key: 'session:' + u,
@@ -430174,23 +430174,31 @@
       const targetUsername = String(data.username || '').toLowerCase().trim();
       if (currentUsername !== targetUsername) return;
 
+      const myDeviceId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
+      const incomingDeviceId = String(data.deviceId || '').trim();
       const mySessionId = localStorage.getItem('oca_active_session_id') || 
                           sessionStorage.getItem('oca_active_session_id') || 
                           (currentUser && currentUser.sessionId) || '';
 
-      const myDeviceId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
-      const incomingDeviceId = String(data.deviceId || '').trim();
+      // 0. ป้องกันไม่ให้เครื่องปัจจุบันเตะตัวเองออกเมื่อได้รับ Event จากตัวเอง (Self-Event Guard)
+      if (incomingDeviceId && myDeviceId && incomingDeviceId === myDeviceId) {
+        if (data.sessionId && data.sessionId !== mySessionId) {
+          localStorage.setItem('oca_active_session_id', data.sessionId);
+          sessionStorage.setItem('oca_active_session_id', data.sessionId);
+        }
+        return;
+      }
 
-      // 1. ถ้ามี Session ID ส่งมา และไม่ตรงกับของเครื่องนี้
-      if (data.sessionId && data.sessionId !== mySessionId) {
-        console.warn('[Session Security] Session ID mismatch kick:', data.sessionId, 'vs local:', mySessionId);
+      // 1. ถ้ามาจาก Device ID อื่น (คนละเครื่องกัน) -> สั่งเตะเครื่องนี้ออกทันที
+      if (incomingDeviceId && myDeviceId && incomingDeviceId !== myDeviceId) {
+        console.warn('[Session Security] Another device logged in:', incomingDeviceId, 'my device:', myDeviceId);
         executeForcedSessionLogout(data);
         return;
       }
 
-      // 2. ถ้ามาจาก Device ID อื่นที่คนละเครื่องกัน
-      if (incomingDeviceId && myDeviceId && incomingDeviceId !== myDeviceId) {
-        console.warn('[Session Security] Device ID mismatch kick:', incomingDeviceId, 'vs local:', myDeviceId);
+      // 2. ถ้า Session ID ใหม่ไม่ตรงกับของเครื่องนี้
+      if (data.sessionId && mySessionId && data.sessionId !== mySessionId) {
+        console.warn('[Session Security] Session ID mismatch kick from another device:', data.sessionId, 'vs local:', mySessionId);
         executeForcedSessionLogout(data);
         return;
       }
@@ -430284,10 +430292,30 @@
                                 sessionStorage.getItem('oca_active_session_id') || 
                                 (user && user.sessionId) || '';
             const myDeviceId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
-            const incomingDeviceId = String(data.mode || '').trim();
+            const cloudDeviceId = String(data.mode || '').trim();
 
-            if (data.name !== mySessionId || (incomingDeviceId && myDeviceId && incomingDeviceId !== myDeviceId)) {
-              console.warn('[Session Security] Active cloud session mismatch:', data.name, 'vs local:', mySessionId);
+            // ถ้าใน Cloud บันทึกว่าเครื่องล่าสุดคือเครื่องนี้เอง (Self-Device) ให้ข้าม
+            if (cloudDeviceId && myDeviceId && cloudDeviceId === myDeviceId) {
+              if (data.name && data.name !== mySessionId) {
+                localStorage.setItem('oca_active_session_id', data.name);
+                sessionStorage.setItem('oca_active_session_id', data.name);
+              }
+              return;
+            }
+
+            // ถ้าใน Cloud บันทึกเป็นเครื่องอื่น -> สั่งเตะเครื่องนี้ออกทันที
+            if (cloudDeviceId && myDeviceId && cloudDeviceId !== myDeviceId) {
+              console.warn('[Session Security] Cloud active device mismatch:', cloudDeviceId, 'my device:', myDeviceId);
+              executeForcedSessionLogout({
+                username: u,
+                sessionId: data.name,
+                deviceId: data.mode
+              });
+              return;
+            }
+
+            if (data.name && mySessionId && data.name !== mySessionId) {
+              console.warn('[Session Security] Cloud session mismatch:', data.name, 'vs local:', mySessionId);
               executeForcedSessionLogout({
                 username: u,
                 sessionId: data.name,
@@ -436843,182 +436871,22 @@
 
 
 
+      const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('oca_active_session_id', newSessionId);
+      sessionStorage.setItem('oca_active_session_id', newSessionId);
+
       if (btnSubmit) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         btnSubmit.disabled = true;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังตรวจสอบสิทธิ์...';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       callGasApi('loginStaff', {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         username,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         password,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         deviceId,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         deviceInfo,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        rememberDevice
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        rememberDevice,
+        sessionId: newSessionId
       }, 'POST')
 
 
