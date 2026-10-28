@@ -163468,6 +163468,18 @@
 
             </form>
 
+</form>
+
+            <!-- Single-Device Security Policy Notice -->
+            <div style="margin-top:14px; padding:10px 14px; background:rgba(217,119,6,0.08); border:1px solid rgba(217,119,6,0.25); border-radius:10px; font-size:11.5px; color:#78350f; line-height:1.5; display:flex; align-items:flex-start; gap:8px;">
+              <i class="fa-solid fa-shield-halved" style="color:#d97706; font-size:13px; margin-top:2px; flex-shrink:0;"></i>
+              <div>
+                <strong style="color:#b45309; font-weight:700;">หมายเหตุความปลอดภัย:</strong> กำหนดให้ 1 บัญชีผู้ใช้งานสามารถเข้าสู่ระบบได้พร้อมกันเพียง <strong>1 เครื่องเท่านั้น</strong> หากมีการเข้าใช้งานจากเครื่องใหม่ เครื่องเดิมจะถูกออกจากระบบโดยอัตโนมัติทันที
+              </div>
+            </div>
+
+
+
 
 
 
@@ -171355,6 +171367,12 @@
 
 
         _ocaRealtimeChannel = _supabase.channel('oca-global-realtime-sync')
+          .on('broadcast', { event: 'staff_single_session_login' }, (payload) => {
+            console.log('[Realtime Broadcast] Single session login event received:', payload);
+            if (typeof handleSingleSessionKick === 'function') {
+              handleSingleSessionKick(payload.payload || payload);
+            }
+          })
 
 
 
@@ -174091,6 +174109,17 @@
 
 
       } else if (table === 'fee_settings' || table === 'system_settings') {
+        // Enforce 1 Username per 1 Device - Realtime Postgres Change Handler
+        if (payload && payload.new && payload.new.key && typeof payload.new.key === 'string' && payload.new.key.startsWith('session:')) {
+          const u = payload.new.key.replace('session:', '').toLowerCase().trim();
+          if (typeof handleSingleSessionKick === 'function') {
+            handleSingleSessionKick({
+              username: u,
+              sessionId: payload.new.name,
+              deviceId: payload.new.mode
+            });
+          }
+        }
 
 
 
@@ -350470,7 +350499,7 @@
 
 
 
-      const cancelText = opts.cancelText || 'ยกเลิก';
+      const cancelText = (opts.cancelText !== undefined && opts.cancelText !== null) ? opts.cancelText : (opts.cancelText === false ? false : 'ยกเลิก');
 
 
 
@@ -431526,6 +431555,181 @@
 
 
 
+    let _isKickingForcedSession = false;
+
+    /**
+     * ลงทะเบียน Active Session ของผู้ใช้ใน Cloud Database และ Realtime Broadcast
+     * บังคับใช้นโยบาย 1 บัญชีผู้ใช้งานต่อ 1 เครื่องเท่านั้น
+     */
+    async function registerStaffActiveSession(username, sessionId, deviceId) {
+      if (!username || !sessionId) return;
+      const u = username.toLowerCase().trim();
+      const devId = deviceId || (typeof getOrCreateDeviceId === 'function' ? getOrCreateDeviceId() : 'OCA-DEVICE');
+      
+      try {
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          // 1. Authoritative Cloud Record in fee_settings
+          await _supabase.from('fee_settings').upsert({
+            key: 'session:' + u,
+            name: sessionId,
+            mode: devId,
+            amount: Date.now(),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+
+          // 2. Realtime WebSocket Broadcast (<100ms ultra-fast delivery)
+          if (_ocaRealtimeChannel) {
+            _ocaRealtimeChannel.send({
+              type: 'broadcast',
+              event: 'staff_single_session_login',
+              payload: {
+                username: u,
+                sessionId: sessionId,
+                deviceId: devId,
+                timestamp: Date.now()
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[Session Security] Error registering active session:', err);
+      }
+    }
+
+    /**
+     * ประมวลผลการตรวจสอบและสั่งเตะเซสชันเดิมออกเมื่อพบล็อกอินจากเครื่องใหม่
+     */
+    function handleSingleSessionKick(data) {
+      if (!data || !data.username || _isKickingForcedSession) return;
+      const currentUser = getSavedCurrentUser();
+      if (!currentUser || !currentUser.username) return;
+
+      const currentUsername = currentUser.username.toLowerCase().trim();
+      const targetUsername = data.username.toLowerCase().trim();
+      if (currentUsername !== targetUsername) return;
+
+      const mySessionId = localStorage.getItem('oca_active_session_id') || 
+                          sessionStorage.getItem('oca_active_session_id') || 
+                          (currentUser && currentUser.sessionId);
+
+      // หาก sessionId ใหม่ไม่ตรงกับของเครื่องนี้ ให้เตะออกทันที
+      if (data.sessionId && mySessionId && data.sessionId !== mySessionId) {
+        executeForcedSessionLogout(data);
+        return;
+      }
+
+      // ตรวจสอบ Device ID เพิ่มเติมกรณีเซสชันว่างเปล่า
+      const myDeviceId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
+      if (data.deviceId && myDeviceId && data.deviceId !== myDeviceId && !data.sessionId) {
+        executeForcedSessionLogout(data);
+      }
+    }
+
+    /**
+     * ดำเนินการเตะออกจากระบบทันที พร้อมแสดงข้อความแจ้งเตือนระบุสาเหตุ
+     */
+    function executeForcedSessionLogout(data) {
+      if (_isKickingForcedSession) return;
+      _isKickingForcedSession = true;
+
+      const kickedUsername = (data && data.username) ? data.username : (getSavedCurrentUser() ? getSavedCurrentUser().username : '');
+      console.warn('[Session Security] Forced session logout executed for:', kickedUsername);
+
+      // 1. ล้างข้อมูลเซสชันในเครื่อง
+      saveCurrentUser(null);
+      try {
+        localStorage.removeItem('oca_active_session_id');
+        sessionStorage.removeItem('oca_active_session_id');
+        sessionStorage.removeItem('oca_security_unlocked');
+      } catch (_) {}
+
+      // 2. นำทางกลับหน้า Split Login
+      document.body.classList.remove('portal-active');
+      document.documentElement.classList.remove('portal-active');
+      if (typeof openSplitScreenLogin === 'function') {
+        openSplitScreenLogin();
+      } else if (typeof backToWelcomeScreen === 'function') {
+        backToWelcomeScreen();
+      }
+
+      // 3. แสดงข้อความแจ้งเตือนสีแดงในกล่อง Alert ของหน้า Login
+      const alertBox = document.getElementById('boxLoginAlert');
+      if (alertBox) {
+        alertBox.innerHTML = `
+          <div style="display:flex; align-items:flex-start; gap:8px;">
+            <i class="fa-solid fa-triangle-exclamation" style="color:#ef4444; font-size:16px; margin-top:2px; flex-shrink:0;"></i>
+            <div>
+              <div style="font-weight:700; color:#ef4444; margin-bottom:2px;">เซสชันถูกยกเลิก (Session Terminated)</div>
+              <div style="font-size:12px; color:#e2e8f0; line-height:1.4;">
+                บัญชีผู้ใช้งาน <strong>${typeof escapeHtml === 'function' ? escapeHtml(kickedUsername) : kickedUsername}</strong> มีการเข้าสู่ระบบจากเครื่องอื่น ระบบจึงนำเครื่องนี้ออกจากระบบโดยอัตโนมัติ (1 บัญชีสามารถเข้าใช้งานได้พร้อมกัน 1 เครื่องเท่านั้น)
+              </div>
+            </div>
+          </div>
+        `;
+        alertBox.style.display = 'block';
+      }
+
+      // 4. แสดง Modal ยืนยันเตือนผู้ใช้ให้รับทราบอย่างชัดเจน
+      if (typeof showConfirmModal === 'function') {
+        showConfirmModal({
+          title: 'เซสชันถูกยกเลิก (Session Terminated)',
+          message: `บัญชีผู้ใช้งาน "${kickedUsername}" ได้รับการเข้าสู่ระบบจากอุปกรณ์อื่น ระบบได้นำเครื่องนี้ออกจากระบบโดยอัตโนมัติ เพื่อความปลอดภัยของข้อมูลตามนโยบาย 1 บัญชีต่อ 1 เครื่อง`,
+          icon: 'fa-right-from-bracket',
+          iconColor: '#ef4444',
+          iconBg: 'rgba(239, 68, 68, 0.18)',
+          iconBorder: '#ef4444',
+          confirmText: 'รับทราบและเข้าสู่ระบบใหม่',
+          cancelText: false,
+          onConfirm: () => {
+            _isKickingForcedSession = false;
+            if (typeof openSplitScreenLogin === 'function') openSplitScreenLogin();
+          },
+          onCancel: () => {
+            _isKickingForcedSession = false;
+          }
+        });
+      } else {
+        showToast('เซสชันถูกยกเลิก', 'มีการเข้าสู่ระบบจากอุปกรณ์อื่น เครื่องนี้ถูกออกจากระบบโดยอัตโนมัติ', '⚠️', 6000);
+        setTimeout(() => { _isKickingForcedSession = false; }, 3000);
+      }
+    }
+
+    /**
+     * ตรวจสอบความถูกต้องของ Active Session กับฐานข้อมูล Cloud (Heartbeat & Tab Focus Check)
+     */
+    async function verifyActiveUserSession() {
+      if (_isKickingForcedSession) return;
+      const user = getSavedCurrentUser();
+      if (!user || !user.username) return;
+
+      const mySessionId = localStorage.getItem('oca_active_session_id') || 
+                          sessionStorage.getItem('oca_active_session_id') || 
+                          user.sessionId;
+      if (!mySessionId) return;
+
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const u = user.username.toLowerCase().trim();
+          const { data, error } = await _supabase
+            .from('fee_settings')
+            .select('name, mode, updated_at')
+            .eq('key', 'session:' + u)
+            .maybeSingle();
+
+          if (!error && data && data.name) {
+            if (data.name !== mySessionId) {
+              console.warn('[Session Security] Active session mismatch in cloud:', data.name, mySessionId);
+              executeForcedSessionLogout({
+                username: u,
+                sessionId: data.name,
+                deviceId: data.mode
+              });
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
     function saveCurrentUser(user) {
 
 
@@ -438438,23 +438642,19 @@
 
 
 
+          // Generate unique session identifier for 1-Device Enforcer
+          const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+          localStorage.setItem('oca_active_session_id', newSessionId);
+          sessionStorage.setItem('oca_active_session_id', newSessionId);
+          res.user.sessionId = newSessionId;
+
           saveCurrentUser(res.user);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           applyUserPermissions(res.user);
+
+          // Authoritative Cloud Single-Session Registration & Broadcast Kick
+          if (typeof registerStaffActiveSession === 'function') {
+            registerStaffActiveSession(res.user.username, newSessionId, deviceId);
+          }
 
 
 
@@ -439687,6 +439887,17 @@
 
 
       callGasApi('logoutStaff', { username, deviceId, deviceInfo }, 'POST').catch(console.warn);
+
+      if (user && user.username && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const u = user.username.toLowerCase().trim();
+          _supabase.from('fee_settings').delete().eq('key', 'session:' + u).catch(() => {});
+        } catch (_) {}
+      }
+      try {
+        localStorage.removeItem('oca_active_session_id');
+        sessionStorage.removeItem('oca_active_session_id');
+      } catch (_) {}
 
 
 
@@ -463191,22 +463402,10 @@
 
 
       const user = getSavedCurrentUser();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       if (user) {
+        if (typeof verifyActiveUserSession === 'function') {
+          verifyActiveUserSession();
+        }
 
 
 
@@ -470742,7 +470941,12 @@
 
 
 
-      checkInitialAuthState();
+      // Single-Device Session Listeners (Tab Focus, Visibility Change, and Periodic 20s Heartbeat)
+    window.addEventListener('focus', () => { if (typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); });
+    setInterval(() => { if (typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); }, 20000);
+
+    checkInitialAuthState();
 
 
 
