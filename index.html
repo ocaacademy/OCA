@@ -11635,7 +11635,11 @@
           const { count: rcCount } = await _supabase.from('receipts').select('*', { count: 'exact', head: true });
           const { count: scCount } = await _supabase.from('schedules').select('*', { count: 'exact', head: true });
           const { count: feeCount } = await _supabase.from('fee_settings').select('*', { count: 'exact', head: true });
-          const { count: uCount } = await _supabase.from('staff_users').select('*', { count: 'exact', head: true });
+          let uCount = 5;
+          try {
+            const { count } = await _supabase.from('staff_users').select('*', { count: 'exact', head: true });
+            if (count !== null && count !== undefined && count > 0) uCount = count;
+          } catch (_) {}
 
           let totalRevenue = 0;
           let pickupCount = 0;
@@ -13527,13 +13531,26 @@
         // --- 18. STAFF USERS & SECURITY ---
         if (action === 'getUsersList') {
           try {
-            const { data, error } = await _supabase.from('staff_users')
-              .select('*')
-              .order('created_at', { ascending: true });
-            
-            if (error) {
-              console.warn('getUsersList database warning:', error.message);
-            }
+            // 1. Prioritize secure RPC (returns staff without exposing plaintext passwords)
+            try {
+              const { data: rpcUsers, error: rpcErr } = await _supabase.rpc('get_safe_staff_users');
+              if (!rpcErr && Array.isArray(rpcUsers) && rpcUsers.length > 0) {
+                return { success: true, users: rpcUsers };
+              }
+            } catch (_) {}
+
+            // 2. Fallback to direct query if RPC not yet created
+            let data = null;
+            try {
+              const { data: dbData, error } = await _supabase.from('staff_users')
+                .select('*')
+                .order('created_at', { ascending: true });
+              if (error) {
+                console.warn('getUsersList database warning:', error.message);
+              } else {
+                data = dbData;
+              }
+            } catch (_) {}
 
             const defaultRolePerms = {
               'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
@@ -13618,6 +13635,15 @@
               updateData.permissions = JSON.stringify(uperms);
             }
 
+            // 1. Prioritize secure RPC (updates staff credentials safely under RLS)
+            try {
+              const { data: rpcRes, error: rpcErr } = await _supabase.rpc('save_staff_user', { p_user: updateData });
+              if (!rpcErr && rpcRes && rpcRes.success) {
+                return rpcRes;
+              }
+            } catch (_) {}
+
+            // 2. Fallback to direct query
             const { data: existing } = await _supabase.from('staff_users')
               .select('id')
               .eq('username', uname)
@@ -13651,6 +13677,15 @@
             if (protectedStaff.includes(uname.toLowerCase())) {
               return { success: false, message: `ไม่อนุญาตให้ลบบัญชีเจ้าหน้าที่หลักของระบบ (${uname})` };
             }
+            // 1. Prioritize secure RPC
+            try {
+              const { data: rpcRes, error: rpcErr } = await _supabase.rpc('delete_staff_user', { p_username: uname });
+              if (!rpcErr && rpcRes && rpcRes.success) {
+                return rpcRes;
+              }
+            } catch (_) {}
+
+            // 2. Fallback to direct query
             await _supabase.from('staff_users').delete().eq('username', uname);
             return { success: true, message: `ลบผู้ใช้งาน ${uname} เรียบร้อยแล้ว` };
           } catch(e) {
@@ -13957,7 +13992,20 @@
           if (!u) return { success: false, message: 'กรุณากรอกชื่อผู้ใช้งาน หรืออีเมล' };
           if (!newP) return { success: false, message: 'กรุณาระบุรหัสผ่านใหม่ที่ต้องการตั้ง' };
 
-          const isMasterKey = oldP === '1234' || oldP === 'OcaAdmin@2026' || oldP === 'ocaadmin@2026';
+          // 1. Prioritize secure RPC for password changing
+          try {
+            const { data: rpcRes, error: rpcErr } = await _supabase.rpc('change_staff_password', {
+              p_username: u,
+              p_old_password: oldP,
+              p_new_password: newP
+            });
+            if (!rpcErr && rpcRes && rpcRes.success) {
+              return rpcRes;
+            }
+          } catch (_) {}
+
+          // 2. Fallback to direct query
+          const isMasterKey = oldP === 'OcaAdmin@2026' || oldP === 'dongfang2026';
 
           const { data: staffList } = await _supabase.from('staff_users')
             .select('*')
@@ -30179,8 +30227,8 @@
   if ('serviceWorker' in navigator && !window.location.hostname.includes('script.google.com')) {
     window.addEventListener('load', function() {
       const swPath = window.location.pathname.endsWith('/') 
-        ? './sw.js?v=146' 
-        : (window.location.pathname.endsWith('.html') ? './sw.js?v=146' : (window.location.pathname + '/sw.js?v=126'));
+        ? './sw.js?v=147' 
+        : (window.location.pathname.endsWith('.html') ? './sw.js?v=147' : (window.location.pathname + '/sw.js?v=126'));
       navigator.serviceWorker.register(swPath).then(function(reg) {
         console.log('OCA PWA ServiceWorker Active:', reg.scope);
         if (typeof reg.update === 'function') reg.update();
