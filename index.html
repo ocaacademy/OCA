@@ -4182,7 +4182,7 @@
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v154';
+      var LATEST_VERSION = 'oca-pwa-v155';
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
         if (active !== LATEST_VERSION) {
@@ -9703,7 +9703,7 @@
               <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
               <line x1="12" y1="18" x2="12.01" y2="18"></line>
             </svg>
-            <span class="oca-welcome-pwa-text">ติดตั้งแอป OCA ลงในโทรศัพท์</span>
+            <span class="oca-welcome-pwa-text">ติดตั้งแอปพลิเคชัน OCA (PWA)</span>
             <span class="oca-welcome-pwa-badge">PWA</span>
           </button>
         </div>
@@ -15810,7 +15810,7 @@
           '    </div>' +
           '  </td>' +
           '  <td style="padding:10px 5px; white-space:nowrap;">' +
-          '    <div style="font-family:monospace; font-size:11.5px; color:#e2e8f0;"><i class="fa-solid fa-phone" style="font-size:10px; color:var(--color-gold); margin-right:3px;"></i>' + toArabicDigits(phone) + '</div>' +
+          '    <div style="font-family:monospace; font-size:11.5px; color:#e2e8f0;"><i class="fa-solid fa-phone" style="font-size:10px; color:var(--color-gold); margin-right:3px;"></i>' + toArabicDigits(formatPhoneMasked(phone, true)) + '</div>' +
           '    <div style="font-size:11px; color:var(--text-muted);"><i class="fa-brands fa-line" style="font-size:10.5px; color:#22c55e; margin-right:3px;"></i>' + escapeHtml(lineId) + '</div>' +
           '  </td>' +
           '  <td style="padding:10px 5px; max-width:130px;">' +
@@ -15939,15 +15939,35 @@
       if (elYear) elYear.textContent = toArabicDigits(s.yearBE || '-');
       if (elTerm) elTerm.textContent = 'เทอม ' + toArabicDigits(s.term || '-');
       if (elCardUid) elCardUid.textContent = s.smartCardUid ? toArabicDigits(s.smartCardUid) : 'รอออกบัตร';
-      if (elPhone) elPhone.textContent = s.phone ? toArabicDigits(s.phone) : (s.phoneNumber ? toArabicDigits(s.phoneNumber) : '-');
+      const rawPhone = s.phone ? s.phone : (s.phoneNumber ? s.phoneNumber : '');
+      if (elPhone) {
+        if (rawPhone && rawPhone !== '-') {
+          elPhone.innerHTML = '<span id="srPhoneVal" style="font-family:monospace;">' + toArabicDigits(formatPhoneMasked(rawPhone, true)) + '</span> <button type="button" style="background:none; border:none; color:var(--color-gold); cursor:pointer; padding:0 4px; font-size:12px;" title="สลับแสดงเบอร์โทรเต็ม" onclick="toggleSrPhoneMask(\'' + escapeHtml(rawPhone) + '\')"><i id="srPhoneEye" class="fa-solid fa-eye-slash"></i></button>';
+        } else {
+          elPhone.textContent = '-';
+        }
+      }
       const elEmergency = document.getElementById('srEmergencyPhone');
       let emVal = s.emergencyPhone || s.emergency_phone || '';
       if (!emVal && s.notes) {
         const emMatch = s.notes.match(/(?:ฉุกเฉิน|Emergency)[:\s]+([0-9\-]+)/i);
         if (emMatch) emVal = emMatch[1];
       }
-      if (elEmergency) elEmergency.textContent = emVal ? toArabicDigits(emVal) : '-';
-      if (elEmail) elEmail.textContent = s.email || '-';
+      if (elEmergency) {
+        if (emVal && emVal !== '-') {
+          elEmergency.innerHTML = '<span id="srEmPhoneVal" style="font-family:monospace;">' + toArabicDigits(formatPhoneMasked(emVal, true)) + '</span> <button type="button" style="background:none; border:none; color:var(--color-gold); cursor:pointer; padding:0 4px; font-size:12px;" title="สลับแสดงเบอร์ฉุกเฉินเต็ม" onclick="toggleSrEmPhoneMask(\'' + escapeHtml(emVal) + '\')"><i id="srEmPhoneEye" class="fa-solid fa-eye-slash"></i></button>';
+        } else {
+          elEmergency.textContent = '-';
+        }
+      }
+      if (elEmail) {
+        const rawEmail = (s.email || '').toString().trim();
+        if (rawEmail && rawEmail !== '-' && rawEmail.includes('@')) {
+          elEmail.innerHTML = '<span id="srEmailVal">' + escapeHtml(formatEmailMasked(rawEmail, true)) + '</span> <button type="button" style="background:none; border:none; color:var(--color-gold); cursor:pointer; padding:0 4px; font-size:12px;" title="สลับแสดงอีเมลเต็ม" onclick="toggleSrEmailMask(\'' + escapeHtml(rawEmail) + '\')"><i id="srEmailEye" class="fa-solid fa-eye-slash"></i></button>';
+        } else {
+          elEmail.textContent = '-';
+        }
+      }
       if (elCitizen) {
         const rawCid = s.citizenId || s.citizenIdMasked || '';
         if (rawCid && rawCid !== '-') {
@@ -23939,7 +23959,7 @@
 
     
     // =========================================================================
-    // PDPA CITIZEN ID MASKING & PRIVACY PROTECTION UTILITY
+    // PDPA DATA MASKING & PRIVACY PROTECTION UTILITY (Citizen ID, Phone, Email)
     // =========================================================================
     function formatCitizenIdMasked(cid, isMasked = true) {
       if (!cid) return '-';
@@ -23959,6 +23979,42 @@
       return clean.slice(0, 3) + '******' + clean.slice(-2);
     }
 
+    function formatPhoneMasked(phone, isMasked = true) {
+      if (!phone) return '-';
+      const raw = String(phone).trim();
+      const clean = raw.replace(/[^0-9+]/g, '');
+      if (!clean || clean === '-' || clean.length < 6) return raw || '-';
+      if (!isMasked) {
+        if (clean.length === 10 && clean.startsWith('0')) {
+          return clean.slice(0, 3) + '-' + clean.slice(3, 6) + '-' + clean.slice(6);
+        } else if (clean.length === 9 && clean.startsWith('0')) {
+          return clean.slice(0, 2) + '-' + clean.slice(2, 5) + '-' + clean.slice(5);
+        }
+        return raw;
+      }
+      // Masked PDPA format: e.g. 081-XXX-5678 (10 digits) or 02-XXX-5678 (9 digits)
+      if (clean.length === 10 && clean.startsWith('0')) {
+        return clean.slice(0, 3) + '-XXX-' + clean.slice(6);
+      } else if (clean.length === 9 && clean.startsWith('0')) {
+        return clean.slice(0, 2) + '-XXX-' + clean.slice(5);
+      }
+      return clean.slice(0, 3) + '****' + clean.slice(-3);
+    }
+
+    function formatEmailMasked(email, isMasked = true) {
+      if (!email) return '-';
+      const raw = String(email).trim();
+      if (!raw || raw === '-' || !raw.includes('@')) return raw || '-';
+      if (!isMasked) return raw;
+      const parts = raw.split('@');
+      const user = parts[0];
+      const domain = parts[1];
+      if (user.length <= 2) {
+        return user[0] + '*@' + domain;
+      }
+      return user[0] + '***' + user[user.length - 1] + '@' + domain;
+    }
+
     window.toggleSrCitizenMask = function(fullCid) {
       const valEl = document.getElementById('srCidVal');
       const eyeEl = document.getElementById('srCidEye');
@@ -23973,6 +24029,48 @@
       }
     };
 
+    window.toggleSrPhoneMask = function(fullPhone) {
+      const valEl = document.getElementById('srPhoneVal');
+      const eyeEl = document.getElementById('srPhoneEye');
+      if (!valEl || !fullPhone) return;
+      const isCurrentlyMasked = valEl.textContent.includes('X') || valEl.textContent.includes('*');
+      if (isCurrentlyMasked) {
+        valEl.textContent = toArabicDigits(formatPhoneMasked(fullPhone, false));
+        if (eyeEl) eyeEl.className = 'fa-solid fa-eye';
+      } else {
+        valEl.textContent = toArabicDigits(formatPhoneMasked(fullPhone, true));
+        if (eyeEl) eyeEl.className = 'fa-solid fa-eye-slash';
+      }
+    };
+
+    window.toggleSrEmPhoneMask = function(fullPhone) {
+      const valEl = document.getElementById('srEmPhoneVal');
+      const eyeEl = document.getElementById('srEmPhoneEye');
+      if (!valEl || !fullPhone) return;
+      const isCurrentlyMasked = valEl.textContent.includes('X') || valEl.textContent.includes('*');
+      if (isCurrentlyMasked) {
+        valEl.textContent = toArabicDigits(formatPhoneMasked(fullPhone, false));
+        if (eyeEl) eyeEl.className = 'fa-solid fa-eye';
+      } else {
+        valEl.textContent = toArabicDigits(formatPhoneMasked(fullPhone, true));
+        if (eyeEl) eyeEl.className = 'fa-solid fa-eye-slash';
+      }
+    };
+
+    window.toggleSrEmailMask = function(fullEmail) {
+      const valEl = document.getElementById('srEmailVal');
+      const eyeEl = document.getElementById('srEmailEye');
+      if (!valEl || !fullEmail) return;
+      const isCurrentlyMasked = valEl.textContent.includes('*');
+      if (isCurrentlyMasked) {
+        valEl.textContent = formatEmailMasked(fullEmail, false);
+        if (eyeEl) eyeEl.className = 'fa-solid fa-eye';
+      } else {
+        valEl.textContent = formatEmailMasked(fullEmail, true);
+        if (eyeEl) eyeEl.className = 'fa-solid fa-eye-slash';
+      }
+    };
+
     window.toggleStudentReportCid = function(el) {
       const parent = el.closest('.pdpa-cid');
       if (!parent) return;
@@ -23983,6 +24081,19 @@
         parent.innerHTML = toArabicDigits(formatCitizenIdMasked(fullCid, false)) + ' <i class="fa-solid fa-eye" style="cursor:pointer; color:var(--color-gold); font-size:11px; margin-left:4px;" title="คลิกเพื่อสลับแสดงเลขเต็ม/ซ่อน" onclick="toggleStudentReportCid(this)"></i>';
       } else {
         parent.innerHTML = toArabicDigits(formatCitizenIdMasked(fullCid, true)) + ' <i class="fa-solid fa-eye-slash" style="cursor:pointer; color:var(--color-gold); font-size:11px; margin-left:4px;" title="คลิกเพื่อสลับแสดงเลขเต็ม/ซ่อน" onclick="toggleStudentReportCid(this)"></i>';
+      }
+    };
+
+    window.toggleStudentReportPhone = function(el) {
+      const parent = el.closest('.pdpa-phone');
+      if (!parent) return;
+      const fullPhone = parent.getAttribute('data-phone');
+      if (!fullPhone) return;
+      const isCurrentlyMasked = parent.textContent.includes('X') || parent.textContent.includes('*');
+      if (isCurrentlyMasked) {
+        parent.innerHTML = toArabicDigits(formatPhoneMasked(fullPhone, false)) + ' <i class="fa-solid fa-eye" style="cursor:pointer; color:var(--color-gold); font-size:11px; margin-left:4px;" title="คลิกเพื่อสลับแสดงเบอร์เต็ม/ซ่อน" onclick="toggleStudentReportPhone(this)"></i>';
+      } else {
+        parent.innerHTML = toArabicDigits(formatPhoneMasked(fullPhone, true)) + ' <i class="fa-solid fa-eye-slash" style="cursor:pointer; color:var(--color-gold); font-size:11px; margin-left:4px;" title="คลิกเพื่อสลับแสดงเบอร์เต็ม/ซ่อน" onclick="toggleStudentReportPhone(this)"></i>';
       }
     };
 
@@ -24118,7 +24229,8 @@
                 const schedule = st.schedule ? ('<div style="font-size:12px; color:#64748b; margin-top:2px;">' + escapeHtml(st.schedule) + '</div>') : '';
                 const yearTerm = '<div style="font-weight:600;">' + toArabicDigits(st.yearBE || '-') + '</div>' +
                                  '<div style="font-size:12px; color:#64748b;">เทอม ' + toArabicDigits(st.term || '4') + '</div>';
-                const phone = st.phone ? ('<span style="font-family:monospace; font-size:12px;">' + toArabicDigits(st.phone) + '</span>') : '<span style="color:#94a3b8;">-</span>';
+                const phoneDisplay = st.phone ? toArabicDigits(formatPhoneMasked(st.phone, true)) : '<span style="color:#94a3b8;">-</span>';
+                const phone = st.phone ? ('<span class="pdpa-phone" data-phone="' + escapeHtml(st.phone) + '" style="font-family:monospace; font-size:12px;">' + phoneDisplay + ' <i class="fa-solid fa-eye-slash" style="cursor:pointer; color:var(--color-gold); font-size:11px; margin-left:4px;" title="คลิกเพื่อสลับแสดงเบอร์เต็ม/ซ่อน" onclick="toggleStudentReportPhone(this)"></i></span>') : '<span style="color:#94a3b8;">-</span>';
                 const status = (st.status || 'ปกติ').trim();
                 const isApproved = (status === 'อนุมัติการลงทะเบียน' || status === 'ปกติ' || status.indexOf('อนุมัติ') !== -1);
                 const statusBadge = isApproved ?
