@@ -93521,19 +93521,29 @@
       }
 
       body.printing-report #printReportContainer {
-
         display: block !important;
-
         visibility: visible !important;
-
         width: 100% !important;
-
         margin: 0 !important;
-
         padding: 0 !important;
-
         background: #ffffff !important;
-
+        color: #000000 !important;
+      }
+      body.printing-report #printReportContainer table {
+        width: 100% !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+      }
+      body.printing-report #printReportContainer th {
+        background-color: #065f46 !important;
+        color: #ffffff !important;
+      }
+      body.printing-report #printReportContainer td,
+      body.printing-report #printReportContainer span,
+      body.printing-report #printReportContainer strong,
+      body.printing-report #printReportContainer .pdpa-cid,
+      body.printing-report #printReportContainer .pdpa-phone {
+        color: #000000 !important;
       }
 
 
@@ -135134,7 +135144,12 @@
 
 
 
-.pdpa-cid { color: #ffffff !important; }
+#tblStudentReport .pdpa-cid { color: #ffffff !important; }
+    @media print {
+      .pdpa-cid, .pdpa-phone, .pdpa-cid *, .pdpa-phone * {
+        color: #000000 !important;
+      }
+    }
 
 </style>
 
@@ -272756,7 +272771,7 @@
 
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
 
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v195</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v196</div>
 
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
 
@@ -783016,9 +783031,44 @@
       wrap.style.boxSizing = 'border-box';
       wrap.style.width = '100%';
 
-      const totalCount = (Array.isArray(cachedStudentReportData) && cachedStudentReportData.length > 0)
-        ? cachedStudentReportData.length
-        : (tbl.querySelectorAll('tbody tr').length);
+      // ดึงข้อมูลรายการนักศึกษาที่จำเป็น (Unmasked - ไม่ซ่อนเลข 100%)
+      let studentItems = [];
+      if (Array.isArray(cachedStudentReportData) && cachedStudentReportData.length > 0) {
+        studentItems = cachedStudentReportData.map(item => ({
+          studentId: item.studentId || item.student_id || '',
+          fullName: item.fullName || item.rawName || item.full_name || '',
+          citizenId: item.citizenId || item.citizen_id || '',
+          course: item.course || item.current_course || '',
+          schedule: item.schedule || item.current_schedule || '',
+          yearBE: item.yearBE || item.year_be || '',
+          term: item.term || '1',
+          phone: item.phone || item.phoneNumber || item.phone_number || '',
+          status: item.status || 'ปกติ'
+        }));
+      } else {
+        // Fallback ดึงข้อมูลจากแถวตารางใน DOM พร้อมดึงเลขเต็มจาก data-cid และ data-phone
+        const rows = tbl.querySelectorAll('tbody tr');
+        rows.forEach(r => {
+          const cells = r.querySelectorAll('td');
+          if (cells.length >= 8) {
+            const cidEl = r.querySelector('.pdpa-cid');
+            const phoneEl = r.querySelector('.pdpa-phone');
+            studentItems.push({
+              studentId: (cells[1].textContent || '').trim(),
+              fullName: (cells[2].textContent || '').trim(),
+              citizenId: cidEl ? (cidEl.getAttribute('data-cid') || cidEl.textContent.trim()) : cells[3].textContent.trim(),
+              course: (cells[4].textContent || '').trim(),
+              schedule: '',
+              yearBE: '',
+              term: '',
+              phone: phoneEl ? (phoneEl.getAttribute('data-phone') || phoneEl.textContent.trim()) : cells[6].textContent.trim(),
+              status: (cells[7].textContent || 'ปกติ').trim()
+            });
+          }
+        });
+      }
+
+      const totalCount = studentItems.length;
 
       const headerHtml =
         '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; border-bottom:2px solid #065f46; padding-bottom:6px;">' +
@@ -783037,87 +783087,52 @@
         '  </div>' +
         '</div>';
 
-      let tableHtml = '';
-      if (Array.isArray(cachedStudentReportData) && cachedStudentReportData.length > 0) {
-        tableHtml =
-          '<table style="width:100%; table-layout:fixed; border-collapse:collapse; font-size:8pt; margin-bottom:8px; box-sizing:border-box;">' +
-          '  <thead>' +
-          '    <tr style="background:#065f46; color:#ffffff;">' +
-          '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:28px;">ลำดับ</th>' +
-          '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:65px;">รหัสนักศึกษา</th>' +
-          '      <th style="padding:4px 4px; border:1px solid #065f46; text-align:left; width:130px;">ชื่อ-นามสกุล</th>' +
-          '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:108px;">รหัสประชาชน/Passport</th>' +
-          '      <th style="padding:4px 4px; border:1px solid #065f46; text-align:left; width:150px;">คอร์สที่เรียน</th>' +
-          '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:52px;">ปี / เทอม</th>' +
-          '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:72px;">เบอร์โทร</th>' +
-          '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:48px;">สถานะ</th>' +
-          '    </tr>' +
-          '  </thead>' +
-          '  <tbody>';
+      let tableHtml =
+        '<table style="width:100%; table-layout:fixed; border-collapse:collapse; font-size:8pt; margin-bottom:8px; box-sizing:border-box;">' +
+        '  <thead>' +
+        '    <tr style="background:#065f46; color:#ffffff;">' +
+        '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:28px; color:#ffffff;">ลำดับ</th>' +
+        '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:65px; color:#ffffff;">รหัสนักศึกษา</th>' +
+        '      <th style="padding:4px 4px; border:1px solid #065f46; text-align:left; width:135px; color:#ffffff;">ชื่อ-นามสกุล</th>' +
+        '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:118px; color:#ffffff;">รหัสประชาชน/Passport</th>' +
+        '      <th style="padding:4px 4px; border:1px solid #065f46; text-align:left; width:150px; color:#ffffff;">คอร์สที่เรียน</th>' +
+        '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:54px; color:#ffffff;">ปี / เทอม</th>' +
+        '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:80px; color:#ffffff;">เบอร์โทร</th>' +
+        '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:50px; color:#ffffff;">สถานะ</th>' +
+        '    </tr>' +
+        '  </thead>' +
+        '  <tbody>';
 
-        for (let i = 0; i < cachedStudentReportData.length; i++) {
-          const item = cachedStudentReportData[i];
-          const bg = (i % 2 === 0) ? '#ffffff' : '#f8fafc';
-          const citizen = item.citizenId ? toArabicDigits(formatCitizenIdMasked(item.citizenId, false)) : '-';
-          const stId = toArabicDigits(item.studentId || '-');
-          const stName = escapeHtml(item.fullName || item.rawName || '-');
-          const course = escapeHtml(item.course || '-');
-          const yearTerm = toArabicDigits(item.yearBE || '-') + ' / T' + toArabicDigits(item.term || '4');
-          const phone = item.phone ? toArabicDigits(item.phone) : '-';
-          const status = escapeHtml(item.status || 'ปกติ');
+      for (let i = 0; i < studentItems.length; i++) {
+        const item = studentItems[i];
+        const bg = (i % 2 === 0) ? '#ffffff' : '#f8fafc';
+        // ดึงเลขบัตรประชาชน 13 หลักฉบับเต็ม ไม่ซ่อนเลข (Unmasked)
+        const citizen = item.citizenId ? toArabicDigits(formatCitizenIdMasked(item.citizenId, false)) : '-';
+        const stId = toArabicDigits(item.studentId || '-');
+        const stName = escapeHtml(item.fullName || '-');
+        const course = escapeHtml(item.course || '-') + (item.schedule ? (' <span style="font-size:7pt; color:#475569;">(' + escapeHtml(item.schedule) + ')</span>') : '');
+        const yearTerm = item.yearBE ? (toArabicDigits(item.yearBE) + ' / T' + toArabicDigits(item.term || '1')) : '-';
+        // ดึงเบอร์โทรศัพท์ฉบับเต็ม ไม่ซ่อนเลข (Unmasked)
+        const phone = item.phone ? toArabicDigits(formatPhoneMasked(item.phone, false)) : '-';
+        const status = escapeHtml(item.status || 'ปกติ');
 
-          tableHtml +=
-            '<tr style="background:' + bg + '; border-bottom:1px solid #e2e8f0; page-break-inside:avoid; break-inside:avoid;">' +
-            '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; color:#64748b; font-size:7.5pt;">' + toArabicDigits(i + 1) + '</td>' +
-            '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-weight:700; font-family:monospace; color:#065f46; font-size:8pt;">' + stId + '</td>' +
-            '  <td style="padding:3px 4px; border:1px solid #cbd5e1; font-weight:600; color:#0f172a; word-break:break-word; font-size:8pt;">' + stName + '</td>' +
-            '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-family:monospace; letter-spacing:0.2px; font-weight:600; color:#1e293b; font-size:8pt;">' + citizen + '</td>' +
-            '  <td style="padding:3px 4px; border:1px solid #cbd5e1; color:#065f46; word-break:break-word; font-size:8pt;">' + course + '</td>' +
-            '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-size:8pt;">' + yearTerm + '</td>' +
-            '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-family:monospace; font-size:8pt;">' + phone + '</td>' +
-            '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-size:7.5pt;">' + status + '</td>' +
-            '</tr>';
-        }
-        tableHtml += '</tbody></table>';
-      } else {
-        const tblClone = tbl.cloneNode(true);
-        tblClone.style.width = '100%';
-        tblClone.style.minWidth = '0';
-        tblClone.style.maxWidth = '100%';
-        tblClone.style.tableLayout = 'fixed';
-        tblClone.style.borderCollapse = 'collapse';
-        tblClone.style.fontSize = '8pt';
-        tblClone.style.color = '#000000';
-        tblClone.style.background = '#ffffff';
-        tblClone.style.boxSizing = 'border-box';
-
-        const colWidths = ['4%', '10%', '20%', '16%', '22%', '8%', '11%', '9%'];
-        tblClone.querySelectorAll('th').forEach((th, idx) => {
-          th.style.background = '#065f46';
-          th.style.color = '#ffffff';
-          th.style.padding = '4px 2px';
-          th.style.border = '1px solid #065f46';
-          th.style.minWidth = '0';
-          if (colWidths[idx]) th.style.width = colWidths[idx];
-        });
-        tblClone.querySelectorAll('td').forEach(td => {
-          td.style.padding = '3px 2px';
-          td.style.border = '1px solid #cbd5e1';
-          td.style.color = '#000000';
-          td.style.minWidth = '0';
-          td.style.wordBreak = 'break-word';
-          td.style.fontSize = '8pt';
-        });
-        tblClone.querySelectorAll('tr').forEach(tr => {
-          tr.style.pageBreakInside = 'avoid';
-          tr.style.breakInside = 'avoid';
-        });
-        tableHtml = tblClone.outerHTML;
+        tableHtml +=
+          '<tr style="background:' + bg + '; border-bottom:1px solid #e2e8f0; page-break-inside:avoid; break-inside:avoid;">' +
+          '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; color:#64748b; font-size:7.5pt;">' + toArabicDigits(i + 1) + '</td>' +
+          '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-weight:700; font-family:monospace; color:#065f46; font-size:8pt;">' + stId + '</td>' +
+          '  <td style="padding:3px 4px; border:1px solid #cbd5e1; font-weight:600; color:#000000; word-break:break-word; font-size:8pt;">' + stName + '</td>' +
+          '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-family:monospace; letter-spacing:0.2px; font-weight:600; color:#000000 !important; font-size:8pt;">' + citizen + '</td>' +
+          '  <td style="padding:3px 4px; border:1px solid #cbd5e1; color:#065f46; word-break:break-word; font-size:8pt;">' + course + '</td>' +
+          '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; color:#000000; font-size:8pt;">' + yearTerm + '</td>' +
+          '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-family:monospace; color:#000000 !important; font-size:8pt;">' + phone + '</td>' +
+          '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; color:#000000; font-size:7.5pt;">' + status + '</td>' +
+          '</tr>';
       }
+      tableHtml += '</tbody></table>';
 
       const footerHtml =
         '<div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid #cbd5e1; padding-top:4px; font-size:8pt; color:#64748b;">' +
-        '  <div>🔒 เอกสารทางการโรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (PDPA Strictly Confidential)</div>' +
+        '  <div>🔒 เอกสารทางการโรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (PDPA Strictly Confidential) — แสดงเลขบัตรประชาชน 13 หลักและเบอร์โทรศัพท์ฉบับเต็มเพื่อการทะเบียน</div>' +
         '  <div>พิมพ์เมื่อ: ' + toArabicDigits(dateStr) + ' ' + toArabicDigits(timeStr) + ' | OCA Portal</div>' +
         '</div>';
 
@@ -861595,7 +861610,7 @@
 
         if (specVer) {
 
-          specVer.textContent = 'oca-pwa-v195';
+          specVer.textContent = 'oca-pwa-v196';
 
         }
 
