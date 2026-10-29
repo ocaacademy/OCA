@@ -137447,7 +137447,7 @@
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-bottom:22px;">
           <div style="background:var(--bg-main); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px;">
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v182</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v183</div>
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
           </div>
           <div style="background:var(--bg-main); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px;">
@@ -314877,23 +314877,25 @@
 
 
 
-      document.body.classList.add('portal-active');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      document.documentElement.classList.add('portal-active');
+    // Unlock page scrolling for portal view
+    document.body.classList.add('portal-active');
+    document.documentElement.classList.add('portal-active');
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('oca_entered_dashboard', 'true');
+      if (!sessionStorage.getItem('oca_session_start_time')) {
+        sessionStorage.setItem('oca_session_start_time', String(Date.now()));
+      }
+    }
+    // Refresh active session in Supabase so verifyActiveUserSession never sees a stale device
+    try {
+      const myDevId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
+      const mySessId = localStorage.getItem('oca_active_session_id') ||
+        sessionStorage.getItem('oca_active_session_id') ||
+        (currentUser && currentUser.sessionId) || '';
+      if (currentUser && currentUser.username && typeof registerStaffActiveSession === 'function') {
+        registerStaffActiveSession(currentUser.username, mySessId, myDevId).catch(() => {});
+      }
+    } catch (_) {}
 
 
 
@@ -315341,7 +315343,11 @@
 
 
 
-    function showWelcomeScreen(e) {
+  function showWelcomeScreen(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem('oca_entered_dashboard');
+    }
 
 
 
@@ -383199,151 +383205,29 @@
 
 
 
-        const validPages = ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        if (validPages.includes(page)) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          const welcomeOverlay = document.getElementById('viewWelcome');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          if (welcomeOverlay) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            welcomeOverlay.style.display = 'none';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          switchNav(page);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        } else {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          showWelcomeScreen();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        }
+    const validPages = ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'];
+    const hasEntered = (typeof sessionStorage !== 'undefined') && sessionStorage.getItem('oca_entered_dashboard') === 'true';
+    const currentUser = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+    if (validPages.includes(page)) {
+      const welcomeOverlay = document.getElementById('viewWelcome');
+      if (welcomeOverlay) {
+        welcomeOverlay.style.display = 'none';
+      }
+      if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('oca_entered_dashboard', 'true');
+      document.body.classList.add('portal-active');
+      document.documentElement.classList.add('portal-active');
+      switchNav(page);
+    } else if (currentUser && hasEntered) {
+      const welcomeOverlay = document.getElementById('viewWelcome');
+      if (welcomeOverlay) {
+        welcomeOverlay.style.display = 'none';
+      }
+      document.body.classList.add('portal-active');
+      document.documentElement.classList.add('portal-active');
+      switchNav('dashboard');
+    } else {
+      showWelcomeScreen();
+    }
 
 
 
@@ -428814,7 +428698,9 @@
       try {
         localStorage.removeItem('oca_active_session_id');
         sessionStorage.removeItem('oca_active_session_id');
-        sessionStorage.removeItem('oca_security_unlocked');
+    sessionStorage.removeItem('oca_security_unlocked');
+    sessionStorage.removeItem('oca_entered_dashboard');
+    sessionStorage.removeItem('oca_session_start_time');
       } catch (_) {}
 
       // 2. นำทางกลับหน้า Split Login
@@ -428893,33 +428779,42 @@
             const cloudDeviceId = String(data.mode || '').trim();
 
             // ถ้าใน Cloud บันทึกว่าเครื่องล่าสุดคือเครื่องนี้เอง (Self-Device) ให้ข้าม
-            if (cloudDeviceId && myDeviceId && cloudDeviceId === myDeviceId) {
-              if (data.name && data.name !== mySessionId) {
-                localStorage.setItem('oca_active_session_id', data.name);
-                sessionStorage.setItem('oca_active_session_id', data.name);
-              }
-              return;
-            }
-
-            // ถ้าใน Cloud บันทึกเป็นเครื่องอื่น -> สั่งเตะเครื่องนี้ออกทันที
-            if (cloudDeviceId && myDeviceId && cloudDeviceId !== myDeviceId) {
-              console.warn('[Session Security] Cloud active device mismatch:', cloudDeviceId, 'my device:', myDeviceId);
-              executeForcedSessionLogout({
-                username: u,
-                sessionId: data.name,
-                deviceId: data.mode
-              });
-              return;
-            }
-
-            if (data.name && mySessionId && data.name !== mySessionId) {
-              console.warn('[Session Security] Cloud session mismatch:', data.name, 'vs local:', mySessionId);
-              executeForcedSessionLogout({
-                username: u,
-                sessionId: data.name,
-                deviceId: data.mode
-              });
-            }
+        // ถ้าใน Cloud บันทึกว่าเครื่องล่าสุดคือเครื่องนี้เอง (Self-Device) ให้ข้าม
+        if (cloudDeviceId && myDeviceId && cloudDeviceId === myDeviceId) {
+          if (data.name && data.name !== mySessionId) {
+            localStorage.setItem('oca_active_session_id', data.name);
+            sessionStorage.setItem('oca_active_session_id', data.name);
+          }
+          return;
+        }
+        // ตรวจสอบ Timestamp เพื่อป้องกัน Stale Session เก่าย้อนหลังมาเตะเครื่องใหม่
+        const cloudUpdatedAt = data.updated_at ? new Date(data.updated_at).getTime() : 0;
+        const localSessionStart = parseInt(sessionStorage.getItem('oca_session_start_time') || localStorage.getItem('oca_session_start_time') || '0', 10);
+        // ถ้าข้อมูลใน Cloud เก่ากว่าเซสชันของเครื่องนี้ -> อัปเดต Cloud ให้เป็นเครื่องนี้ ไม่เตะออก
+        if (localSessionStart && cloudUpdatedAt && cloudUpdatedAt < (localSessionStart - 2000)) {
+          if (typeof registerStaffActiveSession === 'function') {
+            registerStaffActiveSession(u, mySessionId, myDeviceId).catch(() => {});
+          }
+          return;
+        }
+        // ถ้าใน Cloud บันทึกเป็นเครื่องอื่นที่ล็อกอินใหม่กว่า -> สั่งเตะเครื่องนี้ออกทันที
+        if (cloudDeviceId && myDeviceId && cloudDeviceId !== myDeviceId) {
+          console.warn('[Session Security] Newer cloud active device detected:', cloudDeviceId, 'my device:', myDeviceId);
+          executeForcedSessionLogout({
+            username: u,
+            sessionId: data.name,
+            deviceId: data.mode
+          });
+          return;
+        }
+        if (data.name && mySessionId && data.name !== mySessionId) {
+          console.warn('[Session Security] Session ID mismatch kick from another device:', data.name, 'vs local:', mySessionId);
+          executeForcedSessionLogout({
+            username: u,
+            sessionId: data.name,
+            deviceId: data.mode
+          });
+        }
           }
         } catch (_) {}
       }
@@ -435685,10 +435580,13 @@
 
 
           // Generate unique session identifier for 1-Device Enforcer
-          const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-          localStorage.setItem('oca_active_session_id', newSessionId);
-          sessionStorage.setItem('oca_active_session_id', newSessionId);
-          res.user.sessionId = newSessionId;
+        const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+        const nowTs = String(Date.now());
+        localStorage.setItem('oca_active_session_id', newSessionId);
+        sessionStorage.setItem('oca_active_session_id', newSessionId);
+        localStorage.setItem('oca_session_start_time', nowTs);
+        sessionStorage.setItem('oca_session_start_time', nowTs);
+        sessionStorage.setItem('oca_entered_dashboard', 'true');
 
           if (usernameInput) usernameInput.value = '';
         if (passwordInput) passwordInput.value = '';
@@ -437392,7 +437290,7 @@
         // Check active PWA cache version
         const specVer = document.getElementById('specActiveVersion');
         if (specVer) {
-          specVer.textContent = 'oca-pwa-v182';
+          specVer.textContent = 'oca-pwa-v183';
         }
       } catch (err) {
         console.warn('Realtime manual metadata sync notice:', err);
@@ -493530,85 +493428,17 @@ function openForgotPasswordModal() {
 
 
       navigator.serviceWorker.addEventListener('controllerchange', function() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        if (!refreshing) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          refreshing = true;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          window.location.reload();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        if (refreshing) return;
+        const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+        const hasEntered = (typeof sessionStorage !== 'undefined') && sessionStorage.getItem('oca_entered_dashboard') === 'true';
+        if (user || hasEntered) {
+          if (typeof showToast === 'function') {
+            showToast('ระบบอัปเดตเวอร์ชันใหม่', 'ระบบได้รับการอัปเดต Service Worker ในพื้นหลังเรียบร้อยแล้ว', '✓', 3500);
+          }
+          return;
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        refreshing = true;
+        window.location.reload();
       });
 
 
