@@ -272756,7 +272756,7 @@
 
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
 
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v194</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v195</div>
 
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
 
@@ -782981,190 +782981,158 @@
 
 
     function printStudentReport() {
-
       const printContainer = document.getElementById('printReportContainer');
-
       const tbl = document.getElementById('tblStudentReport');
-
       if (!printContainer || !tbl) {
-
         if (typeof showToast === 'function') {
-
           showToast('ไม่มีข้อมูลสำหรับพิมพ์', 'กรุณากดค้นหารายงานก่อนสั่งพิมพ์', '⚠️');
-
         }
-
         return;
-
       }
-
-
 
       const selYear = document.getElementById('selReportYear');
-
       const selCourse = document.getElementById('selReportCourse');
-
       const yearText = (selYear && selYear.value !== 'ALL') ? ('ปีการศึกษา ' + toArabicDigits(selYear.value)) : 'ทุกปีการศึกษา';
-
       const courseText = (selCourse && selCourse.value !== 'ALL') ? ('คอร์ส: ' + selCourse.value) : 'คอร์ส: ทุกคอร์สเรียน';
 
-
-
       const now = new Date();
-
       const dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
-
       const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 
-
-
       // กำหนดสไตล์หน้ากระดาษ A4 แนวตั้ง ระยะขอบแคบสุด (3mm)
-
       let pStyle = document.getElementById('ocaReportPrintPageStyle');
-
       if (!pStyle) {
-
         pStyle = document.createElement('style');
-
         pStyle.id = 'ocaReportPrintPageStyle';
-
         document.head.appendChild(pStyle);
-
       }
-
       pStyle.textContent = '@page { size: A4 portrait; margin: 3mm; }';
 
-
-
       const wrap = document.createElement('div');
-
       wrap.style.fontFamily = "'Prompt', 'Noto Sans Thai', sans-serif";
-
       wrap.style.color = '#000000';
-
       wrap.style.background = '#ffffff';
-
-      wrap.style.padding = '3mm 4mm';
-
+      wrap.style.padding = '2mm 3mm';
       wrap.style.boxSizing = 'border-box';
-
       wrap.style.width = '100%';
 
-
+      const totalCount = (Array.isArray(cachedStudentReportData) && cachedStudentReportData.length > 0)
+        ? cachedStudentReportData.length
+        : (tbl.querySelectorAll('tbody tr').length);
 
       const headerHtml =
-
         '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; border-bottom:2px solid #065f46; padding-bottom:6px;">' +
-
         '  <div>' +
-
         '    <div style="font-size:15px; font-weight:700; color:#065f46; letter-spacing:0.5px;">สถาบันภาษาและวัฒนธรรมตะวันออก (OCA)</div>' +
-
         '    <div style="font-size:11.5px; font-weight:600; color:#1e293b; margin-top:1px;">รายงานทะเบียนประวัตินักศึกษา (Student Directory & Roster)</div>' +
-
         '    <div style="font-size:9.5px; color:#475569; margin-top:2px;">' +
-
         '      <span>' + escapeHtml(yearText) + '</span> | <span>' + escapeHtml(courseText) + '</span> | <span>วันที่พิมพ์: ' + toArabicDigits(dateStr) + ' เวลา ' + toArabicDigits(timeStr) + '</span>' +
-
         '    </div>' +
-
         '  </div>' +
-
         '  <div style="text-align:right;">' +
-
         '    <div style="font-size:10px; font-weight:700; color:#065f46; background:rgba(6,95,70,0.08); padding:3px 10px; border-radius:5px; border:1px solid rgba(6,95,70,0.2); display:inline-block;">' +
-
-        '      จำนวนนักศึกษา: ' + toArabicDigits((cachedStudentReportData || []).length) + ' คน' +
-
+        '      จำนวนนักศึกษา: ' + toArabicDigits(totalCount) + ' คน' +
         '    </div>' +
-
         '    <div style="font-size:8.5px; color:#ef4444; margin-top:3px; font-weight:600;"><i class="fa-solid fa-lock"></i> PDPA Strictly Confidential</div>' +
-
         '  </div>' +
-
         '</div>';
 
+      let tableHtml = '';
+      if (Array.isArray(cachedStudentReportData) && cachedStudentReportData.length > 0) {
+        tableHtml =
+          '<table style="width:100%; table-layout:fixed; border-collapse:collapse; font-size:8pt; margin-bottom:8px; box-sizing:border-box;">' +
+          '  <thead>' +
+          '    <tr style="background:#065f46; color:#ffffff;">' +
+          '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:28px;">ลำดับ</th>' +
+          '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:65px;">รหัสนักศึกษา</th>' +
+          '      <th style="padding:4px 4px; border:1px solid #065f46; text-align:left; width:130px;">ชื่อ-นามสกุล</th>' +
+          '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:108px;">รหัสประชาชน/Passport</th>' +
+          '      <th style="padding:4px 4px; border:1px solid #065f46; text-align:left; width:150px;">คอร์สที่เรียน</th>' +
+          '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:52px;">ปี / เทอม</th>' +
+          '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:72px;">เบอร์โทร</th>' +
+          '      <th style="padding:4px 2px; border:1px solid #065f46; text-align:center; width:48px;">สถานะ</th>' +
+          '    </tr>' +
+          '  </thead>' +
+          '  <tbody>';
 
+        for (let i = 0; i < cachedStudentReportData.length; i++) {
+          const item = cachedStudentReportData[i];
+          const bg = (i % 2 === 0) ? '#ffffff' : '#f8fafc';
+          const citizen = item.citizenId ? toArabicDigits(formatCitizenIdMasked(item.citizenId, false)) : '-';
+          const stId = toArabicDigits(item.studentId || '-');
+          const stName = escapeHtml(item.fullName || item.rawName || '-');
+          const course = escapeHtml(item.course || '-');
+          const yearTerm = toArabicDigits(item.yearBE || '-') + ' / T' + toArabicDigits(item.term || '4');
+          const phone = item.phone ? toArabicDigits(item.phone) : '-';
+          const status = escapeHtml(item.status || 'ปกติ');
 
-      const tblClone = tbl.cloneNode(true);
+          tableHtml +=
+            '<tr style="background:' + bg + '; border-bottom:1px solid #e2e8f0; page-break-inside:avoid; break-inside:avoid;">' +
+            '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; color:#64748b; font-size:7.5pt;">' + toArabicDigits(i + 1) + '</td>' +
+            '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-weight:700; font-family:monospace; color:#065f46; font-size:8pt;">' + stId + '</td>' +
+            '  <td style="padding:3px 4px; border:1px solid #cbd5e1; font-weight:600; color:#0f172a; word-break:break-word; font-size:8pt;">' + stName + '</td>' +
+            '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-family:monospace; letter-spacing:0.2px; font-weight:600; color:#1e293b; font-size:8pt;">' + citizen + '</td>' +
+            '  <td style="padding:3px 4px; border:1px solid #cbd5e1; color:#065f46; word-break:break-word; font-size:8pt;">' + course + '</td>' +
+            '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-size:8pt;">' + yearTerm + '</td>' +
+            '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-family:monospace; font-size:8pt;">' + phone + '</td>' +
+            '  <td style="padding:3px 2px; border:1px solid #cbd5e1; text-align:center; font-size:7.5pt;">' + status + '</td>' +
+            '</tr>';
+        }
+        tableHtml += '</tbody></table>';
+      } else {
+        const tblClone = tbl.cloneNode(true);
+        tblClone.style.width = '100%';
+        tblClone.style.minWidth = '0';
+        tblClone.style.maxWidth = '100%';
+        tblClone.style.tableLayout = 'fixed';
+        tblClone.style.borderCollapse = 'collapse';
+        tblClone.style.fontSize = '8pt';
+        tblClone.style.color = '#000000';
+        tblClone.style.background = '#ffffff';
+        tblClone.style.boxSizing = 'border-box';
 
-      tblClone.style.width = '100%';
-
-      tblClone.style.borderCollapse = 'collapse';
-
-      tblClone.style.fontSize = '8.5pt';
-
-      tblClone.style.color = '#000000';
-
-      tblClone.style.background = '#ffffff';
-
-
-
-      tblClone.querySelectorAll('th').forEach(th => {
-
-        th.style.background = '#065f46';
-
-        th.style.color = '#ffffff';
-
-        th.style.padding = '4px 3px';
-
-        th.style.border = '1px solid #065f46';
-
-      });
-
-      tblClone.querySelectorAll('td').forEach(td => {
-
-        td.style.padding = '3px 4px';
-
-        td.style.border = '1px solid #cbd5e1';
-
-        td.style.color = '#000000';
-
-      });
-
-
+        const colWidths = ['4%', '10%', '20%', '16%', '22%', '8%', '11%', '9%'];
+        tblClone.querySelectorAll('th').forEach((th, idx) => {
+          th.style.background = '#065f46';
+          th.style.color = '#ffffff';
+          th.style.padding = '4px 2px';
+          th.style.border = '1px solid #065f46';
+          th.style.minWidth = '0';
+          if (colWidths[idx]) th.style.width = colWidths[idx];
+        });
+        tblClone.querySelectorAll('td').forEach(td => {
+          td.style.padding = '3px 2px';
+          td.style.border = '1px solid #cbd5e1';
+          td.style.color = '#000000';
+          td.style.minWidth = '0';
+          td.style.wordBreak = 'break-word';
+          td.style.fontSize = '8pt';
+        });
+        tblClone.querySelectorAll('tr').forEach(tr => {
+          tr.style.pageBreakInside = 'avoid';
+          tr.style.breakInside = 'avoid';
+        });
+        tableHtml = tblClone.outerHTML;
+      }
 
       const footerHtml =
-
         '<div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid #cbd5e1; padding-top:4px; font-size:8pt; color:#64748b;">' +
-
         '  <div>🔒 เอกสารทางการโรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (PDPA Strictly Confidential)</div>' +
-
         '  <div>พิมพ์เมื่อ: ' + toArabicDigits(dateStr) + ' ' + toArabicDigits(timeStr) + ' | OCA Portal</div>' +
-
         '</div>';
 
-
-
-      wrap.innerHTML = headerHtml;
-
-      wrap.appendChild(tblClone);
-
-      wrap.insertAdjacentHTML('beforeend', footerHtml);
-
-
+      wrap.innerHTML = headerHtml + tableHtml + footerHtml;
 
       printContainer.innerHTML = '';
-
       printContainer.appendChild(wrap);
 
-
-
       document.body.classList.add('printing-report');
-
       window.print();
-
       setTimeout(() => {
-
         document.body.classList.remove('printing-report');
-
         printContainer.innerHTML = '';
-
         if (pStyle) pStyle.remove();
-
       }, 1200);
-
-
 
       if (typeof logSecurityAuditAction === 'function') {
 
@@ -861627,7 +861595,7 @@
 
         if (specVer) {
 
-          specVer.textContent = 'oca-pwa-v194';
+          specVer.textContent = 'oca-pwa-v195';
 
         }
 
