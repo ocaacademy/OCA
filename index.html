@@ -623,6 +623,7 @@
 
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 
 
@@ -136392,7 +136393,8 @@
               <span>เงื่อนไข & โควตาระบบ (System Quotas & Limits):</span>
             </div>
             <div style="color:var(--text-main);">
-              • <strong>การส่งออกไฟล์ Excel / CSV:</strong> จำกัดการดาวน์โหลดข้อมูลสูงสุด <strong>5,000 แถวต่อการ Export 1 ครั้ง</strong> เพื่อป้องกัน Memory เบราว์เซอร์ค้าง<br>
+              • <strong>การส่งออกไฟล์ Excel / CSV (แยกชีตรายปี):</strong> กำหนดชีต (Worksheet) แยกเป็นรายปีการศึกษาในไฟล์เดียวอัตโนมัติ (เช่น ชีต <code>ปีการศึกษา_2569</code>, <code>ปีการศึกษา_2568</code>)<br>
+              • <strong>การดาวน์โหลด PDF แยกรายปี:</strong> กรณีเลือก "ทุกปีการศึกษา" ระบบจะแยกไฟล์ PDF เป็นรายปีให้อัตโนมัติ โดยกดดาวน์โหลดครั้งเดียวจะบันทึกครบทุกไฟล์ตามปีการศึกษา<br>
               • <strong>การกระทบยอดเงินสดประจำวัน (Daily Cash Reconciliation):</strong> บังคับนับเงินสดในลิ้นชักและกระทบยอดให้ตรงกับยอดในระบบก่อนกดยืนยันปิดรอบวัน<br>
               • <strong>การประมวลผลสถิติ:</strong> ประมวลผลและแคชผลสรุปทุก 1 ชั่วโมงเพื่อลดภาระการ Query ของฐานข้อมูล
             </div>
@@ -136603,7 +136605,7 @@
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-bottom:22px;">
           <div style="background:var(--bg-main); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px;">
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v187</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v188</div>
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
           </div>
           <div style="background:var(--bg-main); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px;">
@@ -391860,1156 +391862,149 @@
 
 
     function exportStudentReportCsv() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       if (!cachedStudentReportData || cachedStudentReportData.length === 0) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         if (typeof showToast === 'function') {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           showToast('ไม่มีข้อมูลสำหรับส่งออก', 'กรุณากดค้นหารายงานก่อนทำการส่งออก', '⚠️');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        } else {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          showToast('ไม่มีข้อมูลสำหรับส่งออก', 'กรุณากดค้นหารายงานก่อนทำการส่งออก', '⚠️');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const headers = [
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'ลำดับ',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'รหัสนักศึกษา',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'คำนำหน้า',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'ชื่อ-นามสกุล',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'รหัสประจำตัวประชาชน/Passport',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'คอร์สที่เรียน',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'ปีการศึกษา',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'ภาคเรียน',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'เบอร์โทรศัพท์',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'รอบเวลาเรียน',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'สถานะ',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'วันเวลาที่ลงทะเบียน'
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      ];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const csvLines = [];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      csvLines.push(headers.map(h => '"' + h.replace(/"/g, '""') + '"').join(','));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      for (let i = 0; i < cachedStudentReportData.length; i++) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        const item = cachedStudentReportData[i];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        // เติม \t ด้านหน้ารหัสนักศึกษา เลขบัตรประชาชน และเบอร์โทร เพื่อป้องกัน Excel ตัดเลข 0 ด้านหน้าทิ้ง
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        const row = [
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          toArabicDigits(i + 1),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '\t' + toArabicDigits(item.studentId || ''),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          item.prefix || '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          (item.fullName || item.rawName || '').trim(),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '\t' + toArabicDigits(item.citizenId || ''),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          item.course || '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          toArabicDigits(item.yearBE || ''),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          toArabicDigits(item.term || '4'),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '\t' + toArabicDigits(item.phone || ''),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          item.schedule || '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          item.status || '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          toArabicDigits(item.registeredAt || '')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        ];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        csvLines.push(row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(','));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      // ใส่ UTF-8 BOM (\uFEFF)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const csvContent = '\uFEFF' + csvLines.join('\r\n');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const url = URL.createObjectURL(blob);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const link = document.createElement('a');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       const selYear = document.getElementById('selReportYear');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const yearSuffix = selYear && selYear.value !== 'ALL' ? ('_' + selYear.value) : '_ALL';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      const isAllYears = (!selYear || selYear.value === 'ALL');
       const nowStr = new Date().toISOString().slice(0, 10);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const fileName = 'OCA_Student_Report' + yearSuffix + '_' + nowStr + '.csv';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      link.setAttribute('href', url);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      link.setAttribute('download', fileName);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      document.body.appendChild(link);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      link.click();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      document.body.removeChild(link);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      URL.revokeObjectURL(url);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      if (typeof showToast === 'function') {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        showToast('ส่งออก CSV สำเร็จ!', 'ดาวน์โหลดไฟล์ ' + fileName + ' เรียบร้อยแล้ว', '📥');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      const headers = [
+        'ลำดับ',
+        'รหัสนักศึกษา',
+        'คำนำหน้า',
+        'ชื่อ-นามสกุล',
+        'รหัสประจำตัวประชาชน/Passport',
+        'คอร์สที่เรียน',
+        'ปีการศึกษา',
+        'ภาคเรียน',
+        'เบอร์โทรศัพท์',
+        'รอบเวลาเรียน',
+        'สถานะ',
+        'วันเวลาที่ลงทะเบียน'
+      ];
+
+      // จัดกลุ่มข้อมูลเป็นรายปีการศึกษา
+      const yearsMap = {};
+      cachedStudentReportData.forEach(item => {
+        const y = String(item.yearBE || 'ไม่ระบุปี').trim();
+        if (!yearsMap[y]) yearsMap[y] = [];
+        yearsMap[y].push(item);
+      });
+
+      const sortedYears = Object.keys(yearsMap).sort((a, b) => {
+        const na = parseInt(a, 10) || 0;
+        const nb = parseInt(b, 10) || 0;
+        return nb - na;
+      });
+
+      // หากมี SheetJS (XLSX) ให้สร้างไฟล์ Excel แบบกำหนดชีตแยกเป็นรายปีในไฟล์เดียว
+      if (typeof window.XLSX !== 'undefined') {
+        const wb = window.XLSX.utils.book_new();
+
+        sortedYears.forEach(year => {
+          const yearItems = yearsMap[year];
+          const sheetData = [headers];
+          yearItems.forEach((item, idx) => {
+            sheetData.push([
+              toArabicDigits(idx + 1),
+              String(item.studentId || ''),
+              item.prefix || '',
+              (item.fullName || item.rawName || '').trim(),
+              String(item.citizenId || ''),
+              item.course || '',
+              toArabicDigits(item.yearBE || year),
+              toArabicDigits(item.term || '4'),
+              String(item.phone || ''),
+              item.schedule || '',
+              item.status || '',
+              toArabicDigits(item.registeredAt || '')
+            ]);
+          });
+
+          const ws = window.XLSX.utils.aoa_to_sheet(sheetData);
+          ws['!cols'] = [
+            { wch: 8 },  // ลำดับ
+            { wch: 15 }, // รหัสนักศึกษา
+            { wch: 10 }, // คำนำหน้า
+            { wch: 28 }, // ชื่อ-นามสกุล
+            { wch: 24 }, // รหัสประชาชน
+            { wch: 24 }, // คอร์ส
+            { wch: 12 }, // ปีการศึกษา
+            { wch: 10 }, // ภาคเรียน
+            { wch: 15 }, // เบอร์โทร
+            { wch: 22 }, // รอบเวลา
+            { wch: 16 }, // สถานะ
+            { wch: 20 }  // วันที่
+          ];
+
+          const sheetName = ('ปีการศึกษา_' + year).slice(0, 31);
+          window.XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        });
+
+        const fileName = isAllYears
+          ? ('OCA_Student_Report_AllYears_' + nowStr + '.xlsx')
+          : ('OCA_Student_Report_' + (selYear ? selYear.value : 'year') + '_' + nowStr + '.xlsx');
+
+        window.XLSX.writeFile(wb, fileName);
+
+        if (typeof showToast === 'function') {
+          showToast('ส่งออกสำเร็จ!', 'ดาวน์โหลดไฟล์ ' + fileName + ' กำหนดชีตแยกรายปีในไฟล์เดียวเรียบร้อย (' + sortedYears.length + ' ชีต)', '📊');
+        }
+        if (typeof logSecurityAuditAction === 'function') {
+          logSecurityAuditAction('EXPORT_EXCEL_STUDENTS', 'Multi-sheet by Year: ' + sortedYears.join(', '), cachedStudentReportData.length);
+        }
+        return;
       }
 
+      // Fallback: ส่งออกเป็น CSV (กรณีไม่มี XLSX)
+      const csvLines = [];
+      csvLines.push(headers.map(h => '"' + h.replace(/"/g, '""') + '"').join(','));
 
+      for (let i = 0; i < cachedStudentReportData.length; i++) {
+        const item = cachedStudentReportData[i];
+        const row = [
+          toArabicDigits(i + 1),
+          '\t' + toArabicDigits(item.studentId || ''),
+          item.prefix || '',
+          (item.fullName || item.rawName || '').trim(),
+          '\t' + toArabicDigits(item.citizenId || ''),
+          item.course || '',
+          toArabicDigits(item.yearBE || ''),
+          toArabicDigits(item.term || '4'),
+          '\t' + toArabicDigits(item.phone || ''),
+          item.schedule || '',
+          item.status || '',
+          toArabicDigits(item.registeredAt || '')
+        ];
+        csvLines.push(row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(','));
+      }
 
+      const csvContent = '\uFEFF' + csvLines.join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const yearSuffix = (selYear && selYear.value !== 'ALL') ? ('_' + selYear.value) : '_ALL';
+      const fileName = 'OCA_Student_Report' + yearSuffix + '_' + nowStr + '.csv';
 
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
-
-
-
-
-
-
-
-
-
-
+      if (typeof showToast === 'function') {
+        showToast('ส่งออก CSV สำเร็จ!', 'ดาวน์โหลดไฟล์ ' + fileName + ' เรียบร้อยแล้ว', '📥');
+      }
+      if (typeof logSecurityAuditAction === 'function') {
+        logSecurityAuditAction('EXPORT_CSV_STUDENTS', 'Year: ' + yearSuffix, cachedStudentReportData.length);
+      }
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     /**
 
@@ -393604,2180 +392599,204 @@
 
 
     function exportStudentReportPdf() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       checkReportSecurityAccess(() => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         _doExportStudentReportPdf();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    function _doExportStudentReportPdf() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    /**
+     * ดำเนินการส่งออก PDF ทะเบียนประวัตินักศึกษา (A4 แนวนอน)
+     * หากเลือก "ทุกปีการศึกษา" ระบบจะแยกไฟล์เป็นรายปี แต่เป็นการดาวน์โหลดที่เดียวได้ทุกปีตามที่เลือก
+     */
+    async function _doExportStudentReportPdf() {
       if (!cachedStudentReportData || cachedStudentReportData.length === 0) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         if (typeof showToast === 'function') {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           showToast('ไม่มีข้อมูลสำหรับส่งออก', 'กรุณากดค้นหารายงานก่อนทำการดาวน์โหลด PDF', '⚠️');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      if (typeof showToast === 'function') {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        showToast('กำลังจัดเตรียม PDF...', 'ระบบกำลังสร้างรายงานทะเบียนประวัตินักศึกษา A4 แนวนอน', '⏳');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      if (typeof html2pdf === 'undefined') {
+        alert('ระบบยังโหลดไลบรารี PDF ไม่สมบูรณ์ กรุณาลองใหม่อีกครั้ง');
+        return;
       }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
       const selYear = document.getElementById('selReportYear');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      const isAllYears = (!selYear || selYear.value === 'ALL');
       const selCourse = document.getElementById('selReportCourse');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const yearText = (selYear && selYear.value !== 'ALL') ? ('ปีการศึกษา ' + toArabicDigits(selYear.value)) : 'ทุกปีการศึกษา';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const courseText = (selCourse && selCourse.value !== 'ALL') ? ('คอร์ส: ' + selCourse.value) : 'คอร์ส: ทุกคอร์สเรียน';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const now = new Date();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      // สร้าง DOM Container สำหรับเรนเดอร์ PDF เวกเตอร์
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const printWrap = document.createElement('div');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      printWrap.style.padding = '8mm 10mm';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      printWrap.style.background = '#ffffff';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      printWrap.style.color = '#0f172a';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      printWrap.style.fontFamily = "'Prompt', 'Noto Sans Thai', sans-serif";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      printWrap.style.fontSize = '11px';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      // ส่วนหัวรายงาน (Header)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      let headerHtml =
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #065f46; padding-bottom:8px; margin-bottom:12px;">' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '  <div style="display:flex; align-items:center; gap:12px;">' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '    <img src="https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-kJVDLKednw7P" style="width:48px; height:48px; object-fit:contain;" alt="Logo" />' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '    <div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '      <div style="font-size:16px; font-weight:800; color:#065f46; letter-spacing:0.5px;">東方文化書院 — ORIENTAL CULTURE ACADEMY</div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '      <div style="font-size:13px; font-weight:700; color:#1e293b;">รายงานทะเบียนประวัตินักศึกษาและการลงทะเบียน (Student Directory Report)</div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '      <div style="font-size:10.5px; color:#64748b; margin-top:2px;">' + escapeHtml(yearText) + ' | ' + escapeHtml(courseText) + ' | ออกรายงานเมื่อ: ' + toArabicDigits(dateStr) + ' เวลา ' + toArabicDigits(timeStr) + '</div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '    </div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '  </div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '  <div style="text-align:right;">' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '    <div style="font-size:11px; font-weight:700; color:#065f46; background:rgba(6,95,70,0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(6,95,70,0.2); display:inline-block;">' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '      จำนวนนักศึกษา: ' + toArabicDigits(cachedStudentReportData.length) + ' คน' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '    </div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '    <div style="font-size:9.5px; color:#ef4444; margin-top:4px; font-weight:600;"><i class="fa-solid fa-lock"></i> PDPA Strictly Confidential</div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '  </div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '</div>';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      // ตารางรายงาน (Table)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      let tableHtml =
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '<table style="width:100%; border-collapse:collapse; font-size:10px; margin-bottom:14px;">' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '  <thead>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '    <tr style="background:#065f46; color:#ffffff;">' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '      <th style="padding:6px 4px; border:1px solid #065f46; text-align:center; width:35px;">ลำดับ</th>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '      <th style="padding:6px 6px; border:1px solid #065f46; text-align:center; width:75px;">รหัสนักศึกษา</th>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '      <th style="padding:6px 6px; border:1px solid #065f46; text-align:left; min-width:140px;">ชื่อ - นามสกุล</th>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '      <th style="padding:6px 6px; border:1px solid #065f46; text-align:center; width:115px;">เลขประจำตัวประชาชน (13 หลัก)</th>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '      <th style="padding:6px 6px; border:1px solid #065f46; text-align:left; min-width:150px;">คอร์สที่เรียน</th>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '      <th style="padding:6px 4px; border:1px solid #065f46; text-align:center; width:70px;">ปี / เทอม</th>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '      <th style="padding:6px 4px; border:1px solid #065f46; text-align:center; width:85px;">เบอร์โทรศัพท์</th>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '      <th style="padding:6px 4px; border:1px solid #065f46; text-align:center; width:75px;">สถานะ</th>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '    </tr>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '  </thead>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '  <tbody>';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      for (let i = 0; i < cachedStudentReportData.length; i++) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        const item = cachedStudentReportData[i];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        const bg = (i % 2 === 0) ? '#ffffff' : '#f8fafc';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        const citizen = item.citizenId ? toArabicDigits(item.citizenId) : '-';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        const stId = toArabicDigits(item.studentId || '-');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        const stName = escapeHtml(item.fullName || item.rawName || '-');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        const course = escapeHtml(item.course || '-');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        const yearTerm = toArabicDigits(item.yearBE || '-') + ' / T' + toArabicDigits(item.term || '4');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        const phone = item.phone ? toArabicDigits(item.phone) : '-';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        const status = escapeHtml(item.status || 'ปกติ');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        tableHtml +=
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '<tr style="background:' + bg + '; border-bottom:1px solid #e2e8f0;">' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '  <td style="padding:5px 4px; border:1px solid #cbd5e1; text-align:center; color:#64748b;">' + toArabicDigits(i + 1) + '</td>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '  <td style="padding:5px 4px; border:1px solid #cbd5e1; text-align:center; font-weight:700; font-family:monospace; color:#065f46;">' + stId + '</td>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '  <td style="padding:5px 6px; border:1px solid #cbd5e1; font-weight:600; color:#0f172a;">' + stName + '</td>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '  <td style="padding:5px 4px; border:1px solid #cbd5e1; text-align:center; font-family:monospace; letter-spacing:0.5px; font-weight:600; color:#1e293b;">' + citizen + '</td>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '  <td style="padding:5px 6px; border:1px solid #cbd5e1; color:#065f46;">' + course + '</td>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '  <td style="padding:5px 4px; border:1px solid #cbd5e1; text-align:center;">' + yearTerm + '</td>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '  <td style="padding:5px 4px; border:1px solid #cbd5e1; text-align:center; font-family:monospace;">' + phone + '</td>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '  <td style="padding:5px 4px; border:1px solid #cbd5e1; text-align:center; font-size:9.5px;">' + status + '</td>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '</tr>';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      tableHtml += '</tbody></table>';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      // ท้ายเอกสาร (Footer)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      let footerHtml =
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '<div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid #cbd5e1; padding-top:6px; font-size:9.5px; color:#64748b;">' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '  <div>🔒 เอกสารทางการโรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (PDPA Strictly Confidential) — แสดงเลขบัตรประชาชน 13 หลักฉบับเต็มเพื่อการบริหารทะเบียน</div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '  <div>พิมพ์เมื่อ: ' + toArabicDigits(dateStr) + ' ' + toArabicDigits(timeStr) + ' | พิมพ์จากระบบบริหารการศึกษา OCA Portal</div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        '</div>';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      printWrap.innerHTML = headerHtml + tableHtml + footerHtml;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const yearSuffix = (selYear && selYear.value !== 'ALL') ? ('_' + selYear.value) : '_ALL';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const fileName = 'OCA_Student_Directory' + yearSuffix + '_' + new Date().toISOString().slice(0, 10) + '.pdf';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const opt = {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        margin: [6, 6, 6, 6],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        filename: fileName,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        image: { type: 'jpeg', quality: 0.98 },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      const todayIso = now.toISOString().slice(0, 10);
+
+      // ฟังก์ชันช่วยเรนเดอร์และบันทึก PDF รายปี
+      const downloadSinglePdf = (items, yearLabel, fileName) => {
+        return new Promise((resolve) => {
+          const printWrap = document.createElement('div');
+          printWrap.style.padding = '8mm 10mm';
+          printWrap.style.background = '#ffffff';
+          printWrap.style.color = '#0f172a';
+          printWrap.style.fontFamily = "'Prompt', 'Noto Sans Thai', sans-serif";
+
+          let headerHtml =
+            '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; border-bottom:2px solid #065f46; padding-bottom:8px;">' +
+            '  <div>' +
+            '    <div style="font-size:18px; font-weight:700; color:#065f46; letter-spacing:0.5px;">สถาบันภาษาและวัฒนธรรมตะวันออก (OCA)</div>' +
+            '    <div style="font-size:13px; font-weight:600; color:#334155; margin-top:2px;">รายงานทะเบียนประวัตินักศึกษา (Student Directory & Roster)</div>' +
+            '    <div style="font-size:11px; color:#64748b; margin-top:2px;">' +
+            '      <span>' + escapeHtml(yearLabel) + '</span> | ' +
+            '      <span>' + escapeHtml(courseText) + '</span> | ' +
+            '      <span>ข้อมูล ณ วันที่ ' + toArabicDigits(dateStr) + '</span>' +
+            '    </div>' +
+            '  </div>' +
+            '  <div style="text-align:right;">' +
+            '    <div style="font-size:11px; font-weight:700; color:#065f46; background:rgba(6,95,70,0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(6,95,70,0.2); display:inline-block;">' +
+            '      จำนวนนักศึกษา: ' + toArabicDigits(items.length) + ' คน' +
+            '    </div>' +
+            '    <div style="font-size:9.5px; color:#ef4444; margin-top:4px; font-weight:600;"><i class="fa-solid fa-lock"></i> PDPA Strictly Confidential</div>' +
+            '  </div>' +
+            '</div>';
+
+          let tableHtml =
+            '<table style="width:100%; border-collapse:collapse; font-size:10px; margin-bottom:14px;">' +
+            '  <thead>' +
+            '    <tr style="background:#065f46; color:#ffffff;">' +
+            '      <th style="padding:6px 4px; border:1px solid #065f46; text-align:center; width:35px;">ลำดับ</th>' +
+            '      <th style="padding:6px 4px; border:1px solid #065f46; text-align:center; width:70px;">รหัสนักศึกษา</th>' +
+            '      <th style="padding:6px 6px; border:1px solid #065f46; text-align:left; min-width:140px;">ชื่อ-นามสกุล</th>' +
+            '      <th style="padding:6px 4px; border:1px solid #065f46; text-align:center; width:110px;">รหัสประชาชน/Passport</th>' +
+            '      <th style="padding:6px 6px; border:1px solid #065f46; text-align:left; min-width:130px;">คอร์สที่เรียน</th>' +
+            '      <th style="padding:6px 4px; border:1px solid #065f46; text-align:center; width:65px;">ปี / เทอม</th>' +
+            '      <th style="padding:6px 4px; border:1px solid #065f46; text-align:center; width:80px;">เบอร์โทรศัพท์</th>' +
+            '      <th style="padding:6px 4px; border:1px solid #065f46; text-align:center; width:75px;">สถานะ</th>' +
+            '    </tr>' +
+            '  </thead>' +
+            '  <tbody>';
+
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const bg = (i % 2 === 0) ? '#ffffff' : '#f8fafc';
+            const citizen = item.citizenId ? toArabicDigits(formatCitizenIdMasked(item.citizenId, false)) : '-';
+            const stId = toArabicDigits(item.studentId || '-');
+            const stName = escapeHtml(item.fullName || item.rawName || '-');
+            const course = escapeHtml(item.course || '-');
+            const yearTerm = toArabicDigits(item.yearBE || '-') + ' / T' + toArabicDigits(item.term || '4');
+            const phone = item.phone ? toArabicDigits(item.phone) : '-';
+            const status = escapeHtml(item.status || 'ปกติ');
+
+            tableHtml +=
+              '<tr style="background:' + bg + '; border-bottom:1px solid #e2e8f0;">' +
+              '  <td style="padding:5px 4px; border:1px solid #cbd5e1; text-align:center; color:#64748b;">' + toArabicDigits(i + 1) + '</td>' +
+              '  <td style="padding:5px 4px; border:1px solid #cbd5e1; text-align:center; font-weight:700; font-family:monospace; color:#065f46;">' + stId + '</td>' +
+              '  <td style="padding:5px 6px; border:1px solid #cbd5e1; font-weight:600; color:#0f172a;">' + stName + '</td>' +
+              '  <td style="padding:5px 4px; border:1px solid #cbd5e1; text-align:center; font-family:monospace; letter-spacing:0.5px; font-weight:600; color:#1e293b;">' + citizen + '</td>' +
+              '  <td style="padding:5px 6px; border:1px solid #cbd5e1; color:#065f46;">' + course + '</td>' +
+              '  <td style="padding:5px 4px; border:1px solid #cbd5e1; text-align:center;">' + yearTerm + '</td>' +
+              '  <td style="padding:5px 4px; border:1px solid #cbd5e1; text-align:center; font-family:monospace;">' + phone + '</td>' +
+              '  <td style="padding:5px 4px; border:1px solid #cbd5e1; text-align:center; font-size:9.5px;">' + status + '</td>' +
+              '</tr>';
+          }
+          tableHtml += '</tbody></table>';
+
+          let footerHtml =
+            '<div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid #cbd5e1; padding-top:6px; font-size:9.5px; color:#64748b;">' +
+            '  <div>🔒 เอกสารทางการโรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (PDPA Strictly Confidential) — แสดงเลขบัตรประชาชน 13 หลักฉบับเต็มเพื่อการบริหารทะเบียน</div>' +
+            '  <div>พิมพ์เมื่อ: ' + toArabicDigits(dateStr) + ' ' + toArabicDigits(timeStr) + ' | พิมพ์จากระบบบริหารการศึกษา OCA Portal</div>' +
+            '</div>';
+
+          printWrap.innerHTML = headerHtml + tableHtml + footerHtml;
+
+          const opt = {
+            margin: [6, 6, 6, 6],
+            filename: fileName,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, logging: false },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+          };
+
+          html2pdf().set(opt).from(printWrap).save()
+            .then(() => resolve())
+            .catch(err => {
+              console.error('html2pdf error on ' + fileName, err);
+              resolve();
+            });
+        });
       };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      if (typeof html2pdf !== 'undefined') {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        html2pdf().set(opt).from(printWrap).save()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          .then(() => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            if (typeof showToast === 'function') {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              showToast('ดาวน์โหลด PDF สำเร็จ!', 'บันทึกไฟล์ ' + fileName + ' เรียบร้อยแล้ว', '📄');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            logSecurityAuditAction('EXPORT_PDF_STUDENTS', 'Year: ' + yearText + ', Course: ' + courseText, cachedStudentReportData.length);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          .catch(err => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            console.error('html2pdf error:', err);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            if (typeof showToast === 'function') {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              showToast('เกิดข้อผิดพลาดในการสร้าง PDF', err.message || '', '❌');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      if (!isAllYears) {
+        // กรณีผู้ใช้เลือกปีการศึกษาเฉพาะ (ดาวน์โหลด 1 ไฟล์)
+        const yearVal = selYear.value;
+        const yearText = 'ปีการศึกษา ' + toArabicDigits(yearVal);
+        const fileName = 'OCA_Student_Directory_' + yearVal + '_' + todayIso + '.pdf';
+
+        if (typeof showToast === 'function') {
+          showToast('กำลังจัดเตรียม PDF...', 'ระบบกำลังสร้างรายงานทะเบียนประวัตินักศึกษา ' + yearText, '⏳');
+        }
+
+        await downloadSinglePdf(cachedStudentReportData, yearText, fileName);
+
+        if (typeof showToast === 'function') {
+          showToast('ดาวน์โหลด PDF สำเร็จ!', 'บันทึกไฟล์ ' + fileName + ' เรียบร้อยแล้ว', '📄');
+        }
+        if (typeof logSecurityAuditAction === 'function') {
+          logSecurityAuditAction('EXPORT_PDF_STUDENTS', 'Year: ' + yearText + ', Course: ' + courseText, cachedStudentReportData.length);
+        }
       } else {
+        // กรณีเลือก "ทุกปีการศึกษา": แยกไฟล์เป็นรายปี แต่เป็นการดาวน์โหลดที่เดียวได้ทุกปีตามที่เลือก
+        const yearsMap = {};
+        cachedStudentReportData.forEach(item => {
+          const y = String(item.yearBE || 'ไม่ระบุปี').trim();
+          if (!yearsMap[y]) yearsMap[y] = [];
+          yearsMap[y].push(item);
+        });
 
+        const sortedYears = Object.keys(yearsMap).sort((a, b) => {
+          const na = parseInt(a, 10) || 0;
+          const nb = parseInt(b, 10) || 0;
+          return nb - na;
+        });
 
+        if (sortedYears.length <= 1) {
+          const singleYear = sortedYears[0] || 'ALL';
+          const yearText = singleYear === 'ALL' ? 'ทุกปีการศึกษา' : ('ปีการศึกษา ' + toArabicDigits(singleYear));
+          const fileName = 'OCA_Student_Directory_' + singleYear + '_' + todayIso + '.pdf';
+          await downloadSinglePdf(cachedStudentReportData, yearText, fileName);
+          if (typeof showToast === 'function') {
+            showToast('ดาวน์โหลด PDF สำเร็จ!', 'บันทึกไฟล์ ' + fileName + ' เรียบร้อยแล้ว', '📄');
+          }
+          return;
+        }
 
+        if (typeof showToast === 'function') {
+          showToast('กำลังเตรียมดาวน์โหลด PDF แยกรายปี...', 'ระบบกำลังสร้างไฟล์ PDF แยกตามปีการศึกษา (' + sortedYears.length + ' ไฟล์)', '⏳');
+        }
 
+        for (let idx = 0; idx < sortedYears.length; idx++) {
+          const y = sortedYears[idx];
+          const yearItems = yearsMap[y];
+          const yearText = 'ปีการศึกษา ' + toArabicDigits(y);
+          const fileName = 'OCA_Student_Directory_' + y + '_' + todayIso + '.pdf';
 
+          if (typeof showToast === 'function') {
+            showToast('กำลังดาวน์โหลด PDF (' + (idx + 1) + '/' + sortedYears.length + ')', 'กำลังสร้างไฟล์ ปีการศึกษา ' + y + ' (' + yearItems.length + ' คน)', '⏳');
+          }
 
+          await downloadSinglePdf(yearItems, yearText, fileName);
 
+          if (idx < sortedYears.length - 1) {
+            await new Promise(r => setTimeout(r, 750));
+          }
+        }
 
-
-
-
-
-
-
-
-        alert('ระบบยังโหลดไลบรารี PDF ไม่สมบูรณ์ กรุณาลองใหม่อีกครั้ง');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        if (typeof showToast === 'function') {
+          showToast('ดาวน์โหลด PDF ครบถ้วน!', 'ดาวน์โหลดไฟล์ PDF แยกรายปีครบทั้ง ' + sortedYears.length + ' ปีการศึกษาเรียบร้อยแล้ว', '✅');
+        }
+        if (typeof logSecurityAuditAction === 'function') {
+          logSecurityAuditAction('EXPORT_PDF_STUDENTS_MULTI_YEAR', 'Separated years: ' + sortedYears.join(', '), cachedStudentReportData.length);
+        }
       }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     // =========================================================================
 
@@ -436050,7 +433069,7 @@
         // Check active PWA cache version
         const specVer = document.getElementById('specActiveVersion');
         if (specVer) {
-          specVer.textContent = 'oca-pwa-v187';
+          specVer.textContent = 'oca-pwa-v188';
         }
       } catch (err) {
         console.warn('Realtime manual metadata sync notice:', err);
