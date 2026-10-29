@@ -93520,7 +93520,53 @@
 
       }
 
-      body.printing-report #printReportContainer {
+          /* Print Scope: System Operations & Architecture Manual (A4 Portrait - Narrow Margins) */
+    body.printing-manual {
+      background: #ffffff !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    body.printing-manual #oca-app-root,
+    body.printing-manual .oca-sidebar,
+    body.printing-manual .oca-topbar,
+    body.printing-manual .oca-sidebar-backdrop,
+    body.printing-manual .oca-toast-holder,
+    body.printing-manual .oca-custom-modal-backdrop,
+    body.printing-manual #modalSystemManual,
+    body.printing-manual .oca-mobile-bottom-nav,
+    body.printing-manual #ocaMobileBottomNav,
+    body.printing-manual #printShippingContainer,
+    body.printing-manual #printCardContainer,
+    body.printing-manual #printReceiptContainer,
+    body.printing-manual #printReportContainer,
+    body.printing-manual #printClassroomRosterContainer,
+    body.printing-manual #printPrStandeeContainer {
+      display: none !important;
+    }
+    body.printing-manual #printManualContainer {
+      display: block !important;
+      visibility: visible !important;
+      position: static !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      background: #ffffff !important;
+      color: #0f172a !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body.printing-manual .oca-manual-print-doc {
+      width: 100% !important;
+      box-sizing: border-box !important;
+      background: #ffffff !important;
+      color: #0f172a !important;
+    }
+    body.printing-manual .oca-manual-print-doc * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+body.printing-report #printReportContainer {
         display: block !important;
         visibility: visible !important;
         width: 100% !important;
@@ -271415,7 +271461,7 @@
 
       <div style="display:flex; align-items:center; gap:12px;">
 
-        <button type="button" onclick="window.print()" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#e2e8f0; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+        <button type="button" onclick="printSystemManual()" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#e2e8f0; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
 
           <i class="fa-solid fa-print"></i> พิมพ์คู่มือ
 
@@ -272771,7 +272817,7 @@
 
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
 
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v197</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v198</div>
 
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
 
@@ -334974,6 +335020,7 @@
   <div id="printReportContainer" style="display:none;"></div>
 
   <div id="printClassroomRosterContainer" style="display:none;"></div>
+  <div id="printManualContainer" style="display:none;"></div>
 
 
 
@@ -861432,6 +861479,197 @@
 
     }
 
+    /**
+     * สั่งพิมพ์คู่มือการใช้งานระบบ & สถาปัตยกรรมความปลอดภัย (Official A4 Manual Print - Narrow Margins)
+     */
+    function printSystemManual() {
+      const printContainer = document.getElementById('printManualContainer');
+      if (!printContainer) return;
+
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+      const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+      // 1. ตั้งค่า @page ให้เป็น A4 แนวตั้ง ระยะขอบแคบที่สุด (4mm ด้านข้าง, 5mm ด้านบน-ล่าง)
+      let pStyle = document.getElementById('ocaManualPrintPageStyle');
+      if (!pStyle) {
+        pStyle = document.createElement('style');
+        pStyle.id = 'ocaManualPrintPageStyle';
+        document.head.appendChild(pStyle);
+      }
+      pStyle.textContent = '@page { size: A4 portrait; margin: 5mm 4mm; }';
+
+      // 2. สร้างโครงสร้างเอกสารทางการ (Official Institutional Document Layout)
+      const wrap = document.createElement('div');
+      wrap.className = 'oca-manual-print-doc';
+      wrap.style.fontFamily = "'Prompt', 'Noto Sans Thai', 'Sarabun', sans-serif";
+      wrap.style.color = '#0f172a';
+      wrap.style.background = '#ffffff';
+      wrap.style.width = '100%';
+      wrap.style.boxSizing = 'border-box';
+      wrap.style.padding = '2mm 3mm';
+
+      const searchInp = document.getElementById('inpManualSearch');
+      const searchQuery = searchInp ? (searchInp.value || '').trim() : '';
+
+      // หัวกระดาษทางการ (Official Letterhead)
+      const headerHtml =
+        '<div style="border-bottom:2px solid #065f46; padding-bottom:8px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">' +
+        '  <div style="display:flex; align-items:center; gap:12px;">' +
+        '    <img src="https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-kJVDLKednw7P" style="width:46px; height:46px; object-fit:contain;" alt="Logo" />' +
+        '    <div>' +
+        '      <div style="font-size:15px; font-weight:800; color:#065f46; letter-spacing:0.5px;">東方文化書院 — ORIENTAL CULTURE ACADEMY</div>' +
+        '      <div style="font-size:13px; font-weight:700; color:#1e293b;">คู่มือการปฏิบัติงานมาตรฐานและสถาปัตยกรรมระบบบริหารการศึกษา</div>' +
+        '      <div style="font-size:9.5px; color:#475569; margin-top:1px;">Standard Operating Procedures (SOP) & Cloud Security Architecture | โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก</div>' +
+        '    </div>' +
+        '  </div>' +
+        '  <div style="text-align:right;">' +
+        '    <div style="font-size:10px; font-weight:700; color:#065f46; background:rgba(6,95,70,0.08); padding:3px 9px; border-radius:4px; border:1px solid rgba(6,95,70,0.2); display:inline-block;">' +
+        '      รหัสเอกสาร: OCA-SOP-2569' +
+        '    </div>' +
+        '    <div style="font-size:8.5px; color:#64748b; margin-top:3px;">พิมพ์เมื่อ: ' + toArabicDigits(dateStr) + ' ' + toArabicDigits(timeStr) + '</div>' +
+        '    <div style="font-size:8px; color:#ef4444; font-weight:600; margin-top:1px;">🔒 เอกสารทางการ สิทธิ์การใช้งานภายในสถาบัน</div>' +
+        '  </div>' +
+        '</div>';
+
+      wrap.innerHTML = headerHtml;
+
+      // 3. ดึงเนื้อหาทั้ง 3 หมวด
+      const secMenus = document.getElementById('sectionManualMenus');
+      const secSecur = document.getElementById('sectionManualSecurity');
+      const secRtime = document.getElementById('sectionManualRealtime');
+
+      // ฟังก์ชันแปลง HTML ของการ์ดคู่มือให้เป็นสไตล์พิมพ์ทางการกระชับบน A4
+      const buildPrintSection = (secElement, chapterTitle, chapterSubtitle) => {
+        if (!secElement) return '';
+        const clone = secElement.cloneNode(true);
+        clone.style.display = 'block';
+
+        // กรองการ์ดตามคำค้นหา (ถ้ามี)
+        const cards = clone.querySelectorAll('.card-manual-topic');
+        let visibleCount = 0;
+        cards.forEach(card => {
+          if (searchQuery) {
+            const kw = (card.getAttribute('data-keywords') || '').toLowerCase();
+            const text = card.textContent.toLowerCase();
+            const q = searchQuery.toLowerCase();
+            if (!kw.includes(q) && !text.includes(q)) {
+              card.remove();
+              return;
+            }
+          }
+          visibleCount++;
+
+          // ปรับแต่งการ์ดให้เป็นสไตล์เอกสารทางการสีขาว-เขียวมรกต
+          card.style.background = '#ffffff';
+          card.style.color = '#0f172a';
+          card.style.border = '1px solid #cbd5e1';
+          card.style.borderRadius = '4px';
+          card.style.padding = '10px 12px';
+          card.style.marginBottom = '10px';
+          card.style.boxShadow = 'none';
+          card.style.pageBreakInside = 'avoid';
+          card.style.breakInside = 'avoid';
+
+          // หัวข้อใน card
+          card.querySelectorAll('h4').forEach(h => {
+            h.style.color = '#065f46';
+            h.style.fontSize = '11.5pt';
+            h.style.fontWeight = '700';
+          });
+
+          // ป้ายตัวเลขลำดับ
+          card.querySelectorAll('span').forEach(sp => {
+            if (sp.textContent.trim().match(/^\d+$/)) {
+              sp.style.background = '#065f46';
+              sp.style.color = '#ffffff';
+              sp.style.borderRadius = '4px';
+              sp.style.width = '22px';
+              sp.style.height = '22px';
+              sp.style.fontSize = '11px';
+              sp.style.display = 'inline-flex';
+              sp.style.alignItems = 'center';
+              sp.style.justifyContent = 'center';
+            } else if (sp.textContent.includes('Realtime') || sp.textContent.includes('SOP')) {
+              sp.style.background = 'rgba(6,95,70,0.08)';
+              sp.style.color = '#065f46';
+              sp.style.border = '1px solid rgba(6,95,70,0.2)';
+              sp.style.borderRadius = '3px';
+              sp.style.padding = '2px 6px';
+            }
+          });
+
+          // กล่องขั้นตอนย่อย (Bento Grid)
+          card.querySelectorAll('div').forEach(d => {
+            if (d.style.gridTemplateColumns) {
+              d.style.display = 'grid';
+              d.style.gridTemplateColumns = 'repeat(2, 1fr)';
+              d.style.gap = '8px';
+              d.style.marginBottom = '8px';
+            }
+            if (d.style.border && (d.style.border.includes('rgba(255,255,255') || d.style.border.includes('var(--border'))) {
+              d.style.background = '#f8fafc';
+              d.style.border = '1px solid #e2e8f0';
+              d.style.borderRadius = '4px';
+              d.style.padding = '6px 8px';
+              d.style.color = '#1e293b';
+            }
+            // กล่องโควตา / เงื่อนไข (System Quotas Box)
+            if (d.textContent.includes('เงื่อนไข & โควตาระบบ') || d.textContent.includes('System Quotas')) {
+              d.style.background = '#fffbeb';
+              d.style.border = '1px solid #fef3c7';
+              d.style.borderLeft = '3px solid #b45309';
+              d.style.color = '#78350f';
+              d.style.padding = '6px 8px';
+              d.style.borderRadius = '0 4px 4px 0';
+              d.style.fontSize = '8pt';
+            }
+          });
+        });
+
+        if (visibleCount === 0 && searchQuery) return '';
+
+        const chapterBanner =
+          '<div style="background:#065f46; color:#ffffff; padding:5px 10px; border-radius:4px; font-weight:700; font-size:10.5pt; margin:14px 0 8px 0; display:flex; justify-content:space-between; align-items:center; page-break-after:avoid; break-after:avoid;">' +
+          '  <div><i class="fa-solid fa-bookmark" style="margin-right:6px; color:#fde68a;"></i>' + escapeHtml(chapterTitle) + '</div>' +
+          '  <div style="font-size:8.5pt; font-weight:500; color:#d1fae5;">' + escapeHtml(chapterSubtitle) + '</div>' +
+          '</div>';
+
+        return chapterBanner + clone.innerHTML;
+      };
+
+      let bodyHtml = '';
+      bodyHtml += buildPrintSection(secMenus, 'หมวดที่ 1: ขั้นตอนการปฏิบัติงานมาตรฐาน 10 เมนูหลัก (SOP & Quotas)', 'มาตรฐานการทำงานประจำวัน');
+      bodyHtml += buildPrintSection(secSecur, 'หมวดที่ 2: มาตรฐานสถาปัตยกรรมความปลอดภัย & ธรรมาภิบาลข้อมูล (Security Architecture)', '7 เสาหลักความปลอดภัย');
+      bodyHtml += buildPrintSection(secRtime, 'หมวดที่ 3: สถาปัตยกรรมคลาวด์และระบบประมวลผลสด (Cloud Architecture & Telemetry)', 'Cloud PostgreSQL & Realtime WebSocket');
+
+      wrap.insertAdjacentHTML('beforeend', bodyHtml);
+
+      // ท้ายกระดาษทางการ
+      const footerHtml =
+        '<div style="border-top:1px solid #cbd5e1; margin-top:14px; padding-top:6px; display:flex; justify-content:space-between; align-items:center; font-size:8pt; color:#64748b;">' +
+        '  <div>🔒 เอกสารคู่มือระบบงาน สถาบันภาษาและวัฒนธรรมตะวันออก (PDPA Strictly Confidential)</div>' +
+        '  <div>พิมพ์เมื่อ: ' + toArabicDigits(dateStr) + ' ' + toArabicDigits(timeStr) + ' | OCA Portal Official Documentation</div>' +
+        '</div>';
+
+      wrap.insertAdjacentHTML('beforeend', footerHtml);
+
+      printContainer.innerHTML = '';
+      printContainer.appendChild(wrap);
+
+      document.body.classList.add('printing-manual');
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('printing-manual');
+        printContainer.innerHTML = '';
+        if (pStyle) pStyle.remove();
+      }, 1200);
+
+      if (typeof logSecurityAuditAction === 'function') {
+        logSecurityAuditAction('PRINT_SYSTEM_MANUAL', 'Official A4 SOP Manual', 1);
+      }
+    }
+
 
 
     function switchManualTab(tabKey) {
@@ -861612,7 +861850,7 @@
 
         if (specVer) {
 
-          specVer.textContent = 'oca-pwa-v197';
+          specVer.textContent = 'oca-pwa-v198';
 
         }
 
