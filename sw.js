@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oca-pwa-v201';
+const CACHE_NAME = 'oca-pwa-v202';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
