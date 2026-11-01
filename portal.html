@@ -272612,7 +272612,7 @@ body.printing-report #printReportContainer {
 
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
 
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v207</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v208</div>
 
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
 
@@ -327676,17 +327676,14 @@ body.printing-report #printReportContainer {
 
                     </label>
                     <!-- AI Studio Background Selector Toolbar -->
-                    <div id="panelPhotoBgOptions" style="display:none; margin-top:10px; padding:10px 12px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px;">
-                      <div style="font-size:11.5px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; align-items:center; justify-content:center; gap:4px;">
-                        <span>✨</span><span>ปรับสีพื้นหลังรูปติดบัตร (AI Studio Background):</span>
+                    <div id="panelPhotoBgOptions" style="display:none; margin-top:10px; padding:8px 12px; background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; text-align:center;">
+                      <div id="lblPhotoAiProcessing" style="font-size:11.5px; font-weight:700; color:#991B1B; display:none;">
+                        <i class="fa-solid fa-spinner fa-spin" style="margin-right:4px;"></i> กำลังปรับพื้นหลังเป็นสีแดงเลือดหมูด้วย AI...
                       </div>
-                      <div style="display:flex; justify-content:center; gap:6px; flex-wrap:wrap;">
-                        <button type="button" class="oca-photo-bg-btn active" id="btnBgStudioBlue" onclick="applyPhotoBackground('#2563EB', 'studio_blue')" style="background:#2563EB; color:#fff; border:none; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🔵 สีฟ้ามาตรฐาน</button>
-                        <button type="button" class="oca-photo-bg-btn" id="btnBgStudioWhite" onclick="applyPhotoBackground('#FFFFFF', 'studio_white')" style="background:#F1F5F9; color:#0F172A; border:1px solid #CBD5E1; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">⚪ สีขาวทางการ</button>
-                        <button type="button" class="oca-photo-bg-btn" id="btnBgSoftBlue" onclick="applyPhotoBackground('#93C5FD', 'soft_blue')" style="background:#DBEAFE; color:#1E40AF; border:1px solid #BFDBFE; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🟦 ฟ้าอ่อน</button>
-                        <button type="button" class="oca-photo-bg-btn" id="btnBgOriginal" onclick="restoreOriginalPhoto()" style="background:#F1F5F9; color:#475569; border:1px solid #CBD5E1; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🖼️ รูปต้นฉบับ</button>
+                      <div id="lblPhotoAiSuccess" style="font-size:11.5px; font-weight:700; color:#991B1B; display:flex; align-items:center; justify-content:center; gap:6px;">
+                        <span style="display:inline-block; width:10px; height:10px; background:#800000; border-radius:50%; border:1.5px solid #fff; box-shadow:0 0 0 1px #991B1B;"></span>
+                        <span>ปรับพื้นหลังเป็นสีแดงเลือดหมูทางการเรียบร้อย (AI Maroon Background)</span>
                       </div>
-                      <div id="lblPhotoAiStatus" style="font-size:11px; color:#2563EB; margin-top:5px; font-weight:600; display:none;">กำลังปรับพื้นหลังด้วย AI...</div>
                     </div>
 
 
@@ -697953,6 +697950,7 @@ function updateReceiptLivePreview() {
 
 
     function loadReceiptsHistoryTable() {
+      if (typeof window.loadPendingSlipsQueue === 'function') window.loadPendingSlipsQueue();
 
 
 
@@ -856766,7 +856764,7 @@ function updateReceiptLivePreview() {
 
         if (specVer) {
 
-          specVer.textContent = 'oca-pwa-v207';
+          specVer.textContent = 'oca-pwa-v208';
 
         }
 
@@ -918770,7 +918768,7 @@ function openForgotPasswordModal() {
     let pubStudentPhotoDataUri = '';
     let pubPaymentSlipDataUri = '';
     let _rawOriginalPhotoDataUri = '';
-    let _currentPhotoBgColor = '#2563EB';
+    let _currentPhotoBgColor = '#800000';
     let _selfieSegmentationInstance = null;
 
 
@@ -967817,6 +967815,500 @@ function openForgotPasswordModal() {
 
 
 
+
+    
+
+    /* ==========================================================================
+       ONLINE ADMISSION: PAYMENT SLIP & AI MAROON PHOTO BACKGROUND ENGINE
+       ========================================================================== */
+    const MAROON_BG_COLOR = '#800000'; // สีแดงเลือดหมูทางการ (Official OCA Maroon)
+
+    /**
+     * Initialize MediaPipe Selfie Segmentation WebAssembly engine
+     */
+    async function initSelfieSegmentationEngine() {
+      if (_selfieSegmentationInstance) return _selfieSegmentationInstance;
+      const SegmenterClass = window.SelfieSegmentation || (typeof SelfieSegmentation !== 'undefined' ? SelfieSegmentation : null);
+      if (!SegmenterClass) {
+        console.warn('MediaPipe SelfieSegmentation not loaded yet');
+        return null;
+      }
+      try {
+        _selfieSegmentationInstance = new SegmenterClass({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+        });
+        _selfieSegmentationInstance.setOptions({
+          modelSelection: 1 // 1 = Landscape/Higher resolution model for formal portraits
+        });
+        return _selfieSegmentationInstance;
+      } catch (e) {
+        console.warn('Failed to init SelfieSegmentation:', e);
+        return null;
+      }
+    }
+    window.initSelfieSegmentationEngine = initSelfieSegmentationEngine;
+
+    /**
+     * Enhanced Photo Handler from Device with AI Maroon Background
+     */
+    function handlePubPhotoFile(input) {
+      if (!input || !input.files || !input.files[0]) return;
+      const file = input.files[0];
+      if (!file.type.startsWith('image/')) {
+        showModal('รูปแบบไฟล์ไม่ถูกต้อง', 'กรุณาเลือกไฟล์รูปภาพ (JPG, PNG หรือ WebP)', '⚠️');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        showModal('ไฟล์มีขนาดใหญ่เกินไป', 'กรุณาเลือกรูปภาพขนาดไม่เกิน 10MB', '⚠️');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        _rawOriginalPhotoDataUri = e.target.result;
+        pubStudentPhotoDataUri = e.target.result;
+
+        const img = document.getElementById('imgPubPhotoPreview');
+        const ico = document.getElementById('icoPubPhotoPlaceholder');
+        const bgPanel = document.getElementById('panelPhotoBgOptions');
+
+        if (img) {
+          img.src = _rawOriginalPhotoDataUri;
+          img.style.display = 'block';
+        }
+        if (ico) ico.style.display = 'none';
+        if (bgPanel) bgPanel.style.display = 'block';
+
+        // Auto-standardize background directly to Maroon (#800000)
+        applyPhotoBackground(MAROON_BG_COLOR);
+      };
+      reader.readAsDataURL(file);
+    }
+    window.handlePubPhotoFile = handlePubPhotoFile;
+
+    /**
+     * Apply AI Maroon Background Color (#800000)
+     */
+    async function applyPhotoBackground(targetHexColor) {
+      _currentPhotoBgColor = targetHexColor || MAROON_BG_COLOR;
+      if (!_rawOriginalPhotoDataUri) return;
+
+      const bgPanel = document.getElementById('panelPhotoBgOptions');
+      const procEl = document.getElementById('lblPhotoAiProcessing');
+      const succEl = document.getElementById('lblPhotoAiSuccess');
+
+      if (bgPanel) bgPanel.style.display = 'block';
+      if (procEl) procEl.style.display = 'block';
+      if (succEl) succEl.style.display = 'none';
+
+      try {
+        const segmenter = await initSelfieSegmentationEngine();
+        const imgEl = new Image();
+        imgEl.crossOrigin = 'anonymous';
+        imgEl.onload = async () => {
+          if (!segmenter) {
+            if (procEl) procEl.style.display = 'none';
+            if (succEl) succEl.style.display = 'flex';
+            return;
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = 600;
+          canvas.height = 800;
+          const ctx = canvas.getContext('2d');
+
+          segmenter.onResults((results) => {
+            // 1. Draw solid Maroon background (#800000)
+            ctx.fillStyle = _currentPhotoBgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Composite person foreground using segmentation mask
+            ctx.save();
+            ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+            ctx.globalCompositeOperation = 'source-in';
+            ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+
+            // 3. Final composite
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = 600;
+            finalCanvas.height = 800;
+            const fctx = finalCanvas.getContext('2d');
+            fctx.fillStyle = _currentPhotoBgColor;
+            fctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+            fctx.drawImage(canvas, 0, 0);
+
+            pubStudentPhotoDataUri = finalCanvas.toDataURL('image/jpeg', 0.88);
+            const img = document.getElementById('imgPubPhotoPreview');
+            if (img) img.src = pubStudentPhotoDataUri;
+
+            if (procEl) procEl.style.display = 'none';
+            if (succEl) succEl.style.display = 'flex';
+            if (typeof savePublicRegisterDraft === 'function') savePublicRegisterDraft();
+          });
+
+          await segmenter.send({ image: imgEl });
+        };
+        imgEl.src = _rawOriginalPhotoDataUri;
+      } catch (err) {
+        console.warn('[AI Photo] Maroon background segmentation fallback:', err);
+        if (procEl) procEl.style.display = 'none';
+        if (succEl) succEl.style.display = 'flex';
+      }
+    }
+    window.applyPhotoBackground = applyPhotoBackground;
+
+    /**
+     * Update Tuition Fee display dynamically when Course is selected
+     */
+    function updateCourseFeeDisplay() {
+      const selCourse = document.getElementById('selPubCourse');
+      const lblAmount = document.getElementById('lblPubPaymentAmount');
+      const lblName = document.getElementById('lblPubPaymentCourseName');
+      if (!selCourse || !lblAmount) return;
+
+      const val = (selCourse.value || '').trim();
+      if (!val) {
+        lblAmount.textContent = '-';
+        if (lblName) lblName.textContent = 'กรุณาเลือกหลักสูตรในหมวดที่ 3 เพื่อแสดงยอดเงิน';
+        return;
+      }
+
+      let fee = 4000;
+      let courseTitle = val;
+      if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
+        const found = cachedCoursesList.find(c => c.name === val || c.code === val || c.id === val);
+        if (found) {
+          if (found.price) fee = Number(found.price);
+          courseTitle = (found.code ? `[${found.code}] ` : '') + found.name;
+        }
+      }
+
+      lblAmount.textContent = `฿${fee.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (lblName) lblName.textContent = `หลักสูตร: ${courseTitle}`;
+    }
+    window.updateCourseFeeDisplay = updateCourseFeeDisplay;
+
+    /**
+     * Handle Payment Slip Upload & Preview
+     */
+    function handlePubSlipUpload(input) {
+      if (!input || !input.files || !input.files[0]) return;
+      const file = input.files[0];
+      if (!file.type.startsWith('image/')) {
+        showModal('รูปแบบไฟล์ไม่ถูกต้อง', 'กรุณาแนบไฟล์รูปภาพสลิปโอนเงิน (JPG หรือ PNG)', '⚠️');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        showModal('ไฟล์มีขนาดใหญ่เกินไป', 'กรุณาแนบสลิปขนาดไม่เกิน 10MB', '⚠️');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        pubPaymentSlipDataUri = e.target.result;
+        const img = document.getElementById('imgPubSlipPreview');
+        const emptyPrompt = document.getElementById('boxPubSlipEmptyPrompt');
+        const previewContainer = document.getElementById('boxPubSlipPreviewContainer');
+
+        if (img) img.src = pubPaymentSlipDataUri;
+        if (emptyPrompt) emptyPrompt.style.display = 'none';
+        if (previewContainer) previewContainer.style.display = 'block';
+        if (typeof savePublicRegisterDraft === 'function') savePublicRegisterDraft();
+      };
+      reader.readAsDataURL(file);
+    }
+    window.handlePubSlipUpload = handlePubSlipUpload;
+
+    /**
+     * Upload Payment Slip Image to Supabase File Storage (Bucket: student-photos, folder: slips/)
+     */
+    async function uploadPaymentSlipToStorage(dataUri, studentId) {
+      if (!dataUri || !dataUri.startsWith('data:image/')) return '';
+      if (typeof _supabase === 'undefined' || !_supabase || !_supabase.storage) return '';
+
+      let blob;
+      try {
+        if (typeof compressImageForStorage === 'function') {
+          blob = await compressImageForStorage(dataUri, 1200, 1200, 0.85);
+        } else {
+          const parts = dataUri.split(',');
+          const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
+          const bstr = window.atob(parts[1]);
+          let n = bstr.length;
+          const u8arr = new window.Uint8Array(n);
+          while (n--) u8arr[n] = bstr.charCodeAt(n);
+          blob = new window.Blob([u8arr], { type: mime });
+        }
+      } catch (_) {
+        return '';
+      }
+
+      const cleanSid = String(studentId || 'unknown').replace(/[^0-9A-Za-z_-]/g, '');
+      const fileName = `slips/slip_${cleanSid}_${Date.now()}.jpg`;
+
+      const { data, error } = await _supabase.storage
+        .from('student-photos')
+        .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+
+      if (error) {
+        console.warn('[Storage] Slip upload error:', error);
+        return '';
+      }
+
+      const { data: pubData } = _supabase.storage.from('student-photos').getPublicUrl(fileName);
+      return pubData ? pubData.publicUrl : '';
+    }
+    window.uploadPaymentSlipToStorage = uploadPaymentSlipToStorage;
+
+    /**
+     * Point 1: Open Pending Slips Queue Modal in #tabReceipts
+     */
+    function openPendingSlipsModal() {
+      const modal = document.getElementById('modalPendingSlips');
+      if (modal) modal.style.display = 'flex';
+      loadPendingSlipsQueue();
+    }
+    window.openPendingSlipsModal = openPendingSlipsModal;
+
+    function closePendingSlipsModal() {
+      const modal = document.getElementById('modalPendingSlips');
+      if (modal) modal.style.display = 'none';
+    }
+    window.closePendingSlipsModal = closePendingSlipsModal;
+
+    function zoomSlipModal(url) {
+      const modal = document.getElementById('modalZoomSlip');
+      const img = document.getElementById('imgZoomSlipFull');
+      if (modal && img && url) {
+        img.src = url;
+        modal.style.display = 'flex';
+      }
+    }
+    window.zoomSlipModal = zoomSlipModal;
+
+    function closeZoomSlipModal() {
+      const modal = document.getElementById('modalZoomSlip');
+      if (modal) modal.style.display = 'none';
+    }
+    window.closeZoomSlipModal = closeZoomSlipModal;
+
+    function copyPendingPhone(phone) {
+      if (!phone) return;
+      navigator.clipboard.writeText(phone);
+      if (typeof showToast === 'function') showToast('คัดลอกเบอร์โทรแล้ว', phone, '📋', 2000);
+    }
+    window.copyPendingPhone = copyPendingPhone;
+
+    function copyPendingLine(lineId) {
+      if (!lineId) return;
+      navigator.clipboard.writeText(lineId);
+      if (typeof showToast === 'function') showToast('คัดลอก LINE ID แล้ว', lineId, '📋', 2000);
+    }
+    window.copyPendingLine = copyPendingLine;
+
+    /**
+     * Point 1: Load and Render Pending Slips in #tabReceipts
+     */
+    async function loadPendingSlipsQueue() {
+      const container = document.getElementById('boxPendingSlipsList');
+      const badge = document.getElementById('badgePendingSlipsCount');
+      if (!container) return;
+
+      let pendingList = [];
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data, error } = await _supabase
+            .from('fee_settings')
+            .select('*')
+            .like('key', 'pending_slip:%')
+            .order('updated_at', { ascending: false });
+          if (!error && Array.isArray(data)) {
+            pendingList = data.map(r => {
+              try { return JSON.parse(r.name); } catch(_) { return null; }
+            }).filter(Boolean);
+          }
+        } catch (e) {
+          console.warn('loadPendingSlipsQueue error:', e);
+        }
+      }
+
+      // Update badge in #tabReceipts
+      if (badge) {
+        badge.textContent = pendingList.length;
+        badge.style.display = pendingList.length > 0 ? 'inline-block' : 'none';
+      }
+
+      if (pendingList.length === 0) {
+        container.innerHTML = `
+          <div style="text-align:center; padding:50px 10px; color:#64748B;">
+            <i class="fa-solid fa-circle-check" style="font-size:36px; color:#10B981; margin-bottom:10px;"></i>
+            <div style="font-size:15px; font-weight:700; color:#E2E8F0;">ไม่มีรายการสลิปรอตรวจสอบ</div>
+            <div style="font-size:12.5px; color:#94A3B8; margin-top:3px;">การสมัครเรียนออนไลน์ทั้งหมดได้รับการตรวจสอบเรียบร้อยแล้ว</div>
+          </div>`;
+        return;
+      }
+
+      let html = '';
+      pendingList.forEach(item => {
+        const sid = item.studentId || '-';
+        const name = item.fullName || '-';
+        const phone = item.phone || '-';
+        const lineId = item.lineId || '';
+        const course = item.course || '-';
+        const schedule = item.schedule || '-';
+        const expectedFee = Number(item.expectedFee || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 });
+        const slipAmount = item.slipAmount ? Number(item.slipAmount).toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-';
+        const reason = item.reason || 'รอเจ้าหน้าที่การเงินตรวจสอบยอดเงิน';
+        const slipUrl = item.slipUrl || '';
+        const cleanPhone = phone.replace(/[^0-9]/g, '');
+
+        let slipImgHtml = '<div style="width:130px; height:150px; background:#0F172A; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#64748B; font-size:12px;">ไม่มีรูปสลิป</div>';
+        if (slipUrl) {
+          slipImgHtml = '<img src="' + slipUrl + '" data-url="' + slipUrl + '" alt="Slip" style="width:130px; height:150px; object-fit:cover; border-radius:8px; border:1px solid #475569; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,0.3);" onclick="zoomSlipModal(this.dataset.url)" title="คลิกเพื่อขยายภาพสลิป" />' +
+            '<div style="font-size:11px; color:#38BDF8; margin-top:4px; cursor:pointer;" data-url="' + slipUrl + '" onclick="zoomSlipModal(this.dataset.url)">🔍 คลิกขยายรูปสลิป</div>';
+        }
+
+        let phoneActionHtml = '';
+        if (cleanPhone) {
+          phoneActionHtml = '<a href="tel:' + cleanPhone + '" style="display:inline-flex; align-items:center; gap:5px; background:rgba(16,185,129,0.15); border:1px solid #10B981; color:#34D399; padding:5px 12px; border-radius:8px; font-size:12px; font-weight:700; text-decoration:none;"><i class="fa-solid fa-phone"></i> โทร ' + phone + '</a>' +
+            '<button type="button" data-phone="' + cleanPhone + '" onclick="copyPendingPhone(this.dataset.phone)" style="background:#334155; color:#F8FAFC; border:none; border-radius:8px; padding:5px 10px; font-size:11.5px; cursor:pointer; font-weight:600;">คัดลอกเบอร์</button>';
+        }
+
+        let lineActionHtml = '<span style="font-size:11.5px; color:#64748B;">ไม่มี LINE ID</span>';
+        if (lineId) {
+          lineActionHtml = '<a href="https://line.me/R/ti/p/~' + encodeURIComponent(lineId) + '" target="_blank" style="display:inline-flex; align-items:center; gap:5px; background:#06C755; color:#FFFFFF; padding:5px 12px; border-radius:8px; font-size:12px; font-weight:700; text-decoration:none;"><i class="fa-brands fa-line"></i> เปิด LINE: ' + lineId + '</a>' +
+            '<button type="button" data-line="' + lineId + '" onclick="copyPendingLine(this.dataset.line)" style="background:#334155; color:#F8FAFC; border:none; border-radius:8px; padding:5px 10px; font-size:11.5px; cursor:pointer; font-weight:600;">คัดลอก ID</button>';
+        }
+
+        html += `
+          <div style="background:#1E293B; border:1px solid #334155; border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; border-bottom:1px solid #334155; padding-bottom:12px;">
+              <div>
+                <div style="font-size:16px; font-weight:800; color:#F8FAFC;">
+                  <span style="color:#F59E0B; font-family:monospace; margin-right:6px;">[` + sid + `]</span>` + name + `
+                </div>
+                <div style="font-size:12.5px; color:#94A3B8; margin-top:3px;">
+                  <span>📚 หลักสูตร: <strong style="color:#38BDF8;">` + course + `</strong></span> |
+                  <span>⏰ รอบ: <strong style="color:#CBD5E1;">` + schedule + `</strong></span>
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11.5px; color:#94A3B8;">ยอดค่าเล่าเรียน:</div>
+                <div style="font-size:18px; font-weight:800; color:#F59E0B; font-family:monospace;">฿` + expectedFee + `</div>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:16px; flex-wrap:wrap;">
+              <div style="width:130px; text-align:center;">` + slipImgHtml + `</div>
+              <div style="flex:1; min-width:240px; display:flex; flex-direction:column; justify-content:space-between; gap:10px;">
+                <div style="background:#0F172A; border-left:3px solid #F59E0B; border-radius:6px; padding:10px 12px;">
+                  <div style="font-size:11.5px; font-weight:700; color:#F59E0B; margin-bottom:2px;">⚠️ สาเหตุที่รอตรวจสอบ:</div>
+                  <div style="font-size:12px; color:#E2E8F0;">` + reason + ` (ยอดที่ตรวจพบในสลิป: ฿` + slipAmount + `)</div>
+                </div>
+
+                <div>
+                  <div style="font-size:12px; font-weight:700; color:#CBD5E1; margin-bottom:6px;">ชุดติดต่อผู้สมัครด่วน (Direct Contact):</div>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap;">` + phoneActionHtml + lineActionHtml + `</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px; border-top:1px solid #334155; padding-top:12px;">
+              <button type="button" data-sid="` + sid + `" onclick="approvePendingSlip(this.dataset.sid)" style="background:#10B981; color:#FFFFFF; border:none; border-radius:8px; padding:8px 18px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(16,185,129,0.3);">
+                <i class="fa-solid fa-check-circle"></i> ยืนยันยอดเงินและส่งใบเสร็จเข้าเมล
+              </button>
+            </div>
+          </div>`;
+      });
+
+      container.innerHTML = html;
+    }
+    window.loadPendingSlipsQueue = loadPendingSlipsQueue;
+
+    /**
+     * Point 1: Cashier Approves Pending Slip -> Issues Receipt + Sends Email
+     */
+    async function approvePendingSlip(studentId) {
+      if (!studentId) return;
+      try {
+        const { data: fRow } = await _supabase
+          .from('fee_settings')
+          .select('*')
+          .eq('key', 'pending_slip:' + studentId)
+          .maybeSingle();
+
+        if (!fRow || !fRow.name) {
+          if (typeof showToast === 'function') showToast('ไม่พบข้อมูล', 'ไม่พบรายการสลิปที่รอตรวจสอบ', '⚠️', 3000);
+          return;
+        }
+
+        const info = JSON.parse(fRow.name);
+
+        // 1. Update Student status to ACTIVE
+        await _supabase
+          .from('students')
+          .update({ status: 'ACTIVE' })
+          .eq('student_id', studentId);
+
+        // 2. Issue Receipt via saveReceipt
+        const yearBE = typeof resolveCurrentAcademicTerm === 'function' ? (resolveCurrentAcademicTerm()?.yearBE || 2569) : 2569;
+        const term = typeof resolveCurrentAcademicTerm === 'function' ? (resolveCurrentAcademicTerm()?.term || 5) : 5;
+        const effectiveCashier = typeof getEffectivePayeeName === 'function' ? getEffectivePayeeName() : 'เจ้าหน้าที่การเงิน OCA';
+
+        const rcPayload = {
+          receiptNo: undefined,
+          type: 'tuition',
+          yearBE: yearBE,
+          term: term,
+          studentId: studentId,
+          buyerId: studentId,
+          fullName: info.fullName || '',
+          buyerName: info.fullName || '',
+          cashierName: effectiveCashier,
+          address: info.address || '-',
+          phone: info.phone || '',
+          email: info.email || '',
+          sendEmail: true,
+          courseId: '',
+          courseName: info.course || '',
+          course: info.course || '',
+          schedule: info.schedule || '',
+          scheduleName: info.schedule || '',
+          materialType: 'รับเอกสารที่โรงเรียน',
+          deliveryMethod: 'รับเอง',
+          learningMode: 'Online',
+          baseAmount: Number(info.expectedFee || 4000),
+          regFee: 0,
+          cardFee: 0,
+          otherRegFee: 0,
+          transferFee: 0,
+          discountNormal: 0,
+          discountOther: 0,
+          grandTotal: Number(info.expectedFee || 4000),
+          paymentMethod: 'TRANSFER',
+          paymentRef: info.slipRef || 'ONLINE_SLIP_VERIFIED'
+        };
+
+        const rcRes = await callGasApi('saveReceipt', rcPayload, 'POST');
+
+        // 3. Remove pending slip record from fee_settings
+        await _supabase
+          .from('fee_settings')
+          .delete()
+          .eq('key', 'pending_slip:' + studentId);
+
+        if (typeof showToast === 'function') {
+          showToast('อนุมัติสำเร็จ', `ออกใบเสร็จรับเงิน ${rcRes.receiptNo || ''} และส่งเข้าอีเมลเรียบร้อยแล้ว`, '✅', 4000);
+        }
+        loadPendingSlipsQueue();
+        if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable();
+      } catch (err) {
+        console.error('approvePendingSlip error:', err);
+        if (typeof showToast === 'function') showToast('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถอนุมัติได้', '❌', 4000);
+      }
+    }
+    window.approvePendingSlip = approvePendingSlip;
 
     </script>
 
