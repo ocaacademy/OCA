@@ -241297,198 +241297,17 @@ body.printing-report #printReportContainer {
 
 
 
-                <!-- Instructor Name -->
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                <!-- Instructor Name & Dropdown from Settings Staff -->
                 <div class="oca-input-group">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  <label class="oca-label" for="txtRosterInstructor" style="font-size:12px; color:#38bdf8; font-weight:700;">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                    <i class="fa-solid fa-chalkboard-user" style="margin-right:6px;"></i>อาจารย์ผู้สอน (Instructor)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                  <label class="oca-label" for="selRosterInstructor" style="font-size:12px; color:#38bdf8; font-weight:700;">
+                    <i class="fa-solid fa-chalkboard-user" style="margin-right:6px;"></i>อาจารย์ผู้สอน (Instructor) *
                   </label>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  <input type="text" id="txtRosterInstructor" class="oca-input" value="สุรีย์วรรณ Xiufang" placeholder="เช่น สุรีย์วรรณ Xiufang">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                    <select id="selRosterInstructor" class="oca-input" onchange="onRosterInstructorDropdownChanged(this.value)" style="flex:1; min-width:180px; font-size:12.5px; font-weight:600; color:#38bdf8;">
+                      <option value="">-- เลือกอาจารย์ผู้สอน (ตามบัญชี Teacher ใน Settings) --</option>
+                    </select>
+                    <input type="text" id="txtRosterInstructor" class="oca-input" placeholder="หรือระบุชื่ออาจารย์เพิ่มเติม" style="flex:1; min-width:160px;">
+                  </div>
                 </div>
 
 
@@ -334519,12 +334338,19 @@ body.printing-report #printReportContainer {
 
 
 
+          .on('broadcast', { event: 'staff_user_deleted' }, (payload) => {
+            console.log('[Realtime Broadcast] Staff user deleted:', payload);
+            if (typeof loadUsersList === 'function') loadUsersList(true, true);
+            if (typeof populateClassroomInstructors === 'function') populateClassroomInstructors();
+          })
           .on('broadcast', { event: 'staff_permissions_updated' }, (payload) => {
             console.log('[Realtime Broadcast] Staff permissions updated:', payload);
             const data = (payload && payload.payload) ? payload.payload : payload;
             if (typeof handleRealtimeStaffPermissionsUpdate === 'function') {
               handleRealtimeStaffPermissionsUpdate(data);
             }
+            if (typeof loadUsersList === 'function') loadUsersList(true, true);
+            if (typeof populateClassroomInstructors === 'function') populateClassroomInstructors();
           })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
 
@@ -433631,261 +433457,14 @@ body.printing-report #printReportContainer {
 
 
             const defaultRolePerms = {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              'Admin': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+              'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings', 'teacher'],
+              'Admin': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings', 'teacher'],
+              'Teacher': ['teacher', 'report'],
               'Registrar': ['dashboard', 'enroll', 'search', 'courses', 'card', 'report'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
               'Cashier': ['dashboard', 'receipts', 'report'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
               'Staff': ['dashboard', 'textbooks', 'shipping'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
               'Logistics': ['dashboard', 'textbooks', 'shipping'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
               'Academic': ['dashboard', 'courses', 'report']
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             };
 
 
@@ -867570,6 +867149,7 @@ function openForgotPasswordModal() {
 
 
     function loadUsersList(force = true, isSilent = false) {
+      if (force) { try { window._lastRenderedSignatures['usersList'] = null; } catch(_) {} }
 
 
 
@@ -867986,6 +867566,7 @@ function openForgotPasswordModal() {
 
 
           renderUsersListTable(cachedUsersList);
+          if (typeof populateClassroomInstructors === 'function') populateClassroomInstructors();
 
 
 
@@ -869874,229 +869455,13 @@ function openForgotPasswordModal() {
 
 
           const defaultRolePerms = {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            'Admin': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings', 'teacher'],
+            'Admin': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings', 'teacher'],
+            'Teacher': ['teacher', 'report'],
             'Registrar': ['dashboard', 'enroll', 'search', 'courses', 'card', 'report'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             'Cashier': ['dashboard', 'receipts', 'report'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             'Staff': ['dashboard', 'textbooks', 'shipping'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             'Logistics': ['dashboard', 'textbooks', 'shipping']
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           };
 
 
@@ -871250,133 +870615,16 @@ function openForgotPasswordModal() {
 
 
             <td style="padding:12px 16px; text-align:center;">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              <span style="padding:3px 10px; border-radius:12px; background:rgba(2,132,199,0.18); border:1px solid rgba(56,189,248,0.3); color:#38bdf8; font-size:11.5px; font-weight:600;">
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                ${u.role || 'Staff'}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              </span>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+              ${(u.role === 'Teacher') ? `
+                <span style="display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:12px; background:rgba(245,158,11,0.18); border:1px solid rgba(245,158,11,0.4); color:#f59e0b; font-size:11.5px; font-weight:700;">
+                  <i class="fa-solid fa-chalkboard-user"></i> <span>Teacher</span>
+                </span>
+                ${(u.assignedSchedule && u.assignedSchedule !== 'ALL') ? `<div style="font-size:10.5px; font-family:monospace; color:#38bdf8; margin-top:3px;"><i class="fa-solid fa-door-open" style="font-size:9px;"></i> ${u.assignedSchedule}</div>` : ''}
+              ` : `
+                <span style="padding:3px 10px; border-radius:12px; background:rgba(2,132,199,0.18); border:1px solid rgba(56,189,248,0.3); color:#38bdf8; font-size:11.5px; font-weight:600;">
+                  ${u.role || 'Staff'}
+                </span>
+              `}
             </td>
 
 
@@ -872693,261 +871941,14 @@ function openForgotPasswordModal() {
 
 
       const defaultRolePerms = {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        'Admin': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings', 'teacher'],
+        'Admin': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings', 'teacher'],
+        'Teacher': ['teacher', 'report'],
         'Registrar': ['dashboard', 'enroll', 'search', 'courses', 'card', 'report'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         'Cashier': ['dashboard', 'receipts', 'report'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         'Logistics': ['dashboard', 'textbooks', 'shipping'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         'Staff': ['dashboard', 'textbooks', 'shipping'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         'Academic': ['dashboard', 'courses', 'report']
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       };
 
 
@@ -876057,229 +875058,14 @@ function openForgotPasswordModal() {
 
 
         const defaultRolePerms = {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          'Admin': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          'Administrator': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings', 'teacher'],
+          'Admin': ['dashboard', 'enroll', 'search', 'courses', 'card', 'receipts', 'textbooks', 'shipping', 'report', 'settings', 'teacher'],
+          'Teacher': ['teacher', 'report'],
           'Registrar': ['dashboard', 'enroll', 'search', 'courses', 'card', 'report'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           'Cashier': ['dashboard', 'receipts', 'report'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           'Staff': ['dashboard', 'textbooks', 'shipping'],
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          'Logistics': ['dashboard', 'textbooks', 'shipping']
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          'Logistics': ['dashboard', 'textbooks', 'shipping'],
+          'Academic': ['dashboard', 'courses', 'report']
         };
 
 
@@ -878680,294 +877466,20 @@ function openForgotPasswordModal() {
 
 
 
+      const assignedSchedule = (document.getElementById('selModalTeacherSchedule')?.value) || 'ALL';
+      try { localStorage.setItem(`oca_teacher_sched_${username}`, assignedSchedule); } catch(_) {}
+
       const payload = {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         username: username,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         fullName: fullName,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         password: password,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         role: role,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         status: status,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         permissions: perms,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        assignedSchedule: assignedSchedule,
+        assigned_schedule: assignedSchedule,
         isEdit: isEdit,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         originalUsername: origU
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       };
 
 
@@ -880525,6 +879037,16 @@ function openForgotPasswordModal() {
 
 
                 showToast('ลบสำเร็จ!', res.message || `ลบผู้ใช้งาน ${username} เรียบร้อยแล้ว`, '✓');
+                if (typeof _ocaRealtimeChannel !== 'undefined' && _ocaRealtimeChannel && typeof _ocaRealtimeChannel.send === 'function') {
+                  try {
+                    _ocaRealtimeChannel.send({
+                      type: 'broadcast',
+                      event: 'staff_user_deleted',
+                      payload: { username: username }
+                    });
+                  } catch (_) {}
+                }
+                if (typeof populateClassroomInstructors === 'function') populateClassroomInstructors();
 
 
 
@@ -939655,7 +938177,75 @@ isOnlineResume: true,
       await onRosterFilterChanged();
     }
 
+    
+    /**
+     * ดึงรายชื่ออาจารย์ผู้สอนจากระบบ Accounts/Settings (Role: Teacher) มาแสดงใน Dropdown ใบแจ้งห้องเรียน
+     */
+    async function populateClassroomInstructors(selectedVal = '') {
+      const sel = document.getElementById('selRosterInstructor');
+      const inp = document.getElementById('txtRosterInstructor');
+      if (!sel) return;
+
+      let teachers = [];
+      if (typeof cachedUsersList !== 'undefined' && Array.isArray(cachedUsersList) && cachedUsersList.length > 0) {
+        teachers = cachedUsersList.filter(u => u.role === 'Teacher' || u.role === 'Academic');
+      }
+
+      if (teachers.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data } = await _supabase.from('staff_users')
+            .select('username, full_name, role, assigned_schedule')
+            .or('role.eq.Teacher,role.eq.Academic');
+          if (data && data.length > 0) {
+            teachers = data.map(d => ({
+              username: d.username,
+              fullName: d.full_name || d.username,
+              role: d.role,
+              assignedSchedule: d.assigned_schedule
+            }));
+          }
+        } catch (_) {}
+      }
+
+      sel.innerHTML = '<option value="">-- เลือกอาจารย์ผู้สอน (ตามบัญชี Teacher ใน Settings) --</option>';
+      teachers.forEach(t => {
+        const opt = document.createElement('option');
+        const name = t.fullName || t.username;
+        opt.value = name;
+        opt.setAttribute('data-username', t.username);
+        opt.setAttribute('data-schedule', t.assignedSchedule || '');
+        opt.textContent = `${name} (@${t.username}${t.assignedSchedule ? ' - ' + t.assignedSchedule : ''})`;
+        sel.appendChild(opt);
+      });
+
+      const optCustom = document.createElement('option');
+      optCustom.value = '__CUSTOM__';
+      optCustom.textContent = '✏️ ระบุชื่ออาจารย์เอง (พิมพ์ในช่องข้อความ)';
+      sel.appendChild(optCustom);
+
+      if (selectedVal) {
+        sel.value = selectedVal;
+        if (inp) inp.value = selectedVal;
+      } else if (!inp.value && teachers.length > 0) {
+        sel.selectedIndex = 1;
+        inp.value = sel.value;
+      }
+    }
+    window.populateClassroomInstructors = populateClassroomInstructors;
+
+    function onRosterInstructorDropdownChanged(val) {
+      const inp = document.getElementById('txtRosterInstructor');
+      if (!inp) return;
+      if (val === '__CUSTOM__') {
+        inp.focus();
+      } else if (val) {
+        inp.value = val;
+      }
+    }
+    window.onRosterInstructorDropdownChanged = onRosterInstructorDropdownChanged;
+
     async function initCourseClassroomView() {
+      await populateClassroomInstructors();
       await populateClassroomEnrolledCourses();
 
       const selSched = document.getElementById('selRosterSchedule');
@@ -942470,7 +941060,22 @@ isOnlineResume: true,
 
 
 
-          if (inpInst && savedCfg.instructor) inpInst.value = savedCfg.instructor;
+          if (inpInst && savedCfg.instructor) {
+            inpInst.value = savedCfg.instructor;
+            const selInst = document.getElementById('selRosterInstructor');
+            if (selInst) {
+              selInst.value = savedCfg.instructor;
+              if (!selInst.value) {
+                // If not found by exact name, search options
+                for (let i = 0; i < selInst.options.length; i++) {
+                  if (selInst.options[i].text.includes(savedCfg.instructor) || savedCfg.instructor.includes(selInst.options[i].value)) {
+                    selInst.selectedIndex = i;
+                    break;
+                  }
+                }
+              }
+            }
+          }
 
 
 
@@ -942758,102 +941363,24 @@ isOnlineResume: true,
 
 
 
-        } else if (inpRoom && !inpRoom.value.trim()) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          const foundRoom = currentRosterStudents.find(s => s.room)?.room;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          if (foundRoom) inpRoom.value = foundRoom;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        } else {
+          // If no saved instructor, attempt matching teacher by assigned schedule
+          const selInst = document.getElementById('selRosterInstructor');
+          if (selInst && schedVal && schedVal !== 'ALL') {
+            for (let i = 0; i < selInst.options.length; i++) {
+              const opt = selInst.options[i];
+              const schedAttr = opt.getAttribute('data-schedule');
+              if (schedAttr && schedAttr === schedVal) {
+                selInst.selectedIndex = i;
+                if (inpInst) inpInst.value = opt.value;
+                break;
+              }
+            }
+          }
+          if (inpRoom && !inpRoom.value.trim()) {
+            const foundRoom = currentRosterStudents.find(s => s.room)?.room;
+            if (foundRoom) inpRoom.value = foundRoom;
+          }
         }
 
 
