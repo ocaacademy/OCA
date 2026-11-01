@@ -272605,7 +272605,7 @@ body.printing-report #printReportContainer {
 
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
 
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v205</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v206</div>
 
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
 
@@ -331347,6 +331347,36 @@ body.printing-report #printReportContainer {
 
 
 
+              <!-- Section 3: แผนการเรียนและรอบเวลา (Course & Schedule) -->
+              <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:16px 14px; margin-bottom:20px;">
+                <div style="font-weight:700; color:#065F46; font-size:14px; margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+                  <span>📚</span>
+                  <span id="lblSec3Heading">ข้อมูลการสมัครเรียน (Course & Schedule)</span>
+                </div>
+                <div style="margin-bottom:12px;">
+                  <label id="lblPubCourse" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
+                    หลักสูตรที่ต้องการสมัคร <span style="color:#DC2626;">*</span>
+                  </label>
+                  <select id="selPubCourse" class="oca-reg-input" required onchange="savePublicRegisterDraft()">
+                    <option value="">-- กรุณาเลือกหลักสูตรที่ต้องการสมัคร --</option>
+                  </select>
+                </div>
+                <div style="margin-bottom:12px;">
+                  <label id="lblPubSchedule" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
+                    รอบเวลาเรียนที่สะดวก <span style="color:#DC2626;">*</span>
+                  </label>
+                  <select id="selPubSchedule" class="oca-reg-input" required onchange="savePublicRegisterDraft()">
+                    <option value="">-- กรุณาเลือกรอบเวลาเรียน --</option>
+                  </select>
+                </div>
+                <div>
+                  <label id="lblPubNotes" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
+                    หมายเหตุ / พื้นฐานภาษาจีนเดิม (ถ้ามี)
+                  </label>
+                  <textarea id="txtPubNotes" class="oca-reg-input" rows="3" placeholder="เช่น เคยเรียนภาษาจีนมาแล้ว 1 ปี, ต้องการเรียนเพื่อสอบ HSK 4, หรือเงื่อนไขเวลาพิเศษ" oninput="savePublicRegisterDraft()"></textarea>
+                </div>
+              </div>
+
               <!-- Submit Button -->
 
 
@@ -332468,6 +332498,9 @@ body.printing-report #printReportContainer {
 
 
                 <div><span style="color:#6B7280;" id="lblSuccessAddrLabel">ที่อยู่จัดส่ง:</span> <span id="lblPubSuccessAddr" style="color:#0F172A;">-</span></div>
+                <div style="margin-top:6px;"><span style="color:#6B7280;" id="lblSuccessCourseLabel">หลักสูตร:</span> <strong id="lblPubSuccessCourse" style="color:#047857;">-</strong></div>
+                <div style="margin-top:6px;"><span style="color:#6B7280;" id="lblSuccessScheduleLabel">รอบเวลาเรียน:</span> <strong id="lblPubSuccessSchedule" style="color:#047857;">-</strong></div>
+                <div id="rowPubSuccessNotes" style="margin-top:6px; display:none;"><span style="color:#6B7280;" id="lblSuccessNotesLabel">หมายเหตุ:</span> <span id="lblPubSuccessNotes" style="color:#374151;">-</span></div>
 
 
 
@@ -341267,6 +341300,7 @@ body.printing-report #printReportContainer {
 
 
         if (typeof refreshReportsModuleRealtime === 'function') refreshReportsModuleRealtime('courses', true);
+        if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
 
 
 
@@ -341545,6 +341579,7 @@ body.printing-report #printReportContainer {
 
 
         if (typeof refreshReportsModuleRealtime === 'function') refreshReportsModuleRealtime('schedules', true);
+        if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
 
 
 
@@ -385621,7 +385656,25 @@ body.printing-report #printReportContainer {
 
 
 
-          let assignedStudentId = rawPassedSid || (idPrefix + '0001');
+          let assignedStudentId = rawPassedSid;
+          if (!assignedStudentId) {
+            try {
+              const { data: maxRows } = await _supabase
+                .from('students')
+                .select('student_id')
+                .like('student_id', `${idPrefix}%`)
+                .order('student_id', { ascending: false })
+                .limit(1);
+              if (maxRows && maxRows.length > 0 && maxRows[0].student_id) {
+                const lastSeq = parseInt(String(maxRows[0].student_id).slice(-4), 10) || 0;
+                assignedStudentId = `${idPrefix}${String(lastSeq + 1).padStart(4, '0')}`;
+              } else {
+                assignedStudentId = `${idPrefix}0001`;
+              }
+            } catch (_) {
+              assignedStudentId = `${idPrefix}0001`;
+            }
+          }
 
 
 
@@ -386404,7 +386457,11 @@ body.printing-report #printReportContainer {
 
 
 
-              const em = (params.emergencyPhone || params.emergencyContact || '').trim();
+              const usrN = (params.userNotes || params.pubNotes || '').trim();
+            if (usrN && !n.includes(usrN)) {
+              n = n ? (n + ' | หมายเหตุ: ' + usrN) : ('หมายเหตุ: ' + usrN);
+            }
+            const em = (params.emergencyPhone || params.emergencyContact || '').trim();
 
 
 
@@ -839292,6 +839349,12 @@ function updateReceiptLivePreview() {
     function executeForcedSessionLogout(data) {
 
       if (_isKickingForcedSession) return;
+      const _currUser = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+      const _kickedUser = String((data && data.username) ? data.username : (_currUser ? _currUser.username : '')).toLowerCase().trim();
+      if (_kickedUser === 'admin') {
+        console.warn('[Session Security] Master admin account is strictly immune to session kick.');
+        return;
+      }
 
       _isKickingForcedSession = true;
 
@@ -856631,7 +856694,7 @@ function updateReceiptLivePreview() {
 
         if (specVer) {
 
-          specVer.textContent = 'oca-pwa-v205';
+          specVer.textContent = 'oca-pwa-v206';
 
         }
 
@@ -920680,7 +920743,19 @@ function openForgotPasswordModal() {
 
 
 
-        submitting: 'กำลังบันทึกข้อมูลและออกรหัสนักศึกษา...'
+        submitting: 'กำลังบันทึกข้อมูลและออกรหัสนักศึกษา...',
+        sec3Heading: 'ข้อมูลการสมัครเรียน (Course & Schedule)',
+        course: 'หลักสูตรที่ต้องการสมัคร',
+        courseSelect: '-- กรุณาเลือกหลักสูตรที่ต้องการสมัคร --',
+        schedule: 'รอบเวลาเรียนที่สะดวก',
+        scheduleSelect: '-- กรุณาเลือกรอบเวลาเรียน --',
+        notes: 'หมายเหตุ / พื้นฐานภาษาจีนเดิม (ถ้ามี)',
+        notesPlace: 'เช่น เคยเรียนภาษาจีนมาแล้ว 1 ปี, ต้องการเรียนเพื่อสอบ HSK 4, หรือเงื่อนไขเวลาพิเศษ',
+        valCourse: 'กรุณาเลือกหลักสูตรที่ต้องการสมัคร',
+        valSchedule: 'กรุณาเลือกรอบเวลาเรียนที่สะดวก',
+        successCourseLabel: 'หลักสูตร:',
+        successScheduleLabel: 'รอบเวลาเรียน:',
+        successNotesLabel: 'หมายเหตุ:'
 
 
 
@@ -922664,7 +922739,19 @@ function openForgotPasswordModal() {
 
 
 
-        submitting: 'Saving application and generating Student ID...'
+        submitting: 'Saving application and generating Student ID...',
+        sec3Heading: 'Course & Schedule Information',
+        course: 'Selected Course / Program',
+        courseSelect: '-- Please select a course --',
+        schedule: 'Preferred Study Schedule',
+        scheduleSelect: '-- Please select study schedule --',
+        notes: 'Notes / Prior Chinese Background (Optional)',
+        notesPlace: 'e.g., Studied Chinese for 1 year, preparing for HSK 4, or special request',
+        valCourse: 'Please select a course to enroll',
+        valSchedule: 'Please select a preferred study schedule',
+        successCourseLabel: 'Course:',
+        successScheduleLabel: 'Schedule:',
+        successNotesLabel: 'Notes:'
 
 
 
@@ -924489,6 +924576,17 @@ function openForgotPasswordModal() {
 
 
       setPlace('txtPubPostalCode', dict.postalCodePlace);
+      setTxt('lblSec3Heading', dict.sec3Heading);
+      setTxt('lblPubCourse', dict.course ? (dict.course + ' *') : '');
+      setTxt('lblPubSchedule', dict.schedule ? (dict.schedule + ' *') : '');
+      setTxt('lblPubNotes', dict.notes);
+      setPlace('txtPubNotes', dict.notesPlace);
+      setTxt('lblSuccessCourseLabel', dict.successCourseLabel);
+      setTxt('lblSuccessScheduleLabel', dict.successScheduleLabel);
+      setTxt('lblSuccessNotesLabel', dict.successNotesLabel);
+      if (typeof populatePublicEnrollDropdowns === 'function') {
+        populatePublicEnrollDropdowns();
+      }
 
 
 
@@ -926281,6 +926379,9 @@ function openForgotPasswordModal() {
 
 
           postalCode: (document.getElementById('txtPubPostalCode')?.value || '').trim(),
+        course: (document.getElementById('selPubCourse')?.value || '').trim(),
+        schedule: (document.getElementById('selPubSchedule')?.value || '').trim(),
+        notes: (document.getElementById('txtPubNotes')?.value || '').trim(),
 
 
 
@@ -927913,6 +928014,9 @@ function openForgotPasswordModal() {
 
 
         setVal('txtPubPostalCode', data.postalCode);
+      setVal('selPubCourse', data.course);
+      setVal('selPubSchedule', data.schedule);
+      setVal('txtPubNotes', data.notes);
 
 
 
@@ -934696,7 +934800,10 @@ function openForgotPasswordModal() {
 
 
 
-        if (urlParams.get('page') === 'register' || window.location.hash === '#register') {
+        if (typeof populatePublicEnrollDropdowns === 'function') {
+        populatePublicEnrollDropdowns();
+      }
+      if (urlParams.get('page') === 'register' || window.location.hash === '#register') {
 
 
 
@@ -936342,6 +936449,123 @@ function openForgotPasswordModal() {
 
 
 
+    /**
+     * Realtime Course and Schedule Dropdown Populator
+     * Dynamically pulls active courses & master schedules from Supabase
+     * Preserves existing applicant selection seamlessly across websocket broadcasts
+     */
+    async function populatePublicEnrollDropdowns() {
+      const selCourse = document.getElementById('selPubCourse');
+      const selSchedule = document.getElementById('selPubSchedule');
+      if (!selCourse && !selSchedule) return;
+
+      const currentCourseVal = selCourse ? selCourse.value : '';
+      const currentScheduleVal = selSchedule ? selSchedule.value : '';
+
+      const dict = (typeof OCA_REG_I18N !== 'undefined' && OCA_REG_I18N[currentRegLanguage])
+        ? OCA_REG_I18N[currentRegLanguage]
+        : { courseSelect: '-- กรุณาเลือกหลักสูตรที่ต้องการสมัคร --', scheduleSelect: '-- กรุณาเลือกรอบเวลาเรียน --' };
+
+      // 1. Fetch active courses
+      if (selCourse) {
+        let coursesList = [];
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          try {
+            const { data, error } = await _supabase
+              .from('courses')
+              .select('id, code, name, is_active')
+              .eq('is_active', true)
+              .order('id');
+            if (!error && Array.isArray(data) && data.length > 0) {
+              coursesList = data;
+            }
+          } catch (err) {
+            console.warn('[Realtime Enrollment] Courses fetch fallback:', err);
+          }
+        }
+        if (!coursesList || coursesList.length === 0) {
+          coursesList = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
+            ? cachedCoursesList
+            : [
+                { id: 'C-01', code: 'CHN-B1', name: 'ภาษาจีนระดับต้น 1 (Beginner Chinese 1)' },
+                { id: 'C-02', code: 'CHN-B2', name: 'ภาษาจีนระดับต้น 2 (Beginner Chinese 2)' },
+                { id: 'C-03', code: 'CHN-I1', name: 'ภาษาจีนระดับกลาง 1 (Intermediate Chinese 1)' },
+                { id: 'C-04', code: 'CHN-I2', name: 'ภาษาจีนระดับกลาง 2 (Intermediate Chinese 2)' },
+                { id: 'C-05', code: 'CHN-ADV', name: 'ภาษาจีนระดับสูง (Advanced Chinese)' },
+                { id: 'C-06', code: 'CHN-BIZ', name: 'ภาษาจีนเพื่อการสื่อสารธุรกิจ (Business Chinese)' },
+                { id: 'C-07', code: 'CHN-HSK', name: 'ติวสอบวัดระดับ HSK (HSK Preparation)' }
+              ];
+        }
+
+        const safeEscape = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        let htmlCourse = `<option value="">${safeEscape(dict.courseSelect || '-- กรุณาเลือกหลักสูตรที่ต้องการสมัคร --')}</option>`;
+        coursesList.forEach(c => {
+          const label = c.code ? `${c.code} - ${c.name}` : (c.name || c.id);
+          const val = c.name || c.code || c.id;
+          htmlCourse += `<option value="${safeEscape(val)}">${safeEscape(label)}</option>`;
+        });
+        selCourse.innerHTML = htmlCourse;
+        if (currentCourseVal) {
+          for (let opt of selCourse.options) {
+            if (opt.value === currentCourseVal) {
+              selCourse.value = currentCourseVal;
+              break;
+            }
+          }
+        }
+      }
+
+      // 2. Fetch active schedules (Preserve 8 master schedules SCH-01 to SCH-08)
+      if (selSchedule) {
+        let schedulesList = [];
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          try {
+            const { data, error } = await _supabase
+              .from('schedules')
+              .select('id, name, is_active')
+              .eq('is_active', true)
+              .order('id');
+            if (!error && Array.isArray(data) && data.length > 0) {
+              schedulesList = data;
+            }
+          } catch (err) {
+            console.warn('[Realtime Enrollment] Schedules fetch fallback:', err);
+          }
+        }
+        if (!schedulesList || schedulesList.length === 0) {
+          schedulesList = (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES))
+            ? OFFICIAL_DEFAULT_SCHEDULES
+            : [
+                { id: 'SCH-01', name: 'จันทร์และพุธ 18.30-21.00 น.' },
+                { id: 'SCH-02', name: 'อังคารและพฤหัส 09.30-12.00 น.' },
+                { id: 'SCH-03', name: 'อังคารและพฤหัส 18.30-21.00 น.' },
+                { id: 'SCH-04', name: 'เสาร์ 08.00-12.30 น.' },
+                { id: 'SCH-05', name: 'เสาร์ 13.00-17.30 น.' },
+                { id: 'SCH-06', name: 'เสาร์ 17.30-21.00 น.' },
+                { id: 'SCH-07', name: 'อาทิตย์ 08.00-12.30 น.' },
+                { id: 'SCH-08', name: 'อาทิตย์ 13.00-17.30 น.' }
+              ];
+        }
+
+        const safeEscape = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        let htmlSchedule = `<option value="">${safeEscape(dict.scheduleSelect || '-- กรุณาเลือกรอบเวลาเรียน --')}</option>`;
+        schedulesList.forEach(s => {
+          const label = s.id ? `[${s.id}] ${s.name}` : s.name;
+          const val = s.name || s.id;
+          htmlSchedule += `<option value="${safeEscape(val)}">${safeEscape(label)}</option>`;
+        });
+        selSchedule.innerHTML = htmlSchedule;
+        if (currentScheduleVal) {
+          for (let opt of selSchedule.options) {
+            if (opt.value === currentScheduleVal) {
+              selSchedule.value = currentScheduleVal;
+              break;
+            }
+          }
+        }
+      }
+    }
+
     function submitPublicRegister() {
 
 
@@ -937623,6 +937847,20 @@ function openForgotPasswordModal() {
 
 
       const postalCode = (document.getElementById('txtPubPostalCode')?.value || '').trim();
+      const selCourse = (document.getElementById('selPubCourse')?.value || '').trim();
+      const selSchedule = (document.getElementById('selPubSchedule')?.value || '').trim();
+      const userNotes = (document.getElementById('txtPubNotes')?.value || '').trim();
+
+      if (!selCourse) {
+        showModal('กรุณากรอกข้อมูลให้ครบถ้วน / Required', dict.valCourse || 'กรุณาเลือกหลักสูตรที่ต้องการสมัคร', '⚠️');
+        document.getElementById('selPubCourse')?.focus();
+        return;
+      }
+      if (!selSchedule) {
+        showModal('กรุณากรอกข้อมูลให้ครบถ้วน / Required', dict.valSchedule || 'กรุณาเลือกรอบเวลาเรียนที่สะดวก', '⚠️');
+        document.getElementById('selPubSchedule')?.focus();
+        return;
+      }
 
 
 
@@ -939735,6 +939973,21 @@ function openForgotPasswordModal() {
 
 
         allowUpdate: true,
+        course: selCourse,
+        schedule: selSchedule,
+        userNotes: userNotes,
+        yearBE: (() => {
+          if (typeof resolveCurrentAcademicTerm === 'function') {
+            try { const a = resolveCurrentAcademicTerm(); if (a && a.yearBE) return Number(a.yearBE); } catch(_) {}
+          }
+          return 2569;
+        })(),
+        term: (() => {
+          if (typeof resolveCurrentAcademicTerm === 'function') {
+            try { const a = resolveCurrentAcademicTerm(); if (a && a.term) return Number(a.term); } catch(_) {}
+          }
+          return 5;
+        })(),
 
 
 
@@ -940663,6 +940916,20 @@ function openForgotPasswordModal() {
 
 
             if (lblAddr) lblAddr.textContent = combinedAddress;
+              const lblCourse = document.getElementById('lblPubSuccessCourse');
+              if (lblCourse) lblCourse.textContent = selCourse || '-';
+              const lblSched = document.getElementById('lblPubSuccessSchedule');
+              if (lblSched) lblSched.textContent = selSchedule || '-';
+              const rowNotes = document.getElementById('rowPubSuccessNotes');
+              const lblNotes = document.getElementById('lblPubSuccessNotes');
+              if (rowNotes && lblNotes) {
+                if (userNotes) {
+                  rowNotes.style.display = 'block';
+                  lblNotes.textContent = userNotes;
+                } else {
+                  rowNotes.style.display = 'none';
+                }
+              }
 
 
 
