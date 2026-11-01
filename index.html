@@ -272605,7 +272605,7 @@ body.printing-report #printReportContainer {
 
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
 
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v204</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v205</div>
 
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
 
@@ -341641,71 +341641,28 @@ body.printing-report #printReportContainer {
 
 
       } else if (table === 'security_audit_logs' || table === 'audit_logs') {
-
         // Instant Realtime Kick via security_audit_logs LOGIN_SUCCESS from another device
-
         if (payload && payload.new && payload.new.action === 'LOGIN_SUCCESS') {
-
           const kickedUser = String(payload.new.username || '').toLowerCase().trim();
-
-          const currUser = getSavedCurrentUser();
-
-          const currName = currUser ? String(currUser.username || '').toLowerCase().trim() : '';
-
-          const myDevId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
-
-          const incomingDevId = String(payload.new.device_id || '').trim();
-
-
-
-          if (currName && currName === kickedUser && incomingDevId && myDevId && incomingDevId !== myDevId) {
-
-            console.warn('[Session Security] Realtime LOGIN_SUCCESS detected from another device:', incomingDevId, 'my device:', myDevId);
-
-            executeForcedSessionLogout({
-
-              username: currName,
-
-              deviceId: incomingDevId
-
-            });
-
+          if (kickedUser !== 'admin') {
+            const currUser = getSavedCurrentUser();
+            const currName = currUser ? String(currUser.username || '').toLowerCase().trim() : '';
+            const myDevId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
+            const incomingDevId = String(payload.new.device_id || '').trim();
+            const createdTime = payload.new.created_at ? new Date(payload.new.created_at).getTime() : 0;
+            // Only react to fresh logins within the last 20 seconds from a DIFFERENT device
+            if (currName && currName === kickedUser && incomingDevId && myDevId && incomingDevId !== myDevId) {
+              if (!createdTime || (Date.now() - createdTime < 20000)) {
+                console.warn('[Session Security] Realtime LOGIN_SUCCESS detected from another device:', incomingDevId, 'my device:', myDevId);
+                executeForcedSessionLogout({
+                  username: currName,
+                  deviceId: incomingDevId
+                });
+              }
+            }
           }
-
         }
-
         if (typeof loadSecurityAuditLogs === 'function') loadSecurityAuditLogs(true, true);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       } else if (table === 'shipping_parcels') {
 
 
@@ -839290,82 +839247,47 @@ function updateReceiptLivePreview() {
      */
 
     function handleSingleSessionKick(data) {
-
       if (!data || !data.username || _isKickingForcedSession) return;
-
       const currentUser = getSavedCurrentUser();
-
       if (!currentUser || !currentUser.username) return;
 
-
-
       const currentUsername = String(currentUser.username || '').toLowerCase().trim();
-
       const targetUsername = String(data.username || '').toLowerCase().trim();
-
       if (currentUsername !== targetUsername) return;
 
+      // Master admin is protected from simultaneous kicked loop
+      if (currentUsername === 'admin') return;
 
+      // Discard stale events (> 25 seconds old)
+      if (data.timestamp && (Date.now() - Number(data.timestamp) > 25000)) return;
 
       const myDeviceId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
-
       const incomingDeviceId = String(data.deviceId || '').trim();
-
       const mySessionId = localStorage.getItem('oca_active_session_id') || 
-
                           sessionStorage.getItem('oca_active_session_id') || 
-
                           (currentUser && currentUser.sessionId) || '';
 
-
-
       // 0. ป้องกันไม่ให้เครื่องปัจจุบันเตะตัวเองออกเมื่อได้รับ Event จากตัวเอง (Self-Event Guard)
-
       if (incomingDeviceId && myDeviceId && incomingDeviceId === myDeviceId) {
-
         if (data.sessionId && data.sessionId !== mySessionId) {
-
           localStorage.setItem('oca_active_session_id', data.sessionId);
-
           sessionStorage.setItem('oca_active_session_id', data.sessionId);
-
         }
-
         return;
-
       }
 
+      // If session ID matches our local session, it's our own session
+      if (data.sessionId && mySessionId && data.sessionId === mySessionId) {
+        return;
+      }
 
-
-      // 1. ถ้ามาจาก Device ID อื่น (คนละเครื่องกัน) -> สั่งเตะเครื่องนี้ออกทันที
-
+      // 1. ถ้ามาจาก Device ID อื่นอย่างชัดเจน และเป็น Event สดใหม่ -> สั่งเตะเครื่องนี้ออกทันที
       if (incomingDeviceId && myDeviceId && incomingDeviceId !== myDeviceId) {
-
         console.warn('[Session Security] Another device logged in:', incomingDeviceId, 'my device:', myDeviceId);
-
         executeForcedSessionLogout(data);
-
         return;
-
       }
-
-
-
-      // 2. ถ้า Session ID ใหม่ไม่ตรงกับของเครื่องนี้
-
-      if (data.sessionId && mySessionId && data.sessionId !== mySessionId) {
-
-        console.warn('[Session Security] Session ID mismatch kick from another device:', data.sessionId, 'vs local:', mySessionId);
-
-        executeForcedSessionLogout(data);
-
-        return;
-
-      }
-
     }
-
-
 
     function executeForcedSessionLogout(data) {
 
@@ -839510,130 +839432,73 @@ function updateReceiptLivePreview() {
      */
 
     async function verifyActiveUserSession() {
-
       if (_isKickingForcedSession) return;
-
       const user = getSavedCurrentUser();
-
       if (!user || !user.username) return;
 
-
+      const u = String(user.username || '').toLowerCase().trim();
+      if (u === 'admin') return; // Master admin account protected
 
       if (typeof _supabase !== 'undefined' && _supabase) {
-
         try {
-
-          const u = String(user.username || '').toLowerCase().trim();
-
           const { data, error } = await _supabase
-
             .from('fee_settings')
-
             .select('name, mode, updated_at')
-
             .eq('key', 'session:' + u)
-
             .maybeSingle();
 
-
-
           if (!error && data && data.name) {
-
             const mySessionId = localStorage.getItem('oca_active_session_id') || 
-
                                 sessionStorage.getItem('oca_active_session_id') || 
-
                                 (user && user.sessionId) || '';
-
             const myDeviceId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
-
             const cloudDeviceId = String(data.mode || '').trim();
 
+            // 1. เครื่องเดียวกัน (Self-Device) -> ซิงค์ Session ID แล้วทำงานต่อตามปกติ
+            if (cloudDeviceId && myDeviceId && cloudDeviceId === myDeviceId) {
+              if (data.name && data.name !== mySessionId) {
+                localStorage.setItem('oca_active_session_id', data.name);
+                sessionStorage.setItem('oca_active_session_id', data.name);
+              }
+              return;
+            }
 
+            const cloudUpdatedAt = data.updated_at ? new Date(data.updated_at).getTime() : 0;
+            const now = Date.now();
 
-            // ถ้าใน Cloud บันทึกว่าเครื่องล่าสุดคือเครื่องนี้เอง (Self-Device) ให้ข้าม
+            // 2. ถ้าข้อมูลใน Cloud เก่ากว่า 5 นาที (300,000 ms) ถือว่าเป็นเซสชันที่ปิดไปแล้วในอดีต (Inactive/Dead Session)
+            // ให้เครื่องปัจจุบันครอบครองเซสชันทันที ไม่เตะออก
+            if (!cloudUpdatedAt || (now - cloudUpdatedAt > 300000)) {
+              if (typeof registerStaffActiveSession === 'function') {
+                registerStaffActiveSession(u, mySessionId, myDeviceId).catch(() => {});
+              }
+              return;
+            }
 
-        // ถ้าใน Cloud บันทึกว่าเครื่องล่าสุดคือเครื่องนี้เอง (Self-Device) ให้ข้าม
+            const localSessionStart = parseInt(sessionStorage.getItem('oca_session_start_time') || localStorage.getItem('oca_session_start_time') || '0', 10);
 
-        if (cloudDeviceId && myDeviceId && cloudDeviceId === myDeviceId) {
+            // 3. ถ้าเซสชันเครื่องนี้เริ่มหลังหรือพร้อม Cloud -> เครื่องนี้เป็นเครื่องล่าสุด อัปเดต Cloud ทันที
+            if (localSessionStart && cloudUpdatedAt <= (localSessionStart + 1000)) {
+              if (typeof registerStaffActiveSession === 'function') {
+                registerStaffActiveSession(u, mySessionId, myDeviceId).catch(() => {});
+              }
+              return;
+            }
 
-          if (data.name && data.name !== mySessionId) {
-
-            localStorage.setItem('oca_active_session_id', data.name);
-
-            sessionStorage.setItem('oca_active_session_id', data.name);
-
+            // 4. เฉพาะกรณีที่มีอุปกรณ์อื่น (cloudDeviceId != myDeviceId) ล็อกอินใหม่สดๆ ภายใน 5 นาที และใหม่กว่าเครื่องนี้ -> เตะออก
+            if (cloudDeviceId && myDeviceId && cloudDeviceId !== myDeviceId && cloudUpdatedAt > localSessionStart) {
+              console.warn('[Session Security] Newer active cloud session on another device:', cloudDeviceId, 'my device:', myDeviceId);
+              executeForcedSessionLogout({
+                username: u,
+                sessionId: data.name,
+                deviceId: data.mode
+              });
+              return;
+            }
           }
-
-          return;
-
-        }
-
-        // ตรวจสอบ Timestamp เพื่อป้องกัน Stale Session เก่าย้อนหลังมาเตะเครื่องใหม่
-
-        const cloudUpdatedAt = data.updated_at ? new Date(data.updated_at).getTime() : 0;
-
-        const localSessionStart = parseInt(sessionStorage.getItem('oca_session_start_time') || localStorage.getItem('oca_session_start_time') || '0', 10);
-
-        // ถ้าข้อมูลใน Cloud เก่ากว่าเซสชันของเครื่องนี้ -> อัปเดต Cloud ให้เป็นเครื่องนี้ ไม่เตะออก
-
-        if (localSessionStart && cloudUpdatedAt && cloudUpdatedAt < (localSessionStart - 2000)) {
-
-          if (typeof registerStaffActiveSession === 'function') {
-
-            registerStaffActiveSession(u, mySessionId, myDeviceId).catch(() => {});
-
-          }
-
-          return;
-
-        }
-
-        // ถ้าใน Cloud บันทึกเป็นเครื่องอื่นที่ล็อกอินใหม่กว่า -> สั่งเตะเครื่องนี้ออกทันที
-
-        if (cloudDeviceId && myDeviceId && cloudDeviceId !== myDeviceId) {
-
-          console.warn('[Session Security] Newer cloud active device detected:', cloudDeviceId, 'my device:', myDeviceId);
-
-          executeForcedSessionLogout({
-
-            username: u,
-
-            sessionId: data.name,
-
-            deviceId: data.mode
-
-          });
-
-          return;
-
-        }
-
-        if (data.name && mySessionId && data.name !== mySessionId) {
-
-          console.warn('[Session Security] Session ID mismatch kick from another device:', data.name, 'vs local:', mySessionId);
-
-          executeForcedSessionLogout({
-
-            username: u,
-
-            sessionId: data.name,
-
-            deviceId: data.mode
-
-          });
-
-        }
-
-          }
-
         } catch (_) {}
-
       }
-
     }
-
-
 
     function saveCurrentUser(user) {
 
@@ -856766,7 +856631,7 @@ function updateReceiptLivePreview() {
 
         if (specVer) {
 
-          specVer.textContent = 'oca-pwa-v204';
+          specVer.textContent = 'oca-pwa-v205';
 
         }
 
@@ -899225,818 +899090,49 @@ function openForgotPasswordModal() {
 
 
     function checkInitialAuthState() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const devId = getOrCreateDeviceId();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const detectedLabel = document.getElementById('lblLoginDetectedDevId');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       if (detectedLabel) detectedLabel.textContent = devId;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const user = getSavedCurrentUser();
-
       if (user) {
-
         if (!localStorage.getItem('oca_current_user')) {
-
           saveCurrentUser(user);
-
         }
-
+        // Ensure local session timestamps and ID exist on startup so they are never 0
+        if (!localStorage.getItem('oca_session_start_time')) {
+          localStorage.setItem('oca_session_start_time', String(Date.now()));
+        }
+        if (!sessionStorage.getItem('oca_session_start_time')) {
+          sessionStorage.setItem('oca_session_start_time', String(Date.now()));
+        }
+        if (!localStorage.getItem('oca_active_session_id')) {
+          const sid = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+          localStorage.setItem('oca_active_session_id', sid);
+          sessionStorage.setItem('oca_active_session_id', sid);
+        }
         if (typeof verifyActiveUserSession === 'function') {
-
           verifyActiveUserSession();
-
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
         // Enforce RBAC consistency across browser sessions
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         const r = (user.role || '').toLowerCase();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         const u = (user.username || '').toLowerCase();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         if (u !== 'admin' && u !== 'cake' && r !== 'admin' && r !== 'administrator') {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           const expected = (typeof getDefaultPermissionsForRole === 'function')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             ? getDefaultPermissionsForRole(user.role, user.username)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             : ['dashboard'];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           // If stored permissions don't match role restrictions (e.g. stale allPerms from previous session)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           if (!Array.isArray(user.permissions) || (u === 'shipping' && user.permissions.includes('enroll'))) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             const sanitized = { ...user, permissions: expected };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             saveCurrentUser(sanitized);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             applyUserPermissions(sanitized);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         applyUserPermissions(user);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     // แปลงอิโมจิที่ตกค้างใน DOM ทั้งหมดเป็น SVG เวกเตอร์คมชัด ป้องกันสี่เหลี่ยมบน Windows/Android
 
