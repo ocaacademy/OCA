@@ -163296,39 +163296,12 @@ body.printing-report #printReportContainer {
 
 
 
-                <span style="font-size:13.5px; font-weight:700; color:var(--color-gold);"><i class="fa-solid fa-receipt" style="margin-right:6px;"></i>ประวัติการออกใบเสร็จและคอร์สเรียน (<span id="srRcptCount">0</span> รายการ)</span>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              </div>
+                <span style="font-size:13.5px; font-weight:700; color:var(--color-gold);">
+                      <i class="fa-solid fa-list-check" style="margin-right:6px;"></i><span id="lblMatrixMenuTitle">กำหนดสิทธิ์เข้าถึงเมนู (Menu Access Matrix - Real-time)</span>
+                    </span>
+                    <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">
+                      เลือกเฉพาะเมนูที่อนุญาตให้ผู้ใช้นี้เห็นและใช้งานได้ (อัปเดตแบบ Realtime)
+                    </div></div>
 
 
 
@@ -334510,6 +334483,13 @@ body.printing-report #printReportContainer {
 
 
 
+          .on('broadcast', { event: 'staff_permissions_updated' }, (payload) => {
+            console.log('[Realtime Broadcast] Staff permissions updated:', payload);
+            const data = (payload && payload.payload) ? payload.payload : payload;
+            if (typeof handleRealtimeStaffPermissionsUpdate === 'function') {
+              handleRealtimeStaffPermissionsUpdate(data);
+            }
+          })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
 
 
@@ -339585,69 +339565,13 @@ body.printing-report #printReportContainer {
 
 
       } else if (table === 'staff_users') {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         if (typeof loadUsersList === 'function') loadUsersList(true);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        if (payload && (payload.new || payload.record)) {
+          const userObj = payload.new || payload.record;
+          if (typeof handleRealtimeStaffPermissionsUpdate === 'function') {
+            handleRealtimeStaffPermissionsUpdate(userObj);
+          }
+        }
       } else if (table === 'security_audit_logs' || table === 'audit_logs') {
         // Instant Realtime Kick via security_audit_logs LOGIN_SUCCESS from another device
         if (payload && payload.new && payload.new.action === 'LOGIN_SUCCESS') {
@@ -872569,6 +872493,134 @@ function openForgotPasswordModal() {
 
 
 
+    // =========================================================================
+    // DYNAMIC SYSTEM MENU REGISTRY & REALTIME PERMISSIONS MATRIX
+    // =========================================================================
+    const OCA_SYSTEM_MENUS = [
+      { key: 'dashboard', no: 1, name: 'แดชบอร์ด (Dashboard)', desc: 'ภาพรวมสถิตินักศึกษาและ KPI รายวัน', icon: 'fa-chart-pie', color: '#38bdf8' },
+      { key: 'enroll', no: 2, name: 'รับสมัครนักศึกษา (Enroll)', desc: 'ฟอร์มบันทึกนักศึกษาและซิงค์ฟอร์ม', icon: 'fa-user-plus', color: '#10b981' },
+      { key: 'search', no: 3, name: 'ค้นหาประวัติ (Search Status)', desc: 'ค้นหาและตรวจสอบสถานะการเรียน', icon: 'fa-magnifying-glass', color: '#6366f1' },
+      { key: 'courses', no: 4, name: 'หลักสูตร/ตารางเรียน (Courses)', desc: 'จัดการวิชา ค่าเรียน และตารางสอน', icon: 'fa-book-open', color: '#f59e0b' },
+      { key: 'card', no: 5, name: 'บัตรนักศึกษา (Smart Card)', desc: 'ออกบัตร Mifare 1K และเขียน UID', icon: 'fa-id-card', color: '#ec4899' },
+      { key: 'receipts', no: 6, name: 'ใบเสร็จรับเงิน (Receipts)', desc: 'ออกใบเสร็จ ต่อคอร์ส ส่งอีเมล', icon: 'fa-receipt', color: '#14b8a6' },
+      { key: 'textbooks', no: 7, name: 'เบิกจ่ายและคลังตำรา (Textbooks)', desc: 'จัดการสต็อกตำราและสแกน QR Claim', icon: 'fa-book', color: '#8b5cf6' },
+      { key: 'shipping', no: 8, name: 'จัดส่งพัสดุ (Shipping)', desc: 'พิมพ์ใบปะหน้า 8 ใบ/A4 และ Tracking', icon: 'fa-truck-fast', color: '#f97316' },
+      { key: 'report', no: 9, name: 'รายงานสรุป (Reports)', desc: 'สถิติการเงิน รายรับ และตรวจสอบชั้นเรียน', icon: 'fa-file-lines', color: '#06b6d4' },
+      { key: 'teacher', no: 10, name: 'ครูผู้สอน (Teacher Portal)', desc: 'ลงเวลาเข้า-ออกงาน (GPS 50m) และเช็คชื่อนักเรียน', icon: 'fa-chalkboard-user', color: '#eab308' },
+      { key: 'settings', no: 11, name: 'ตั้งค่าระบบ (Settings)', desc: 'จัดการสิทธิ์ผู้ใช้และดู Audit Log', icon: 'fa-sliders', color: '#e2e8f0' }
+    ];
+
+    /**
+     * เรนเดอร์ Checkbox รายการเมนูทั้งหมดแบบไดนามิก รองรับการเพิ่มเมนูใหม่ในอนาคตแบบเรียลไทม์
+     * @param {Array<string>} activePerms รายการเมนูที่ผู้ใช้นี้ได้รับอนุญาต
+     */
+    function renderMenuAccessMatrix(activePerms = []) {
+      const container = document.getElementById('matrixMenuCheckboxes');
+      if (!container) return;
+
+      const titleEl = document.getElementById('lblMatrixMenuTitle');
+      if (titleEl) {
+        titleEl.textContent = `กำหนดสิทธิ์เข้าถึงเมนู (Menu Access Matrix - ${OCA_SYSTEM_MENUS.length} เมนูหลัก)`;
+      }
+
+      container.innerHTML = OCA_SYSTEM_MENUS.map(m => {
+        const isChecked = Array.isArray(activePerms) && activePerms.includes(m.key);
+        return `<label class="oca-perm-card" style="display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.08); padding:10px 12px; border-radius:8px; cursor:pointer; transition:all 0.15s ease;">
+          <input type="checkbox" value="${m.key}" class="chk-user-perm" ${isChecked ? 'checked' : ''} style="width:17px; height:17px; accent-color:#D7A600;">
+          <div style="flex:1;">
+            <div style="font-size:13px; font-weight:600; color:${m.color || '#ffffff'}; display:flex; align-items:center; gap:6px;">
+              <i class="fa-solid ${m.icon}" style="font-size:12px;"></i>
+              <span>${m.no}. ${m.name}</span>
+            </div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${m.desc}</div>
+          </div>
+        </label>`;
+      }).join('');
+    }
+    window.renderMenuAccessMatrix = renderMenuAccessMatrix;
+
+    /**
+     * ดึง navKey จาก id ของ view tab
+     */
+    function getNavKeyFromTabId(tabId) {
+      if (!tabId) return null;
+      const map = {
+        'tabDashboard': 'dashboard',
+        'tabEnroll': 'enroll',
+        'tabSearch': 'search',
+        'tabCourses': 'courses',
+        'tabCard': 'card',
+        'tabReceipts': 'receipts',
+        'tabTextbooks': 'textbooks',
+        'tabShipping': 'shipping',
+        'tabReport': 'report',
+        'tabTeacher': 'teacher',
+        'tabSettings': 'settings'
+      };
+      return map[tabId] || null;
+    }
+
+    /**
+     * บังคับใช้และอัปเดตสิทธิ์เข้าถึงเมนูแบบ Real-time ทันทีเมื่อ Admin ปรับเปลี่ยนสิทธิ์
+     */
+    function handleRealtimeStaffPermissionsUpdate(userObj) {
+      if (!userObj || !userObj.username) return;
+      const current = getSavedCurrentUser();
+      if (!current) return;
+
+      const targetU = (userObj.username || '').toLowerCase().trim();
+      const currentU = (current.username || '').toLowerCase().trim();
+
+      // หากผู้ใช้ที่ถูกแก้ไขกำลังล็อกอินใช้งานอยู่ในเบราว์เซอร์นี้
+      if (currentU === targetU) {
+        let newPerms = userObj.permissions;
+        if (typeof newPerms === 'string') {
+          try { newPerms = JSON.parse(newPerms); } catch(_) {}
+        }
+        if (!Array.isArray(newPerms) || newPerms.length === 0) {
+          if (typeof getDefaultPermissionsForRole === 'function') {
+            newPerms = getDefaultPermissionsForRole(userObj.role, currentU);
+          } else {
+            newPerms = ['dashboard'];
+          }
+        }
+
+        const updatedUser = {
+          ...current,
+          fullName: userObj.full_name || userObj.fullName || current.fullName,
+          role: userObj.role || current.role,
+          permissions: newPerms
+        };
+
+        saveCurrentUser(updatedUser);
+        applyUserPermissions(updatedUser);
+
+        if (typeof showToast === 'function') {
+          showToast(
+            'สิทธิ์เมนูอัปเดตแล้ว (Real-time)',
+            'ผู้ดูแลระบบได้ปรับปรุงสิทธิ์การเข้าถึงเมนูของคุณเรียบร้อยแล้ว',
+            '🔄'
+          );
+        }
+
+        // หากกำลังเปิดอยู่ในเมนูที่เพิ่งถูกเพิกถอนสิทธิ์ ให้สลับไปยังเมนูแรกที่มีสิทธิ์ทันที
+        const activeTab = document.querySelector('.oca-view-tab.active');
+        if (activeTab) {
+          const navKey = getNavKeyFromTabId(activeTab.id);
+          if (navKey && typeof hasUserPermission === 'function' && !hasUserPermission(navKey)) {
+            const fallback = (typeof getFirstPermittedNavKey === 'function') ? getFirstPermittedNavKey() : 'dashboard';
+            if (typeof switchNav === 'function') switchNav(fallback);
+          }
+        }
+      }
+
+      // รีเฟรชตารางผู้ใช้ใน Settings เพื่อสะท้อนสิทธิ์ล่าสุดทันที
+      if (typeof loadUsersList === 'function') {
+        loadUsersList(false, true);
+      }
+    }
+    window.handleRealtimeStaffPermissionsUpdate = handleRealtimeStaffPermissionsUpdate;
+
     function onModalRoleChanged(role) {
 
 
@@ -872921,71 +872973,7 @@ function openForgotPasswordModal() {
 
 
 
-      document.querySelectorAll('.chk-user-perm').forEach(cb => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        cb.checked = perms.includes(cb.value);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      });
+      renderMenuAccessMatrix(perms);
 
 
 
@@ -874201,135 +874189,8 @@ function openForgotPasswordModal() {
 
 
 
-      // Default permissions for Registrar
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const defaultRegistrarPerms = ['dashboard', 'enroll', 'search', 'courses', 'card', 'report'];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      document.querySelectorAll('.chk-user-perm').forEach(cb => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        cb.checked = defaultRegistrarPerms.includes(cb.value);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      });
+      renderMenuAccessMatrix(defaultRegistrarPerms);
 
 
 
@@ -876697,71 +876558,7 @@ function openForgotPasswordModal() {
 
 
 
-      document.querySelectorAll('.chk-user-perm').forEach(cb => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        cb.checked = userPerms.includes(cb.value);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      });
+      renderMenuAccessMatrix(userPerms);
 
 
 
@@ -879322,6 +879119,26 @@ function openForgotPasswordModal() {
 
 
             showToast('บันทึกสำเร็จ!', res.message || `บันทึกข้อมูลผู้ใช้งาน ${username} เรียบร้อยแล้ว`, '✓');
+          // Real-time broadcast permissions update to all active devices
+          if (typeof _ocaRealtimeChannel !== 'undefined' && _ocaRealtimeChannel && typeof _ocaRealtimeChannel.send === 'function') {
+            try {
+              _ocaRealtimeChannel.send({
+                type: 'broadcast',
+                event: 'staff_permissions_updated',
+                payload: {
+                  username: username,
+                  fullName: fullName,
+                  role: role,
+                  permissions: perms,
+                  status: status,
+                  updatedAt: new Date().toISOString()
+                }
+              });
+            } catch (_) {}
+          }
+          if (typeof handleRealtimeStaffPermissionsUpdate === 'function') {
+            handleRealtimeStaffPermissionsUpdate({ username, fullName, role, permissions: perms, status });
+          }
 
 
 
@@ -965302,7 +965119,17 @@ isOnlineResume: true,
 
 
 
-</script>
+
+    // Cross-tab real-time sync for menu permissions
+    window.addEventListener('storage', function(e) {
+      if (e.key && (e.key.startsWith('oca_user_perms_') || e.key === 'oca_current_user')) {
+        const current = getSavedCurrentUser();
+        if (current && typeof applyUserPermissions === 'function') {
+          applyUserPermissions(current);
+        }
+      }
+    }); // staff_permissions_sync_storage_listener
+    </script>
 
 
 
