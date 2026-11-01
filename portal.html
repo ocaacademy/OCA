@@ -148226,6 +148226,13 @@ body.printing-report #printReportContainer {
 
 
               <div class="oca-cam-screen" style="position:relative; overflow:hidden;">
+                <!-- Floating AI Maroon Processing Overlay -->
+                <div id="enrollPhotoAiOverlay" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.78); backdrop-filter:blur(4px); z-index:15; flex-direction:column; align-items:center; justify-content:center; gap:8px; border-radius:8px;">
+                  <i class="fa-solid fa-wand-magic-sparkles fa-spin" style="font-size:26px; color:#EF4444;"></i>
+                  <span style="font-size:12.5px; font-weight:700; color:#FDE047;">AI กำลังปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000)...</span>
+                  <span style="font-size:10.5px; color:#E2E8F0; opacity:0.85;">มาตรฐานรูปติดบัตรสถาบัน OCA</span>
+                </div>
+
 
 
 
@@ -270665,7 +270672,7 @@ body.printing-report #printReportContainer {
 
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
 
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v215</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v216</div>
 
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
 
@@ -463233,134 +463240,12 @@ body.printing-report #printReportContainer {
 
 
     function takeSnapshot() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       if (!cameraActive) return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const vid = document.getElementById('liveWebcam');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const canvas = document.getElementById('snapCanvas');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const preview = document.getElementById('capturedPreview');
+      const overlay = document.getElementById('enrollPhotoAiOverlay');
+      if (overlay) overlay.style.display = 'flex';
 
 
 
@@ -466846,6 +466731,8 @@ body.printing-report #printReportContainer {
         if (typeof showModal === 'function') showModal('ไฟล์มีขนาดใหญ่เกินไป', 'กรุณาเลือกไฟล์รูปภาพขนาดไม่เกิน 10MB', 'ตกลง');
         return;
       }
+      const overlay = document.getElementById('enrollPhotoAiOverlay');
+      if (overlay) overlay.style.display = 'flex';
       const reader = new FileReader();
       reader.onload = function(e) {
         const rawUri = e.target.result;
@@ -466853,7 +466740,11 @@ body.printing-report #printReportContainer {
           applyPhotoBackgroundMaroonForEnroll(rawUri);
         } else {
           applyCapturedPhoto(rawUri);
+          if (overlay) overlay.style.display = 'none';
         }
+      };
+      reader.onerror = function() {
+        if (overlay) overlay.style.display = 'none';
       };
       reader.readAsDataURL(file);
       input.value = '';
@@ -466869,12 +466760,15 @@ body.printing-report #printReportContainer {
       const MAROON_COLOR = '#800000';
       const aiStatus = document.getElementById('lblEnrollPhotoAiStatus');
       const aiStatusText = document.getElementById('lblEnrollPhotoAiStatusText');
+      const overlay = document.getElementById('enrollPhotoAiOverlay');
+
       if (aiStatus) {
         aiStatus.style.display = 'block';
         if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: กำลังตัดและปรับพื้นหลังสีแดงเลือดหมู (#800000)...';
       }
+      if (overlay) overlay.style.display = 'flex';
 
-      // Show temporary preview immediately while AI is processing
+      // Immediately display raw photo in viewfinder so staff sees instant feedback
       applyCapturedPhoto(rawUri);
 
       try {
@@ -466884,6 +466778,7 @@ body.printing-report #printReportContainer {
         imgEl.onload = async () => {
           if (!segmenter) {
             if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ใช้รูปถ่ายต้นฉบับ';
+            if (overlay) overlay.style.display = 'none';
             return;
           }
 
@@ -466936,17 +466831,20 @@ body.printing-report #printReportContainer {
             if (realBox) realBox.style.display = 'block';
 
             if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย';
+            if (overlay) overlay.style.display = 'none';
           });
 
           await segmenter.send({ image: inCanvas });
         };
         imgEl.onerror = () => {
           if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ใช้รูปถ่ายต้นฉบับ';
+          if (overlay) overlay.style.display = 'none';
         };
         imgEl.src = rawUri;
       } catch (err) {
         console.warn('[Enroll AI Maroon Photo] fallback:', err);
         if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ใช้รูปถ่ายต้นฉบับ';
+        if (overlay) overlay.style.display = 'none';
       }
     }
     window.applyPhotoBackgroundMaroonForEnroll = applyPhotoBackgroundMaroonForEnroll;
@@ -854241,7 +854139,7 @@ function updateReceiptLivePreview() {
 
         if (specVer) {
 
-          specVer.textContent = 'oca-pwa-v215';
+          specVer.textContent = 'oca-pwa-v216';
 
         }
 
