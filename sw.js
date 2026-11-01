@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oca-pwa-v208';
+const CACHE_NAME = 'oca-pwa-v209';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const ASSETS_TO_CACHE = [
   './oca_logo.png',
   './assets/images/oca_gold_card_template.jpg',
   './assets/images/oca_gold_card_template.png',
+  './assets/data/thai_address_compact.json',
   'https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-kJVDLKednw7P',
   'https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
