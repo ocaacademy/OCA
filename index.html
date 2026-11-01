@@ -272354,7 +272354,7 @@ body.printing-report #printReportContainer {
 
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
 
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v211</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v212</div>
 
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
 
@@ -345585,7 +345585,7 @@ body.printing-report #printReportContainer {
 
 
 
-      const username = override.username || override.staffUser || (u && u.username) || 'admin';
+      const username = override.username || override.staffUser || (u && u.username) || 'GUEST';
 
 
 
@@ -345778,6 +345778,7 @@ body.printing-report #printReportContainer {
 
 
         else if (username === 'shipping') fullName = 'ฝ่ายจัดส่งตำรา (Logistics)';
+        else if (username === 'GUEST') fullName = 'ผู้ใช้งานทั่วไป (Guest)';
 
 
 
@@ -345873,7 +345874,7 @@ body.printing-report #printReportContainer {
 
 
 
-      const role = override.role || (u && u.role) || (username === 'admin' ? 'Administrator' : 'Staff');
+      const role = override.role || (u && u.role) || (username === 'admin' ? 'Administrator' : (username === 'GUEST' ? 'Guest' : 'Staff'));
 
 
 
@@ -346097,135 +346098,7 @@ body.printing-report #printReportContainer {
 
 
 
-    // Auto-sync window.currentUser on script load
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    try {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const _initActor = getAuditActor();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      if (_initActor && _initActor.username) window.currentUser = _initActor;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    } catch (_) {}
+    // Top-level auto-sync removed: window.currentUser must only be set by verified authentication
 
 
 
@@ -757387,7 +757260,13 @@ function updateReceiptLivePreview() {
     const currentUser = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
 
     if (validPages.includes(page)) {
-
+      if (!currentUser) {
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        showWelcomeScreen();
+        return;
+      }
       const welcomeOverlay = document.getElementById('viewWelcome');
 
       if (welcomeOverlay) {
@@ -836987,7 +836866,7 @@ function updateReceiptLivePreview() {
 
 
 
-        if (!stored) return (typeof window !== 'undefined' && window.currentUser) ? window.currentUser : null;
+        if (!stored) { if (typeof window !== 'undefined') window.currentUser = null; return null; }
 
 
 
@@ -838773,6 +838652,14 @@ function updateReceiptLivePreview() {
       // 1. ล้างข้อมูลเซสชันในเครื่อง
 
       saveCurrentUser(null);
+      window.currentUser = null;
+      try {
+        sessionStorage.removeItem('oca_entered_dashboard');
+        sessionStorage.removeItem('oca_sess_sig');
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (_) {}
 
       try {
 
@@ -839031,134 +838918,12 @@ function updateReceiptLivePreview() {
 
 
 
-        if (!user) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                if (!user) {
           window.currentUser = null;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           localStorage.removeItem('oca_current_user');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           sessionStorage.removeItem('oca_sess_sig');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          sessionStorage.removeItem('oca_entered_dashboard');
+          sessionStorage.removeItem('oca_security_unlocked');
         } else {
 
 
@@ -855000,11 +854765,11 @@ function updateReceiptLivePreview() {
       }
 
       try {
-
         localStorage.removeItem('oca_active_session_id');
-
         sessionStorage.removeItem('oca_active_session_id');
-
+        localStorage.removeItem('oca_session_start_time');
+        sessionStorage.removeItem('oca_session_start_time');
+        sessionStorage.removeItem('oca_entered_dashboard');
       } catch (_) {}
 
 
@@ -856098,7 +855863,7 @@ function updateReceiptLivePreview() {
 
         if (specVer) {
 
-          specVer.textContent = 'oca-pwa-v211';
+          specVer.textContent = 'oca-pwa-v212';
 
         }
 
@@ -898563,9 +898328,6 @@ function openForgotPasswordModal() {
 
       const user = getSavedCurrentUser();
       if (user) {
-        if (!localStorage.getItem('oca_current_user')) {
-          saveCurrentUser(user);
-        }
         // Ensure local session timestamps and ID exist on startup so they are never 0
         if (!localStorage.getItem('oca_session_start_time')) {
           localStorage.setItem('oca_session_start_time', String(Date.now()));
