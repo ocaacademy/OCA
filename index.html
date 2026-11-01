@@ -1151,6 +1151,7 @@
 
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 
 
 
@@ -167475,6 +167476,12 @@ body.printing-report #printReportContainer {
 
 
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <!-- Point 1: Pending Slips Queue Button (Cashier Point of Care) -->
+        <button type="button" class="oca-btn-gold-submit" id="btnOpenPendingSlips" style="padding:10px 18px; font-size:13.5px; background:rgba(217, 119, 6, 0.2); border:1px solid #d97706; color:#f59e0b; display:inline-flex; align-items:center; gap:8px;" onclick="openPendingSlipsModal()">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <span>รอตรวจสอบยอดเงิน</span>
+          <span id="badgePendingSlipsCount" style="background:#dc2626; color:#fff; border-radius:12px; padding:2px 7px; font-size:11px; font-weight:800; display:none;">0</span>
+        </button>
 
 
 
@@ -272605,7 +272612,7 @@ body.printing-report #printReportContainer {
 
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
 
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v206</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v207</div>
 
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
 
@@ -327668,6 +327675,19 @@ body.printing-report #printReportContainer {
 
 
                     </label>
+                    <!-- AI Studio Background Selector Toolbar -->
+                    <div id="panelPhotoBgOptions" style="display:none; margin-top:10px; padding:10px 12px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px;">
+                      <div style="font-size:11.5px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; align-items:center; justify-content:center; gap:4px;">
+                        <span>✨</span><span>ปรับสีพื้นหลังรูปติดบัตร (AI Studio Background):</span>
+                      </div>
+                      <div style="display:flex; justify-content:center; gap:6px; flex-wrap:wrap;">
+                        <button type="button" class="oca-photo-bg-btn active" id="btnBgStudioBlue" onclick="applyPhotoBackground('#2563EB', 'studio_blue')" style="background:#2563EB; color:#fff; border:none; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🔵 สีฟ้ามาตรฐาน</button>
+                        <button type="button" class="oca-photo-bg-btn" id="btnBgStudioWhite" onclick="applyPhotoBackground('#FFFFFF', 'studio_white')" style="background:#F1F5F9; color:#0F172A; border:1px solid #CBD5E1; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">⚪ สีขาวทางการ</button>
+                        <button type="button" class="oca-photo-bg-btn" id="btnBgSoftBlue" onclick="applyPhotoBackground('#93C5FD', 'soft_blue')" style="background:#DBEAFE; color:#1E40AF; border:1px solid #BFDBFE; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🟦 ฟ้าอ่อน</button>
+                        <button type="button" class="oca-photo-bg-btn" id="btnBgOriginal" onclick="restoreOriginalPhoto()" style="background:#F1F5F9; color:#475569; border:1px solid #CBD5E1; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">🖼️ รูปต้นฉบับ</button>
+                      </div>
+                      <div id="lblPhotoAiStatus" style="font-size:11px; color:#2563EB; margin-top:5px; font-weight:600; display:none;">กำลังปรับพื้นหลังด้วย AI...</div>
+                    </div>
 
 
 
@@ -331357,7 +331377,7 @@ body.printing-report #printReportContainer {
                   <label id="lblPubCourse" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
                     หลักสูตรที่ต้องการสมัคร <span style="color:#DC2626;">*</span>
                   </label>
-                  <select id="selPubCourse" class="oca-reg-input" required onchange="savePublicRegisterDraft()">
+                  <select id="selPubCourse" class="oca-reg-input" required onchange="savePublicRegisterDraft(); if(typeof updateCourseFeeDisplay==='function') updateCourseFeeDisplay();">
                     <option value="">-- กรุณาเลือกหลักสูตรที่ต้องการสมัคร --</option>
                   </select>
                 </div>
@@ -331374,6 +331394,56 @@ body.printing-report #printReportContainer {
                     หมายเหตุ / พื้นฐานภาษาจีนเดิม (ถ้ามี)
                   </label>
                   <textarea id="txtPubNotes" class="oca-reg-input" rows="3" placeholder="เช่น เคยเรียนภาษาจีนมาแล้ว 1 ปี, ต้องการเรียนเพื่อสอบ HSK 4, หรือเงื่อนไขเวลาพิเศษ" oninput="savePublicRegisterDraft()"></textarea>
+                </div>
+              </div>
+
+              <!-- Section 4: ชำระค่าเล่าเรียนและแนบสลิปโอนเงิน (Payment & Transfer Slip) -->
+              <div style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:12px; padding:16px 14px; margin-bottom:20px;">
+                <div style="font-weight:700; color:#92400E; font-size:14px; margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+                  <span>💳</span>
+                  <span id="lblSec4Heading">การชำระเงินและหลักฐานการโอน (Payment & Transfer Slip)</span>
+                </div>
+
+                <!-- Tuition Fee Display -->
+                <div style="background:#FFFFFF; border:1.5px solid #FCD34D; border-radius:10px; padding:12px 14px; margin-bottom:14px; text-align:center;">
+                  <div style="font-size:12.5px; color:#78350F; font-weight:600;">ยอดค่าเล่าเรียนที่ต้องชำระ:</div>
+                  <div id="lblPubPaymentAmount" style="font-size:28px; font-weight:800; color:#B45309; font-family:monospace; margin:4px 0;">-</div>
+                  <div id="lblPubPaymentCourseName" style="font-size:12px; color:#92400E;">กรุณาเลือกหลักสูตรในหมวดที่ 3 เพื่อแสดงยอดเงิน</div>
+                </div>
+
+                <!-- Bank QR Code Card -->
+                <div style="background:#FFFFFF; border:1px solid #E5E7EB; border-radius:10px; padding:16px; text-align:center; margin-bottom:14px;">
+                  <div style="font-size:12.5px; font-weight:700; color:#1F2937; margin-bottom:10px;">สแกน QR เพื่อโอนเงินเข้าบัญชีโรงเรียน</div>
+                  <div style="display:inline-block; padding:8px; background:#FFFFFF; border:1.5px solid #D1D5DB; border-radius:12px; box-shadow:0 3px 10px rgba(0,0,0,0.06); margin-bottom:10px;">
+                    <img src="assets/images/oca_bank_payment_qr.png" alt="OCA Official Bank Payment QR" style="width:200px; height:200px; display:block; object-fit:contain;" />
+                  </div>
+                  <div style="font-size:13px; font-weight:700; color:#047857;">โรงเรียนภาษาและภูมิปัญญาตะวันออก (OCA)</div>
+                  
+                  <!-- Merchant ID Pill with Copy button -->
+                  <div style="display:inline-flex; align-items:center; gap:8px; background:#FEF3C7; border:1px solid #F59E0B; border-radius:20px; padding:4px 14px; margin-top:8px;">
+                    <span style="font-size:12px; font-weight:700; color:#92400E;" id="lblPubMerchantId">รหัสร้านค้า: VJO99300GS018788116</span>
+                    <button type="button" onclick="navigator.clipboard.writeText('VJO99300GS018788116'); if(typeof showToast==='function') showToast('คัดลอกสำเร็จ', 'คัดลอกรหัสร้านค้าแล้ว', '📋', 2500);" style="background:#F59E0B; color:#FFFFFF; border:none; border-radius:6px; padding:2px 8px; font-size:11px; cursor:pointer; font-weight:700;">คัดลอก</button>
+                  </div>
+                </div>
+
+                <!-- Slip Upload Container -->
+                <div>
+                  <label id="lblPubSlip" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:6px;">
+                    แนบรูปภาพสลิปโอนเงิน <span style="color:#DC2626;">*</span>
+                  </label>
+                  
+                  <div id="boxPubSlipDropZone" style="border:2px dashed #D97706; border-radius:10px; background:#FFFBEB; padding:16px; text-align:center; cursor:pointer;" onclick="document.getElementById('filePubSlipInput').click()">
+                    <div id="boxPubSlipEmptyPrompt">
+                      <i class="fa-solid fa-file-invoice-dollar" style="font-size:32px; color:#D97706; margin-bottom:6px;"></i>
+                      <div style="font-size:13px; font-weight:700; color:#92400E;">คลิกเพื่ออัปโหลดสลิปโอนเงิน (หรือถ่ายภาพ)</div>
+                      <div style="font-size:11.5px; color:#B45309; margin-top:3px;">ระบบจะตรวจสอบสลิปและส่งใบเสร็จเข้าอีเมลของคุณทันที</div>
+                    </div>
+                    <div id="boxPubSlipPreviewContainer" style="display:none; text-align:center;">
+                      <img id="imgPubSlipPreview" style="max-height:200px; max-width:100%; border-radius:8px; border:1px solid #D1D5DB; margin-bottom:6px; box-shadow:0 2px 8px rgba(0,0,0,0.1);" />
+                      <div style="font-size:12px; color:#047857; font-weight:700;">✓ แนบรูปภาพสลิปเรียบร้อย (คลิกเพื่อเปลี่ยนรูป)</div>
+                    </div>
+                  </div>
+                  <input type="file" id="filePubSlipInput" accept="image/*" onchange="handlePubSlipUpload(this)" style="display:none;" />
                 </div>
               </div>
 
@@ -341386,6 +341456,7 @@ body.printing-report #printReportContainer {
 
 
 
+        if (typeof window.loadPendingSlipsQueue === 'function') window.loadPendingSlipsQueue();
         if (typeof loadTextbooksData === 'function') loadTextbooksData();
 
 
@@ -454740,6 +454811,7 @@ body.printing-report #printReportContainer {
 
 
         document.getElementById('tabReceipts').classList.add('active');
+        if (typeof window.loadPendingSlipsQueue === 'function') window.loadPendingSlipsQueue();
 
 
 
@@ -856694,7 +856766,7 @@ function updateReceiptLivePreview() {
 
         if (specVer) {
 
-          specVer.textContent = 'oca-pwa-v206';
+          specVer.textContent = 'oca-pwa-v207';
 
         }
 
@@ -918696,6 +918768,10 @@ function openForgotPasswordModal() {
 
 
     let pubStudentPhotoDataUri = '';
+    let pubPaymentSlipDataUri = '';
+    let _rawOriginalPhotoDataUri = '';
+    let _currentPhotoBgColor = '#2563EB';
+    let _selfieSegmentationInstance = null;
 
 
 
@@ -937856,6 +937932,11 @@ function openForgotPasswordModal() {
         document.getElementById('selPubCourse')?.focus();
         return;
       }
+      if (!pubPaymentSlipDataUri) {
+        showModal('กรุณาแนบสลิปโอนเงิน / Slip Required', 'กรุณาแนบรูปภาพสลิปโอนเงิน เพื่อยืนยันการสมัครเรียน', '⚠️');
+        document.getElementById('filePubSlipInput')?.focus();
+        return;
+      }
       if (!selSchedule) {
         showModal('กรุณากรอกข้อมูลให้ครบถ้วน / Required', dict.valSchedule || 'กรุณาเลือกรอบเวลาเรียนที่สะดวก', '⚠️');
         document.getElementById('selPubSchedule')?.focus();
@@ -940179,7 +940260,7 @@ function openForgotPasswordModal() {
 
 
 
-        .then(res => {
+        .then(async (res) => {
 
 
 
@@ -940564,6 +940645,107 @@ function openForgotPasswordModal() {
 
 
             const sid = res.studentId || '-';
+
+              // 1. Upload Slip to Supabase File Storage (Bucket: student-photos/slips/)
+              let uploadedSlipUrl = '';
+              if (pubPaymentSlipDataUri && typeof window.uploadPaymentSlipToStorage === 'function') {
+                try {
+                  uploadedSlipUrl = await window.uploadPaymentSlipToStorage(pubPaymentSlipDataUri, sid);
+                } catch (upErr) {
+                  console.warn('Slip storage upload error:', upErr);
+                }
+              }
+
+              // 2. Resolve expected tuition fee from selected course
+              let expectedFee = 4000;
+              if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
+                const cObj = cachedCoursesList.find(c => c.name === selCourse || c.code === selCourse || c.id === selCourse);
+                if (cObj && cObj.price) expectedFee = Number(cObj.price);
+              }
+
+              // 3. Automated Slip Verification via jsQR
+              let isAutoApproved = false;
+              let detectedAmount = 0;
+              let slipRef = '';
+              try {
+                if (pubPaymentSlipDataUri && typeof jsQR !== 'undefined') {
+                  const tempImg = new Image();
+                  tempImg.src = pubPaymentSlipDataUri;
+                  await new Promise(r => { tempImg.onload = r; tempImg.onerror = r; });
+                  const sCanvas = document.createElement('canvas');
+                  sCanvas.width = tempImg.naturalWidth || 600;
+                  sCanvas.height = tempImg.naturalHeight || 800;
+                  const sCtx = sCanvas.getContext('2d');
+                  sCtx.drawImage(tempImg, 0, 0);
+                  const imgData = sCtx.getImageData(0, 0, sCanvas.width, sCanvas.height);
+                  const qrCode = jsQR(imgData.data, imgData.width, imgData.height);
+                  if (qrCode && qrCode.data) {
+                    slipRef = qrCode.data.slice(0, 30);
+                    if (qrCode.data.includes(String(expectedFee))) {
+                      isAutoApproved = true;
+                      detectedAmount = expectedFee;
+                    }
+                  }
+                }
+              } catch(e) {
+                console.warn('jsQR scan error:', e);
+              }
+
+              // 4. Branching: Auto-Approved vs Point 1 Pending Verification
+              if (isAutoApproved) {
+                try {
+                  await callSupabaseApi('saveReceipt', {
+                    studentId: sid,
+                    buyerName: prefix + ' ' + fullName,
+                    course: selCourse,
+                    schedule: selSchedule,
+                    amount: expectedFee,
+                    paymentMethod: 'TRANSFER',
+                    paymentRef: slipRef || 'ONLINE_SLIP_VERIFIED',
+                    email: email,
+                    sendEmail: true
+                  });
+                } catch(e) { console.warn('Auto-receipt error:', e); }
+                const subMsg = document.getElementById('lblSuccessSub');
+                if (subMsg) subMsg.textContent = 'การสมัครและการชำระเงินสำเร็จเรียบร้อย! ใบเสร็จรับเงินถูกจัดส่งเข้าอีเมลแล้ว';
+              } else {
+                try {
+                  if (typeof _supabase !== 'undefined' && _supabase) {
+                    await _supabase
+                      .from('students')
+                      .update({ status: 'PENDING_PAYMENT_VERIFICATION' })
+                      .eq('student_id', sid);
+
+                    const pendingRecord = {
+                      studentId: sid,
+                      fullName: prefix + ' ' + fullName,
+                      phone: phone,
+                      lineId: lineId,
+                      email: email,
+                      course: selCourse,
+                      schedule: selSchedule,
+                      expectedFee: expectedFee,
+                      slipAmount: detectedAmount || null,
+                      slipUrl: uploadedSlipUrl,
+                      slipRef: slipRef,
+                      reason: detectedAmount ? `ยอดเงินโอน (฿${detectedAmount}) ไม่ตรงกับค่าคอร์ส (฿${expectedFee})` : 'รอเจ้าหน้าที่การเงินตรวจสอบสลิปโอนเงิน',
+                      createdAt: new Date().toISOString()
+                    };
+                    await _supabase
+                      .from('fee_settings')
+                      .upsert([{
+                        key: 'pending_slip:' + sid,
+                        name: JSON.stringify(pendingRecord),
+                        amount: expectedFee,
+                        mode: 'PENDING',
+                        updated_at: new Date().toISOString()
+                      }]);
+                  }
+                } catch(e) { console.warn('Pending slip recording error:', e); }
+
+                const subMsg = document.getElementById('lblSuccessSub');
+                if (subMsg) subMsg.innerHTML = '<span style="color:#D97706; font-weight:700;">⏳ บันทึกการสมัครเรียบร้อยแล้ว อยู่ระหว่างรอตรวจสอบยอดเงินโดยฝ่ายการเงิน</span><br><span style="font-size:12px; color:#6B7280;">เมื่อฝ่ายการเงินยืนยันแล้ว ใบเสร็จรับเงินจะถูกจัดส่งเข้าอีเมลของคุณโดยอัตโนมัติ</span>';
+              }
 
 
 
@@ -968288,6 +968470,37 @@ function openForgotPasswordModal() {
 
 
 
+<!-- Point 1: Modal รายการรอตรวจสอบยอดเงินออนไลน์ (Cashier Review Queue) -->
+  <div id="modalPendingSlips" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); z-index:99999; align-items:center; justify-content:center; padding:15px; box-sizing:border-box;">
+    <div style="background:#0F172A; border:1px solid #334155; border-radius:16px; width:100%; max-width:850px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.7); overflow:hidden;">
+      <!-- Modal Header -->
+      <div style="padding:18px 20px; border-bottom:1px solid #1E293B; display:flex; align-items:center; justify-content:space-between; background:linear-gradient(90deg, #1E293B, #0F172A);">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="width:36px; height:36px; border-radius:8px; background:rgba(217,119,6,0.2); border:1px solid #d97706; display:flex; align-items:center; justify-content:center; color:#f59e0b; font-size:16px;">
+            <i class="fa-solid fa-file-invoice-dollar"></i>
+          </div>
+          <div>
+            <div style="font-size:16px; font-weight:800; color:#F8FAFC;">รายการรอตรวจสอบยอดเงิน (สลิปโอนเงินออนไลน์)</div>
+            <div style="font-size:12px; color:#94A3B8;">ตรวจสอบสลิป ติดต่อผู้สมัคร และอนุมัติออกใบเสร็จรับเงิน</div>
+          </div>
+        </div>
+        <button type="button" onclick="closePendingSlipsModal()" style="background:transparent; border:none; color:#94A3B8; font-size:20px; cursor:pointer; width:32px; height:32px; border-radius:6px; display:flex; align-items:center; justify-content:center;">&times;</button>
+      </div>
+
+      <!-- Modal Body (List of Pending Cards) -->
+      <div id="boxPendingSlipsList" style="padding:20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:16px;">
+        <div style="text-align:center; padding:40px 10px; color:#94A3B8;">
+          <i class="fa-solid fa-spinner fa-spin" style="font-size:24px; margin-bottom:8px;"></i>
+          <div>กำลังโหลดรายการสลิปที่รอตรวจสอบ...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zoomable Slip Lightbox Modal -->
+  <div id="modalZoomSlip" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:100000; align-items:center; justify-content:center; padding:20px;" onclick="closeZoomSlipModal()">
+    <img id="imgZoomSlipFull" src="" alt="Full Slip" style="max-height:90vh; max-width:90vw; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.8);" />
+  </div>
 </body>
 
 
