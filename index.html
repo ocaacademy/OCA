@@ -270672,7 +270672,7 @@ body.printing-report #printReportContainer {
 
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
 
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v216</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v217</div>
 
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
 
@@ -466752,6 +466752,118 @@ body.printing-report #printReportContainer {
     window.handleEnrollPhotoFileUpload = handleEnrollPhotoFileUpload;
 
     /**
+     * Enterprise Edge Refinement & De-fringing Pipeline for Portrait Background Standardizer
+     * Eliminates blue backdrop halos, enforces strict alpha cutoff, and micro-feathers crisp contours.
+     */
+    function renderRefinedPortraitCanvas(results, targetBgColor, w, h) {
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = w;
+      outCanvas.height = h;
+      const outCtx = outCanvas.getContext('2d');
+
+      // Parse target background color (Default to #800000 Maroon)
+      let bgR = 128, bgG = 0, bgB = 0;
+      if (targetBgColor && typeof targetBgColor === 'string' && targetBgColor.startsWith('#')) {
+        let hex = targetBgColor.slice(1);
+        if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+        const val = parseInt(hex, 16);
+        if (!isNaN(val)) {
+          bgR = (val >> 16) & 255;
+          bgG = (val >> 8) & 255;
+          bgB = val & 255;
+        }
+      }
+
+      try {
+        // 1. Offscreen canvas for segmentation mask
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.width = w;
+        maskCanvas.height = h;
+        const maskCtx = maskCanvas.getContext('2d');
+        maskCtx.drawImage(results.segmentationMask, 0, 0, w, h);
+        const maskImgData = maskCtx.getImageData(0, 0, w, h);
+        const maskPixels = maskImgData.data;
+
+        // 2. Offscreen canvas for source image
+        const srcCanvas = document.createElement('canvas');
+        srcCanvas.width = w;
+        srcCanvas.height = h;
+        const srcCtx = srcCanvas.getContext('2d');
+        srcCtx.drawImage(results.image, 0, 0, w, h);
+        const srcImgData = srcCtx.getImageData(0, 0, w, h);
+        const srcPixels = srcImgData.data;
+
+        // 3. Output pixel buffer
+        const outImgData = outCtx.createImageData(w, h);
+        const outPixels = outImgData.data;
+
+        // Tuned High-Precision Matting Parameters:
+        // Pixels with confidence <= lowCut (47%) are guaranteed background -> eliminate blue halo!
+        // Pixels with confidence >= highCut (70%) are 100% solid subject
+        const lowCut = 120;
+        const highCut = 180;
+        const range = highCut - lowCut;
+        const totalPixels = maskPixels.length;
+
+        for (let i = 0; i < totalPixels; i += 4) {
+          // MediaPipe mask confidence is stored in alpha (i+3) or red (i)
+          const conf = Math.max(maskPixels[i], maskPixels[i + 3]);
+
+          if (conf <= lowCut) {
+            // 100% Solid Target Background - Zero remnant of old blue background
+            outPixels[i]     = bgR;
+            outPixels[i + 1] = bgG;
+            outPixels[i + 2] = bgB;
+            outPixels[i + 3] = 255;
+          } else {
+            let sR = srcPixels[i];
+            let sG = srcPixels[i + 1];
+            let sB = srcPixels[i + 2];
+
+            // Edge Color Spill Suppression (Blue De-Fringing):
+            // Neutralize optical blue flare on hair/collar boundary where confidence < 220
+            if (conf < 220 && sB > sR && sB > sG) {
+              const maxOther = Math.max(sR, sG);
+              sB = maxOther;
+            }
+
+            if (conf >= highCut) {
+              // 100% Solid Subject
+              outPixels[i]     = sR;
+              outPixels[i + 1] = sG;
+              outPixels[i + 2] = sB;
+              outPixels[i + 3] = 255;
+            } else {
+              // Crisp Hermite smoothstep micro-feather (1px sharp edge, zero stair-stepping)
+              const t = (conf - lowCut) / range;
+              const alpha = t * t * (3 - 2 * t);
+              outPixels[i]     = Math.round(sR * alpha + bgR * (1 - alpha));
+              outPixels[i + 1] = Math.round(sG * alpha + bgG * (1 - alpha));
+              outPixels[i + 2] = Math.round(sB * alpha + bgB * (1 - alpha));
+              outPixels[i + 3] = 255;
+            }
+          }
+        }
+
+        outCtx.putImageData(outImgData, 0, 0);
+      } catch (err) {
+        console.warn('[Refined Portrait Matting] Fallback to standard composite:', err);
+        outCtx.clearRect(0, 0, w, h);
+        outCtx.drawImage(results.segmentationMask, 0, 0, w, h);
+        outCtx.globalCompositeOperation = 'source-in';
+        outCtx.drawImage(results.image, 0, 0, w, h);
+        outCtx.globalCompositeOperation = 'destination-over';
+        outCtx.fillStyle = targetBgColor || '#800000';
+        outCtx.fillRect(0, 0, w, h);
+      }
+
+      return outCanvas;
+    }
+    window.renderRefinedPortraitCanvas = renderRefinedPortraitCanvas;
+
+
+
+    /**
      * Enhanced Offline Enrollment: AI Maroon (#800000) Background Standardizer
      * Uses MediaPipe Selfie Segmentation WebAssembly for solid Maroon portrait background
      */
@@ -466796,30 +466908,9 @@ body.printing-report #printReportContainer {
           const inCtx = inCanvas.getContext('2d');
           inCtx.drawImage(imgEl, 0, 0, w, h);
 
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-
           segmenter.onResults((results) => {
-            // 1. Clear transparent canvas
-            ctx.save();
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 2. Draw segmentation mask
-            ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
-
-            // 3. Keep ONLY the foreground person
-            ctx.globalCompositeOperation = 'source-in';
-            ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-            // 4. Fill solid Maroon (#800000) BEHIND the person
-            ctx.globalCompositeOperation = 'destination-over';
-            ctx.fillStyle = MAROON_COLOR;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.restore();
-
-            const processedUri = canvas.toDataURL('image/jpeg', 0.88);
+            const outCanvas = renderRefinedPortraitCanvas(results, MAROON_COLOR, w, h);
+            const processedUri = outCanvas.toDataURL('image/jpeg', 0.92);
 
             // Immediately update capturedPreview and CR80 Card!
             applyCapturedPhoto(processedUri);
@@ -854139,7 +854230,7 @@ function updateReceiptLivePreview() {
 
         if (specVer) {
 
-          specVer.textContent = 'oca-pwa-v216';
+          specVer.textContent = 'oca-pwa-v217';
 
         }
 
@@ -965074,30 +965165,9 @@ isOnlineResume: true,
           const inCtx = inCanvas.getContext('2d');
           inCtx.drawImage(imgEl, 0, 0, w, h);
 
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-
           segmenter.onResults((results) => {
-            // 1. Clear transparent canvas
-            ctx.save();
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 2. Draw segmentation mask
-            ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
-
-            // 3. Keep ONLY the person (source-in)
-            ctx.globalCompositeOperation = 'source-in';
-            ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-            // 4. Draw solid Maroon background BEHIND the person (destination-over)
-            ctx.globalCompositeOperation = 'destination-over';
-            ctx.fillStyle = _currentPhotoBgColor;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.restore();
-
-            pubStudentPhotoDataUri = canvas.toDataURL('image/jpeg', 0.88);
+            const outCanvas = renderRefinedPortraitCanvas(results, _currentPhotoBgColor || '#800000', w, h);
+            pubStudentPhotoDataUri = outCanvas.toDataURL('image/jpeg', 0.92);
             const img = document.getElementById('imgPubPhotoPreview');
             if (img) img.src = pubStudentPhotoDataUri;
 
