@@ -149774,6 +149774,22 @@ body.printing-report #printReportContainer {
                 <i class="fa-solid fa-wand-magic-sparkles" style="color:#EF4444; margin-right:4px;"></i>
                 <span id="lblEnrollPhotoAiStatusText">AI MediaPipe: ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย</span>
               </div>
+              <!-- Real System Photo Result Preview Box in #tabEnroll -->
+              <div id="boxEnrollPhotoRealSystemPreview" style="display:none; margin-top:12px; background:rgba(128,0,0,0.1); border:1.5px solid rgba(128,0,0,0.4); border-radius:10px; padding:12px; text-align:center;">
+                <div style="font-size:12px; font-weight:700; color:var(--text-main); margin-bottom:8px; display:flex; align-items:center; justify-content:center; gap:6px;">
+                  <i class="fa-solid fa-id-badge" style="color:#EF4444;"></i>
+                  <span>ผลลัพธ์รูปถ่ายที่ใช้จริงในระบบ (ทะเบียน & บัตรประจำตัวนักศึกษา):</span>
+                </div>
+                <div style="display:inline-block; position:relative; padding:4px; background:#011A14; border:1px solid rgba(215,166,0,0.4); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.4);">
+                  <img id="imgEnrollPhotoRealSystem" src="" alt="Actual Processed Photo" style="width:120px; height:160px; object-fit:cover; border-radius:4px; display:block;">
+                  <div style="position:absolute; bottom:6px; left:6px; right:6px; background:rgba(0,0,0,0.75); color:#FDE047; font-size:10px; padding:2px; border-radius:3px; font-weight:600;">
+                    สัดส่วน 3:4 (ขนาด 3x4 ซม.)
+                  </div>
+                </div>
+                <div style="font-size:11px; color:#34D399; margin-top:6px; font-weight:600;">
+                  <i class="fa-solid fa-circle-check"></i> ปรับพื้นหลังเป็นสีแดงเลือดหมูทางการ (#800000) พร้อมบันทึกลงฐานข้อมูลทันที
+                </div>
+              </div>
 
 
 
@@ -270649,7 +270665,7 @@ body.printing-report #printReportContainer {
 
             <div style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-code-branch" style="color:var(--color-gold); margin-right:4px;"></i>เวอร์ชัน PWA ปัจจุบัน</div>
 
-            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v214</div>
+            <div id="specActiveVersion" style="font-size:18px; font-weight:800; color:#fff; margin-top:4px;">oca-pwa-v215</div>
 
             <div style="font-size:11px; color:#34d399; margin-top:2px;">Production Release</div>
 
@@ -465431,6 +465447,10 @@ body.printing-report #printReportContainer {
 
 
         preview.src = '';
+        const realBox = document.getElementById('boxEnrollPhotoRealSystemPreview');
+        const realImg = document.getElementById('imgEnrollPhotoRealSystem');
+        if (realBox) realBox.style.display = 'none';
+        if (realImg) realImg.src = '';
 
 
 
@@ -466844,7 +466864,7 @@ body.printing-report #printReportContainer {
      * Enhanced Offline Enrollment: AI Maroon (#800000) Background Standardizer
      * Uses MediaPipe Selfie Segmentation WebAssembly for solid Maroon portrait background
      */
-    async function applyPhotoBackgroundMaroonForEnroll(rawUri) {
+        async function applyPhotoBackgroundMaroonForEnroll(rawUri) {
       if (!rawUri) return;
       const MAROON_COLOR = '#800000';
       const aiStatus = document.getElementById('lblEnrollPhotoAiStatus');
@@ -466854,61 +466874,78 @@ body.printing-report #printReportContainer {
         if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: กำลังตัดและปรับพื้นหลังสีแดงเลือดหมู (#800000)...';
       }
 
-      try {
-        let segmenter = null;
-        if (typeof initSelfieSegmentationEngine === 'function') {
-          segmenter = await initSelfieSegmentationEngine();
-        }
-        if (!segmenter) {
-          applyCapturedPhoto(rawUri);
-          if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ใช้รูปถ่ายต้นฉบับ (พร้อมบันทึก)';
-          return;
-        }
+      // Show temporary preview immediately while AI is processing
+      applyCapturedPhoto(rawUri);
 
+      try {
+        const segmenter = await initSelfieSegmentationEngine();
         const imgEl = new Image();
         imgEl.crossOrigin = 'anonymous';
         imgEl.onload = async () => {
+          if (!segmenter) {
+            if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ใช้รูปถ่ายต้นฉบับ';
+            return;
+          }
+
+          // Pre-scale input canvas to optimal 600x800 for high speed and sharpness
+          const inCanvas = document.createElement('canvas');
+          const maxDim = 800;
+          let w = imgEl.width || 600;
+          let h = imgEl.height || 800;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+            else { w = Math.round((w * maxDim) / h); h = maxDim; }
+          }
+          inCanvas.width = w;
+          inCanvas.height = h;
+          const inCtx = inCanvas.getContext('2d');
+          inCtx.drawImage(imgEl, 0, 0, w, h);
+
           const canvas = document.createElement('canvas');
-          canvas.width = 600;
-          canvas.height = 800;
+          canvas.width = w;
+          canvas.height = h;
           const ctx = canvas.getContext('2d');
 
           segmenter.onResults((results) => {
-            // 1. Solid Maroon Background (#800000)
-            ctx.fillStyle = MAROON_COLOR;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // 2. Composite foreground person using segmentation mask
+            // 1. Clear transparent canvas
             ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Draw segmentation mask
             ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+
+            // 3. Keep ONLY the foreground person
             ctx.globalCompositeOperation = 'source-in';
             ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+            // 4. Fill solid Maroon (#800000) BEHIND the person
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = MAROON_COLOR;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.restore();
 
-            // 3. Final composite
-            const finalCanvas = document.createElement('canvas');
-            finalCanvas.width = 600;
-            finalCanvas.height = 800;
-            const fctx = finalCanvas.getContext('2d');
-            fctx.fillStyle = MAROON_COLOR;
-            fctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-            fctx.drawImage(canvas, 0, 0);
+            const processedUri = canvas.toDataURL('image/jpeg', 0.88);
 
-            const processedUri = finalCanvas.toDataURL('image/jpeg', 0.88);
+            // Immediately update capturedPreview and CR80 Card!
             applyCapturedPhoto(processedUri);
+
+            // Update dedicated Real System Result Box
+            const realImg = document.getElementById('imgEnrollPhotoRealSystem');
+            const realBox = document.getElementById('boxEnrollPhotoRealSystemPreview');
+            if (realImg) realImg.src = processedUri;
+            if (realBox) realBox.style.display = 'block';
+
             if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย';
           });
 
-          await segmenter.send({ image: imgEl });
+          await segmenter.send({ image: inCanvas });
         };
         imgEl.onerror = () => {
-          applyCapturedPhoto(rawUri);
           if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ใช้รูปถ่ายต้นฉบับ';
         };
         imgEl.src = rawUri;
       } catch (err) {
         console.warn('[Enroll AI Maroon Photo] fallback:', err);
-        applyCapturedPhoto(rawUri);
         if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ใช้รูปถ่ายต้นฉบับ';
       }
     }
@@ -854204,7 +854241,7 @@ function updateReceiptLivePreview() {
 
         if (specVer) {
 
-          specVer.textContent = 'oca-pwa-v214';
+          specVer.textContent = 'oca-pwa-v215';
 
         }
 
@@ -965105,14 +965142,12 @@ isOnlineResume: true,
     /**
      * Apply AI Maroon Background Color (#800000)
      */
-    async function applyPhotoBackground(targetHexColor) {
+        async function applyPhotoBackground(targetHexColor) {
       _currentPhotoBgColor = targetHexColor || MAROON_BG_COLOR;
       if (!_rawOriginalPhotoDataUri) return;
-
       const bgPanel = document.getElementById('panelPhotoBgOptions');
       const procEl = document.getElementById('lblPhotoAiProcessing');
       const succEl = document.getElementById('lblPhotoAiSuccess');
-
       if (bgPanel) bgPanel.style.display = 'block';
       if (procEl) procEl.style.display = 'block';
       if (succEl) succEl.style.display = 'none';
@@ -965128,37 +965163,47 @@ isOnlineResume: true,
             return;
           }
 
+          const inCanvas = document.createElement('canvas');
+          const maxDim = 800;
+          let w = imgEl.width || 600;
+          let h = imgEl.height || 800;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+            else { w = Math.round((w * maxDim) / h); h = maxDim; }
+          }
+          inCanvas.width = w;
+          inCanvas.height = h;
+          const inCtx = inCanvas.getContext('2d');
+          inCtx.drawImage(imgEl, 0, 0, w, h);
+
           const canvas = document.createElement('canvas');
-          canvas.width = 600;
-          canvas.height = 800;
+          canvas.width = w;
+          canvas.height = h;
           const ctx = canvas.getContext('2d');
 
           segmenter.onResults((results) => {
-            // 1. Draw solid Maroon background (#800000)
-            ctx.fillStyle = _currentPhotoBgColor;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // 2. Composite person foreground using segmentation mask
+            // 1. Clear transparent canvas
             ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Draw segmentation mask
             ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+
+            // 3. Keep ONLY the person (source-in)
             ctx.globalCompositeOperation = 'source-in';
             ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+            // 4. Draw solid Maroon background BEHIND the person (destination-over)
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = _currentPhotoBgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.restore();
 
-            // 3. Final composite
-            const finalCanvas = document.createElement('canvas');
-            finalCanvas.width = 600;
-            finalCanvas.height = 800;
-            const fctx = finalCanvas.getContext('2d');
-            fctx.fillStyle = _currentPhotoBgColor;
-            fctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-            fctx.drawImage(canvas, 0, 0);
-
-            pubStudentPhotoDataUri = finalCanvas.toDataURL('image/jpeg', 0.88);
+            pubStudentPhotoDataUri = canvas.toDataURL('image/jpeg', 0.88);
             const img = document.getElementById('imgPubPhotoPreview');
             if (img) img.src = pubStudentPhotoDataUri;
 
-            // Update Real System Photo Result Preview Box
+            // Update Real System Photo Result Preview Box with genuine Maroon photo!
             const realImg = document.getElementById('imgPubPhotoRealSystem');
             const realBox = document.getElementById('boxPubPhotoRealSystemPreview');
             if (realImg) realImg.src = pubStudentPhotoDataUri;
@@ -965169,7 +965214,7 @@ isOnlineResume: true,
             if (typeof savePublicRegisterDraft === 'function') savePublicRegisterDraft();
           });
 
-          await segmenter.send({ image: imgEl });
+          await segmenter.send({ image: inCanvas });
         };
         imgEl.src = _rawOriginalPhotoDataUri;
       } catch (err) {
