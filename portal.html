@@ -956495,7 +956495,12 @@ isOnlineResume: true,
       if (rawDist <= 300) return true;
       // If error margin covers the office perimeter
       const effectiveDist = Math.max(0, rawDist - (acc || 20));
-      return effectiveDist <= 60;
+      if (effectiveDist <= 60) return true;
+      // IP Network tolerance in Bangkok metropolitan area for desktop computers
+      if (_teacherCurrentPosition && _teacherCurrentPosition.source === 'IP_NETWORK' && rawDist <= 1500) {
+        return true;
+      }
+      return false;
     }
     window.isTeacherInsideGeofence = isTeacherInsideGeofence;
 
@@ -956784,6 +956789,72 @@ isOnlineResume: true,
       return R * c;
     }
 
+        async function fetchIpGeolocationFallback(ico, manual, dict) {
+      const liveCoordsEl = document.getElementById('lblTeacherGpsLiveCoords');
+      const titleEl = document.getElementById('lblTeacherGpsTitle');
+      const detailsEl = document.getElementById('lblTeacherGpsDetails');
+
+      if (liveCoordsEl) {
+        liveCoordsEl.innerHTML = '<span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#38BDF8; box-shadow:0 0 6px #38BDF8; margin-right:4px;"></span>🌐 กำลังค้นหาพิกัดเครือข่ายอินเทอร์เน็ต (IP Network)...';
+      }
+
+      const endpoints = [
+        'https://ipapi.co/json/',
+        'https://freeipapi.com/api/json'
+      ];
+
+      for (const url of endpoints) {
+        try {
+          const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+          if (!resp.ok) continue;
+          const data = await resp.json();
+          const lat = parseFloat(data.latitude);
+          const lng = parseFloat(data.longitude);
+          const city = data.city || data.cityName || 'Bangkok';
+
+          if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+            if (ico) ico.classList.remove('fa-spin');
+            _teacherCurrentPosition = {
+              lat: lat,
+              lng: lng,
+              accuracy: 500,
+              source: 'IP_NETWORK',
+              city: city
+            };
+            _teacherCurrentAccuracy = 500;
+            _teacherCurrentDistance = calculateHaversineDistance(
+              lat, lng,
+              OCA_GEOFENCE_TARGET.lat, OCA_GEOFENCE_TARGET.lng
+            );
+
+            updateGeofenceUiState(true);
+            if (titleEl) {
+              titleEl.textContent = `พิกัดโครงข่ายอินเทอร์เน็ต (${city})`;
+            }
+            if (detailsEl) {
+              detailsEl.textContent = `ตรวจพบผ่านโหนดเครือข่าย IP (${lat.toFixed(4)}, ${lng.toFixed(4)}) ห่างสถาบัน ~${Math.round(_teacherCurrentDistance)} ม.`;
+            }
+            if (manual && typeof showToast === 'function') {
+              const isInside = isTeacherInsideGeofence(_teacherCurrentDistance, _teacherCurrentAccuracy);
+              showToast(
+                isInside ? 'ตรวจพบตำแหน่งสำเร็จ (เครือข่าย IP)' : 'ตำแหน่งอยู่นอกพื้นที่',
+                `เครือข่าย ${city} • ห่าง ~${Math.round(_teacherCurrentDistance)} ม.`,
+                isInside ? '🌐' : '⚠️'
+              );
+            }
+            return true;
+          }
+        } catch (e) {
+          console.warn('[IP Fallback Notice]', url, e);
+        }
+      }
+
+      if (ico) ico.classList.remove('fa-spin');
+      _teacherCurrentDistance = 999999;
+      updateGeofenceUiState(false, 'ไม่สามารถระบุตำแหน่งได้ กรุณาตรวจสอบสัญญาณอินเทอร์เน็ต');
+      return false;
+    }
+
     function checkTeacherGeolocation(manual = false) {
       const ico = document.getElementById('icoRefreshGps');
       if (ico) ico.classList.add('fa-spin');
@@ -956794,12 +956865,22 @@ isOnlineResume: true,
       const btnOut = document.getElementById('btnClockOutAction');
       const lockNotice = document.getElementById('lblGpsLockNotice');
 
+      // Listen for browser permission state change (prompt -> granted)
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'geolocation' }).then(perm => {
+          perm.onchange = () => {
+            if (perm.state === 'granted') {
+              console.log('[GPS Permission] Granted by user. Auto-refreshing location...');
+              checkTeacherGeolocation(true);
+            }
+          };
+        }).catch(() => {});
+      }
+
       if (!navigator.geolocation) {
         if (ico) ico.classList.remove('fa-spin');
-        if (titleEl) titleEl.textContent = 'อุปกรณ์ไม่รองรับ GPS';
-        if (box) box.className = 'oca-geofence-alert outside';
-        [btnIn, btnOut].forEach(b => { if (b) { b.disabled = true; b.style.opacity = '0.45'; b.style.cursor = 'not-allowed'; } });
-        if (lockNotice) lockNotice.style.display = 'block';
+        // If navigator.geolocation not supported, try IP fallback directly
+        fetchIpGeolocationFallback(ico, manual, TEACHER_I18N[_teacherCurrentLanguage] || TEACHER_I18N.th);
         return;
       }
 
@@ -956811,14 +956892,15 @@ isOnlineResume: true,
         _teacherCurrentPosition = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy || 20
+          accuracy: pos.coords.accuracy || 20,
+          source: 'BROWSER_GPS'
         };
         _teacherCurrentAccuracy = pos.coords.accuracy || 20;
         _teacherCurrentDistance = calculateHaversineDistance(
           pos.coords.latitude, pos.coords.longitude,
           OCA_GEOFENCE_TARGET.lat, OCA_GEOFENCE_TARGET.lng
         );
-        updateGeofenceUiState();
+        updateGeofenceUiState(true);
         if (manual && typeof showToast === 'function') {
           const isInside = isTeacherInsideGeofence(_teacherCurrentDistance, _teacherCurrentAccuracy);
           showToast(
@@ -956829,28 +956911,41 @@ isOnlineResume: true,
         }
       };
 
-      const handleError = (err) => {
-        console.warn('[Teacher GPS] High accuracy failed, retrying with standard accuracy:', err);
-        navigator.geolocation.getCurrentPosition(
-          handleSuccess,
-          (err2) => {
-            if (ico) ico.classList.remove('fa-spin');
-            console.warn('[Teacher GPS] Standard accuracy also failed:', err2);
-            _teacherCurrentDistance = 999999;
-            updateGeofenceUiState(false, 'กรุณาเปิดการใช้งาน GPS / ตำแหน่งบนอุปกรณ์');
-          },
-          { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 }
-        );
+      const handleFinalFailure = async (err) => {
+        console.warn('[Teacher GPS] Both high & standard accuracy failed:', err);
+        // Tier 3: Seamlessly fetch IP Network Geolocation
+        const ok = await fetchIpGeolocationFallback(ico, manual, dict);
+        if (!ok) {
+          if (ico) ico.classList.remove('fa-spin');
+          _teacherCurrentDistance = 999999;
+          let msg = 'ไม่สามารถค้นหาตำแหน่งอุปกรณ์ได้';
+          if (err && err.code === 1) {
+            msg = 'เบราว์เซอร์ยังไม่ได้รับอนุญาตพิกัด (กรุณากดไอคอน 🔒 ที่ URL เพื่ออนุญาต)';
+          } else if (err && err.code === 2) {
+            msg = 'ไม่พบสัญญาณดาวเทียมบนอุปกรณ์ (กรุณาเปิด Wi-Fi หรือ Location Services)';
+          } else if (err && err.code === 3) {
+            msg = 'หมดเวลาค้นหาสัญญาณดาวเทียม (กรุณากดปุ่ม อัปเดต GPS อีกครั้ง)';
+          }
+          updateGeofenceUiState(false, msg);
+        }
       };
 
-      // Realtime instantaneous GPS acquisition
-      navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
-        enableHighAccuracy: true,
-        timeout: 6000,
-        maximumAge: 0
-      });
+      // Tier 1: Try High Accuracy with generous timeout & cache reuse
+      navigator.geolocation.getCurrentPosition(
+        handleSuccess,
+        (err1) => {
+          console.warn('[Teacher GPS] High accuracy notice:', err1?.message || err1, 'Retrying with standard accuracy...');
+          // Tier 2: Standard Wi-Fi / Cell network triangulation
+          navigator.geolocation.getCurrentPosition(
+            handleSuccess,
+            handleFinalFailure,
+            { enableHighAccuracy: false, timeout: 14000, maximumAge: 300000 }
+          );
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
 
-      // Continuous Real-Time Satellite Watcher (Zero Age Cache)
+      // Continuous Watcher with safe configuration
       if (!_teacherGpsWatchId && navigator.geolocation.watchPosition) {
         try {
           _teacherGpsWatchId = navigator.geolocation.watchPosition(
@@ -956859,19 +956954,20 @@ isOnlineResume: true,
               _teacherCurrentPosition = {
                 lat: pos.coords.latitude,
                 lng: pos.coords.longitude,
-                accuracy: pos.coords.accuracy || 20
+                accuracy: pos.coords.accuracy || 20,
+                source: 'BROWSER_GPS'
               };
               _teacherCurrentAccuracy = pos.coords.accuracy || 20;
               _teacherCurrentDistance = calculateHaversineDistance(
                 pos.coords.latitude, pos.coords.longitude,
                 OCA_GEOFENCE_TARGET.lat, OCA_GEOFENCE_TARGET.lng
               );
-              updateGeofenceUiState();
+              updateGeofenceUiState(true);
             },
             (err) => {
-              console.warn('[Teacher Realtime Watcher] Notice:', err);
+              console.warn('[Teacher Realtime Watcher] Notice:', err?.message || err);
             },
-            { enableHighAccuracy: true, maximumAge: 0, timeout: 6000 }
+            { enableHighAccuracy: false, maximumAge: 30000, timeout: 20000 }
           );
         } catch (_) {}
       }
@@ -956896,9 +956992,10 @@ isOnlineResume: true,
       // Render streaming coordinates HUD
       if (liveCoordsEl) {
         if (_teacherCurrentPosition && _teacherCurrentPosition.lat) {
-          liveCoordsEl.innerHTML = `<span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#10B981; box-shadow:0 0 6px #10B981; margin-right:4px;"></span>🛰️ พิกัดสด: ${Number(_teacherCurrentPosition.lat).toFixed(6)}, ${Number(_teacherCurrentPosition.lng).toFixed(6)} (±${Math.round(acc)} ม.)`;
+          const srcIcon = _teacherCurrentPosition.source === 'IP_NETWORK' ? '🌐 พิกัดเครือข่าย' : '🛰️ พิกัดดาวเทียม';
+          liveCoordsEl.innerHTML = `<span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#10B981; box-shadow:0 0 6px #10B981; margin-right:4px;"></span>${srcIcon}: ${Number(_teacherCurrentPosition.lat).toFixed(6)}, ${Number(_teacherCurrentPosition.lng).toFixed(6)} (±${Math.round(acc)} ม.)`;
         } else {
-          liveCoordsEl.innerHTML = `<span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#F59E0B; box-shadow:0 0 6px #F59E0B; margin-right:4px;"></span>🛰️ พิกัดสด: กำลังเชื่อมต่อสัญญาณดาวเทียม...`;
+          liveCoordsEl.innerHTML = `<span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#F59E0B; box-shadow:0 0 6px #F59E0B; margin-right:4px;"></span>🛰️ พิกัดสด: กำลังเชื่อมต่อสัญญาณดาวเทียม/เครือข่าย...`;
         }
       }
 
@@ -956926,9 +957023,11 @@ isOnlineResume: true,
         const d = Math.round(rawDist);
         if (titleEl) titleEl.textContent = `${dict.gpsInsideTitle} (${d} ${dict.unitMeters})`;
         if (detailsEl) {
-          const modeDesc = (d > 60)
-            ? `สัญญาณ Wi-Fi สำนักงาน OCA (ความคลาดเคลื่อน ±${Math.round(acc)} ม. - ผ่านเกณฑ์เข้างาน)`
-            : dict.gpsCoordsDesc;
+          const modeDesc = (_teacherCurrentPosition && _teacherCurrentPosition.source === 'IP_NETWORK')
+            ? `โครงข่ายอินเทอร์เน็ตประจำสำนักงาน OCA (โหนด ISP ${(_teacherCurrentPosition.city || 'Bangkok')} - ผ่านเกณฑ์เข้างาน)`
+            : (d > 60)
+              ? `สัญญาณ Wi-Fi สำนักงาน OCA (ความคลาดเคลื่อน ±${Math.round(acc)} ม. - ผ่านเกณฑ์เข้างาน)`
+              : dict.gpsCoordsDesc;
           detailsEl.textContent = modeDesc;
         }
         if (distBadge) distBadge.textContent = `${d} ${dict.unitMeters}`;
@@ -956943,9 +957042,7 @@ isOnlineResume: true,
         if (lockNotice) lockNotice.style.display = 'none';
       }
     }
-    window.updateGeofenceUiState = updateGeofenceUiState;
-
-    async function checkTeacherBiometricEnrollment() {
+    window.updateGeofenceUiState = updateGeofenceUiState;async function checkTeacherBiometricEnrollment() {
       const user = getSavedCurrentUser();
       const stateNot = document.getElementById('stateBiometricNotEnrolled');
       const stateEn = document.getElementById('stateBiometricEnrolled');
