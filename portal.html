@@ -244889,11 +244889,16 @@ body.printing-report #printReportContainer {
                     <option value="NEW_STUDENT_ACK">🟢 รับทราบ นร. ใหม่ (New Student Ack)</option>
                     <option value="ATTENDANCE_SAVED">🔵 บันทึกการเช็คชื่อ (Attendance Saved)</option>
                     <option value="STUDENT_CONTACTED">🟡 ประสานงานติดต่อ นร. (Student Contacted)</option>
+                    <option value="DIRECT_MESSAGE">✉️ ข้อความสื่อสารถึงครู (Direct Notice)</option>
+                    <option value="MESSAGE_ACKNOWLEDGED">✅ ครูรับทราบข้อความแล้ว (Acknowledged)</option>
                     <option value="TIMESHEET">🟣 ลงเวลาเข้า-ออกงาน (Timesheet Check-in/out)</option>
                   </select>
                 </div>
               </div>
               <div style="display:flex; gap:10px; align-items:center;">
+                <button type="button" id="btnOpenSendTeacherMsgModal" onclick="openSendTeacherMsgModal()" style="padding:8px 16px; font-size:12px; font-weight:700; border-radius:8px; cursor:pointer; background:linear-gradient(135deg, #059669 0%, #047857 100%); color:#FFFFFF; border:1px solid #10B981; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 10px rgba(5,150,105,0.3); transition:all 0.2s ease;">
+                  <i class="fa-solid fa-paper-plane" style="color:#A7F3D0;"></i> <span>ส่งข้อความถึงครู (Send Notice)</span>
+                </button>
                 <button type="button" id="btnPrintTeacherTracker" onclick="printTeacherActivityTrackerReport()" style="padding:8px 16px; font-size:12px; font-weight:700; border-radius:8px; cursor:pointer; background:rgba(255,255,255,0.08); color:#FFFFFF; border:1.5px solid rgba(255,255,255,0.2); display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(0,0,0,0.2); transition:all 0.2s ease;">
                   <i class="fa-solid fa-print" style="color:#38BDF8;"></i> <span>พิมพ์รายงานสรุป (Print A4)</span>
                 </button>
@@ -244932,6 +244937,13 @@ body.printing-report #printReportContainer {
                   <i class="fa-solid fa-phone-volume" style="color:#F59E0B;"></i>
                 </div>
                 <div id="kpiTrackerContact" style="font-size:26px; font-weight:800; color:#F59E0B; margin-top:6px;">0</div>
+              </div>
+              <div style="background:rgba(56,189,248,0.14); border:1px solid rgba(56,189,248,0.35); border-left:4px solid #38BDF8; border-radius:12px; padding:14px 18px; box-shadow:0 4px 16px rgba(56,189,248,0.1);">
+                <div style="font-size:12px; color:#7DD3FC; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+                  <span>ข้อความสื่อสารถึงครู</span>
+                  <i class="fa-solid fa-paper-plane" style="color:#38BDF8;"></i>
+                </div>
+                <div id="kpiTrackerNotice" style="font-size:26px; font-weight:800; color:#38BDF8; margin-top:6px;">0</div>
               </div>
             </div>
 
@@ -958013,6 +958025,13 @@ isOnlineResume: true,
      */
     function onRealtimeTeacherActivityReceived(row) {
       if (!row) return;
+
+      // Handle Direct Notice / Popup to Teacher
+      if (row.action === 'TEACHER_DIRECT_MESSAGE') {
+        if (typeof checkAndDisplayTeacherNotice === 'function') {
+          checkAndDisplayTeacherNotice(row);
+        }
+      }
       const notifItem = {
         id: 'notif_' + Date.now(),
         created_at: row.created_at || new Date().toISOString(),
@@ -958295,6 +958314,10 @@ isOnlineResume: true,
       if (actFilter !== 'ALL') {
         if (actFilter === 'TIMESHEET') {
           filteredRecords = records.filter(r => r.action && r.action.includes('TIMESHEET'));
+        } else if (actFilter === 'DIRECT_MESSAGE') {
+          filteredRecords = records.filter(r => r.action === 'TEACHER_DIRECT_MESSAGE');
+        } else if (actFilter === 'MESSAGE_ACKNOWLEDGED') {
+          filteredRecords = records.filter(r => r.action === 'TEACHER_MESSAGE_ACKNOWLEDGED');
         } else {
           filteredRecords = records.filter(r => r.action === `TEACHER_${actFilter}` || r.action === actFilter);
         }
@@ -958312,11 +958335,14 @@ isOnlineResume: true,
       const ackCount = records.filter(r => r.action === 'TEACHER_NEW_STUDENT_ACK').length;
       const attCount = records.filter(r => r.action === 'TEACHER_ATTENDANCE_SAVED').length;
       const crmCount = records.filter(r => r.action === 'TEACHER_STUDENT_CONTACTED').length;
+      const noticeCount = records.filter(r => r.action === 'TEACHER_DIRECT_MESSAGE' || r.action === 'TEACHER_MESSAGE_ACKNOWLEDGED').length;
 
+      const kpiNotice = document.getElementById('kpiTrackerNotice');
       if (kpiTotal) kpiTotal.textContent = records.length;
       if (kpiAck) kpiAck.textContent = ackCount;
       if (kpiAttendance) kpiAttendance.textContent = attCount;
       if (kpiContact) kpiContact.textContent = crmCount;
+      if (kpiNotice) kpiNotice.textContent = noticeCount;
 
       if (filteredRecords.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:#94A3B8;">ไม่พบประวัติการปฏิบัติงานตามเงื่อนไขที่เลือก</td></tr>';
@@ -958338,6 +958364,10 @@ isOnlineResume: true,
           badgeHtml = '<span style="background:#FFFBEB; color:#D97706; border:1px solid #F59E0B; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-phone-volume"></i> ติดต่อประสานงาน</span>';
         } else if (r.action && r.action.includes('TIMESHEET')) {
           badgeHtml = '<span style="background:#FAF5FF; color:#7C3AED; border:1px solid #C084FC; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-clock"></i> ลงเวลาเข้า-ออก</span>';
+        } else if (r.action === 'TEACHER_DIRECT_MESSAGE') {
+          badgeHtml = '<span style="background:rgba(56,189,248,0.18); color:#38BDF8; border:1px solid #38BDF8; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-paper-plane"></i> สื่อสารถึงครู</span>';
+        } else if (r.action === 'TEACHER_MESSAGE_ACKNOWLEDGED') {
+          badgeHtml = '<span style="background:rgba(215,166,0,0.18); color:#FCD34D; border:1px solid #D7A600; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-check-double"></i> ครูรับทราบแล้ว</span>';
         }
 
         const devStr = r.device_info ? (r.device_info.length > 35 ? r.device_info.substring(0, 35) + '...' : r.device_info) : 'Web (Chrome/Safari)';
@@ -958553,6 +958583,400 @@ isOnlineResume: true,
     }
     window.exportTeacherActivityTrackerCSV = exportTeacherActivityTrackerCSV;
 
+    // =========================================================================
+    // TEACHER DIRECT MESSAGING & REALTIME LUXURY POPUP ENGINE
+    // =========================================================================
+    /**
+     * Synthesizes a luxury bell chime tone via Web Audio API
+     */
+    function playBellChimeSound() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.8);
+      } catch (_) {}
+    }
+    window.playBellChimeSound = playBellChimeSound;
+
+    let _currentActiveTeacherNotice = null;
+
+    /**
+     * Opens modal for Admin / Academic Staff to compose notice to teachers
+     */
+    async function openSendTeacherMsgModal() {
+      const modal = document.getElementById('modalComposeTeacherNotice');
+      const selTarget = document.getElementById('selComposeTeacherTarget');
+      if (!modal) return;
+
+      // Populate teachers dropdown if only 1 option (ALL)
+      if (selTarget && selTarget.options.length <= 1 && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data } = await _supabase.from('staff_users').select('username, full_name, role');
+          if (data && data.length > 0) {
+            data.forEach(u => {
+              const opt = document.createElement('option');
+              opt.value = u.username;
+              opt.textContent = `👤 ${u.full_name || u.username} (@${u.username}) - ${u.role || 'Teacher'}`;
+              selTarget.appendChild(opt);
+            });
+          }
+        } catch (e) {
+          console.warn('[openSendTeacherMsgModal] Failed to load teachers:', e);
+        }
+      }
+
+      modal.style.display = 'flex';
+    }
+    window.openSendTeacherMsgModal = openSendTeacherMsgModal;
+
+    function closeComposeTeacherNoticeModal() {
+      const modal = document.getElementById('modalComposeTeacherNotice');
+      if (modal) modal.style.display = 'none';
+    }
+    window.closeComposeTeacherNoticeModal = closeComposeTeacherNoticeModal;
+
+    /**
+     * Submits and broadcasts notice to teachers via Supabase Realtime
+     */
+    async function submitSendTeacherNotice() {
+      const selTarget = document.getElementById('selComposeTeacherTarget');
+      const radUrgency = document.querySelector('input[name="radNoticeUrgency"]:checked');
+      const inpTitle = document.getElementById('inpComposeNoticeTitle');
+      const txaBody = document.getElementById('txaComposeNoticeBody');
+      const inpSender = document.getElementById('inpComposeNoticeSender');
+      const btn = document.getElementById('btnSubmitSendTeacherNotice');
+
+      if (!inpTitle || !inpTitle.value.trim()) {
+        if (typeof showToast === 'function') showToast('กรุณาระบุหัวข้อ', 'กรุณาระบุหัวข้อข้อความก่อนส่ง', '⚠️', 2500);
+        if (inpTitle) inpTitle.focus();
+        return;
+      }
+      if (!txaBody || !txaBody.value.trim()) {
+        if (typeof showToast === 'function') showToast('กรุณาระบุเนื้อหา', 'กรุณาระบุข้อความที่ต้องการแจ้งครู', '⚠️', 2500);
+        if (txaBody) txaBody.focus();
+        return;
+      }
+
+      const target = selTarget ? selTarget.value : 'ALL';
+      const targetText = selTarget && selTarget.selectedIndex >= 0 ? selTarget.options[selTarget.selectedIndex].text : 'ครูทุกคน';
+      const urgency = radUrgency ? radUrgency.value : 'NORMAL';
+      const title = inpTitle.value.trim();
+      const body = txaBody.value.trim();
+      const sender = (inpSender && inpSender.value.trim()) ? inpSender.value.trim() : 'ฝ่ายวิชาการ OCA';
+      const messageId = 'MSG-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4);
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังส่งข้อความ...';
+      }
+
+      try {
+        const metaObj = {
+          message_id: messageId,
+          title: title,
+          sender: sender,
+          urgency: urgency,
+          target: target,
+          target_text: targetText,
+          created_at: new Date().toISOString()
+        };
+
+        // 1. Save to Supabase security_audit_logs for Realtime cross-device broadcast
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          await _supabase.from('security_audit_logs').insert([{
+            action: 'TEACHER_DIRECT_MESSAGE',
+            details: body,
+            username: target,
+            full_name: target === 'ALL' ? 'ครูทุกคน (Broadcast)' : targetText,
+            role: 'Notice',
+            status: 'SUCCESS',
+            device_info: JSON.stringify(metaObj),
+            records: 1
+          }]);
+        }
+
+        // 2. Add to local notifications store
+        try {
+          const list = JSON.parse(localStorage.getItem('oca_notifications') || '[]');
+          list.unshift({
+            id: messageId,
+            created_at: new Date().toISOString(),
+            action: 'TEACHER_DIRECT_MESSAGE',
+            details: `[${urgency}] ${title}: ${body}`,
+            username: target,
+            teacher_name: targetText,
+            role: 'Notice',
+            read: false,
+            device_info: JSON.stringify(metaObj)
+          });
+          localStorage.setItem('oca_notifications', JSON.stringify(list));
+        } catch (_) {}
+
+        if (typeof renderNotificationBell === 'function') {
+          renderNotificationBell(true);
+        }
+
+        // Close compose modal
+        closeComposeTeacherNoticeModal();
+
+        // Clear input form
+        inpTitle.value = '';
+        txaBody.value = '';
+
+        if (typeof showToast === 'function') {
+          showToast('ส่งข้อความสำเร็จ', `ส่งข้อความถึง ${targetText} เรียบร้อยแล้ว`, '🚀', 3500);
+        }
+
+        // Refresh Subview 8 table
+        if (typeof loadTeacherActivityTrackerReport === 'function') {
+          loadTeacherActivityTrackerReport();
+        }
+      } catch (err) {
+        console.error('[Send Teacher Notice Error]:', err);
+        if (typeof showToast === 'function') {
+          showToast('เกิดข้อผิดพลาด', 'ไม่สามารถส่งข้อความได้ กรุณาลองใหม่อีกครั้ง', '❌', 3000);
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>ส่งข้อความทันที (Send Notice)</span>';
+        }
+      }
+    }
+    window.submitSendTeacherNotice = submitSendTeacherNotice;
+
+    /**
+     * Checks incoming realtime row and displays popup if addressed to current teacher
+     */
+    function checkAndDisplayTeacherNotice(row) {
+      if (!row) return;
+      const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+      if (!user || !user.username) return;
+
+      const myUname = String(user.username).toLowerCase().trim();
+      const target = String(row.username || '').toLowerCase().trim();
+
+      // Parse metadata from device_info if JSON
+      let meta = {};
+      try {
+        if (row.device_info && row.device_info.startsWith('{')) {
+          meta = JSON.parse(row.device_info);
+        }
+      } catch (_) {}
+
+      const targetFromMeta = meta.target ? String(meta.target).toLowerCase().trim() : target;
+      const isForMe = (targetFromMeta === 'all' || targetFromMeta === myUname || target === 'all' || target === myUname);
+      if (!isForMe) return;
+
+      const msgId = meta.message_id || ('MSG-' + (row.id || row.created_at || Date.now()));
+
+      // Check if already acknowledged
+      let ackList = [];
+      try {
+        ackList = JSON.parse(localStorage.getItem('oca_teacher_ack_msgs') || '[]');
+      } catch (_) {}
+
+      if (ackList.includes(msgId)) return;
+
+      displayTeacherLuxuryNoticeModal({
+        messageId: msgId,
+        title: meta.title || 'ประกาศจากฝ่ายวิชาการ',
+        body: row.details || '',
+        sender: meta.sender || 'ฝ่ายวิชาการ OCA',
+        urgency: meta.urgency || 'NORMAL',
+        target: meta.target || row.username,
+        createdAt: row.created_at || meta.created_at || new Date().toISOString()
+      });
+    }
+    window.checkAndDisplayTeacherNotice = checkAndDisplayTeacherNotice;
+
+    /**
+     * Renders and opens the Luxury Teacher Popup Modal
+     */
+    function displayTeacherLuxuryNoticeModal(notice) {
+      _currentActiveTeacherNotice = notice;
+
+      const modal = document.getElementById('modalTeacherNoticePopup');
+      const lblTitle = document.getElementById('lblNoticeTitle');
+      const lblContent = document.getElementById('lblNoticeContent');
+      const lblSender = document.getElementById('lblNoticeSender');
+      const lblTime = document.getElementById('lblNoticeTime');
+      const urgencyContainer = document.getElementById('noticeUrgencyBadge');
+      const targetBannerText = document.getElementById('lblNoticeRecipientText');
+
+      if (!modal) return;
+
+      if (lblTitle) lblTitle.textContent = notice.title;
+      if (lblContent) lblContent.textContent = notice.body;
+      if (lblSender) lblSender.textContent = notice.sender;
+
+      if (lblTime) {
+        const dt = new Date(notice.createdAt || Date.now());
+        const thaiYear = dt.getFullYear() + 543;
+        lblTime.textContent = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} น. (${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${thaiYear})`;
+      }
+
+      if (urgencyContainer) {
+        if (notice.urgency === 'URGENT') {
+          urgencyContainer.innerHTML = '<span style="background:rgba(239,68,68,0.2); color:#FCA5A5; border:1px solid #EF4444; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:800; display:inline-flex; align-items:center; gap:5px;"><span style="width:7px; height:7px; border-radius:50%; background:#EF4444; animation:ocaBellPing 1s infinite;"></span> ด่วนที่สุด</span>';
+        } else if (notice.urgency === 'IMPORTANT') {
+          urgencyContainer.innerHTML = '<span style="background:rgba(245,158,11,0.2); color:#FCD34D; border:1px solid #F59E0B; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:800; display:inline-flex; align-items:center; gap:5px;"><i class="fa-solid fa-star"></i> ประกาศสำคัญ</span>';
+        } else {
+          urgencyContainer.innerHTML = '<span style="background:rgba(16,185,129,0.2); color:#6EE7B7; border:1px solid #10B981; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:800; display:inline-flex; align-items:center; gap:5px;"><i class="fa-solid fa-info-circle"></i> ข่าวสารทั่วไป</span>';
+        }
+      }
+
+      if (targetBannerText) {
+        if (String(notice.target).toLowerCase() === 'all') {
+          targetBannerText.textContent = '📢 ประกาศถึงครูผู้สอนทุกคน (All Faculty Members)';
+        } else {
+          const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+          const myName = user ? (user.fullName || user.username) : 'ครูผู้สอน';
+          targetBannerText.textContent = `👤 ข้อความเฉพาะสำหรับ: ${myName}`;
+        }
+      }
+
+      modal.style.display = 'flex';
+
+      // Play audio chime if bell helper exists
+      if (typeof playBellChimeSound === 'function') {
+        try { playBellChimeSound(); } catch (_) {}
+      }
+    }
+    window.displayTeacherLuxuryNoticeModal = displayTeacherLuxuryNoticeModal;
+
+    /**
+     * Acknowledges current active notice and marks it read in database & localStorage
+     */
+    async function acknowledgeTeacherNotice() {
+      if (!_currentActiveTeacherNotice) {
+        const modal = document.getElementById('modalTeacherNoticePopup');
+        if (modal) modal.style.display = 'none';
+        return;
+      }
+
+      const notice = _currentActiveTeacherNotice;
+      const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+      const uname = user ? (user.username || 'teacher') : 'teacher';
+      const fname = user ? (user.fullName || user.username || 'ครูผู้สอน') : 'ครูผู้สอน';
+
+      // 1. Mark as acknowledged locally
+      try {
+        let ackList = JSON.parse(localStorage.getItem('oca_teacher_ack_msgs') || '[]');
+        if (!ackList.includes(notice.messageId)) {
+          ackList.push(notice.messageId);
+          localStorage.setItem('oca_teacher_ack_msgs', JSON.stringify(ackList));
+        }
+      } catch (_) {}
+
+      // 2. Hide modal with smooth transition
+      const modal = document.getElementById('modalTeacherNoticePopup');
+      if (modal) modal.style.display = 'none';
+
+      // 3. Log acknowledgment to Supabase for admin visibility in Subview 8
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          await _supabase.from('security_audit_logs').insert([{
+            action: 'TEACHER_MESSAGE_ACKNOWLEDGED',
+            details: `ครู ${fname} (@${uname}) รับทราบข้อความ: "${notice.title}"`,
+            username: uname,
+            full_name: fname,
+            role: 'Teacher',
+            status: 'SUCCESS',
+            device_info: JSON.stringify({
+              acknowledged_message_id: notice.messageId,
+              acknowledged_at: new Date().toISOString()
+            }),
+            records: 1
+          }]);
+        } catch (err) {
+          console.warn('[acknowledgeTeacherNotice] Supabase error:', err);
+        }
+      }
+
+      if (typeof showToast === 'function') {
+        showToast('รับทราบข้อความแล้ว', `บันทึกการรับทราบประกาศ "${notice.title}" เรียบร้อยแล้ว`, '✓', 3000);
+      }
+
+      _currentActiveTeacherNotice = null;
+
+      // Check if there is another unread announcement in queue
+      setTimeout(checkTeacherUnreadAnnouncements, 400);
+    }
+    window.acknowledgeTeacherNotice = acknowledgeTeacherNotice;
+
+    /**
+     * Checks unread announcements from Supabase when teacher logs in or enters portal
+     */
+    async function checkTeacherUnreadAnnouncements() {
+      const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+      if (!user || !user.username) return;
+
+      const myUname = String(user.username).toLowerCase().trim();
+
+      let ackList = [];
+      try {
+        ackList = JSON.parse(localStorage.getItem('oca_teacher_ack_msgs') || '[]');
+      } catch (_) {}
+
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+          const { data, error } = await _supabase
+            .from('security_audit_logs')
+            .select('*')
+            .eq('action', 'TEACHER_DIRECT_MESSAGE')
+            .gte('created_at', sevenDaysAgo)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+          if (!error && data && data.length > 0) {
+            for (const row of data) {
+              const target = String(row.username || '').toLowerCase().trim();
+              let meta = {};
+              try {
+                if (row.device_info && row.device_info.startsWith('{')) {
+                  meta = JSON.parse(row.device_info);
+                }
+              } catch (_) {}
+
+              const targetFromMeta = meta.target ? String(meta.target).toLowerCase().trim() : target;
+              const isForMe = (targetFromMeta === 'all' || targetFromMeta === myUname || target === 'all' || target === myUname);
+              const msgId = meta.message_id || ('MSG-' + (row.id || row.created_at));
+
+              if (isForMe && !ackList.includes(msgId)) {
+                displayTeacherLuxuryNoticeModal({
+                  messageId: msgId,
+                  title: meta.title || 'ประกาศจากฝ่ายวิชาการ',
+                  body: row.details || '',
+                  sender: meta.sender || 'ฝ่ายวิชาการ OCA',
+                  urgency: meta.urgency || 'NORMAL',
+                  target: meta.target || row.username,
+                  createdAt: row.created_at || meta.created_at || new Date().toISOString()
+                });
+                break; // Show one at a time
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[checkTeacherUnreadAnnouncements Error]:', e);
+        }
+      }
+    }
+    window.checkTeacherUnreadAnnouncements = checkTeacherUnreadAnnouncements;
+
+
 
     function initTeacherPortal() {
       const user = getSavedCurrentUser();
@@ -958587,6 +959011,9 @@ isOnlineResume: true,
       checkTeacherBiometricEnrollment();
       renderTeacherMyHistory();
       loadTeacherClassroomStudents();
+      if (typeof checkTeacherUnreadAnnouncements === 'function') {
+        setTimeout(checkTeacherUnreadAnnouncements, 800);
+      }
     }
     window.initTeacherPortal = initTeacherPortal;
     
@@ -959538,6 +959965,9 @@ async function loadTeacherTimesheetReport() {
       checkTeacherBiometricEnrollment();
       renderTeacherMyHistory();
       loadTeacherClassroomStudents();
+      if (typeof checkTeacherUnreadAnnouncements === 'function') {
+        setTimeout(checkTeacherUnreadAnnouncements, 800);
+      }
     }
     window.initTeacherPortal = initTeacherPortal;
 
@@ -960870,6 +961300,164 @@ async function loadTeacherTimesheetReport() {
     </div>
   </div>
 
+  <!-- =========================================================================
+       MODAL 1: COMPOSE NOTICE TO TEACHERS (Admin / Academic Staff)
+       ========================================================================= -->
+  <div id="modalComposeTeacherNotice" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(1,20,16,0.85); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); z-index:100000; align-items:center; justify-content:center; padding:18px;">
+    <div style="position:relative; width:100%; max-width:560px; background:#022921; border:1.5px solid rgba(255,255,255,0.16); border-radius:20px; box-shadow:0 25px 60px -15px rgba(0,0,0,0.85); overflow:hidden; animation:ocaModalPopIn 0.25s ease;">
+      <!-- Header -->
+      <div style="padding:18px 24px; background:#03332A; border-bottom:1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="width:38px; height:38px; border-radius:10px; background:rgba(56,189,248,0.15); color:#38BDF8; display:flex; align-items:center; justify-content:center; font-size:16px;">
+            <i class="fa-solid fa-paper-plane"></i>
+          </div>
+          <div>
+            <div style="font-size:15px; font-weight:800; color:#FFFFFF;">ส่งข้อความ / ประกาศถึงครูผู้สอน</div>
+            <div style="font-size:11px; color:#94A3B8;">สื่อสารไปยังครูทุกคนหรือเลือกรายบุคคลแบบ Pop-up Real-time</div>
+          </div>
+        </div>
+        <button type="button" onclick="closeComposeTeacherNoticeModal()" style="background:transparent; border:none; color:#94A3B8; font-size:18px; cursor:pointer; padding:4px 8px; border-radius:6px; transition:color 0.2s;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Form Fields -->
+      <div style="padding:22px 24px; display:flex; flex-direction:column; gap:14px; max-height:calc(85vh - 120px); overflow-y:auto;">
+        <!-- Target Recipient -->
+        <div>
+          <label style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
+            <i class="fa-solid fa-user-group" style="color:var(--color-gold, #D7A600); margin-right:4px;"></i> ผู้รับข้อความ (Recipient):
+          </label>
+          <select id="selComposeTeacherTarget" class="oca-input" style="width:100%; padding:9px 12px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2); border-radius:10px; font-size:13px; font-weight:600;">
+            <option value="ALL">📢 ครูทุกคน (Broadcast to All Teachers)</option>
+          </select>
+        </div>
+
+        <!-- Urgency Level -->
+        <div>
+          <label style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
+            <i class="fa-solid fa-tag" style="color:#38BDF8; margin-right:4px;"></i> ระดับความสำคัญ (Urgency / Category):
+          </label>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+            <label style="display:flex; align-items:center; gap:6px; background:#011F18; border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 10px; cursor:pointer; font-size:12px; font-weight:600; color:#E2E8F0;">
+              <input type="radio" name="radNoticeUrgency" value="NORMAL" checked style="accent-color:#10B981;" />
+              <span>🟢 ทั่วไป</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; background:#011F18; border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 10px; cursor:pointer; font-size:12px; font-weight:600; color:#E2E8F0;">
+              <input type="radio" name="radNoticeUrgency" value="IMPORTANT" style="accent-color:#F59E0B;" />
+              <span>🟡 สำคัญ</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; background:#011F18; border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 10px; cursor:pointer; font-size:12px; font-weight:600; color:#E2E8F0;">
+              <input type="radio" name="radNoticeUrgency" value="URGENT" style="accent-color:#EF4444;" />
+              <span>🔴 ด่วนที่สุด</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Subject / Title -->
+        <div>
+          <label style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
+            <i class="fa-solid fa-heading" style="color:var(--color-gold, #D7A600); margin-right:4px;"></i> หัวข้อข้อความ (Subject):
+          </label>
+          <input type="text" id="inpComposeNoticeTitle" class="oca-input" placeholder="เช่น แจ้งกำหนดการประชุมวิชาการประจำสัปดาห์..." style="width:100%; padding:9px 12px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2); border-radius:10px; font-size:13px;" />
+        </div>
+
+        <!-- Message Content -->
+        <div>
+          <label style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
+            <i class="fa-solid fa-align-left" style="color:#38BDF8; margin-right:4px;"></i> เนื้อหาข้อความ (Message Content):
+          </label>
+          <textarea id="txaComposeNoticeBody" class="oca-input" rows="4" placeholder="พิมพ์ข้อความที่ต้องการแจ้งให้ครูผู้สอนทราบ..." style="width:100%; padding:10px 12px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2); border-radius:10px; font-size:13px; line-height:1.6; resize:vertical;"></textarea>
+        </div>
+
+        <!-- Sender Name -->
+        <div>
+          <label style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
+            <i class="fa-solid fa-signature" style="color:#10B981; margin-right:4px;"></i> ระบุชื่อผู้ส่ง (Sender):
+          </label>
+          <input type="text" id="inpComposeNoticeSender" class="oca-input" value="ฝ่ายวิชาการ OCA" style="width:100%; padding:8px 12px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2); border-radius:10px; font-size:12.5px;" />
+        </div>
+      </div>
+
+      <!-- Footer Buttons -->
+      <div style="padding:16px 24px; background:#011F18; border-top:1px solid rgba(255,255,255,0.1); display:flex; justify-content:flex-end; gap:10px;">
+        <button type="button" onclick="closeComposeTeacherNoticeModal()" style="padding:9px 18px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; background:rgba(255,255,255,0.06); color:#CBD5E1; border:1px solid rgba(255,255,255,0.15);">
+          ยกเลิก
+        </button>
+        <button type="button" id="btnSubmitSendTeacherNotice" onclick="submitSendTeacherNotice()" style="padding:9px 20px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; background:linear-gradient(135deg, #059669 0%, #047857 100%); color:#FFFFFF; border:1px solid #10B981; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 10px rgba(5,150,105,0.35);">
+          <i class="fa-solid fa-paper-plane"></i>
+          <span>ส่งข้อความทันที (Send Notice)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODAL 2: TEACHER DIRECT MESSAGE POPUP (Luxury Modern Academic HUD)
+       ========================================================================= -->
+  <div id="modalTeacherNoticePopup" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(1,20,16,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:100000; align-items:center; justify-content:center; padding:18px;">
+    <div class="oca-luxury-notice-card" style="position:relative; width:100%; max-width:540px; background:linear-gradient(160deg, #03362C 0%, #01221B 100%); border:1.5px solid rgba(215,166,0,0.5); border-radius:22px; box-shadow:0 25px 60px -15px rgba(0,0,0,0.85), 0 0 35px rgba(215,166,0,0.25); overflow:hidden; animation:ocaModalPopIn 0.3s cubic-bezier(0.16,1,0.3,1);">
+      
+      <!-- Top Decorative Gold Accent Bar -->
+      <div style="height:5px; width:100%; background:linear-gradient(90deg, #10B981 0%, #D7A600 50%, #10B981 100%);"></div>
+
+      <!-- Header Section -->
+      <div style="padding:22px 24px 16px 24px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="width:46px; height:46px; border-radius:12px; background:rgba(215,166,0,0.12); border:1px solid rgba(215,166,0,0.3); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <img src="./oca_logo.png" onerror="this.src='https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-c1t_QnJjQc6a'" style="width:34px; height:34px; object-fit:contain;" alt="OCA Logo" />
+          </div>
+          <div>
+            <div style="font-size:11px; font-weight:800; color:var(--color-gold, #D7A600); letter-spacing:0.8px; text-transform:uppercase;">ORIENTAL CULTURE ACADEMY</div>
+            <div style="font-size:14.5px; font-weight:800; color:#FFFFFF; margin-top:2px;">แจ้งเตือนข้อความถึงครูผู้สอน</div>
+          </div>
+        </div>
+        <div id="noticeUrgencyBadge">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- Recipient Target Banner -->
+      <div id="noticeTargetBanner" style="padding:8px 24px; background:rgba(0,0,0,0.2); font-size:11.5px; color:#94A3B8; font-weight:600; display:flex; align-items:center; gap:6px; border-bottom:1px solid rgba(255,255,255,0.04);">
+        <i class="fa-solid fa-bullhorn" style="color:var(--color-gold, #D7A600);"></i>
+        <span id="lblNoticeRecipientText">ประกาศถึงครูผู้สอนทุกคน</span>
+      </div>
+
+      <!-- Message Body Container -->
+      <div style="padding:22px 24px 18px 24px;">
+        <!-- Title -->
+        <div id="lblNoticeTitle" style="font-size:17.5px; font-weight:800; color:#FFFFFF; line-height:1.45; margin-bottom:12px; letter-spacing:0.2px;">
+          หัวข้อประกาศ
+        </div>
+
+        <!-- Content Box -->
+        <div id="lblNoticeContent" style="background:rgba(0,0,0,0.32); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:16px 18px; color:#F1F5F9; font-size:13.5px; line-height:1.75; white-space:pre-line; max-height:240px; overflow-y:auto; word-break:break-word;">
+          เนื้อหาข้อความประกาศ...
+        </div>
+
+        <!-- Sender Info & Timestamp -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:11.5px; color:#94A3B8; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-circle-user" style="color:#10B981;"></i>
+            <span>ส่งโดย: <strong id="lblNoticeSender" style="color:#E2E8F0;">ฝ่ายวิชาการ OCA</strong></span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <i class="fa-regular fa-clock" style="color:#38BDF8;"></i>
+            <span id="lblNoticeTime">--:-- น.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Footer -->
+      <div style="padding:14px 24px 22px 24px; background:rgba(0,0,0,0.25); border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:flex-end; gap:12px; align-items:center;">
+        <button type="button" id="btnAcknowledgeTeacherNotice" onclick="acknowledgeTeacherNotice()" style="width:100%; padding:13px 24px; border-radius:12px; font-size:14px; font-weight:800; cursor:pointer; background:linear-gradient(135deg, #D7A600 0%, #B88E00 100%); color:#0B1F1A; border:1px solid #FCD34D; display:inline-flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 18px rgba(215,166,0,0.4); transition:all 0.2s ease;">
+          <i class="fa-solid fa-circle-check" style="font-size:16px;"></i>
+          <span>รับทราบข้อความ (Acknowledge)</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
   <!-- Zoomable Slip Lightbox Modal -->
   <div id="modalZoomSlip" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:100000; align-items:center; justify-content:center; padding:20px;" onclick="closeZoomSlipModal()">
     <img id="imgZoomSlipFull" src="" alt="Full Slip" style="max-height:90vh; max-width:90vw; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.8);" />
