@@ -134951,6 +134951,70 @@ body.printing-report #printReportContainer {
       }
     }
 </style>
+<style>
+  /* Bell Animation & Dynamic Color Shift (Unread & Live Arrival) */
+  .oca-btn-icon-bell.has-unread {
+    background: rgba(245, 158, 11, 0.18) !important;
+    border: 1.5px solid #F59E0B !important;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.35) !important;
+  }
+  .oca-btn-icon-bell.has-unread i.fa-bell {
+    color: #F59E0B !important;
+    text-shadow: 0 0 8px rgba(245, 158, 11, 0.6) !important;
+    animation: ocaBellGentleRing 3.5s ease-in-out infinite !important;
+    transform-origin: top center !important;
+  }
+  @keyframes ocaBellGentleRing {
+    0%, 65%, 100% { transform: rotate(0); }
+    70% { transform: rotate(14deg); }
+    75% { transform: rotate(-12deg); }
+    80% { transform: rotate(10deg); }
+    85% { transform: rotate(-8deg); }
+    90% { transform: rotate(4deg); }
+    95% { transform: rotate(-2deg); }
+  }
+  /* Active Chime Animation when new message arrives */
+  .oca-btn-icon-bell.chime-active {
+    background: rgba(245, 158, 11, 0.28) !important;
+    border-color: #F59E0B !important;
+    animation: ocaBellRipple 1.4s ease-out !important;
+  }
+  .oca-btn-icon-bell.chime-active i.fa-bell {
+    color: #FBBF24 !important;
+    text-shadow: 0 0 14px rgba(251, 191, 36, 0.9) !important;
+    animation: ocaBellChime 1.2s cubic-bezier(0.36, 0.07, 0.19, 0.97) both !important;
+    transform-origin: top center !important;
+  }
+  @keyframes ocaBellChime {
+    0% { transform: scale(1) rotate(0); }
+    10% { transform: scale(1.25) rotate(24deg); }
+    20% { transform: scale(1.28) rotate(-22deg); }
+    30% { transform: scale(1.24) rotate(18deg); }
+    40% { transform: scale(1.18) rotate(-16deg); }
+    50% { transform: scale(1.14) rotate(12deg); }
+    60% { transform: scale(1.10) rotate(-8deg); }
+    70% { transform: scale(1.06) rotate(6deg); }
+    80% { transform: scale(1.03) rotate(-3deg); }
+    90% { transform: scale(1.01) rotate(1deg); }
+    100% { transform: scale(1) rotate(0); }
+  }
+  @keyframes ocaBellRipple {
+    0% {
+      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.8), 0 0 15px rgba(245, 158, 11, 0.6);
+    }
+    70% {
+      box-shadow: 0 0 0 16px rgba(245, 158, 11, 0), 0 0 25px rgba(245, 158, 11, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0), 0 0 0 rgba(245, 158, 11, 0);
+    }
+  }
+  @keyframes pulse-bell {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+    50% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  }
+</style>
 </head>
 
 
@@ -957767,7 +957831,7 @@ isOnlineResume: true,
 
       // 2. Update Bell UI on current screen
       if (typeof renderNotificationBell === 'function') {
-        renderNotificationBell();
+        renderNotificationBell(true);
       }
 
       // 3. Save to Supabase security_audit_logs for cross-device Realtime broadcasting
@@ -957818,7 +957882,7 @@ isOnlineResume: true,
       } catch (_) {}
 
       if (typeof renderNotificationBell === 'function') {
-        renderNotificationBell();
+        renderNotificationBell(true);
       }
 
       // Show toast if admin is looking at Dashboard or management tabs
@@ -957841,7 +957905,8 @@ isOnlineResume: true,
     /**
      * Renders Notification Bell icon, badge count and dropdown items
      */
-    function renderNotificationBell() {
+    function renderNotificationBell(isNewArrival = false) {
+      const btnBell = document.getElementById('btnTopbarNotification');
       const badge = document.getElementById('badgeNotificationCount');
       const listEl = document.getElementById('listNotifications');
       let notifications = [];
@@ -957851,6 +957916,24 @@ isOnlineResume: true,
       } catch (_) {}
 
       const unreadCount = notifications.filter(n => !n.read).length;
+
+      if (btnBell) {
+        if (unreadCount > 0) {
+          btnBell.classList.add('has-unread');
+        } else {
+          btnBell.classList.remove('has-unread', 'chime-active');
+        }
+
+        // Trigger energetic bell chime animation on new message arrival
+        if (isNewArrival) {
+          btnBell.classList.remove('chime-active');
+          void btnBell.offsetWidth; // Force CSS reflow to re-trigger keyframe
+          btnBell.classList.add('chime-active');
+          setTimeout(() => {
+            btnBell.classList.remove('chime-active');
+          }, 1500);
+        }
+      }
 
       if (badge) {
         if (unreadCount > 0) {
