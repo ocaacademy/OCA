@@ -134737,6 +134737,31 @@ body.printing-report #printReportContainer {
 .oca-att-btn.active-leave { background: #3B82F6 !important; color: #FFFFFF !important; border-color: #2563EB !important; }
 .oca-att-btn.active-absent { background: #EF4444 !important; color: #FFFFFF !important; border-color: #DC2626 !important; }
 
+
+  @keyframes ocaModalPopIn {
+    0% { opacity: 0; transform: scale(0.96) translateY(10px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  /* Sleek Gold / Emerald Scrollbar for Modals */
+  .oca-modal-scrollable::-webkit-scrollbar {
+    width: 6px;
+  }
+  .oca-modal-scrollable::-webkit-scrollbar-track {
+    background: rgba(1, 31, 24, 0.5);
+    border-radius: 4px;
+  }
+  .oca-modal-scrollable::-webkit-scrollbar-thumb {
+    background: rgba(215, 166, 0, 0.35);
+    border-radius: 4px;
+  }
+  .oca-modal-scrollable::-webkit-scrollbar-thumb:hover {
+    background: rgba(215, 166, 0, 0.65);
+  }
+  .oca-modal-scrollable {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(215, 166, 0, 0.35) rgba(1, 31, 24, 0.5);
+  }
 </style>
 
 
@@ -956131,7 +956156,10 @@ isOnlineResume: true,
       const selTarget = document.getElementById('selComposeTeacherTarget');
       if (!modal) return;
 
-      // Populate teachers dropdown if only 1 option (ALL)
+      // Open instantly for responsive UI
+      modal.style.display = 'flex';
+
+      // Populate teachers dropdown in background if only 1 option (ALL)
       if (selTarget && selTarget.options.length <= 1 && typeof _supabase !== 'undefined' && _supabase) {
         try {
           const { data } = await _supabase.from('staff_users').select('username, full_name, role');
@@ -956147,10 +956175,48 @@ isOnlineResume: true,
           console.warn('[openSendTeacherMsgModal] Failed to load teachers:', e);
         }
       }
-
-      modal.style.display = 'flex';
     }
     window.openSendTeacherMsgModal = openSendTeacherMsgModal;
+
+    function updateUrgencyPillUI(level) {
+      const pNorm = document.getElementById('lblUrgencyNormal');
+      const pImp = document.getElementById('lblUrgencyImportant');
+      const pUrg = document.getElementById('lblUrgencyUrgent');
+      if (!pNorm || !pImp || !pUrg) return;
+
+      pNorm.style.background = 'rgba(255,255,255,0.04)';
+      pNorm.style.borderColor = 'rgba(255,255,255,0.12)';
+      pNorm.style.boxShadow = 'none';
+
+      pImp.style.background = 'rgba(255,255,255,0.04)';
+      pImp.style.borderColor = 'rgba(255,255,255,0.12)';
+      pImp.style.boxShadow = 'none';
+
+      pUrg.style.background = 'rgba(255,255,255,0.04)';
+      pUrg.style.borderColor = 'rgba(255,255,255,0.12)';
+      pUrg.style.boxShadow = 'none';
+
+      if (level === 'URGENT') {
+        pUrg.style.background = 'rgba(239,68,68,0.18)';
+        pUrg.style.borderColor = '#EF4444';
+        pUrg.style.boxShadow = '0 0 12px rgba(239,68,68,0.3)';
+        const rad = pUrg.querySelector('input');
+        if (rad) rad.checked = true;
+      } else if (level === 'IMPORTANT') {
+        pImp.style.background = 'rgba(245,158,11,0.18)';
+        pImp.style.borderColor = '#F59E0B';
+        pImp.style.boxShadow = '0 0 12px rgba(245,158,11,0.3)';
+        const rad = pImp.querySelector('input');
+        if (rad) rad.checked = true;
+      } else {
+        pNorm.style.background = 'rgba(16,185,129,0.18)';
+        pNorm.style.borderColor = '#10B981';
+        pNorm.style.boxShadow = '0 0 12px rgba(16,185,129,0.3)';
+        const rad = pNorm.querySelector('input');
+        if (rad) rad.checked = true;
+      }
+    }
+    window.updateUrgencyPillUI = updateUrgencyPillUI;
 
     function closeComposeTeacherNoticeModal() {
       const modal = document.getElementById('modalComposeTeacherNotice');
@@ -958831,115 +958897,154 @@ async function loadTeacherTimesheetReport() {
   </div>
 
   <!-- =========================================================================
-       MODAL 1: COMPOSE NOTICE TO TEACHERS (Admin / Academic Staff)
+       MODAL 1: COMPOSE DIRECT MESSAGE TO TEACHER (Luxury Modern Academic HUD)
        ========================================================================= -->
-  <div id="modalComposeTeacherNotice" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(1,20,16,0.85); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); z-index:100000; align-items:center; justify-content:center; padding:18px;">
-    <div style="position:relative; width:100%; max-width:560px; background:#022921; border:1.5px solid rgba(255,255,255,0.16); border-radius:20px; box-shadow:0 25px 60px -15px rgba(0,0,0,0.85); overflow:hidden; animation:ocaModalPopIn 0.25s ease;">
-      <!-- Header -->
-      <div style="padding:18px 24px; background:#03332A; border-bottom:1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center;">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div style="width:38px; height:38px; border-radius:10px; background:rgba(56,189,248,0.15); color:#38BDF8; display:flex; align-items:center; justify-content:center; font-size:16px;">
+  <div id="modalComposeTeacherNotice"
+       onclick="if(event.target === this) closeComposeTeacherNoticeModal()"
+       style="display:none; position:fixed; inset:0; width:100vw; height:100vh; box-sizing:border-box; margin:0; padding:16px; overflow-x:hidden; overflow-y:auto; background:rgba(1,20,16,0.85); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); z-index:100000; align-items:center; justify-content:center;">
+    
+    <div class="oca-notice-composer-dialog"
+         style="position:relative; width:100%; max-width:580px; box-sizing:border-box; margin:auto; background:linear-gradient(165deg, #03362C 0%, #01221B 100%); border:1.5px solid rgba(215,166,0,0.45); border-radius:22px; box-shadow:0 25px 65px -12px rgba(0,0,0,0.9), 0 0 30px rgba(215,166,0,0.18); overflow:hidden; animation:ocaModalPopIn 0.28s cubic-bezier(0.16,1,0.3,1);">
+      
+      <!-- Top Decorative Gold Accent Bar -->
+      <div style="height:4px; width:100%; background:linear-gradient(90deg, #10B981 0%, #D7A600 50%, #10B981 100%);"></div>
+
+      <!-- Header Section -->
+      <div style="padding:20px 24px 16px 24px; background:rgba(0,0,0,0.22); border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; gap:12px; box-sizing:border-box;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg, rgba(215,166,0,0.18) 0%, rgba(16,185,129,0.18) 100%); border:1px solid rgba(215,166,0,0.4); display:flex; align-items:center; justify-content:center; font-size:18px; color:#FDE047; flex-shrink:0; box-shadow:0 0 14px rgba(215,166,0,0.2);">
             <i class="fa-solid fa-paper-plane"></i>
           </div>
           <div>
-            <div style="font-size:15px; font-weight:800; color:#FFFFFF;">ส่งข้อความ / ประกาศถึงครูผู้สอน</div>
-            <div style="font-size:11px; color:#94A3B8;">สื่อสารไปยังครูทุกคนหรือเลือกรายบุคคลแบบ Pop-up Real-time</div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:16px; font-weight:800; color:#FFFFFF; letter-spacing:0.2px;">ส่งข้อความ / ประกาศถึงครูผู้สอน</span>
+              <span style="font-size:10px; font-weight:700; padding:2px 7px; border-radius:10px; background:rgba(16,185,129,0.18); color:#34D399; border:1px solid rgba(16,185,129,0.35);">● Real-time</span>
+            </div>
+            <div style="font-size:11.5px; color:#94A3B8; margin-top:2px; font-weight:500;">
+              สื่อสารไปยังครูผู้สอนทุกคน หรือเจาะจงรายบุคคลแบบ Pop-up ด่วน
+            </div>
           </div>
         </div>
-        <button type="button" onclick="closeComposeTeacherNoticeModal()" style="background:transparent; border:none; color:#94A3B8; font-size:18px; cursor:pointer; padding:4px 8px; border-radius:6px; transition:color 0.2s;">
+        <button type="button" onclick="closeComposeTeacherNoticeModal()" aria-label="ปิดหน้าต่าง" style="width:34px; height:34px; border-radius:50%; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#94A3B8; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.2)'; this.style.color='#EF4444'; this.style.borderColor='rgba(239,68,68,0.4)';" onmouseout="this.style.background='rgba(255,255,255,0.06)'; this.style.color='#94A3B8'; this.style.borderColor='rgba(255,255,255,0.12)';">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
 
-      <!-- Form Fields -->
-      <div style="padding:22px 24px; display:flex; flex-direction:column; gap:14px; max-height:calc(85vh - 120px); overflow-y:auto;">
-        <!-- Target Recipient -->
+      <!-- Form Body Section (No horizontal scroll, smooth vertical scroll) -->
+      <div class="oca-modal-scrollable" style="padding:22px 24px; box-sizing:border-box; display:flex; flex-direction:column; gap:16px; max-height:calc(85vh - 140px); overflow-y:auto; overflow-x:hidden;">
+        
+        <!-- Recipient Selector -->
         <div>
-          <label style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
-            <i class="fa-solid fa-user-group" style="color:var(--color-gold, #D7A600); margin-right:4px;"></i> ผู้รับข้อความ (Recipient):
+          <label for="selComposeTeacherTarget" style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
+            <span><i class="fa-solid fa-user-group" style="color:var(--color-gold, #D7A600); margin-right:5px;"></i> ผู้รับข้อความ (Target Recipient):</span>
+            <span style="font-size:11px; color:#94A3B8; font-weight:500;">เลือกครูทุกคน หรือ รายบุคคล</span>
           </label>
-          <select id="selComposeTeacherTarget" class="oca-input" style="width:100%; padding:9px 12px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2); border-radius:10px; font-size:13px; font-weight:600;">
-            <option value="ALL">📢 ครูทุกคน (Broadcast to All Teachers)</option>
-          </select>
+          <div style="position:relative; width:100%; box-sizing:border-box;">
+            <select id="selComposeTeacherTarget" style="width:100%; box-sizing:border-box; padding:10px 14px; background:#011F18; color:#FFFFFF; border:1px solid rgba(215,166,0,0.3); border-radius:10px; font-size:13px; font-weight:600; outline:none; cursor:pointer; transition:border 0.2s;" onfocus="this.style.borderColor='var(--color-gold, #D7A600)'" onblur="this.style.borderColor='rgba(215,166,0,0.3)'">
+              <option value="ALL">📢 ครูทุกคน (Broadcast to All Teachers)</option>
+            </select>
+          </div>
         </div>
 
-        <!-- Urgency Level -->
+        <!-- Urgency Priority Chips -->
         <div>
-          <label style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
-            <i class="fa-solid fa-tag" style="color:#38BDF8; margin-right:4px;"></i> ระดับความสำคัญ (Urgency / Category):
+          <label style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:8px;">
+            <i class="fa-solid fa-tag" style="color:#38BDF8; margin-right:5px;"></i> ระดับความสำคัญ (Urgency / Category):
           </label>
-          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
-            <label style="display:flex; align-items:center; gap:6px; background:#011F18; border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 10px; cursor:pointer; font-size:12px; font-weight:600; color:#E2E8F0;">
-              <input type="radio" name="radNoticeUrgency" value="NORMAL" checked style="accent-color:#10B981;" />
+          <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; box-sizing:border-box; width:100%;">
+            <!-- Normal -->
+            <label id="lblUrgencyNormal" style="display:flex; align-items:center; justify-content:center; gap:8px; background:rgba(16,185,129,0.18); border:1.5px solid #10B981; border-radius:10px; padding:10px 8px; cursor:pointer; font-size:12px; font-weight:700; color:#34D399; transition:all 0.2s; box-shadow:0 0 12px rgba(16,185,129,0.3);" onclick="updateUrgencyPillUI('NORMAL')">
+              <input type="radio" name="radNoticeUrgency" value="NORMAL" checked style="display:none;" />
+              <i class="fa-solid fa-circle-check" style="font-size:13px;"></i>
               <span>🟢 ทั่วไป</span>
             </label>
-            <label style="display:flex; align-items:center; gap:6px; background:#011F18; border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 10px; cursor:pointer; font-size:12px; font-weight:600; color:#E2E8F0;">
-              <input type="radio" name="radNoticeUrgency" value="IMPORTANT" style="accent-color:#F59E0B;" />
+            <!-- Important -->
+            <label id="lblUrgencyImportant" style="display:flex; align-items:center; justify-content:center; gap:8px; background:rgba(255,255,255,0.04); border:1.5px solid rgba(255,255,255,0.12); border-radius:10px; padding:10px 8px; cursor:pointer; font-size:12px; font-weight:700; color:#F59E0B; transition:all 0.2s;" onclick="updateUrgencyPillUI('IMPORTANT')">
+              <input type="radio" name="radNoticeUrgency" value="IMPORTANT" style="display:none;" />
+              <i class="fa-solid fa-triangle-exclamation" style="font-size:13px;"></i>
               <span>🟡 สำคัญ</span>
             </label>
-            <label style="display:flex; align-items:center; gap:6px; background:#011F18; border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 10px; cursor:pointer; font-size:12px; font-weight:600; color:#E2E8F0;">
-              <input type="radio" name="radNoticeUrgency" value="URGENT" style="accent-color:#EF4444;" />
+            <!-- Urgent -->
+            <label id="lblUrgencyUrgent" style="display:flex; align-items:center; justify-content:center; gap:8px; background:rgba(255,255,255,0.04); border:1.5px solid rgba(255,255,255,0.12); border-radius:10px; padding:10px 8px; cursor:pointer; font-size:12px; font-weight:700; color:#F87171; transition:all 0.2s;" onclick="updateUrgencyPillUI('URGENT')">
+              <input type="radio" name="radNoticeUrgency" value="URGENT" style="display:none;" />
+              <i class="fa-solid fa-bell" style="font-size:13px;"></i>
               <span>🔴 ด่วนที่สุด</span>
             </label>
           </div>
         </div>
 
-        <!-- Subject / Title -->
+        <!-- Subject Input -->
         <div>
-          <label style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
-            <i class="fa-solid fa-heading" style="color:var(--color-gold, #D7A600); margin-right:4px;"></i> หัวข้อข้อความ (Subject):
+          <label for="inpComposeNoticeTitle" style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
+            <i class="fa-solid fa-heading" style="color:var(--color-gold, #D7A600); margin-right:5px;"></i> หัวข้อข้อความ (Subject) *
           </label>
-          <input type="text" id="inpComposeNoticeTitle" class="oca-input" placeholder="เช่น แจ้งกำหนดการประชุมวิชาการประจำสัปดาห์..." style="width:100%; padding:9px 12px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2); border-radius:10px; font-size:13px;" />
+          <input type="text" id="inpComposeNoticeTitle" placeholder="เช่น แจ้งกำหนดการประชุมวิชาการประจำสัปดาห์..." style="width:100%; box-sizing:border-box; padding:10px 14px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.18); border-radius:10px; font-size:13px; font-weight:600; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--color-gold, #D7A600)'" onblur="this.style.borderColor='rgba(255,255,255,0.18)'" />
         </div>
 
-        <!-- Message Content -->
+        <!-- Message Body -->
         <div>
-          <label style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
-            <i class="fa-solid fa-align-left" style="color:#38BDF8; margin-right:4px;"></i> เนื้อหาข้อความ (Message Content):
+          <label for="txaComposeNoticeBody" style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
+            <span><i class="fa-solid fa-align-left" style="color:#38BDF8; margin-right:5px;"></i> เนื้อหาข้อความ (Message Content) *</span>
+            <span style="font-size:11px; color:#94A3B8; font-weight:500;">แสดงแบบ Pop-up ถึงครู</span>
           </label>
-          <textarea id="txaComposeNoticeBody" class="oca-input" rows="4" placeholder="พิมพ์ข้อความที่ต้องการแจ้งให้ครูผู้สอนทราบ..." style="width:100%; padding:10px 12px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2); border-radius:10px; font-size:13px; line-height:1.6; resize:vertical;"></textarea>
+          <textarea id="txaComposeNoticeBody" rows="4" placeholder="พิมพ์ข้อความที่ต้องการแจ้งให้ครูผู้สอนทราบ..." style="width:100%; box-sizing:border-box; padding:12px 14px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.18); border-radius:10px; font-size:13px; line-height:1.65; outline:none; resize:vertical; min-height:100px; max-height:220px; transition:border 0.2s;" onfocus="this.style.borderColor='var(--color-gold, #D7A600)'" onblur="this.style.borderColor='rgba(255,255,255,0.18)'"></textarea>
         </div>
 
-        <!-- Sender Name -->
-        <div>
-          <label style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
-            <i class="fa-solid fa-signature" style="color:#10B981; margin-right:4px;"></i> ระบุชื่อผู้ส่ง (Sender):
-          </label>
-          <input type="text" id="inpComposeNoticeSender" class="oca-input" value="ฝ่ายวิชาการ OCA" style="width:100%; padding:8px 12px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2); border-radius:10px; font-size:12.5px;" />
+        <!-- Sender & Broadcast Notice Strip -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; box-sizing:border-box; width:100%;">
+          <div>
+            <label for="inpComposeNoticeSender" style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
+              <i class="fa-solid fa-signature" style="color:#10B981; margin-right:5px;"></i> ระบุชื่อผู้ส่ง (Sender):
+            </label>
+            <input type="text" id="inpComposeNoticeSender" value="ฝ่ายวิชาการ OCA" style="width:100%; box-sizing:border-box; padding:9px 12px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.18); border-radius:10px; font-size:12.5px; font-weight:600; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='var(--color-gold, #D7A600)'" onblur="this.style.borderColor='rgba(255,255,255,0.18)'" />
+          </div>
+          <div>
+            <label style="display:block; font-size:12px; font-weight:700; color:#E2E8F0; margin-bottom:6px;">
+              <i class="fa-solid fa-satellite-dish" style="color:var(--color-gold, #D7A600); margin-right:5px;"></i> ช่องทางจัดส่ง:
+            </label>
+            <div style="padding:9px 12px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.08); border-radius:10px; font-size:12px; color:#34D399; font-weight:700; display:flex; align-items:center; gap:6px; box-sizing:border-box;">
+              <span style="width:6px; height:6px; border-radius:50%; background:#10B981; box-shadow:0 0 8px #10B981;"></span>
+              <span>Supabase Cloud สด</span>
+            </div>
+          </div>
         </div>
+
       </div>
 
       <!-- Footer Buttons -->
-      <div style="padding:16px 24px; background:#011F18; border-top:1px solid rgba(255,255,255,0.1); display:flex; justify-content:flex-end; gap:10px;">
-        <button type="button" onclick="closeComposeTeacherNoticeModal()" style="padding:9px 18px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; background:rgba(255,255,255,0.06); color:#CBD5E1; border:1px solid rgba(255,255,255,0.15);">
+      <div style="padding:16px 24px; background:rgba(0,0,0,0.25); border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:flex-end; align-items:center; gap:12px; box-sizing:border-box; width:100%;">
+        <button type="button" onclick="closeComposeTeacherNoticeModal()" style="padding:10px 20px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; background:rgba(255,255,255,0.06); color:#CBD5E1; border:1px solid rgba(255,255,255,0.15); transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.12)'; this.style.color='#FFFFFF';" onmouseout="this.style.background='rgba(255,255,255,0.06)'; this.style.color='#CBD5E1';">
           ยกเลิก
         </button>
-        <button type="button" id="btnSubmitSendTeacherNotice" onclick="submitSendTeacherNotice()" style="padding:9px 20px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; background:linear-gradient(135deg, #059669 0%, #047857 100%); color:#FFFFFF; border:1px solid #10B981; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 10px rgba(5,150,105,0.35);">
+        <button type="button" id="btnSubmitSendTeacherNotice" onclick="submitSendTeacherNotice()" style="padding:10px 24px; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; background:linear-gradient(135deg, #059669 0%, #047857 100%); color:#FFFFFF; border:1px solid #10B981; display:inline-flex; align-items:center; gap:8px; box-shadow:0 3px 14px rgba(5,150,105,0.4); transition:all 0.2s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 5px 18px rgba(5,150,105,0.5)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 3px 14px rgba(5,150,105,0.4)';">
           <i class="fa-solid fa-paper-plane"></i>
           <span>ส่งข้อความทันที (Send Notice)</span>
         </button>
       </div>
+
     </div>
   </div>
 
   <!-- =========================================================================
        MODAL 2: TEACHER DIRECT MESSAGE POPUP (Luxury Modern Academic HUD)
        ========================================================================= -->
-  <div id="modalTeacherNoticePopup" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(1,20,16,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:100000; align-items:center; justify-content:center; padding:18px;">
-    <div class="oca-luxury-notice-card" style="position:relative; width:100%; max-width:540px; background:linear-gradient(160deg, #03362C 0%, #01221B 100%); border:1.5px solid rgba(215,166,0,0.5); border-radius:22px; box-shadow:0 25px 60px -15px rgba(0,0,0,0.85), 0 0 35px rgba(215,166,0,0.25); overflow:hidden; animation:ocaModalPopIn 0.3s cubic-bezier(0.16,1,0.3,1);">
+  <div id="modalTeacherNoticePopup"
+       style="display:none; position:fixed; inset:0; width:100vw; height:100vh; box-sizing:border-box; margin:0; padding:16px; overflow-x:hidden; overflow-y:auto; background:rgba(1,20,16,0.85); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); z-index:100000; align-items:center; justify-content:center;">
+    <div class="oca-luxury-notice-card"
+         style="position:relative; width:100%; max-width:540px; box-sizing:border-box; margin:auto; background:linear-gradient(160deg, #03362C 0%, #01221B 100%); border:1.5px solid rgba(215,166,0,0.5); border-radius:22px; box-shadow:0 25px 65px -15px rgba(0,0,0,0.9), 0 0 35px rgba(215,166,0,0.22); overflow:hidden; animation:ocaModalPopIn 0.3s cubic-bezier(0.16,1,0.3,1);">
       
       <!-- Top Decorative Gold Accent Bar -->
       <div style="height:5px; width:100%; background:linear-gradient(90deg, #10B981 0%, #D7A600 50%, #10B981 100%);"></div>
 
       <!-- Header Section -->
-      <div style="padding:22px 24px 16px 24px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:space-between; gap:12px;">
+      <div style="padding:22px 24px 16px 24px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:space-between; gap:12px; box-sizing:border-box;">
         <div style="display:flex; align-items:center; gap:12px;">
           <div style="width:46px; height:46px; border-radius:12px; background:rgba(215,166,0,0.12); border:1px solid rgba(215,166,0,0.3); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
             <img src="./oca_logo.png" onerror="this.src='https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-c1t_QnJjQc6a'" style="width:34px; height:34px; object-fit:contain;" alt="OCA Logo" />
           </div>
           <div>
             <div style="font-size:11px; font-weight:800; color:var(--color-gold, #D7A600); letter-spacing:0.8px; text-transform:uppercase;">ORIENTAL CULTURE ACADEMY</div>
-            <div style="font-size:14.5px; font-weight:800; color:#FFFFFF; margin-top:2px;">แจ้งเตือนข้อความถึงครูผู้สอน</div>
+            <div style="font-size:15px; font-weight:800; color:#FFFFFF; margin-top:2px;">แจ้งเตือนข้อความถึงครูผู้สอน</div>
           </div>
         </div>
         <div id="noticeUrgencyBadge">
@@ -958948,20 +959053,20 @@ async function loadTeacherTimesheetReport() {
       </div>
 
       <!-- Recipient Target Banner -->
-      <div id="noticeTargetBanner" style="padding:8px 24px; background:rgba(0,0,0,0.2); font-size:11.5px; color:#94A3B8; font-weight:600; display:flex; align-items:center; gap:6px; border-bottom:1px solid rgba(255,255,255,0.04);">
+      <div id="noticeTargetBanner" style="padding:9px 24px; background:rgba(0,0,0,0.22); font-size:11.5px; color:#94A3B8; font-weight:600; display:flex; align-items:center; gap:6px; border-bottom:1px solid rgba(255,255,255,0.04); box-sizing:border-box;">
         <i class="fa-solid fa-bullhorn" style="color:var(--color-gold, #D7A600);"></i>
         <span id="lblNoticeRecipientText">ประกาศถึงครูผู้สอนทุกคน</span>
       </div>
 
       <!-- Message Body Container -->
-      <div style="padding:22px 24px 18px 24px;">
+      <div style="padding:22px 24px 18px 24px; box-sizing:border-box; overflow-x:hidden;">
         <!-- Title -->
-        <div id="lblNoticeTitle" style="font-size:17.5px; font-weight:800; color:#FFFFFF; line-height:1.45; margin-bottom:12px; letter-spacing:0.2px;">
+        <div id="lblNoticeTitle" style="font-size:17.5px; font-weight:800; color:#FFFFFF; line-height:1.45; margin-bottom:12px; letter-spacing:0.2px; word-break:break-word;">
           หัวข้อประกาศ
         </div>
 
         <!-- Content Box -->
-        <div id="lblNoticeContent" style="background:rgba(0,0,0,0.32); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:16px 18px; color:#F1F5F9; font-size:13.5px; line-height:1.75; white-space:pre-line; max-height:240px; overflow-y:auto; word-break:break-word;">
+        <div id="lblNoticeContent" class="oca-modal-scrollable" style="background:rgba(0,0,0,0.32); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:16px 18px; color:#F1F5F9; font-size:13.5px; line-height:1.75; white-space:pre-line; max-height:240px; overflow-y:auto; overflow-x:hidden; word-break:break-word; box-sizing:border-box;">
           เนื้อหาข้อความประกาศ...
         </div>
 
@@ -958979,8 +959084,8 @@ async function loadTeacherTimesheetReport() {
       </div>
 
       <!-- Action Footer -->
-      <div style="padding:14px 24px 22px 24px; background:rgba(0,0,0,0.25); border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:flex-end; gap:12px; align-items:center;">
-        <button type="button" id="btnAcknowledgeTeacherNotice" onclick="acknowledgeTeacherNotice()" style="width:100%; padding:13px 24px; border-radius:12px; font-size:14px; font-weight:800; cursor:pointer; background:linear-gradient(135deg, #D7A600 0%, #B88E00 100%); color:#0B1F1A; border:1px solid #FCD34D; display:inline-flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 18px rgba(215,166,0,0.4); transition:all 0.2s ease;">
+      <div style="padding:16px 24px 22px 24px; background:rgba(0,0,0,0.25); border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:flex-end; gap:12px; align-items:center; box-sizing:border-box;">
+        <button type="button" id="btnAcknowledgeTeacherNotice" onclick="acknowledgeTeacherNotice()" style="width:100%; padding:13px 24px; border-radius:12px; font-size:14px; font-weight:800; cursor:pointer; background:linear-gradient(135deg, #D7A600 0%, #B88E00 100%); color:#0B1F1A; border:1px solid #FCD34D; display:inline-flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 18px rgba(215,166,0,0.4); transition:all 0.2s ease;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 22px rgba(215,166,0,0.5)';" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 18px rgba(215,166,0,0.4)';">
           <i class="fa-solid fa-circle-check" style="font-size:16px;"></i>
           <span>รับทราบข้อความ (Acknowledge)</span>
         </button>
