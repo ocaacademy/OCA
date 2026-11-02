@@ -185459,7 +185459,7 @@ body.printing-report #printReportContainer {
                 <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
                   <div style="flex:1; min-width:200px;">
                     <label id="lblSelectScheduleText" style="display:block; font-size:11.5px; font-weight:700; color:#CBD5E1; margin-bottom:4px;">เลือกตารางเรียน / ห้องเรียน:</label>
-                    <select id="selTeacherSchedule" class="oca-input" onchange="loadTeacherClassroomStudents()" style="padding:7px 10px; font-size:12px; font-weight:600; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2);">
+                    <select id="selTeacherSchedule" class="oca-input" onchange="onTeacherScheduleChange()" style="padding:7px 10px; font-size:12px; font-weight:600; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2);">
                       <option value="SCH-01">SCH-01: จันทร์และพุธ 18.30-21.00 น.</option>
                       <option value="SCH-02">SCH-02: อังคารและพฤหัส 09.30-12.00 น.</option>
                       <option value="SCH-03">SCH-03: อังคารและพฤหัส 13.30-16.00 น.</option>
@@ -185472,7 +185472,7 @@ body.printing-report #printReportContainer {
                   </div>
                   <div style="width:140px;">
                     <label id="lblSelectDateText" style="display:block; font-size:11.5px; font-weight:700; color:#CBD5E1; margin-bottom:4px;">วันที่เช็คชื่อ:</label>
-                    <input type="date" id="inpTeacherAttendanceDate" class="oca-input" onchange="loadTeacherClassroomStudents()" style="padding:6px 10px; font-size:12px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2);">
+                    <input type="date" id="inpTeacherAttendanceDate" class="oca-input" onchange="onTeacherAttendanceDateChange()" style="padding:6px 10px; font-size:12px; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2);">
                   </div>
                   <div style="display:flex; align-items:flex-end;">
                     <button type="button" id="btnTeacherMarkAllPresent" onclick="markAllAttendancePresent()" style="padding:7px 14px; font-size:11.5px; font-weight:700; border-radius:6px; cursor:pointer; background:rgba(16,185,129,0.15); color:#6EE7B7; border:1.5px solid #10B981; display:inline-flex; align-items:center; gap:6px; box-shadow:0 1px 3px rgba(16,185,129,0.2); transition:all 0.2s ease;">
@@ -953169,13 +953169,49 @@ isOnlineResume: true,
       }).join('');
     }
 
+    function onTeacherScheduleChange() {
+      const selSched = document.getElementById('selTeacherSchedule');
+      if (selSched && selSched.value) {
+        try { localStorage.setItem('oca_teacher_selected_schedule', selSched.value); } catch (_) {}
+      }
+      loadTeacherClassroomStudents();
+    }
+    window.onTeacherScheduleChange = onTeacherScheduleChange;
+
+    function onTeacherAttendanceDateChange() {
+      const inpDate = document.getElementById('inpTeacherAttendanceDate');
+      if (inpDate && inpDate.value) {
+        try { localStorage.setItem('oca_teacher_selected_date', inpDate.value); } catch (_) {}
+      }
+      loadTeacherClassroomStudents();
+    }
+    window.onTeacherAttendanceDateChange = onTeacherAttendanceDateChange;
+
     async function loadTeacherClassroomStudents() {
-      const scheduleId = document.getElementById('selTeacherSchedule')?.value || '';
-      const attDate = document.getElementById('inpTeacherAttendanceDate')?.value || '';
-      const user = getSavedCurrentUser();
+      const selSched = document.getElementById('selTeacherSchedule');
+      const dateEl = document.getElementById('inpTeacherAttendanceDate');
+
+      // 1. Restore date on F5/refresh if empty
+      if (dateEl && !dateEl.value) {
+        const savedDate = localStorage.getItem('oca_teacher_selected_date');
+        const today = new Date().toISOString().split('T')[0];
+        dateEl.value = savedDate || today;
+      }
+
+      // 2. Restore schedule on F5/refresh if default or empty
+      if (selSched) {
+        const savedSched = localStorage.getItem('oca_teacher_selected_schedule');
+        if (savedSched && (!selSched.value || selSched.value === 'SCH-01')) {
+          selSched.value = savedSched;
+        }
+      }
+
+      const scheduleId = selSched ? selSched.value : '';
+      const attDate = dateEl ? dateEl.value : '';
+      const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
       const dict = TEACHER_I18N[_teacherCurrentLanguage] || TEACHER_I18N.th;
 
-      if (!scheduleId) {
+      if (!scheduleId || !attDate) {
         _teacherRosterData = [];
         renderTeacherAttendanceTable();
         return;
@@ -953232,45 +953268,79 @@ isOnlineResume: true,
         } catch (_) {}
       }
 
-      // 2. Query saved attendance for this schedule, date, and current teacher
+      // 2. Comprehensive Query for Saved Attendance across DB, LocalStorage & Audit Logs
       let savedAttMap = {};
-      if (user) {
-        // First check local storage
-        try {
-          const local = localStorage.getItem(`oca_att_${user.username}_${scheduleId}_${attDate}`);
-          if (local) {
-            const list = JSON.parse(local);
-            list.forEach(r => { savedAttMap[r.student_id] = r; });
-          }
-        } catch (_) {}
 
-        // If not in local, check security_audit_logs for cross-device sync
-        if (Object.keys(savedAttMap).length === 0 && typeof _supabase !== 'undefined' && _supabase) {
-          try {
-            const { data } = await _supabase
-              .from('security_audit_logs')
-              .select('device_info, created_at')
-              .eq('action', 'TEACHER_ATTENDANCE_SAVED')
-              .order('created_at', { ascending: false })
-              .limit(30);
-            if (data && data.length > 0) {
-              for (const log of data) {
-                if (log.device_info && log.device_info.startsWith('{')) {
-                  try {
-                    const parsed = JSON.parse(log.device_info);
-                    if (parsed.schedule_id === scheduleId && parsed.attendance_date === attDate && Array.isArray(parsed.rows)) {
-                      parsed.rows.forEach(r => { savedAttMap[r.student_id] = r; });
-                      break;
-                    }
-                  } catch (_) {}
-                }
-              }
-            }
-          } catch (_) {}
+      // 2.1 Query Supabase teacher_attendance table
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data: dbAtt, error } = await _supabase
+            .from('teacher_attendance')
+            .select('*')
+            .eq('schedule_id', scheduleId)
+            .eq('attendance_date', attDate);
+          if (dbAtt && dbAtt.length > 0) {
+            dbAtt.forEach(r => {
+              if (r.student_id) savedAttMap[r.student_id] = r;
+            });
+          }
+        } catch (errDb) {
+          console.warn('[Teacher Classroom DB Error]:', errDb);
         }
       }
 
-      // 3. Merge roster with student details (Zero mock data)
+      // 2.2 LocalStorage lookup (user-scoped, general, and key pattern)
+      try {
+        const userKey = user ? `oca_att_${user.username}_${scheduleId}_${attDate}` : null;
+        const genKey = `oca_att_${scheduleId}_${attDate}`;
+        if (userKey) {
+          const rawUser = localStorage.getItem(userKey);
+          if (rawUser) {
+            const list = JSON.parse(rawUser);
+            if (Array.isArray(list)) list.forEach(r => { if (r.student_id && !savedAttMap[r.student_id]) savedAttMap[r.student_id] = r; });
+          }
+        }
+        const rawGen = localStorage.getItem(genKey);
+        if (rawGen) {
+          const list = JSON.parse(rawGen);
+          if (Array.isArray(list)) list.forEach(r => { if (r.student_id && !savedAttMap[r.student_id]) savedAttMap[r.student_id] = r; });
+        }
+        Object.keys(localStorage).filter(k => k.startsWith('oca_att_') && k.includes(`_${scheduleId}_${attDate}`)).forEach(k => {
+          try {
+            const list = JSON.parse(localStorage.getItem(k) || '[]');
+            if (Array.isArray(list)) list.forEach(r => { if (r.student_id && !savedAttMap[r.student_id]) savedAttMap[r.student_id] = r; });
+          } catch (_) {}
+        });
+      } catch (_) {}
+
+      // 2.3 security_audit_logs cross-device fallback
+      if (Object.keys(savedAttMap).length === 0 && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data: logs } = await _supabase
+            .from('security_audit_logs')
+            .select('device_info, created_at')
+            .eq('action', 'TEACHER_ATTENDANCE_SAVED')
+            .order('created_at', { ascending: false })
+            .limit(50);
+          if (logs && logs.length > 0) {
+            for (const log of logs) {
+              if (log.device_info && log.device_info.startsWith('{')) {
+                try {
+                  const parsed = JSON.parse(log.device_info);
+                  if (parsed.schedule_id === scheduleId && parsed.attendance_date === attDate && Array.isArray(parsed.rows)) {
+                    parsed.rows.forEach(r => {
+                      if (r.student_id && !savedAttMap[r.student_id]) savedAttMap[r.student_id] = r;
+                    });
+                    if (Object.keys(savedAttMap).length > 0) break;
+                  }
+                } catch (_) {}
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3. Merge roster with exact saved attendance status & notes
       _teacherRosterData = studentsList.map(s => {
         const saved = savedAttMap[s.student_id];
         return {
@@ -953285,6 +953355,20 @@ isOnlineResume: true,
       });
 
       renderTeacherAttendanceTable();
+
+      // UI restoration feedback on auto-save badge
+      const badge = document.getElementById('badgeTeacherAttAutoSave');
+      const lbl = document.getElementById('lblTeacherAttAutoSaveText');
+      const dot = document.getElementById('dotTeacherAttAutoSave');
+      const restoredCount = Object.keys(savedAttMap).length;
+      if (restoredCount > 0 && lbl) {
+        lbl.textContent = `✓ กู้คืนข้อมูลเช็คชื่อแล้ว (${restoredCount} คน)`;
+        if (badge) badge.style.borderColor = 'rgba(16,185,129,0.4)';
+        if (dot) {
+          dot.style.background = '#10B981';
+          dot.style.boxShadow = '0 0 8px #10B981';
+        }
+      }
     }
     window.loadTeacherClassroomStudents = loadTeacherClassroomStudents;
 
@@ -953420,9 +953504,12 @@ isOnlineResume: true,
         created_at: new Date().toISOString()
       }));
 
-      // 1. Local Storage immediate persistence
+      // 1. Local Storage immediate persistence (user-scoped + general + selected state)
       try {
         localStorage.setItem(`oca_att_${user.username}_${scheduleId}_${attDate}`, JSON.stringify(rows));
+        localStorage.setItem(`oca_att_${scheduleId}_${attDate}`, JSON.stringify(rows));
+        localStorage.setItem('oca_teacher_selected_schedule', scheduleId);
+        localStorage.setItem('oca_teacher_selected_date', attDate);
       } catch (_) {}
 
       // 2. Broadcast via security_audit_logs for cross-device sync & Teacher Operations Tracker
@@ -954923,44 +955010,7 @@ isOnlineResume: true,
 
 
 
-    function initTeacherPortal() {
-      const user = getSavedCurrentUser();
-      const nameEl = document.getElementById('lblTeacherNameDisplay');
-      const uEl = document.getElementById('lblTeacherUsernameDisplay');
-      const selSched = document.getElementById('selTeacherSchedule');
-
-      if (user) {
-        if (nameEl) nameEl.textContent = user.fullName || user.username;
-        if (uEl) uEl.textContent = `Account: @${user.username} (${user.role || 'Teacher'})`;
-
-        // Check if Teacher has an assigned schedule
-        let assignedSched = user.assignedSchedule || user.assigned_schedule;
-        if (!assignedSched) {
-          try { assignedSched = localStorage.getItem(`oca_teacher_sched_${user.username}`); } catch(_) {}
-        }
-
-        if (assignedSched && assignedSched !== 'ALL' && selSched) {
-          selSched.value = assignedSched;
-          // Lock or highlight assigned schedule
-          selSched.style.borderColor = '#3B82F6';
-          selSched.style.background = '#EFF6FF';
-          selSched.title = `ห้องเรียนประจำตัวครูผู้สอน: ${assignedSched}`;
-        }
-      }
-
-      const savedLang = localStorage.getItem('oca_teacher_lang') || 'th';
-      setTeacherLanguage(savedLang);
-
-      startTeacherClock();
-      checkTeacherGeolocation(false);
-      checkTeacherBiometricEnrollment();
-      renderTeacherMyHistory();
-      loadTeacherClassroomStudents();
-      if (typeof checkTeacherUnreadAnnouncements === 'function') {
-        setTimeout(checkTeacherUnreadAnnouncements, 800);
-      }
-    }
-    window.initTeacherPortal = initTeacherPortal;
+// Duplicate initTeacherPortal consolidated into authoritative definition below.
     
     // =========================================================================
     // REPORT ITEM 7: COURSE STUDENT ATTENDANCE TRACKING & REALTIME ENGINE
@@ -956178,27 +956228,41 @@ async function loadTeacherTimesheetReport() {
     window.exportTeacherTimesheetCSV = exportTeacherTimesheetCSV;
 
     function initTeacherPortal() {
-      const user = getSavedCurrentUser();
+      const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
       const nameEl = document.getElementById('lblTeacherNameDisplay');
       const uEl = document.getElementById('lblTeacherUsernameDisplay');
       const selSched = document.getElementById('selTeacherSchedule');
+      const dateEl = document.getElementById('inpTeacherAttendanceDate');
+
+      // Initialize Attendance Date to saved date or today's date YYYY-MM-DD
+      if (dateEl) {
+        const savedDate = localStorage.getItem('oca_teacher_selected_date');
+        const today = new Date().toISOString().split('T')[0];
+        dateEl.value = savedDate || today;
+      }
 
       if (user) {
         if (nameEl) nameEl.textContent = user.fullName || user.username;
         if (uEl) uEl.textContent = `Account: @${user.username} (${user.role || 'Teacher'})`;
 
-        // Check if Teacher has an assigned schedule
-        let assignedSched = user.assignedSchedule || user.assigned_schedule;
-        if (!assignedSched) {
-          try { assignedSched = localStorage.getItem(`oca_teacher_sched_${user.username}`); } catch(_) {}
+        // Check if Teacher has an assigned schedule or previously selected schedule
+        let targetSched = user.assignedSchedule || user.assigned_schedule;
+        if (!targetSched) {
+          try { targetSched = localStorage.getItem(`oca_teacher_sched_${user.username}`); } catch (_) {}
+        }
+        if (!targetSched) {
+          try { targetSched = localStorage.getItem('oca_teacher_selected_schedule'); } catch (_) {}
         }
 
-        if (assignedSched && assignedSched !== 'ALL' && selSched) {
-          selSched.value = assignedSched;
+        if (targetSched && targetSched !== 'ALL' && selSched) {
+          selSched.value = targetSched;
           selSched.style.borderColor = '#10B981';
           selSched.style.background = '#011F18';
-          selSched.title = `ห้องเรียนประจำตัวครูผู้สอน: ${assignedSched}`;
+          selSched.title = `ห้องเรียนประจำตัวครูผู้สอน: ${targetSched}`;
         }
+      } else if (selSched) {
+        const savedSched = localStorage.getItem('oca_teacher_selected_schedule');
+        if (savedSched) selSched.value = savedSched;
       }
 
       const savedLang = localStorage.getItem('oca_teacher_lang') || 'th';
