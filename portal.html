@@ -244740,7 +244740,7 @@ body.printing-report #printReportContainer {
                       <th style="padding:8px 10px; text-align:center; width:45px; color:#F8FAFC;">รูป</th>
                       <th style="padding:8px 10px; color:#F8FAFC;">รหัสนักศึกษา & ชื่อ-สกุล</th>
                       <th style="padding:8px 10px; text-align:center; color:#38BDF8;">รอบเวลาเรียน</th>
-                      <th style="padding:8px 10px; text-align:center; color:#F8FAFC;">เช็คชื่อ (คาบ)</th>
+                      <th style="padding:8px 10px; text-align:center; color:#F8FAFC;">รวม</th>
                       <th style="padding:8px 10px; text-align:center; color:#34D399;">มา</th>
                       <th style="padding:8px 10px; text-align:center; color:#FBBF24;">สาย</th>
                       <th style="padding:8px 10px; text-align:center; color:#60A5FA;">ลา</th>
@@ -956641,8 +956641,7 @@ isOnlineResume: true,
       }
 
       if (docSub) {
-        const nowStr = new Date().toLocaleDateString('th-TH');
-        docSub.textContent = `รอบเวลา: ${schedFilter} | ช่วงวันที่: ${inpFrom?.value || 'ทั้งหมด'} ถึง ${inpTo?.value || 'ปัจจุบัน'} | วันที่พิมพ์: ${nowStr}`;
+        docSub.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>กำลังรวบรวมข้อมูลคอร์สและรอบเวลา...';
       }
 
       // 1. Fetch all students in the selected course/schedule
@@ -956689,6 +956688,121 @@ isOnlineResume: true,
         } catch (e) {
           console.warn('[AttTrack] attendance query error:', e);
         }
+      }
+
+      // Merge with offline / localStorage attendance records if remote is empty
+      if (attendanceRows.length === 0) {
+        try {
+          Object.keys(localStorage).filter(k => k.startsWith('oca_att_')).forEach(k => {
+            const parts = k.split('_');
+            const tUser = parts[2] || '';
+            const sId = parts[3] || '';
+            const aDate = parts[4] || '';
+            if (schedFilter === 'ALL' || sId === schedFilter) {
+              if ((!inpFrom?.value || aDate >= inpFrom.value) && (!inpTo?.value || aDate <= inpTo.value)) {
+                const list = JSON.parse(localStorage.getItem(k) || '[]');
+                if (Array.isArray(list)) {
+                  list.forEach(item => {
+                    if (!item.created_by) item.created_by = tUser;
+                    attendanceRows.push(item);
+                  });
+                }
+              }
+            }
+          });
+        } catch (_) {}
+      }
+
+      // Resolve Teacher Name for selected Course and Schedule
+      const scheduleMap = {
+        'SCH-01': 'วันจันทร์-พุธ 18.30-21.00 น.',
+        'SCH-02': 'วันอังคาร-พฤหัสบดี 18.30-21.00 น.',
+        'SCH-03': 'วันเสาร์ 09.00-12.00 น.',
+        'SCH-04': 'วันเสาร์ 13.00-16.00 น.',
+        'SCH-05': 'วันอาทิตย์ 09.00-12.00 น.',
+        'SCH-06': 'วันอาทิตย์ 13.00-16.00 น.',
+        'SCH-07': 'วันเสาร์ 16.30-19.30 น.',
+        'SCH-08': 'วันอาทิตย์ 16.30-19.30 น.'
+      };
+      const schedDisplay = (selSched && selSched.options[selSched.selectedIndex] && selSched.value !== 'ALL')
+        ? selSched.options[selSched.selectedIndex].textContent
+        : (schedFilter !== 'ALL' ? (scheduleMap[schedFilter] || schedFilter) : 'ทุกรอบเวลา');
+      const courseDisplay = (selCourse && selCourse.options[selCourse.selectedIndex] && selCourse.value !== 'ALL')
+        ? selCourse.options[selCourse.selectedIndex].textContent
+        : 'ทุกคอร์ส';
+
+      let teacherName = '';
+
+      // 1. From attendance records
+      if (Array.isArray(attendanceRows) && attendanceRows.length > 0) {
+        const tRow = attendanceRows.find(r => r.teacher_name || r.teacher_username || r.created_by);
+        if (tRow) {
+          if (tRow.teacher_name) teacherName = tRow.teacher_name;
+          else if (tRow.created_by) {
+            const uname = tRow.created_by;
+            if (typeof cachedUsersList !== 'undefined' && Array.isArray(cachedUsersList)) {
+              const u = cachedUsersList.find(x => x.username === uname);
+              if (u) teacherName = u.full_name || u.username;
+            }
+            if (!teacherName) teacherName = uname;
+          }
+        }
+      }
+
+      // 2. From saved classroom instructor config
+      if (!teacherName) {
+        try {
+          const yt = document.getElementById('selRosterYearTerm')?.value || '2569_5';
+          const cVal = selCourse ? selCourse.value : 'ALL';
+          const sVal = selSched ? selSched.value : 'ALL';
+          if (typeof getSavedCourseClassroomConfig === 'function') {
+            const cfg = getSavedCourseClassroomConfig(yt, cVal, sVal);
+            if (cfg && cfg.instructor && cfg.instructor.trim()) {
+              teacherName = cfg.instructor.trim();
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3. From staff users matching assigned schedule
+      if (!teacherName && schedFilter !== 'ALL') {
+        let teachers = [];
+        if (typeof cachedUsersList !== 'undefined' && Array.isArray(cachedUsersList) && cachedUsersList.length > 0) {
+          teachers = cachedUsersList.filter(u => u.role === 'Teacher' || u.role === 'Academic');
+        }
+        if (teachers.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
+          try {
+            const { data } = await _supabase.from('staff_users')
+              .select('username, full_name, role, assigned_schedule')
+              .or('role.eq.Teacher,role.eq.Academic');
+            if (data && data.length > 0) teachers = data;
+          } catch (_) {}
+        }
+        const matched = teachers.find(t => {
+          const s = t.assignedSchedule || t.assigned_schedule || (typeof localStorage !== 'undefined' ? localStorage.getItem(`oca_teacher_sched_${t.username}`) : '');
+          return s === schedFilter;
+        });
+        if (matched) teacherName = matched.fullName || matched.full_name || matched.username;
+      }
+
+      // 4. Default fallback
+      if (!teacherName) {
+        const savedUser = (typeof getSavedCurrentUser === 'function' ? getSavedCurrentUser() : null) || {};
+        if (savedUser.role === 'Teacher' && (savedUser.fullName || savedUser.username)) {
+          teacherName = savedUser.fullName || savedUser.username;
+        }
+      }
+      if (!teacherName) teacherName = 'อาจารย์ประจำกลุ่มเรียน';
+
+      window._attTrackResolvedTeacher = teacherName;
+
+      if (docSub) {
+        const nowStr = new Date().toLocaleDateString('th-TH');
+        docSub.innerHTML = `<span><strong>คอร์สเรียน:</strong> ${escapeHtml(courseDisplay)}</span> &nbsp;|&nbsp; ` +
+          `<span><strong>รอบเวลา:</strong> ${escapeHtml(schedDisplay)}</span> &nbsp;|&nbsp; ` +
+          `<span style="color:#FCD34D; font-weight:700;"><i class="fa-solid fa-chalkboard-user" style="margin-right:4px;"></i><strong>ครูผู้สอน:</strong> ${escapeHtml(teacherName)}</span> &nbsp;|&nbsp; ` +
+          `<span><strong>ช่วงวันที่:</strong> ${inpFrom?.value || 'ทั้งหมด'} ถึง ${inpTo?.value || 'ปัจจุบัน'}</span> &nbsp;|&nbsp; ` +
+          `<span><strong>วันที่พิมพ์:</strong> ${nowStr}</span>`;
       }
 
       // 3. Aggregate Attendance Statistics per Student
@@ -956801,10 +956915,11 @@ isOnlineResume: true,
       const inpFrom = document.getElementById('inpAttTrackFromDate');
       const inpTo = document.getElementById('inpAttTrackToDate');
 
-      const courseText = (selCourse && selCourse.options[selCourse.selectedIndex]) ? selCourse.options[selCourse.selectedIndex].textContent : 'ทุกคอร์ส';
-      const schedText = (selSched && selSched.options[selSched.selectedIndex]) ? selSched.options[selSched.selectedIndex].textContent : 'ทุกรอบเวลา';
+      const courseText = (selCourse && selCourse.options[selCourse.selectedIndex] && selCourse.value !== 'ALL') ? selCourse.options[selCourse.selectedIndex].textContent : 'ทุกคอร์ส';
+      const schedText = (selSched && selSched.options[selSched.selectedIndex] && selSched.value !== 'ALL') ? selSched.options[selSched.selectedIndex].textContent : 'ทุกรอบเวลา';
       const fromText = (inpFrom && inpFrom.value) ? inpFrom.value : 'เริ่มต้น';
       const toText = (inpTo && inpTo.value) ? inpTo.value : 'ปัจจุบัน';
+      const teacherName = window._attTrackResolvedTeacher || 'อาจารย์ประจำกลุ่มเรียน';
 
       const currentUser = (typeof getSavedCurrentUser === 'function' ? getSavedCurrentUser() : null) || {};
       const printedBy = currentUser.username || 'Admin';
@@ -956848,6 +956963,7 @@ isOnlineResume: true,
           <div>
             <span><strong>คอร์สเรียน:</strong> ${escapeHtml(courseText)}</span> &nbsp;|&nbsp;
             <span><strong>รอบเวลา:</strong> ${escapeHtml(schedText)}</span> &nbsp;|&nbsp;
+            <span style="color:#065F46; font-weight:700;"><strong>ครูผู้สอน:</strong> ${escapeHtml(teacherName)}</span> &nbsp;|&nbsp;
             <span><strong>ช่วงวันที่:</strong> ${escapeHtml(fromText)} ถึง ${escapeHtml(toText)}</span>
           </div>
           <div>
@@ -956879,8 +956995,8 @@ isOnlineResume: true,
         <div style="margin-top:20px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; text-align:center; font-size:9.5pt; page-break-inside:avoid; break-inside:avoid;">
           <div style="border-top:1px dashed #94A3B8; padding-top:6px;">
             <div>ลงชื่อ..........................................................</div>
-            <div style="margin-top:4px;">(..........................................................)</div>
-            <div style="color:#64748B; font-size:8.5pt; margin-top:2px;">อาจารย์ผู้สอนประจำวิชา</div>
+            <div style="margin-top:4px; font-weight:700;">(${escapeHtml(teacherName)})</div>
+            <div style="color:#64748B; font-size:8.5pt; margin-top:2px;">อาจารย์ผู้สอนประจำคอร์ส</div>
           </div>
           <div style="border-top:1px dashed #94A3B8; padding-top:6px;">
             <div>ลงชื่อ..........................................................</div>
