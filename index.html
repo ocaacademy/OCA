@@ -242949,17 +242949,27 @@ body.printing-report #printReportContainer {
               </div>
             </div>
 
-            <!-- Filter Controls Strip -->
+            <!-- Filter Controls Strip with Real-time Search & Live Status -->
             <div class="no-print" style="background:#022921; border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:14px 18px; margin-top:12px; display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+              <!-- Real-time Student Search (ID & Full Name) -->
+              <div style="flex:1 1 250px; min-width:220px;">
+                <label style="display:block; font-size:11px; font-weight:700; color:#E2E8F0; margin-bottom:4px;">
+                  <i class="fa-solid fa-user-tag" style="color:#38BDF8; margin-right:4px;"></i>ค้นหานักศึกษา (รหัส นร. / ชื่อ-นามสกุล):
+                </label>
+                <div style="position:relative; display:flex; align-items:center;">
+                  <input type="text" id="inpAttTrackSearchQuery" class="oca-input" placeholder="พิมพ์รหัส นร. หรือชื่อเพื่อค้นหา Real-time..." oninput="filterAttTrackStudentRealtime()" onkeyup="filterAttTrackStudentRealtime()" style="width:100%; padding:6px 28px 6px 10px; font-size:12px; background:#01231C; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2); border-radius:6px; box-sizing:border-box;">
+                  <i class="fa-solid fa-xmark" id="btnAttTrackClearSearch" onclick="clearAttTrackStudentSearch()" style="position:absolute; right:10px; color:#94A3B8; font-size:12px; cursor:pointer; display:none;" title="ล้างคำค้นหา"></i>
+                </div>
+              </div>
               <div>
                 <label style="display:block; font-size:11px; font-weight:700; color:#E2E8F0; margin-bottom:4px;">เลือกคอร์สเรียน:</label>
-                <select id="selAttTrackCourse" class="oca-input" onchange="loadCourseAttendanceTrackingReport()" style="padding:6px 10px; font-size:12px; min-width:180px; background:#01231C; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2);">
+                <select id="selAttTrackCourse" class="oca-input" onchange="loadCourseAttendanceTrackingReport()" style="padding:6px 10px; font-size:12px; min-width:170px; background:#01231C; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2);">
                   <option value="ALL">-- ทุกคอร์สเรียน --</option>
                 </select>
               </div>
               <div>
                 <label style="display:block; font-size:11px; font-weight:700; color:#E2E8F0; margin-bottom:4px;">รอบเวลาเรียน (Schedule):</label>
-                <select id="selAttTrackSchedule" class="oca-input" onchange="loadCourseAttendanceTrackingReport()" style="padding:6px 10px; font-size:12px; min-width:210px; background:#01231C; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2);">
+                <select id="selAttTrackSchedule" class="oca-input" onchange="loadCourseAttendanceTrackingReport()" style="padding:6px 10px; font-size:12px; min-width:200px; background:#01231C; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2);">
                   <option value="ALL">-- ทุกรอบเวลาเรียน --</option>
                   <option value="SCH-01">SCH-01: วันจันทร์-พุธ 18.30-21.00 น.</option>
                   <option value="SCH-02">SCH-02: วันอังคาร-พฤหัสบดี 18.30-21.00 น.</option>
@@ -242978,6 +242988,12 @@ body.printing-report #printReportContainer {
               <div>
                 <label style="display:block; font-size:11px; font-weight:700; color:#E2E8F0; margin-bottom:4px;">ถึงวันที่:</label>
                 <input type="date" id="inpAttTrackToDate" class="oca-input" onchange="loadCourseAttendanceTrackingReport()" style="padding:6px 10px; font-size:12px; background:#01231C; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2);">
+              </div>
+              <!-- Real-time Live Badge -->
+              <div style="display:inline-flex; align-items:center; gap:8px; padding:6px 12px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); border-radius:8px; height:34px; box-sizing:border-box;">
+                <span id="dotAttTrackRealtime" style="width:8px; height:8px; border-radius:50%; background:#10B981; box-shadow:0 0 8px #10B981; display:inline-block;"></span>
+                <span style="font-size:11px; font-weight:700; color:#34D399; white-space:nowrap;" id="lblAttTrackRealtimeStatus">Real-time สดจากห้องเรียน</span>
+                <i class="fa-solid fa-rotate" id="spinAttTrackRealtime" style="font-size:11px; color:#34D399; cursor:pointer; margin-left:3px;" onclick="loadCourseAttendanceTrackingReport(false)" title="กดเพื่อรีเฟรชข้อมูลทันที"></i>
               </div>
               <div>
                 <button type="button" class="oca-btn-gold-submit" onclick="loadCourseAttendanceTrackingReport()" style="padding:7px 14px; font-size:12px; display:inline-flex; align-items:center; gap:5px; height:34px; cursor:pointer;" title="ค้นหาข้อมูล">
@@ -795417,6 +795433,7 @@ function updateReceiptLivePreview() {
           const view = document.getElementById('subviewReportAttTrack');
           if (btn) btn.classList.add('active');
           if (view) view.style.display = 'block';
+          if (typeof initCourseAttendanceRealtimeListener === 'function') initCourseAttendanceRealtimeListener();
           if (typeof loadCourseAttendanceTrackingReport === 'function') loadCourseAttendanceTrackingReport();
         } else if (subTab === 'teacher-tracker') {
           const btn = document.getElementById('btnReportSubnavTeacherTracker');
@@ -953445,6 +953462,55 @@ isOnlineResume: true,
         } catch (_) {}
       }
 
+      // 3. Upsert to Supabase teacher_attendance table in Real-time
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          await _supabase.from('teacher_attendance').upsert(rows, { onConflict: 'schedule_id,student_id,attendance_date' });
+        } catch (eUp) {
+          console.warn('[Attendance DB Upsert fallback]', eUp);
+        }
+      }
+
+      // 4. Multi-channel Real-time Broadcast to Course Attendance Tracking & Reports
+      try {
+        if (typeof _supabase !== 'undefined' && _supabase && typeof _supabase.channel === 'function') {
+          const chan = _supabase.channel('oca_attendance_realtime_feed');
+          chan.send({
+            type: 'broadcast',
+            event: 'teacher_attendance_updated',
+            payload: {
+              schedule_id: scheduleId,
+              attendance_date: attDate,
+              teacher: user.fullName || user.username,
+              timestamp: Date.now()
+            }
+          });
+        }
+      } catch (_) {}
+
+      try {
+        if (typeof window.BroadcastChannel !== 'undefined') {
+          const bc = new window.BroadcastChannel('oca_attendance_realtime');
+          bc.postMessage({
+            type: 'ATTENDANCE_UPDATED',
+            schedule_id: scheduleId,
+            attendance_date: attDate,
+            teacher: user.fullName || user.username,
+            timestamp: Date.now()
+          });
+          bc.close();
+        }
+      } catch (_) {}
+
+      try {
+        localStorage.setItem('oca_att_latest_broadcast', JSON.stringify({
+          schedule_id: scheduleId,
+          attendance_date: attDate,
+          teacher: user.fullName || user.username,
+          timestamp: Date.now()
+        }));
+      } catch (_) {}
+
       // 3. UI feedback
       const timeStr = new Date().toLocaleTimeString('th-TH');
       if (lbl) lbl.textContent = `✓ บันทึกอัตโนมัติแล้ว (${timeStr})`;
@@ -954897,20 +954963,215 @@ isOnlineResume: true,
     window.initTeacherPortal = initTeacherPortal;
     
     // =========================================================================
-    // REPORT ITEM 7: COURSE STUDENT ATTENDANCE TRACKING & STATISTICAL ENGINE
+    // REPORT ITEM 7: COURSE STUDENT ATTENDANCE TRACKING & REALTIME ENGINE
     // =========================================================================
     let _attTrackRosterCache = [];
+    let _attTrackFilteredCache = [];
+    let _attTrackRealtimeSubscribed = false;
+    let _attTrackDebounceTimer = null;
 
-    async function loadCourseAttendanceTrackingReport() {
+    function flashAttTrackLiveIndicator(customMsg) {
+      const dot = document.getElementById('dotAttTrackRealtime');
+      const lbl = document.getElementById('lblAttTrackRealtimeStatus');
+      const timeStr = new Date().toLocaleTimeString('th-TH');
+      if (lbl) lbl.textContent = customMsg || `✓ ครูเช็คชื่อสด (${timeStr})`;
+      if (dot) {
+        dot.style.background = '#38BDF8';
+        dot.style.boxShadow = '0 0 12px #38BDF8';
+        setTimeout(() => {
+          dot.style.background = '#10B981';
+          dot.style.boxShadow = '0 0 8px #10B981';
+        }, 1800);
+      }
+    }
+    window.flashAttTrackLiveIndicator = flashAttTrackLiveIndicator;
+
+    function initCourseAttendanceRealtimeListener() {
+      if (_attTrackRealtimeSubscribed) return;
+      _attTrackRealtimeSubscribed = true;
+
+      const triggerRealtimeRefresh = () => {
+        if (_attTrackDebounceTimer) clearTimeout(_attTrackDebounceTimer);
+        _attTrackDebounceTimer = setTimeout(() => {
+          const view = document.getElementById('subviewReportAttTrack');
+          if (view && view.style.display !== 'none') {
+            flashAttTrackLiveIndicator();
+            loadCourseAttendanceTrackingReport(true);
+          }
+        }, 300);
+      };
+
+      // 1. Supabase Realtime Channel
+      try {
+        if (typeof _supabase !== 'undefined' && _supabase && typeof _supabase.channel === 'function') {
+          _supabase.channel('oca_attendance_realtime_feed')
+            .on('broadcast', { event: 'teacher_attendance_updated' }, () => triggerRealtimeRefresh())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'teacher_attendance' }, () => triggerRealtimeRefresh())
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security_audit_logs' }, (payload) => {
+              if (payload?.new?.action === 'TEACHER_ATTENDANCE_SAVED') triggerRealtimeRefresh();
+            })
+            .subscribe();
+        }
+      } catch (_) {}
+
+      // 2. BroadcastChannel for fast instant tab-to-tab sync
+      try {
+        if (typeof window.BroadcastChannel !== 'undefined') {
+          const bc = new window.BroadcastChannel('oca_attendance_realtime');
+          bc.onmessage = (e) => {
+            if (e.data?.type === 'ATTENDANCE_UPDATED') triggerRealtimeRefresh();
+          };
+        }
+      } catch (_) {}
+
+      // 3. Storage event listener for cross-window fallback
+      try {
+        window.addEventListener('storage', (e) => {
+          if (e.key === 'oca_att_latest_broadcast' || (e.key && e.key.startsWith('oca_att_'))) {
+            triggerRealtimeRefresh();
+          }
+        });
+      } catch (_) {}
+    }
+    window.initCourseAttendanceRealtimeListener = initCourseAttendanceRealtimeListener;
+
+    function filterAttTrackStudentRealtime() {
+      const qInput = document.getElementById('inpAttTrackSearchQuery');
+      const clearBtn = document.getElementById('btnAttTrackClearSearch');
+      const q = (qInput ? qInput.value : '').trim().toLowerCase();
+
+      if (clearBtn) {
+        clearBtn.style.display = q ? 'block' : 'none';
+      }
+
+      if (!_attTrackRosterCache || _attTrackRosterCache.length === 0) {
+        renderAttTrackRosterTable([], q);
+        return;
+      }
+
+      if (!q) {
+        _attTrackFilteredCache = _attTrackRosterCache;
+        renderAttTrackRosterTable(_attTrackRosterCache, '');
+        return;
+      }
+
+      const filtered = _attTrackRosterCache.filter(s => {
+        const sid = (s.student_id || '').toLowerCase();
+        const fn = (s.full_name || '').toLowerCase();
+        return sid.includes(q) || fn.includes(q);
+      });
+
+      _attTrackFilteredCache = filtered;
+      renderAttTrackRosterTable(filtered, q);
+    }
+    window.filterAttTrackStudentRealtime = filterAttTrackStudentRealtime;
+
+    function clearAttTrackStudentSearch() {
+      const qInput = document.getElementById('inpAttTrackSearchQuery');
+      if (qInput) {
+        qInput.value = '';
+        qInput.focus();
+      }
+      filterAttTrackStudentRealtime();
+    }
+    window.clearAttTrackStudentSearch = clearAttTrackStudentSearch;
+
+    function renderAttTrackRosterTable(studentStats, query = '') {
+      const tbody = document.getElementById('tbAttTrackRoster');
+      const kpiTotal = document.getElementById('kpiAttTrackTotalStudents');
+      const kpiAvg = document.getElementById('kpiAttTrackAvgRate');
+      const kpiP = document.getElementById('kpiAttTrackTotalPresent');
+      const kpiL = document.getElementById('kpiAttTrackTotalLate');
+      const kpiLe = document.getElementById('kpiAttTrackTotalLeave');
+      const kpiA = document.getElementById('kpiAttTrackTotalAbsent');
+
+      let totalP = 0, totalL = 0, totalLe = 0, totalA = 0;
+      studentStats.forEach(s => {
+        totalP += (s.present || 0);
+        totalL += (s.late || 0);
+        totalLe += (s.leave || 0);
+        totalA += (s.absent || 0);
+      });
+
+      if (kpiTotal) {
+        kpiTotal.textContent = query
+          ? `${studentStats.length} / ${_attTrackRosterCache.length} คน`
+          : `${studentStats.length} คน`;
+      }
+      if (kpiP) kpiP.textContent = `${totalP} ครั้ง`;
+      if (kpiL) kpiL.textContent = `${totalL} ครั้ง`;
+      if (kpiLe) kpiLe.textContent = `${totalLe} ครั้ง`;
+      if (kpiA) kpiA.textContent = `${totalA} ครั้ง`;
+
+      const avgRate = studentStats.length > 0
+        ? Math.round(studentStats.reduce((sum, s) => sum + s.rate, 0) / studentStats.length)
+        : 0;
+      if (kpiAvg) kpiAvg.textContent = `${avgRate}%`;
+
+      if (!tbody) return;
+
+      if (studentStats.length === 0) {
+        tbody.innerHTML = query
+          ? `<tr><td colspan="11" style="text-align:center; padding:24px; color:#94A3B8;"><i class="fa-solid fa-user-slash" style="margin-right:6px;"></i>ไม่พบนักศึกษาที่ตรงกับคำค้นหา "${escapeHtml(query)}"</td></tr>`
+          : '<tr><td colspan="11" style="text-align:center; padding:24px; color:#94A3B8;">ไม่พบข้อมูลนักศึกษาหรือประวัติการเช็คชื่อตามเงื่อนไขที่เลือก</td></tr>';
+        return;
+      }
+
+      const highlight = (text, q) => {
+        if (!q || !text) return escapeHtml(text || '');
+        const escaped = escapeHtml(text);
+        const escapedQ = escapeHtml(q);
+        const idx = escaped.toLowerCase().indexOf(escapedQ.toLowerCase());
+        if (idx === -1) return escaped;
+        return escaped.substring(0, idx) +
+          `<mark style="background:rgba(245,158,11,0.35); color:#FDE047; padding:1px 3px; border-radius:3px;">${escaped.substring(idx, idx + escapedQ.length)}</mark>` +
+          escaped.substring(idx + escapedQ.length);
+      };
+
+      tbody.innerHTML = studentStats.map((s, idx) => {
+        const photoHtml = s.photo_url
+          ? `<img src="${s.photo_url}" style="width:32px; height:40px; object-fit:cover; border-radius:4px; border:1px solid rgba(255,255,255,0.2);" alt="photo">`
+          : `<div style="width:32px; height:40px; border-radius:4px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; color:#94A3B8; font-size:12px;"><i class="fa-solid fa-user"></i></div>`;
+
+        const rateColor = s.rate >= 80 ? '#34D399' : (s.rate >= 60 ? '#FBBF24' : '#F87171');
+        const rateBg = s.rate >= 80 ? 'rgba(16,185,129,0.2)' : (s.rate >= 60 ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)');
+        const rateBorder = s.rate >= 80 ? 'rgba(16,185,129,0.4)' : (s.rate >= 60 ? 'rgba(245,158,11,0.4)' : 'rgba(239,68,68,0.4)');
+
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
+          <td style="padding:7px 10px; text-align:center; color:#94A3B8;">${idx + 1}</td>
+          <td style="padding:7px 10px; text-align:center;">${photoHtml}</td>
+          <td style="padding:7px 10px;">
+            <div style="font-weight:700; color:#FFFFFF;">${highlight(s.full_name, query)}</div>
+            <div style="font-size:11px; font-family:monospace; color:#38BDF8;">ID: ${highlight(s.student_id, query)}</div>
+          </td>
+          <td style="padding:7px 10px; text-align:center; font-family:monospace; font-weight:700; color:#60A5FA;">${escapeHtml(s.schedule || '-')}</td>
+          <td style="padding:7px 10px; text-align:center; font-weight:700; color:#F8FAFC;">${s.totalSessions}</td>
+          <td style="padding:7px 10px; text-align:center; font-weight:700; color:#34D399;">${s.present}</td>
+          <td style="padding:7px 10px; text-align:center; font-weight:700; color:#FBBF24;">${s.late}</td>
+          <td style="padding:7px 10px; text-align:center; font-weight:700; color:#60A5FA;">${s.leave}</td>
+          <td style="padding:7px 10px; text-align:center; font-weight:700; color:#F87171;">${s.absent}</td>
+          <td style="padding:7px 10px; text-align:center;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:12px; font-weight:800; font-size:11px; background:${rateBg}; color:${rateColor}; border:1px solid ${rateBorder};">${s.rate}%</span>
+          </td>
+          <td style="padding:7px 10px; font-size:11px; color:#94A3B8;">${escapeHtml(s.latestNote || '-')}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function loadCourseAttendanceTrackingReport(isBackgroundSync = false) {
       const tbody = document.getElementById('tbAttTrackRoster');
       const selCourse = document.getElementById('selAttTrackCourse');
       const selSched = document.getElementById('selAttTrackSchedule');
       const inpFrom = document.getElementById('inpAttTrackFromDate');
       const inpTo = document.getElementById('inpAttTrackToDate');
       const docSub = document.getElementById('lblAttTrackDocSub');
+      const spin = document.getElementById('spinAttTrackRealtime');
       if (!tbody) return;
 
-      tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:24px; color:#94A3B8;"><i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>กำลังรวบรวมประวัติการเช็คชื่อเข้าเรียน...</td></tr>';
+      if (!isBackgroundSync) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:24px; color:#94A3B8;"><i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>กำลังรวบรวมประวัติการเช็คชื่อเข้าเรียน Real-time...</td></tr>';
+      }
+      if (spin) spin.classList.add('fa-spin');
 
       const schedFilter = selSched ? selSched.value : 'ALL';
       const courseFilter = selCourse ? selCourse.value : 'ALL';
@@ -954941,7 +955202,7 @@ isOnlineResume: true,
         } catch (_) {}
       }
 
-      if (docSub) {
+      if (docSub && !isBackgroundSync) {
         docSub.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>กำลังรวบรวมข้อมูลคอร์สและรอบเวลา...';
       }
 
@@ -954949,10 +955210,10 @@ isOnlineResume: true,
       let students = [];
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          let q = _supabase.from('students').select('student_id, full_name, photo_url, current_schedule, current_course');
+          let q = _supabase.from('students').select('student_id, full_name, photo_url, current_schedule, current_course').neq('status', 'CANCELLED');
           if (schedFilter !== 'ALL') q = q.eq('current_schedule', schedFilter);
           const { data } = await q;
-          if (data) students = data;
+          if (data && data.length > 0) students = data;
         } catch (e) {
           console.warn('[AttTrack] students query error:', e);
         }
@@ -954976,7 +955237,7 @@ isOnlineResume: true,
         } catch (_) {}
       }
 
-      // 2. Fetch all teacher attendance records within range
+      // 2. Fetch all teacher attendance records from DB
       let attendanceRows = [];
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
@@ -954991,28 +955252,56 @@ isOnlineResume: true,
         }
       }
 
-      // Merge with offline / localStorage attendance records if remote is empty
-      if (attendanceRows.length === 0) {
+      // 2.1 Also merge from security_audit_logs where action = 'TEACHER_ATTENDANCE_SAVED'
+      if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          Object.keys(localStorage).filter(k => k.startsWith('oca_att_')).forEach(k => {
-            const parts = k.split('_');
-            const tUser = parts[2] || '';
-            const sId = parts[3] || '';
-            const aDate = parts[4] || '';
-            if (schedFilter === 'ALL' || sId === schedFilter) {
-              if ((!inpFrom?.value || aDate >= inpFrom.value) && (!inpTo?.value || aDate <= inpTo.value)) {
-                const list = JSON.parse(localStorage.getItem(k) || '[]');
-                if (Array.isArray(list)) {
-                  list.forEach(item => {
-                    if (!item.created_by) item.created_by = tUser;
-                    attendanceRows.push(item);
-                  });
-                }
+          const { data: auditLogs } = await _supabase
+            .from('security_audit_logs')
+            .select('device_info, created_at')
+            .eq('action', 'TEACHER_ATTENDANCE_SAVED')
+            .order('created_at', { ascending: false })
+            .limit(60);
+          if (auditLogs && auditLogs.length > 0) {
+            for (const log of auditLogs) {
+              if (log.device_info && log.device_info.startsWith('{')) {
+                try {
+                  const p = JSON.parse(log.device_info);
+                  if (Array.isArray(p.rows)) {
+                    p.rows.forEach(r => {
+                      if (!attendanceRows.some(x => x.student_id === r.student_id && x.attendance_date === r.attendance_date && x.schedule_id === r.schedule_id)) {
+                        attendanceRows.push(r);
+                      }
+                    });
+                  }
+                } catch (_) {}
               }
             }
-          });
+          }
         } catch (_) {}
       }
+
+      // 2.2 Merge with offline / localStorage attendance records
+      try {
+        Object.keys(localStorage).filter(k => k.startsWith('oca_att_')).forEach(k => {
+          const parts = k.split('_');
+          const tUser = parts[2] || '';
+          const sId = parts[3] || '';
+          const aDate = parts[4] || '';
+          if (schedFilter === 'ALL' || sId === schedFilter) {
+            if ((!inpFrom?.value || aDate >= inpFrom.value) && (!inpTo?.value || aDate <= inpTo.value)) {
+              const list = JSON.parse(localStorage.getItem(k) || '[]');
+              if (Array.isArray(list)) {
+                list.forEach(item => {
+                  if (!item.created_by) item.created_by = tUser;
+                  if (!attendanceRows.some(x => x.student_id === item.student_id && x.attendance_date === item.attendance_date && x.schedule_id === item.schedule_id)) {
+                    attendanceRows.push(item);
+                  }
+                });
+              }
+            }
+          }
+        });
+      } catch (_) {}
 
       // Resolve Teacher Name for selected Course and Schedule
       const scheduleMap = {
@@ -955034,7 +955323,6 @@ isOnlineResume: true,
 
       let teacherName = '';
 
-      // 1. From attendance records
       if (Array.isArray(attendanceRows) && attendanceRows.length > 0) {
         const tRow = attendanceRows.find(r => r.teacher_name || r.teacher_username || r.created_by);
         if (tRow) {
@@ -955050,7 +955338,6 @@ isOnlineResume: true,
         }
       }
 
-      // 2. From saved classroom instructor config
       if (!teacherName) {
         try {
           const yt = document.getElementById('selRosterYearTerm')?.value || '2569_5';
@@ -955065,7 +955352,6 @@ isOnlineResume: true,
         } catch (_) {}
       }
 
-      // 3. From staff users matching assigned schedule
       if (!teacherName && schedFilter !== 'ALL') {
         let teachers = [];
         if (typeof cachedUsersList !== 'undefined' && Array.isArray(cachedUsersList) && cachedUsersList.length > 0) {
@@ -955086,7 +955372,6 @@ isOnlineResume: true,
         if (matched) teacherName = matched.fullName || matched.full_name || matched.username;
       }
 
-      // 4. Default fallback
       if (!teacherName) {
         const savedUser = (typeof getSavedCurrentUser === 'function' ? getSavedCurrentUser() : null) || {};
         if (savedUser.role === 'Teacher' && (savedUser.fullName || savedUser.username)) {
@@ -955107,8 +955392,6 @@ isOnlineResume: true,
       }
 
       // 3. Aggregate Attendance Statistics per Student
-      let totalP = 0, totalL = 0, totalLe = 0, totalA = 0;
-
       const studentStats = students.map(s => {
         const myRecords = attendanceRows.filter(r => r.student_id === s.student_id);
         const presentCount = myRecords.filter(r => r.status === 'PRESENT').length;
@@ -955117,12 +955400,6 @@ isOnlineResume: true,
         const absentCount = myRecords.filter(r => r.status === 'ABSENT').length;
         const totalSessions = myRecords.length;
 
-        totalP += presentCount;
-        totalL += lateCount;
-        totalLe += leaveCount;
-        totalA += absentCount;
-
-        // Effective attendance rate: Present = 100%, Late = 80%, Leave = 50%, Absent = 0%
         let rate = 0;
         if (totalSessions > 0) {
           rate = Math.round(((presentCount + (lateCount * 0.8) + (leaveCount * 0.5)) / totalSessions) * 100);
@@ -955132,9 +955409,10 @@ isOnlineResume: true,
 
         return {
           student_id: s.student_id,
-          full_name: s.full_name,
-          photo_url: s.photo_url,
-          schedule: s.current_schedule,
+          full_name: s.full_name || s.name || s.student_name || 'นักศึกษา',
+          photo_url: s.photo_url || '',
+          schedule: s.current_schedule || schedDisplay,
+          course: s.current_course || courseDisplay,
           totalSessions: totalSessions,
           present: presentCount,
           late: lateCount,
@@ -955146,60 +955424,15 @@ isOnlineResume: true,
       });
 
       _attTrackRosterCache = studentStats;
+      _attTrackFilteredCache = studentStats;
 
-      // Update KPI Cards
-      const kpiTotal = document.getElementById('kpiAttTrackTotalStudents');
-      const kpiAvg = document.getElementById('kpiAttTrackAvgRate');
-      const kpiP = document.getElementById('kpiAttTrackTotalPresent');
-      const kpiL = document.getElementById('kpiAttTrackTotalLate');
-      const kpiLe = document.getElementById('kpiAttTrackTotalLeave');
-      const kpiA = document.getElementById('kpiAttTrackTotalAbsent');
+      // Filter and render by active search query
+      filterAttTrackStudentRealtime();
 
-      if (kpiTotal) kpiTotal.textContent = `${studentStats.length} คน`;
-      if (kpiP) kpiP.textContent = `${totalP} ครั้ง`;
-      if (kpiL) kpiL.textContent = `${totalL} ครั้ง`;
-      if (kpiLe) kpiLe.textContent = `${totalLe} ครั้ง`;
-      if (kpiA) kpiA.textContent = `${totalA} ครั้ง`;
-
-      const avgRate = studentStats.length > 0 
-        ? Math.round(studentStats.reduce((sum, s) => sum + s.rate, 0) / studentStats.length)
-        : 0;
-      if (kpiAvg) kpiAvg.textContent = `${avgRate}%`;
-
-      // Render Table Rows
-      if (studentStats.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:24px; color:#94A3B8;">ไม่พบข้อมูลนักศึกษาหรือประวัติการเช็คชื่อตามเงื่อนไขที่เลือก</td></tr>';
-        return;
-      }
-
-      tbody.innerHTML = studentStats.map((s, idx) => {
-        const photoHtml = s.photo_url
-          ? `<img src="${s.photo_url}" style="width:32px; height:40px; object-fit:cover; border-radius:4px; border:1px solid rgba(255,255,255,0.2);" alt="photo">`
-          : `<div style="width:32px; height:40px; border-radius:4px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; color:#94A3B8; font-size:12px;"><i class="fa-solid fa-user"></i></div>`;
-
-        const rateColor = s.rate >= 80 ? '#34D399' : (s.rate >= 60 ? '#FBBF24' : '#F87171');
-        const rateBg = s.rate >= 80 ? 'rgba(16,185,129,0.2)' : (s.rate >= 60 ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)');
-        const rateBorder = s.rate >= 80 ? 'rgba(16,185,129,0.4)' : (s.rate >= 60 ? 'rgba(245,158,11,0.4)' : 'rgba(239,68,68,0.4)');
-
-        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-          <td style="padding:7px 10px; text-align:center; color:#94A3B8;">${idx + 1}</td>
-          <td style="padding:7px 10px; text-align:center;">${photoHtml}</td>
-          <td style="padding:7px 10px;">
-            <div style="font-weight:700; color:#FFFFFF;">${s.full_name}</div>
-            <div style="font-size:11px; font-family:monospace; color:#38BDF8;">ID: ${s.student_id}</div>
-          </td>
-          <td style="padding:7px 10px; text-align:center; font-family:monospace; font-weight:700; color:#60A5FA;">${s.schedule || '-'}</td>
-          <td style="padding:7px 10px; text-align:center; font-weight:700; color:#F8FAFC;">${s.totalSessions}</td>
-          <td style="padding:7px 10px; text-align:center; font-weight:700; color:#34D399;">${s.present}</td>
-          <td style="padding:7px 10px; text-align:center; font-weight:700; color:#FBBF24;">${s.late}</td>
-          <td style="padding:7px 10px; text-align:center; font-weight:700; color:#60A5FA;">${s.leave}</td>
-          <td style="padding:7px 10px; text-align:center; font-weight:700; color:#F87171;">${s.absent}</td>
-          <td style="padding:7px 10px; text-align:center;">
-            <span style="display:inline-block; padding:2px 8px; border-radius:12px; font-weight:800; font-size:11px; background:${rateBg}; color:${rateColor}; border:1px solid ${rateBorder};">${s.rate}%</span>
-          </td>
-          <td style="padding:7px 10px; font-size:11px; color:#94A3B8;">${s.latestNote}</td>
-        </tr>`;
-      }).join('');
+      if (spin) spin.classList.remove('fa-spin');
+      const timeStr = new Date().toLocaleTimeString('th-TH');
+      const lbl = document.getElementById('lblAttTrackRealtimeStatus');
+      if (lbl) lbl.textContent = `✓ เชื่อมต่อสด (${timeStr})`;
     }
     window.loadCourseAttendanceTrackingReport = loadCourseAttendanceTrackingReport;
 
@@ -955210,7 +955443,7 @@ isOnlineResume: true,
         return;
       }
 
-      const students = (typeof _attTrackRosterCache !== 'undefined' && _attTrackRosterCache) ? _attTrackRosterCache : [];
+      const students = (typeof _attTrackFilteredCache !== 'undefined' && _attTrackFilteredCache && _attTrackFilteredCache.length > 0) ? _attTrackFilteredCache : ((typeof _attTrackRosterCache !== 'undefined' && _attTrackRosterCache) ? _attTrackRosterCache : []);
       const selCourse = document.getElementById('selAttTrackCourse');
       const selSched = document.getElementById('selAttTrackSchedule');
       const inpFrom = document.getElementById('inpAttTrackFromDate');
