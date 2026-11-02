@@ -186598,9 +186598,10 @@ body.printing-report #printReportContainer {
                     </div>
                     <h2 id="txtAttendanceCardTitle" style="font-size:15px; font-weight:700; color:#FFFFFF; margin:0;">เช็คชื่อนักเรียนในห้องเรียน (Class Attendance)</h2>
                   </div>
-                  <button type="button" class="oca-btn-gold-submit" onclick="saveTeacherAttendance()" style="padding:6px 14px; font-size:12px; font-weight:700; border-radius:6px; cursor:pointer;">
-                    <i class="fa-solid fa-floppy-disk"></i> <span id="txtSaveAttendanceBtn">บันทึกผลการเช็คชื่อ</span>
-                  </button>
+                  <div id="badgeTeacherAttAutoSave" style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#10B981; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); padding:5px 12px; border-radius:20px; transition:all 0.3s ease;">
+                    <span id="dotTeacherAttAutoSave" style="width:7px; height:7px; border-radius:50%; background:#10B981; box-shadow:0 0 8px #10B981; display:inline-block;"></span>
+                    <span id="lblTeacherAttAutoSaveText">⚡ บันทึกอัตโนมัติ Realtime</span>
+                  </div>
                 </div>
 
                 <!-- Schedule & Date Filter Toolbar -->
@@ -186608,14 +186609,14 @@ body.printing-report #printReportContainer {
                   <div style="flex:1; min-width:200px;">
                     <label id="lblSelectScheduleText" style="display:block; font-size:11.5px; font-weight:700; color:#CBD5E1; margin-bottom:4px;">เลือกตารางเรียน / ห้องเรียน:</label>
                     <select id="selTeacherSchedule" class="oca-input" onchange="loadTeacherClassroomStudents()" style="padding:7px 10px; font-size:12px; font-weight:600; background:#011F18; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2);">
-                      <option value="SCH-01">SCH-01: วันจันทร์-พุธ 18.30-21.00 น.</option>
-                      <option value="SCH-02">SCH-02: วันอังคาร-พฤหัสบดี 18.30-21.00 น.</option>
-                      <option value="SCH-03">SCH-03: วันเสาร์ 09.00-12.00 น.</option>
-                      <option value="SCH-04">SCH-04: วันเสาร์ 13.00-16.00 น.</option>
-                      <option value="SCH-05">SCH-05: วันอาทิตย์ 09.00-12.00 น.</option>
-                      <option value="SCH-06">SCH-06: วันอาทิตย์ 13.00-16.00 น.</option>
-                      <option value="SCH-07">SCH-07: วันเสาร์ 16.30-19.30 น.</option>
-                      <option value="SCH-08">SCH-08: วันอาทิตย์ 16.30-19.30 น.</option>
+                      <option value="SCH-01">SCH-01: จันทร์และพุธ 18.30-21.00 น.</option>
+                      <option value="SCH-02">SCH-02: อังคารและพฤหัส 09.30-12.00 น.</option>
+                      <option value="SCH-03">SCH-03: อังคารและพฤหัส 13.30-16.00 น.</option>
+                      <option value="SCH-04">SCH-04: อังคารและพฤหัส 18.30-21.00 น.</option>
+                      <option value="SCH-05">SCH-05: เสาร์และอาทิตย์ 09.30-12.00 น.</option>
+                      <option value="SCH-06">SCH-06: เสาร์วันเดียว 13.00-18.00 น.</option>
+                      <option value="SCH-07">SCH-07: อาทิตย์ วันเดียว 13.00-18.00 น.</option>
+                      <option value="SCH-08">SCH-08: เสาร์ หรือ อาทิตย์ วันเดียว 09.00-12.00 น.</option>
                     </select>
                   </div>
                   <div style="width:140px;">
@@ -957307,30 +957308,42 @@ isOnlineResume: true,
       // 2. Query saved attendance for this schedule, date, and current teacher
       let savedAttMap = {};
       if (user) {
-        if (typeof _supabase !== 'undefined' && _supabase) {
+        // First check local storage
+        try {
+          const local = localStorage.getItem(`oca_att_${user.username}_${scheduleId}_${attDate}`);
+          if (local) {
+            const list = JSON.parse(local);
+            list.forEach(r => { savedAttMap[r.student_id] = r; });
+          }
+        } catch (_) {}
+
+        // If not in local, check security_audit_logs for cross-device sync
+        if (Object.keys(savedAttMap).length === 0 && typeof _supabase !== 'undefined' && _supabase) {
           try {
             const { data } = await _supabase
-              .from('teacher_attendance')
-              .select('student_id, status, notes')
-              .eq('schedule_id', scheduleId)
-              .eq('attendance_date', attDate);
-            if (data) {
-              data.forEach(r => { savedAttMap[r.student_id] = r; });
-            }
-          } catch (_) {}
-        }
-        if (Object.keys(savedAttMap).length === 0) {
-          try {
-            const local = localStorage.getItem(`oca_att_${user.username}_${scheduleId}_${attDate}`);
-            if (local) {
-              const list = JSON.parse(local);
-              list.forEach(r => { savedAttMap[r.student_id] = r; });
+              .from('security_audit_logs')
+              .select('device_info, created_at')
+              .eq('action', 'TEACHER_ATTENDANCE_SAVED')
+              .order('created_at', { ascending: false })
+              .limit(30);
+            if (data && data.length > 0) {
+              for (const log of data) {
+                if (log.device_info && log.device_info.startsWith('{')) {
+                  try {
+                    const parsed = JSON.parse(log.device_info);
+                    if (parsed.schedule_id === scheduleId && parsed.attendance_date === attDate && Array.isArray(parsed.rows)) {
+                      parsed.rows.forEach(r => { savedAttMap[r.student_id] = r; });
+                      break;
+                    }
+                  } catch (_) {}
+                }
+              }
             }
           } catch (_) {}
         }
       }
 
-      // 3. Merge roster with student details
+      // 3. Merge roster with student details (Zero mock data)
       _teacherRosterData = studentsList.map(s => {
         const saved = savedAttMap[s.student_id];
         return {
@@ -957355,7 +957368,7 @@ isOnlineResume: true,
       const dict = TEACHER_I18N[_teacherCurrentLanguage] || TEACHER_I18N.th;
 
       if (_teacherRosterData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:24px; color:#94A3B8;">${dict.emptyRoster}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:32px; color:#94A3B8;"><i class="fa-regular fa-folder-open" style="font-size:24px; margin-bottom:8px; display:block; opacity:0.5;"></i>${dict.emptyRoster || 'ไม่มีนักเรียนลงทะเบียนในตารางเรียนนี้'}</td></tr>`;
         updateAttendanceSummaryCounters();
         return;
       }
@@ -957388,7 +957401,7 @@ isOnlineResume: true,
             </div>
           </td>
           <td style="padding:6px 10px; vertical-align:middle;">
-            <input type="text" value="${escapeHtml(s.notes || '')}" onchange="setStudentAttendanceNotes(${idx}, this.value)" placeholder="${dict.notesPlaceholder}" style="width:100%; font-size:11px; padding:4px 8px; border:1px solid rgba(255,255,255,0.18); border-radius:4px; box-sizing:border-box; background:#011F18; color:#FFFFFF;">
+            <input type="text" value="${escapeHtml(s.notes || '')}" oninput="setStudentAttendanceNotes(${idx}, this.value, true)" onchange="setStudentAttendanceNotes(${idx}, this.value, false)" placeholder="${dict.notesPlaceholder}" style="width:100%; font-size:11px; padding:4px 8px; border:1px solid rgba(255,255,255,0.18); border-radius:4px; box-sizing:border-box; background:#011F18; color:#FFFFFF;">
           </td>
         </tr>`;
       }).join('');
@@ -957400,13 +957413,15 @@ isOnlineResume: true,
       if (_teacherRosterData[index]) {
         _teacherRosterData[index].status = status;
         renderTeacherAttendanceTable();
+        autoSaveTeacherAttendance(false);
       }
     }
     window.setStudentAttendanceStatus = setStudentAttendanceStatus;
 
-    function setStudentAttendanceNotes(index, val) {
+    function setStudentAttendanceNotes(index, val, debounced = false) {
       if (_teacherRosterData[index]) {
         _teacherRosterData[index].notes = val;
+        autoSaveTeacherAttendance(debounced);
       }
     }
     window.setStudentAttendanceNotes = setStudentAttendanceNotes;
@@ -957414,6 +957429,7 @@ isOnlineResume: true,
     function markAllAttendancePresent() {
       _teacherRosterData.forEach(s => s.status = 'PRESENT');
       renderTeacherAttendanceTable();
+      autoSaveTeacherAttendance(false);
     }
     window.markAllAttendancePresent = markAllAttendancePresent;
 
@@ -957434,24 +957450,42 @@ isOnlineResume: true,
       setC('cntAttAbsent', absent);
     }
 
-    async function saveTeacherAttendance() {
-      const scheduleId = document.getElementById('selTeacherSchedule').value;
-      const attDate = document.getElementById('inpTeacherAttendanceDate').value;
-      const user = getSavedCurrentUser();
-      const dict = TEACHER_I18N[_teacherCurrentLanguage] || TEACHER_I18N.th;
-
-      if (!user) {
-        if (typeof showToast === 'function') showToast('กรุณาเข้าสู่ระบบ', 'กรุณาเข้าสู่ระบบครูผู้สอนก่อนบันทึก', '⚠️', 3000);
+    let _teacherAttSaveTimer = null;
+    async function autoSaveTeacherAttendance(debounced = false) {
+      if (debounced) {
+        if (_teacherAttSaveTimer) clearTimeout(_teacherAttSaveTimer);
+        _teacherAttSaveTimer = setTimeout(() => autoSaveTeacherAttendance(false), 800);
         return;
       }
-      if (!scheduleId || !attDate) {
-        if (typeof showToast === 'function') showToast('ข้อมูลไม่ครบ', 'กรุณาเลือกตารางเรียนและวันที่', '⚠️', 3000);
-        return;
+      if (_teacherAttSaveTimer) {
+        clearTimeout(_teacherAttSaveTimer);
+        _teacherAttSaveTimer = null;
+      }
+
+      const selSched = document.getElementById('selTeacherSchedule');
+      const inpDate = document.getElementById('inpTeacherAttendanceDate');
+      const badge = document.getElementById('badgeTeacherAttAutoSave');
+      const lbl = document.getElementById('lblTeacherAttAutoSaveText');
+      const dot = document.getElementById('dotTeacherAttAutoSave');
+
+      const scheduleId = selSched ? selSched.value : '';
+      const attDate = inpDate ? inpDate.value : '';
+      const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+
+      if (!scheduleId || !attDate || !user) return;
+      if (!_teacherRosterData || _teacherRosterData.length === 0) return;
+
+      if (lbl) lbl.textContent = '⚡ กำลังบันทึก...';
+      if (badge) badge.style.borderColor = 'rgba(245,158,11,0.5)';
+      if (dot) {
+        dot.style.background = '#F59E0B';
+        dot.style.boxShadow = '0 0 8px #F59E0B';
       }
 
       const rows = _teacherRosterData.map(s => ({
         schedule_id: scheduleId,
         student_id: s.student_id,
+        full_name: s.full_name || '',
         attendance_date: attDate,
         status: s.status || 'PRESENT',
         notes: s.notes || '',
@@ -957459,56 +957493,59 @@ isOnlineResume: true,
         created_at: new Date().toISOString()
       }));
 
-      // 1. Supabase database save (Isolated strictly by username and schedule)
-      if (typeof _supabase !== 'undefined' && _supabase) {
-        try {
-          // Delete prior records created by THIS teacher for this schedule and date
-          await _supabase
-            .from('teacher_attendance')
-            .delete()
-            .eq('schedule_id', scheduleId)
-            .eq('attendance_date', attDate)
-            .eq('created_by', user.username);
-
-          const { error } = await _supabase
-            .from('teacher_attendance')
-            .insert(rows);
-
-          if (error) console.warn('[Teacher Attendance DB] save error:', error);
-        } catch (e) {
-          console.warn('[Teacher Attendance DB] error:', e);
-        }
-      }
-
-      // 2. Local fallback save (Isolated by username)
+      // 1. Local Storage immediate persistence
       try {
         localStorage.setItem(`oca_att_${user.username}_${scheduleId}_${attDate}`, JSON.stringify(rows));
       } catch (_) {}
 
+      // 2. Broadcast via security_audit_logs for cross-device sync & Teacher Operations Tracker
+      const scheduleMap = {
+        'SCH-01': 'จันทร์และพุธ 18.30-21.00 น.',
+        'SCH-02': 'อังคารและพฤหัส 09.30-12.00 น.',
+        'SCH-03': 'อังคารและพฤหัส 13.30-16.00 น.',
+        'SCH-04': 'อังคารและพฤหัส 18.30-21.00 น.',
+        'SCH-05': 'เสาร์และอาทิตย์ 09.30-12.00 น.',
+        'SCH-06': 'เสาร์วันเดียว 13.00-18.00 น.',
+        'SCH-07': 'อาทิตย์ วันเดียว 13.00-18.00 น.',
+        'SCH-08': 'เสาร์ หรือ อาทิตย์ วันเดียว 09.00-12.00 น.'
+      };
+      const schedName = scheduleMap[scheduleId] || scheduleId;
+      const pCount = rows.filter(r => r.status === 'PRESENT').length;
+      const lCount = rows.filter(r => r.status === 'LATE').length;
+      const lvCount = rows.filter(r => r.status === 'LEAVE').length;
+      const aCount = rows.filter(r => r.status === 'ABSENT').length;
+
       if (typeof logTeacherActivity === 'function') {
-        const pCount = rows.filter(r => r.status === 'PRESENT').length;
-        const lCount = rows.filter(r => r.status === 'LATE').length;
-        const lvCount = rows.filter(r => r.status === 'LEAVE').length;
-        const aCount = rows.filter(r => r.status === 'ABSENT').length;
-        logTeacherActivity(
-          'TEACHER_ATTENDANCE_SAVED',
-          `อาจารย์ ${user.fullName || user.username} บันทึกการเช็คชื่อห้อง ${scheduleId} วันที่ ${attDate} (มา ${pCount}, สาย ${lCount}, ลา ${lvCount}, ขาด ${aCount})`,
-          {
-            schedule_id: scheduleId,
-            attendance_date: attDate,
-            present: pCount,
-            late: lCount,
-            leave: lvCount,
-            absent: aCount
-          }
-        );
+        try {
+          await logTeacherActivity(
+            'TEACHER_ATTENDANCE_SAVED',
+            `อาจารย์ ${user.fullName || user.username} เช็คชื่อห้อง ${schedName}: มา ${pCount}, สาย ${lCount}, ลา ${lvCount}, ขาด ${aCount}`,
+            {
+              schedule_id: scheduleId,
+              schedule_name: schedName,
+              attendance_date: attDate,
+              rows: rows,
+              total: rows.length,
+              present: pCount,
+              late: lCount,
+              leave: lvCount,
+              absent: aCount
+            }
+          );
+        } catch (_) {}
       }
 
-      if (typeof showToast === 'function') {
-        showToast(dict.saveSuccess, `${scheduleId} • ${attDate}`, '✅', 3500);
+      // 3. UI feedback
+      const timeStr = new Date().toLocaleTimeString('th-TH');
+      if (lbl) lbl.textContent = `✓ บันทึกอัตโนมัติแล้ว (${timeStr})`;
+      if (badge) badge.style.borderColor = 'rgba(16,185,129,0.4)';
+      if (dot) {
+        dot.style.background = '#10B981';
+        dot.style.boxShadow = '0 0 8px #10B981';
       }
     }
-    window.saveTeacherAttendance = saveTeacherAttendance;
+    window.autoSaveTeacherAttendance = autoSaveTeacherAttendance;
+    window.saveTeacherAttendance = autoSaveTeacherAttendance;
 
     function revokeTeacherFingerprint(username) {
       if (!username) return;
@@ -957891,6 +957928,9 @@ isOnlineResume: true,
       // 3. Save to Supabase security_audit_logs for cross-device Realtime broadcasting
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
+          const devInfo = (extraData && Object.keys(extraData).length > 0)
+            ? JSON.stringify(extraData)
+            : (navigator.userAgent ? navigator.userAgent.substring(0, 120) : 'Web');
           await _supabase.from('security_audit_logs').insert([{
             action: action,
             details: details,
@@ -957898,7 +957938,7 @@ isOnlineResume: true,
             full_name: fname,
             role: role,
             status: 'SUCCESS',
-            device_info: navigator.userAgent ? navigator.userAgent.substring(0, 120) : 'Web',
+            device_info: devInfo,
             records: 1
           }]);
         } catch (err) {
