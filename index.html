@@ -238858,17 +238858,15 @@ body.printing-report #printReportContainer {
 
 
 
-                <!-- Instructor Name & Dropdown from Settings Staff -->
+                <!-- Instructor Dropdown (Strictly from Teacher Role Accounts Only) -->
                 <div class="oca-input-group">
                   <label class="oca-label" for="selRosterInstructor" style="font-size:12px; color:#38bdf8; font-weight:700;">
-                    <i class="fa-solid fa-chalkboard-user" style="margin-right:6px;"></i>อาจารย์ผู้สอน (Instructor) *
+                    <i class="fa-solid fa-chalkboard-user" style="margin-right:6px;"></i>อาจารย์ผู้สอน (ดึงจากบัญชีผู้ใช้ตำแหน่ง Teacher / ครูสอน) *
                   </label>
-                  <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                    <select id="selRosterInstructor" class="oca-input" onchange="onRosterInstructorDropdownChanged(this.value)" style="flex:1; min-width:180px; font-size:12.5px; font-weight:600; color:#38bdf8;">
-                      <option value="">-- เลือกอาจารย์ผู้สอน (ตามบัญชี Teacher ใน Settings) --</option>
-                    </select>
-                    <input type="text" id="txtRosterInstructor" class="oca-input" placeholder="หรือระบุชื่ออาจารย์เพิ่มเติม" style="flex:1; min-width:160px;">
-                  </div>
+                  <select id="selRosterInstructor" class="oca-input" onchange="onRosterInstructorDropdownChanged(this.value)" style="width:100%; font-size:13px; font-weight:600; color:#38bdf8; background:#011F18; border:1px solid rgba(56,189,248,0.35);">
+                    <option value="">-- เลือกอาจารย์ผู้สอน (เฉพาะผู้ใช้งานตำแหน่ง Teacher / ครูสอน) --</option>
+                  </select>
+                  <input type="hidden" id="txtRosterInstructor" value="">
                 </div>
 
 
@@ -929145,61 +929143,127 @@ isOnlineResume: true,
       const inp = document.getElementById('txtRosterInstructor');
       if (!sel) return;
 
+      const isTeacherRole = (r) => {
+        if (!r) return false;
+        const s = String(r).trim().toLowerCase();
+        return s === 'teacher' || s === 'ครูสอน' || s === 'ครูผู้สอน' || s === 'ครู';
+      };
+
       let teachers = [];
-      if (typeof cachedUsersList !== 'undefined' && Array.isArray(cachedUsersList) && cachedUsersList.length > 0) {
-        teachers = cachedUsersList.filter(u => u.role === 'Teacher' || u.role === 'Academic');
+
+      // 1. From cachedUsersList (in memory or window)
+      const uSource = (typeof cachedUsersList !== 'undefined' && Array.isArray(cachedUsersList) && cachedUsersList.length > 0)
+        ? cachedUsersList
+        : ((typeof window !== 'undefined' && Array.isArray(window.cachedUsersList) && window.cachedUsersList.length > 0) ? window.cachedUsersList : []);
+
+      if (uSource.length > 0) {
+        teachers = uSource.filter(u => isTeacherRole(u.role)).map(d => ({
+          username: d.username,
+          fullName: d.fullName || d.full_name || d.username,
+          role: d.role,
+          assignedSchedule: d.assignedSchedule || d.assigned_schedule || ''
+        }));
       }
 
+      // 2. From Supabase RPC (get_safe_staff_users)
       if (teachers.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const { data } = await _supabase.from('staff_users')
-            .select('username, full_name, role, assigned_schedule')
-            .or('role.eq.Teacher,role.eq.Academic');
-          if (data && data.length > 0) {
-            teachers = data.map(d => ({
+          const { data: rpcUsers } = await _supabase.rpc('get_safe_staff_users');
+          if (rpcUsers && Array.isArray(rpcUsers) && rpcUsers.length > 0) {
+            teachers = rpcUsers.filter(u => isTeacherRole(u.role)).map(d => ({
               username: d.username,
               fullName: d.full_name || d.username,
               role: d.role,
-              assignedSchedule: d.assigned_schedule
+              assignedSchedule: d.assigned_schedule || ''
             }));
           }
         } catch (_) {}
       }
 
-      sel.innerHTML = '<option value="">-- เลือกอาจารย์ผู้สอน (ตามบัญชี Teacher ใน Settings) --</option>';
+      // 3. Fallback direct query staff_users
+      if (teachers.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data } = await _supabase.from('staff_users')
+            .select('username, full_name, role, assigned_schedule')
+            .or('role.ilike.teacher,role.eq.ครูสอน,role.eq.ครูผู้สอน');
+          if (data && data.length > 0) {
+            teachers = data.filter(u => isTeacherRole(u.role)).map(d => ({
+              username: d.username,
+              fullName: d.full_name || d.username,
+              role: d.role,
+              assignedSchedule: d.assigned_schedule || ''
+            }));
+          }
+        } catch (_) {}
+      }
+
+      // 4. Fallback check active logged in user if they are a Teacher
+      if (teachers.length === 0) {
+        try {
+          const curUser = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+          if (curUser && isTeacherRole(curUser.role)) {
+            teachers.push({
+              username: curUser.username,
+              fullName: curUser.fullName || curUser.username,
+              role: curUser.role,
+              assignedSchedule: curUser.assignedSchedule || curUser.assigned_schedule || ''
+            });
+          }
+        } catch (_) {}
+      }
+
+      // Deduplicate teachers by username
+      const seenUsernames = new Set();
+      const uniqueTeachers = [];
       teachers.forEach(t => {
+        const u = (t.username || '').toLowerCase();
+        if (u && !seenUsernames.has(u)) {
+          seenUsernames.add(u);
+          uniqueTeachers.push(t);
+        }
+      });
+
+      sel.innerHTML = '';
+      if (uniqueTeachers.length === 0) {
+        sel.innerHTML = '<option value="">-- ยังไม่มีผู้ใช้งานตำแหน่งครูสอน (กรุณาเพิ่มผู้ใช้ Role: Teacher ใน Settings) --</option>';
+        if (inp) inp.value = '';
+        return;
+      }
+
+      sel.innerHTML = '<option value="">-- เลือกอาจารย์ผู้สอน (เฉพาะผู้ใช้งานตำแหน่ง Teacher / ครูสอน) --</option>';
+      uniqueTeachers.forEach(t => {
         const opt = document.createElement('option');
         const name = t.fullName || t.username;
         opt.value = name;
         opt.setAttribute('data-username', t.username);
         opt.setAttribute('data-schedule', t.assignedSchedule || '');
-        opt.textContent = `${name} (@${t.username}${t.assignedSchedule ? ' - ' + t.assignedSchedule : ''})`;
+        opt.textContent = `${name} (@${t.username}${t.assignedSchedule ? ' | ' + t.assignedSchedule : ''})`;
         sel.appendChild(opt);
       });
 
-      const optCustom = document.createElement('option');
-      optCustom.value = '__CUSTOM__';
-      optCustom.textContent = '✏️ ระบุชื่ออาจารย์เอง (พิมพ์ในช่องข้อความ)';
-      sel.appendChild(optCustom);
+      // Strictly NO __CUSTOM__ option! User cannot type their own name.
 
       if (selectedVal) {
         sel.value = selectedVal;
-        if (inp) inp.value = selectedVal;
-      } else if (!inp.value && teachers.length > 0) {
+        if (!sel.value) {
+          for (let i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === selectedVal || sel.options[i].text.includes(selectedVal)) {
+              sel.selectedIndex = i;
+              break;
+            }
+          }
+        }
+        if (inp) inp.value = sel.value || '';
+      } else if (uniqueTeachers.length > 0) {
         sel.selectedIndex = 1;
-        inp.value = sel.value;
+        if (inp) inp.value = sel.value;
       }
     }
     window.populateClassroomInstructors = populateClassroomInstructors;
 
     function onRosterInstructorDropdownChanged(val) {
       const inp = document.getElementById('txtRosterInstructor');
-      if (!inp) return;
-      if (val === '__CUSTOM__') {
-        inp.focus();
-      } else if (val) {
-        inp.value = val;
-      }
+      if (inp) inp.value = val || '';
     }
     window.onRosterInstructorDropdownChanged = onRosterInstructorDropdownChanged;
 
@@ -929219,8 +929283,9 @@ isOnlineResume: true,
         });
       }
 
+      const selInst = document.getElementById('selRosterInstructor');
       const inpInst = document.getElementById('txtRosterInstructor');
-      if (inpInst && !inpInst.value) inpInst.value = 'สุรีย์วรรณ Xiufang';
+      if (inpInst && selInst && selInst.value) inpInst.value = selInst.value;
 
       onRosterFilterChanged();
     }
@@ -934196,7 +934261,7 @@ isOnlineResume: true,
 
 
 
-      const instructor = (document.getElementById('txtRosterInstructor')?.value || '').trim() || 'สุรีย์วรรณ Xiufang';
+      const instructor = (document.getElementById('selRosterInstructor')?.value || document.getElementById('txtRosterInstructor')?.value || '').trim() || '-';
 
 
 
@@ -944327,7 +944392,7 @@ isOnlineResume: true,
 
 
 
-      const instructor = (document.getElementById('txtRosterInstructor')?.value || '').trim();
+      const instructor = (document.getElementById('selRosterInstructor')?.value || document.getElementById('txtRosterInstructor')?.value || '').trim();
 
 
 
