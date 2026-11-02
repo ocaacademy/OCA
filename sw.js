@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oca-pwa-v253';
+const CACHE_NAME = 'oca-pwa-v254';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -16,6 +16,13 @@ const ASSETS_TO_CACHE = [
   'https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
 ];
+
+// Handle direct skipWaiting message from client
+self.addEventListener('message', (event) => {
+  if (event.data && (event.data.type === 'SKIP_WAITING' || event.data === 'skipWaiting')) {
+    self.skipWaiting();
+  }
+});
 
 // Install Event - Resilient Individual Caching (Prevents 404 from aborting installation)
 self.addEventListener('install', (event) => {
@@ -46,6 +53,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('[SW] Deleting stale cache:', key);
             return caches.delete(key);
           }
         })
@@ -55,9 +63,25 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch Event (Network First with Cache Fallback)
+// Fetch Event (Network First with Cache Fallback; navigate requests force cache: 'no-cache')
 self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('supabase.co') || event.request.url.includes('script.google.com')) {
+    return;
+  }
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-cache' })
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request);
+        })
+    );
     return;
   }
   event.respondWith(
