@@ -243603,7 +243603,7 @@ body.printing-report #printReportContainer {
 
 
 
-              <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
 
 
 
@@ -243635,6 +243635,14 @@ body.printing-report #printReportContainer {
 
 
 
+                <!-- Search Box: ค้นหาจากชื่อผู้ใช้, ชื่อ-นามสกุล, ตำแหน่ง -->
+                <div style="position:relative; min-width:270px; max-width:350px;">
+                  <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-gold); font-size:12px; opacity:0.75; pointer-events:none;"></i>
+                  <input type="text" id="inpSearchUsersList" class="oca-input" placeholder="ค้นหาชื่อผู้ใช้, ชื่อ-นามสกุล, ตำแหน่ง..." oninput="filterUsersListTable()" style="padding-left:34px; padding-right:32px; height:36px; font-size:12.5px; border-radius:8px; width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(215,166,0,0.3); color:#ffffff;" autocomplete="off">
+                  <button type="button" id="btnClearSearchUsers" onclick="clearSearchUsersList()" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:12px; display:none; padding:4px;" title="ล้างการค้นหา">
+                    <i class="fa-solid fa-circle-xmark"></i>
+                  </button>
+                </div>
                 <button type="button" class="oca-btn-mgmt-add" onclick="openAddUserModal()" title="สร้างบัญชีผู้ใช้งานใหม่และกำหนดสิทธิ์เข้าถึง 11 เมนู">
 
 
@@ -852812,7 +852820,13 @@ function openForgotPasswordModal() {
 
 
 
-          renderUsersListTable(cachedUsersList);
+          if (document.getElementById('inpSearchUsersList')?.value?.trim()) {
+            filterUsersListTable();
+          } else {
+            renderUsersListTable(cachedUsersList);
+            const totalBadge = document.getElementById('lblSettingsUserTotal');
+            if (totalBadge) totalBadge.textContent = cachedUsersList.length;
+          }
           if (typeof populateClassroomInstructors === 'function') populateClassroomInstructors();
 
 
@@ -853357,7 +853371,7 @@ function openForgotPasswordModal() {
 
 
 
-    function renderUsersListTable(users) {
+    function renderUsersListTable(users, isFiltered = false) {
 
 
 
@@ -853453,7 +853467,7 @@ function openForgotPasswordModal() {
 
 
 
-      if (!ocaShouldUpdateDOM('usersList', users)) return;
+      if (!isFiltered && !ocaShouldUpdateDOM('usersList', users)) return;
 
 
 
@@ -853549,7 +853563,7 @@ function openForgotPasswordModal() {
 
 
 
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">ยังไม่มีข้อมูลผู้ใช้งาน</td></tr>';
+        tbody.innerHTML = isFiltered ? '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px;"></i> ไม่พบผู้ใช้งานที่ตรงกับคำค้นหา</td></tr>' : '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">ยังไม่มีข้อมูลผู้ใช้งาน</td></tr>';
 
 
 
@@ -856255,6 +856269,49 @@ function openForgotPasswordModal() {
 
 
     }
+
+    /**
+     * ค้นหาและกรองผู้ใช้งานตาม ชื่อผู้ใช้งาน, ชื่อ-นามสกุล, ตำแหน่ง
+     */
+    function filterUsersListTable() {
+      const inp = document.getElementById('inpSearchUsersList');
+      const btnClear = document.getElementById('btnClearSearchUsers');
+      const rawQuery = (inp ? inp.value : '').trim().toLowerCase();
+      if (btnClear) {
+        btnClear.style.display = rawQuery ? 'block' : 'none';
+      }
+      if (!Array.isArray(cachedUsersList) || cachedUsersList.length === 0) return;
+      
+      if (!rawQuery) {
+        renderUsersListTable(cachedUsersList, true);
+        const totalBadge = document.getElementById('lblSettingsUserTotal');
+        if (totalBadge) totalBadge.textContent = cachedUsersList.length;
+        return;
+      }
+
+      const filtered = cachedUsersList.filter(u => {
+        const uname = String(u.username || '').toLowerCase();
+        const fname = String(u.fullName || u.full_name || '').toLowerCase();
+        const role = String(u.role || '').toLowerCase();
+        const sched = String(u.assignedSchedule || '').toLowerCase();
+        return uname.includes(rawQuery) || fname.includes(rawQuery) || role.includes(rawQuery) || sched.includes(rawQuery);
+      });
+
+      renderUsersListTable(filtered, true);
+      const totalBadge = document.getElementById('lblSettingsUserTotal');
+      if (totalBadge) totalBadge.textContent = `${filtered.length} / ${cachedUsersList.length}`;
+    }
+    window.filterUsersListTable = filterUsersListTable;
+
+    function clearSearchUsersList() {
+      const inp = document.getElementById('inpSearchUsersList');
+      if (inp) {
+        inp.value = '';
+        inp.focus();
+      }
+      filterUsersListTable();
+    }
+    window.clearSearchUsersList = clearSearchUsersList;
 
 
 
