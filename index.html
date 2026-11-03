@@ -369649,71 +369649,17 @@ body.printing-report #printReportContainer {
 
 
 
-          const { data: rcpts } = await _supabase.from('receipts')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          const queryYearParam = params.filterYear || '';
+          let qb = _supabase.from('receipts')
             .select('receipt_no, buyer_name, grand_total, base_amount, reg_fee, card_fee, other_reg_fee, discount_normal, discount_other, payment_method, receipt_type, year_be, term, created_at')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            .order('created_at', { ascending: false });
+            .order('receipt_no', { ascending: false });
+          if (queryYearParam && queryYearParam !== 'all' && queryYearParam !== 'ALL') {
+            const yr = String(queryYearParam).slice(-2);
+            qb = qb.gte('receipt_no', yr + '00000').lt('receipt_no', String(Number(yr) + 1).padStart(2, '0') + '00000');
+          } else {
+            qb = qb.limit(2000);
+          }
+          const { data: rcpts } = await qb;
 
 
 
@@ -389046,39 +388992,8 @@ body.printing-report #printReportContainer {
 
 
 
-            .order('created_at', { ascending: false })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            .limit(500);
+            .order('receipt_no', { ascending: false })
+            .limit(300);
 
 
 
@@ -391286,103 +391201,19 @@ body.printing-report #printReportContainer {
 
 
 
-          const { data: rawRList } = await _supabase.from('receipts')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          const stYr = String(st.student_id || '').slice(0, 2);
+          let rQuery = _supabase.from('receipts')
             .select('*')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             .eq('student_id', st.student_id)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            .order('created_at', { ascending: false });
+            .order('receipt_no', { ascending: false });
+          if (/^\d{2}/.test(stYr)) {
+            const minR = stYr + '00000';
+            const maxR = String(Number(stYr) + 1).padStart(2, '0') + '00000';
+            rQuery = rQuery.gte('receipt_no', minR).lt('receipt_no', maxR);
+          } else {
+            rQuery = rQuery.limit(50);
+          }
+          const { data: rawRList } = await rQuery;
 
 
 
@@ -395990,7 +395821,7 @@ body.printing-report #printReportContainer {
 
 
 
-                  .order('created_at', { ascending: false })
+                  .order('receipt_no', { ascending: false })
 
 
 
@@ -409550,7 +409381,7 @@ body.printing-report #printReportContainer {
 
 
 
-            .order('created_at', { ascending: false })
+            .order('receipt_no', { ascending: false })
 
 
 
@@ -410094,7 +409925,7 @@ body.printing-report #printReportContainer {
 
 
 
-            .order('created_at', { ascending: false });
+            .order('receipt_no', { ascending: false }).limit(500);
 
 
 
@@ -512824,7 +512655,7 @@ body.printing-report #printReportContainer {
 
 
 
-              .order('created_at', { ascending: false })
+              .order('receipt_no', { ascending: false })
 
 
 
@@ -905472,7 +905303,7 @@ function openForgotPasswordModal() {
         const maxR = String(Number(yr) + 1).padStart(2, '0') + '00000';
 
         const q1 = _supabase.from('receipts')
-          .select('*')
+          .select('receipt_no, item_name, item_code, grand_total, delivery_method, claim_status, claimed_at, claimed_by, year_be, term, created_at, receipt_type')
           .gte('receipt_no', minR)
           .lt('receipt_no', maxR)
           .eq('student_id', studentId)
@@ -905482,7 +905313,7 @@ function openForgotPasswordModal() {
         if (yr !== '69') {
           queries.push(
             _supabase.from('receipts')
-              .select('*')
+              .select('receipt_no, item_name, item_code, grand_total, delivery_method, claim_status, claimed_at, claimed_by, year_be, term, created_at, receipt_type')
               .gte('receipt_no', '6900000')
               .lt('receipt_no', '7000000')
               .eq('student_id', studentId)
@@ -927560,7 +927391,14 @@ isOnlineResume: true,
 
 
 
-          let qb = _supabase.from('receipts').select('*').eq('year_be', yearBE).eq('term', termNo);
+          let qb = _supabase.from('receipts')
+            .select('student_id, student_no, buyer_name, item_code, item_name, room, schedule, year_be, term, phone')
+            .eq('year_be', yearBE)
+            .eq('term', termNo);
+          if (yearBE) {
+            const yr = String(yearBE).slice(-2);
+            qb = qb.gte('receipt_no', yr + '00000').lt('receipt_no', String(Number(yr) + 1).padStart(2, '0') + '00000');
+          }
 
 
 
@@ -937725,165 +937563,17 @@ isOnlineResume: true,
 
 
           const targetId = idMatch ? idMatch[0] : cleanQ;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          const { data: rcData } = await _supabase.from('receipts')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            .select('*')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            .or(`student_id.eq.${targetId},buyer_name.ilike.%${cleanQ}%`)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            .order('created_at', { ascending: false })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          let rcQb = _supabase.from('receipts')
+            .select('*');
+          if (idMatch) {
+            const yr = targetId.slice(0, 2);
+            rcQb = rcQb.gte('receipt_no', yr + '00000').lt('receipt_no', String(Number(yr) + 1).padStart(2, '0') + '00000')
+              .eq('student_id', targetId);
+          } else {
+            rcQb = rcQb.ilike('buyer_name', `%${cleanQ}%`);
+          }
+          const { data: rcData } = await rcQb
+            .order('receipt_no', { ascending: false })
             .limit(1);
 
 
@@ -948444,7 +948134,7 @@ isOnlineResume: true,
 
 
 
-            .order('created_at', { ascending: false })
+            .order('receipt_no', { ascending: false })
 
 
 
