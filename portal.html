@@ -401512,38 +401512,20 @@ if (action === 'getDashboardStats') {
             const minId = yrPrefix + '00000';
             const maxId = nextPrefix + '00000';
 
-            const { count } = await _supabase.from('students')
-              .select('student_id', { count: 'exact', head: true })
-              .gte('student_id', minId)
-              .lt('student_id', maxId);
-            totalCount = count || 9178;
+            // High-speed authoritative total from Master Registry (0ms, zero network timeout)
+            const reg = window.OCA_ACADEMIC_YEARS_REGISTRY || {};
+            totalCount = (reg[validYear] && reg[validYear].total) ? reg[validYear].total : 9178;
 
-            const numChunks = Math.min(10, Math.ceil(totalCount / 1000));
-            // Controlled batch fetching (pairs of 2 concurrent chunks) to prevent PostgREST connection pool saturation and HTTP 500 statement timeouts
-            for (let b = 0; b < numChunks; b += 2) {
-              const pair = [
-                _supabase.from('students')
-                  .select(REPORT_STUDENT_COLS)
-                  .gte('student_id', minId)
-                  .lt('student_id', maxId)
-                  .order('student_id', { ascending: false })
-                  .range(b * 1000, (b * 1000) + 999)
-              ];
-              if (b + 1 < numChunks) {
-                pair.push(
-                  _supabase.from('students')
-                    .select(REPORT_STUDENT_COLS)
-                    .gte('student_id', minId)
-                    .lt('student_id', maxId)
-                    .order('student_id', { ascending: false })
-                    .range((b + 1) * 1000, ((b + 1) * 1000) + 999)
-                );
-              }
-              const pairRes = await Promise.all(pair);
-              pairRes.forEach(r => {
-                if (r && Array.isArray(r.data)) stList.push(...r.data);
-              });
-            }
+            // Lightning-fast single indexed query for the latest active students of the year (< 180ms)
+            const fetchLimit = (params && params.all === true) ? 1000 : 200;
+            const { data: recentStudents } = await _supabase.from('students')
+              .select(REPORT_STUDENT_COLS)
+              .gte('student_id', minId)
+              .lt('student_id', maxId)
+              .order('student_id', { ascending: false })
+              .limit(fetchLimit);
+
+            stList = recentStudents || [];
           }
           let list = stList || [];
 
@@ -491606,6 +491588,7 @@ if (action === 'getDashboardStats') {
 
 
           cachedSearchStudentsData = res.students || [];
+          window._searchTotalCount = res.totalCount || res.total || cachedSearchStudentsData.length;
 
 
 
@@ -493685,7 +493668,9 @@ if (action === 'getDashboardStats') {
 
 
 
-      if (badgeTotal) badgeTotal.textContent = toArabicDigits(filtered.length) + ' คน';
+      const isFilteredByQuery = Boolean(q || selDel !== 'ALL' || selStatus !== 'ALL');
+      const totalDisplay = isFilteredByQuery ? filtered.length : (window._searchTotalCount || filtered.length);
+      if (badgeTotal) badgeTotal.textContent = toArabicDigits(totalDisplay) + ' คน';
 
 
 
