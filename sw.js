@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oca-pwa-v267';
+const CACHE_NAME = 'oca-pwa-v268';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -65,9 +65,24 @@ self.addEventListener('activate', (event) => {
 
 // Fetch Event (Network First with Cache Fallback; navigate requests force cache: 'no-cache')
 self.addEventListener('fetch', (event) => {
-  if (event.request.url.includes('supabase.co') || event.request.url.includes('script.google.com')) {
+  // Only intercept GET requests
+  if (event.request.method !== 'GET') {
     return;
   }
+
+  // Bypass third-party, API, and cloud services (Supabase, Google Scripts, WorldTimeAPI, etc.)
+  const isSameOrigin = event.request.url.startsWith(self.location.origin);
+  if (!isSameOrigin && !ASSETS_TO_CACHE.includes(event.request.url)) {
+    return;
+  }
+  if (
+    event.request.url.includes('supabase.co') ||
+    event.request.url.includes('script.google.com') ||
+    event.request.url.includes('worldtimeapi.org')
+  ) {
+    return;
+  }
+
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request, { cache: 'no-cache' })
@@ -78,15 +93,30 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => {
-          return caches.match(event.request);
+        .catch(async () => {
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
+          const fallback = await caches.match('./index.html') || await caches.match('./');
+          if (fallback) return fallback;
+          return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
         })
     );
     return;
   }
+
   event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
-    })
+    fetch(event.request)
+      .then((res) => {
+        if (res && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return res;
+      })
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        return new Response('', { status: 408, headers: { 'Content-Type': 'text/plain' } });
+      })
   );
 });
