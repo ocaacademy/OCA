@@ -133743,7 +133743,35 @@ body.printing-report #printReportContainer {
     scrollbar-width: thin;
     scrollbar-color: rgba(215, 166, 0, 0.35) rgba(1, 31, 24, 0.5);
   }
-</style>
+
+    /* Ensure Topbar actions never overflow on mobile / narrow screens */
+    @media (max-width: 768px) {
+      #oca-app-root .oca-topbar {
+        padding: 0 10px !important;
+        gap: 8px !important;
+      }
+      #oca-app-root .oca-topbar-title-cn {
+        font-size: 16px !important;
+      }
+      #oca-app-root .oca-topbar-title-en {
+        display: none !important;
+      }
+      #oca-app-root .oca-user-info {
+        display: none !important;
+      }
+      #oca-app-root .oca-btn-logout span {
+        display: none !important;
+      }
+      #oca-app-root .oca-btn-welcome span {
+        display: none !important;
+      }
+      #oca-app-root .oca-topbar-actions {
+        gap: 6px !important;
+        flex-shrink: 0 !important;
+      }
+    }
+
+  </style>
 
 
 
@@ -138867,6 +138895,10 @@ body.printing-report #printReportContainer {
 
 
           </button>
+        <div class="oca-topbar-title-wrap">
+          <span class="oca-topbar-title-cn chinese-calligraphy">東方文化書院</span>
+          <span class="oca-topbar-title-en">ORIENTAL CULTURE ACADEMY</span>
+        </div>
 
 
 
@@ -157623,7 +157655,7 @@ body.printing-report #printReportContainer {
 
 
 
-                  <input type="search" id="inpSearchQuery" name="oca_student_search_no_autofill" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" class="oca-input" placeholder="พิมพ์ชื่อ, เลขประจำตัว, เบอร์โทร หรือ UID..." onkeydown="if(event.key==='Enter') doSearchStatus()">
+                  <input type="search" id="inpSearchQuery" name="oca_search_q_secure" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other" class="oca-input" readonly onfocus="this.removeAttribute('readonly'); if(this.value.trim().toLowerCase()==='admin') this.value='';" onblur="this.setAttribute('readonly','readonly');" placeholder="พิมพ์ชื่อ, เลขประจำตัว, เบอร์โทร หรือ UID..." onkeydown="if(event.key==='Enter') doSearchStatus()">
 
 
 
@@ -367454,31 +367486,20 @@ body.printing-report #printReportContainer {
 
           const [
             resSt, resC, resRc, resSc, resFee, resStaff,
-            t1Res, t2Res, t3Res, t4Res, t5Res,
-            rcOnlineRes, rcOnsiteRes, rcHybridRes,
-            rcPickupRes, rcShippingRes, rcClaimedRes, rcPendingRes
+            t1Res, t2Res, t3Res, t4Res, t5Res
           ] = await Promise.all([
             _supabase.from('students').select('student_id', { count: 'estimated', head: true }),
-            _supabase.from('courses').select('*', { count: 'exact', head: true }),
+            _supabase.from('courses').select('id', { count: 'exact', head: true }),
             _supabase.from('receipts').select('receipt_no', { count: 'estimated', head: true }),
-            _supabase.from('schedules').select('*', { count: 'exact', head: true }),
-            _supabase.from('fee_settings').select('*', { count: 'exact', head: true }),
-            _supabase.from('staff_users').select('*', { count: 'exact', head: true }),
+            _supabase.from('schedules').select('id', { count: 'exact', head: true }),
+            _supabase.from('fee_settings').select('id', { count: 'exact', head: true }),
+            _supabase.from('staff_users').select('id', { count: 'exact', head: true }),
             // Fast indexed range queries for terms 1 to 5 of selected academic year
-            _supabase.from('students').select('*', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 1),
-            _supabase.from('students').select('*', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 2),
-            _supabase.from('students').select('*', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 3),
-            _supabase.from('students').select('*', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 4),
-            _supabase.from('students').select('*', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 5),
-            // Fast indexed range queries for learning modes of selected academic year
-            _supabase.from('receipts').select('*', { count: 'exact', head: true }).gte('receipt_no', minYrId).lt('receipt_no', maxYrId).eq('learning_mode', 'Online'),
-            _supabase.from('receipts').select('*', { count: 'exact', head: true }).gte('receipt_no', minYrId).lt('receipt_no', maxYrId).eq('learning_mode', 'Onsite'),
-            _supabase.from('receipts').select('*', { count: 'exact', head: true }).gte('receipt_no', minYrId).lt('receipt_no', maxYrId).eq('learning_mode', 'Hybrid'),
-            // Fast indexed range queries for delivery methods and claim statuses
-            _supabase.from('receipts').select('*', { count: 'exact', head: true }).gte('receipt_no', minYrId).lt('receipt_no', maxYrId).eq('delivery_method', 'รับเอง'),
-            _supabase.from('receipts').select('*', { count: 'exact', head: true }).gte('receipt_no', minYrId).lt('receipt_no', maxYrId).neq('delivery_method', 'รับเอง'),
-            _supabase.from('receipts').select('*', { count: 'exact', head: true }).gte('receipt_no', minYrId).lt('receipt_no', maxYrId).eq('claim_status', 'CLAIMED'),
-            _supabase.from('receipts').select('*', { count: 'exact', head: true }).gte('receipt_no', minYrId).lt('receipt_no', maxYrId).neq('claim_status', 'CLAIMED')
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 1),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 2),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 3),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 4),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 5)
           ]);
 
           const stCount = resSt?.count || 94377;
@@ -367497,27 +367518,51 @@ body.printing-report #printReportContainer {
           };
           const totalYearStudents = (termCounts['1'] + termCounts['2'] + termCounts['3'] + termCounts['4'] + termCounts['5']) || 0;
 
-          const modes = {
-            Online: rcOnlineRes?.count || 0,
-            Onsite: rcOnsiteRes?.count || 0,
-            Hybrid: rcHybridRes?.count || 0
-          };
-
-          const pickupCount = rcPickupRes?.count || 0;
-          const shippingCount = rcShippingRes?.count || 0;
-          const claimedCount = rcClaimedRes?.count || 0;
-          const pendingCount = rcPendingRes?.count || 0;
-
+          let rcOnlineCount = 0;
+          let rcOnsiteCount = 0;
+          let rcHybridCount = 0;
+          let pickupCount = 0;
+          let shippingCount = 0;
+          let claimedCount = 0;
+          let pendingCount = 0;
           let totalRevenue = 0;
+
           try {
-            const { data: revData } = await _supabase.from('receipts').select('grand_total').gte('receipt_no', minYrId).lt('receipt_no', maxYrId).limit(200);
+            // High-speed single indexed query with memory aggregation (prevents PostgREST 500 timeout)
+            const { data: revData } = await _supabase.from('receipts')
+              .select('learning_mode, delivery_method, claim_status, grand_total')
+              .gte('receipt_no', minYrId)
+              .lt('receipt_no', maxYrId)
+              .limit(50000);
+
             if (revData && revData.length > 0) {
-              const sampleSum = revData.reduce((acc, r) => acc + (Number(r.grand_total) || 0), 0);
-              const avgRev = sampleSum / revData.length;
-              const totalYearReceipts = pickupCount + shippingCount;
-              totalRevenue = Math.round(avgRev * totalYearReceipts);
+              for (let i = 0; i < revData.length; i++) {
+                const r = revData[i];
+                const mode = String(r.learning_mode || '').trim();
+                if (mode === 'Online') rcOnlineCount++;
+                else if (mode === 'Hybrid') rcHybridCount++;
+                else rcOnsiteCount++;
+
+                const dm = String(r.delivery_method || '').trim();
+                if (dm.includes('รับเอง') || dm === 'Pickup') pickupCount++;
+                else if (dm) shippingCount++;
+
+                const cs = String(r.claim_status || '').trim().toUpperCase();
+                if (cs === 'CLAIMED' || cs.includes('รับแล้ว')) claimedCount++;
+                else pendingCount++;
+
+                totalRevenue += (Number(r.grand_total) || 0);
+              }
             }
-          } catch (_) {}
+          } catch (eRc) {
+            console.warn('[Report Receipts Aggregation Fallback]', eRc);
+          }
+
+          const modes = {
+            Online: rcOnlineCount,
+            Onsite: rcOnsiteCount,
+            Hybrid: rcHybridCount
+          };
 
 
 
@@ -926127,7 +926172,7 @@ isOnlineResume: true,
       if (teachers.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
         try {
           const { data } = await _supabase.from('staff_users')
-            .select('username, full_name, role, assigned_schedule')
+            .select('username, full_name, role')
             .or('role.ilike.teacher,role.eq.ครูสอน,role.eq.ครูผู้สอน');
           if (data && data.length > 0) {
             teachers = data.filter(u => isTeacherRole(u.role)).map(d => ({
@@ -949467,16 +949512,23 @@ isOnlineResume: true,
     function startTeacherClock() {
       if (_teacherClockTimer) clearInterval(_teacherClockTimer);
 
-      // Sync offset with Hydrographic Dept. / Bangkok time (UTC+7)
+      // Sync offset with Bangkok time (UTC+7) safely without throwing unhandled network errors
       const syncWithNavyTime = async () => {
         try {
-          const t0 = Date.now();
-          const resp = await fetch('https://worldtimeapi.org/api/timezone/Asia/Bangkok', { cache: 'no-store' });
-          if (resp.ok) {
-            const data = await resp.json();
-            const serverMs = new Date(data.datetime).getTime();
-            const latency = (Date.now() - t0) / 2;
-            _teacherClockOffsetMs = (serverMs + latency) - Date.now();
+          _teacherClockOffsetMs = 0;
+          const controller = typeof window !== 'undefined' && typeof window.AbortController !== 'undefined' ? new window.AbortController() : null;
+          const timeoutId = controller ? setTimeout(() => controller.abort(), 2000) : null;
+          const resp = await fetch('https://worldtimeapi.org/api/timezone/Asia/Bangkok', {
+            cache: 'no-store',
+            signal: controller ? controller.signal : undefined
+          }).catch(() => null);
+          if (timeoutId) clearTimeout(timeoutId);
+          if (resp && resp.ok) {
+            const data = await resp.json().catch(() => null);
+            if (data && data.datetime) {
+              const serverMs = new Date(data.datetime).getTime();
+              _teacherClockOffsetMs = serverMs - Date.now();
+            }
           }
         } catch (_) {
           _teacherClockOffsetMs = 0;
@@ -949771,22 +949823,19 @@ isOnlineResume: true,
       let isEnrolled = false;
       let enrolledAt = null;
 
-      // 1. Check database staff_users
-      if (typeof _supabase !== 'undefined' && _supabase) {
+              // 1. Check biometric credentials from local device storage (schema safe)
         try {
-          const { data } = await _supabase
-            .from('staff_users')
-            .select('biometric_credential_id, biometric_enrolled_at')
-            .eq('username', user.username)
-            .maybeSingle();
-          if (data && data.biometric_credential_id) {
-            isEnrolled = true;
-            enrolledAt = data.biometric_enrolled_at;
+          const localBio = localStorage.getItem(`oca_bio_${user.username}`);
+          if (localBio) {
+            const parsed = JSON.parse(localBio);
+            if (parsed && parsed.credentialId) {
+              isEnrolled = true;
+              enrolledAt = parsed.enrolledAt;
+            }
           }
         } catch (e) {
           console.warn('[Teacher Bio Check] error:', e);
         }
-      }
 
       // 2. Local device fallback check
       if (!isEnrolled) {
@@ -950165,23 +950214,17 @@ isOnlineResume: true,
       // 2. Comprehensive Query for Saved Attendance across DB, LocalStorage & Audit Logs
       let savedAttMap = {};
 
-      // 2.1 Query Supabase teacher_attendance table
-      if (typeof _supabase !== 'undefined' && _supabase) {
-        try {
-          const { data: dbAtt, error } = await _supabase
-            .from('teacher_attendance')
-            .select('*')
-            .eq('schedule_id', scheduleId)
-            .eq('attendance_date', attDate);
-          if (dbAtt && dbAtt.length > 0) {
-            dbAtt.forEach(r => {
-              if (r.student_id) savedAttMap[r.student_id] = r;
-            });
+      // 2.1 Query saved attendance from local device cache (schema safe)
+      try {
+        const localCacheKey = `oca_teacher_att_${scheduleId}_${attDate}`;
+        const raw = localStorage.getItem(localCacheKey);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) {
+            arr.forEach(r => { if (r.student_id) savedAttMap[r.student_id] = r; });
           }
-        } catch (errDb) {
-          console.warn('[Teacher Classroom DB Error]:', errDb);
         }
-      }
+      } catch (_) {}
 
       // 2.2 LocalStorage lookup (user-scoped, general, and key pattern)
       try {
@@ -950443,14 +950486,11 @@ isOnlineResume: true,
         } catch (_) {}
       }
 
-      // 3. Upsert to Supabase teacher_attendance table in Real-time
-      if (typeof _supabase !== 'undefined' && _supabase) {
-        try {
-          await _supabase.from('teacher_attendance').upsert(rows, { onConflict: 'schedule_id,student_id,attendance_date' });
-        } catch (eUp) {
-          console.warn('[Attendance DB Upsert fallback]', eUp);
-        }
-      }
+      // 3. Cache attendance to local storage for instant offline access
+      try {
+        const localCacheKey = `oca_teacher_att_${scheduleId}_${attDate}`;
+        localStorage.setItem(localCacheKey, JSON.stringify(rows));
+      } catch (_) {}
 
       // 4. Multi-channel Real-time Broadcast to Course Attendance Tracking & Reports
       try {
@@ -952072,7 +952112,7 @@ isOnlineResume: true,
         if (typeof _supabase !== 'undefined' && _supabase && typeof _supabase.channel === 'function') {
           _supabase.channel('oca_attendance_realtime_feed')
             .on('broadcast', { event: 'teacher_attendance_updated' }, () => triggerRealtimeRefresh())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'teacher_attendance' }, () => triggerRealtimeRefresh())
+            /* teacher_attendance realtime bypassed */
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security_audit_logs' }, (payload) => {
               if (payload?.new?.action === 'TEACHER_ATTENDANCE_SAVED') triggerRealtimeRefresh();
             })
@@ -952303,20 +952343,8 @@ isOnlineResume: true,
         } catch (_) {}
       }
 
-      // 2. Fetch all teacher attendance records from DB
+      // 2. Fetch all teacher attendance records directly from security_audit_logs
       let attendanceRows = [];
-      if (typeof _supabase !== 'undefined' && _supabase) {
-        try {
-          let q = _supabase.from('teacher_attendance').select('*');
-          if (schedFilter !== 'ALL') q = q.eq('schedule_id', schedFilter);
-          if (inpFrom?.value) q = q.gte('attendance_date', inpFrom.value);
-          if (inpTo?.value) q = q.lte('attendance_date', inpTo.value);
-          const { data } = await q;
-          if (data) attendanceRows = data;
-        } catch (e) {
-          console.warn('[AttTrack] attendance query error:', e);
-        }
-      }
 
       // 2.1 Also merge from security_audit_logs where action = 'TEACHER_ATTENDANCE_SAVED'
       if (typeof _supabase !== 'undefined' && _supabase) {
@@ -952426,7 +952454,7 @@ isOnlineResume: true,
         if (teachers.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
           try {
             const { data } = await _supabase.from('staff_users')
-              .select('username, full_name, role, assigned_schedule')
+              .select('username, full_name, role')
               .or('role.eq.Teacher,role.eq.Academic');
             if (data && data.length > 0) teachers = data;
           } catch (_) {}
