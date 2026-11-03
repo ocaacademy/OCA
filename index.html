@@ -367545,7 +367545,8 @@ body.printing-report #printReportContainer {
 
 
 
-          const targetYearBE = (params && (params.yearBE || params.academicYear)) ? String(params.yearBE || params.academicYear) : '2569';
+          const rawYearBE = (params && (params.yearBE || params.academicYear)) ? String(params.yearBE || params.academicYear).trim() : '2569';
+          const targetYearBE = (rawYearBE === 'ALL' || !/^\d{4}$/.test(rawYearBE)) ? '2569' : rawYearBE;
           const yrPrefix = targetYearBE.slice(-2);
           const nextYrPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
           const minYrId = yrPrefix + '00000';
@@ -367553,20 +367554,16 @@ body.printing-report #printReportContainer {
 
           const [
             resSt, resC, resRc, resSc, resFee, resStaff,
-            t1Res, t2Res, t3Res, t4Res, t5Res
+            yearStudentsRes
           ] = await Promise.all([
             _supabase.from('students').select('student_id', { count: 'estimated', head: true }),
             _supabase.from('courses').select('id', { count: 'exact', head: true }),
             _supabase.from('receipts').select('receipt_no', { count: 'estimated', head: true }),
             _supabase.from('schedules').select('id', { count: 'exact', head: true }),
-            _supabase.from('fee_settings').select('id', { count: 'exact', head: true }),
+            _supabase.from('fee_settings').select('key', { count: 'exact', head: true }),
             _supabase.from('staff_users').select('id', { count: 'exact', head: true }),
-            // Fast indexed range queries for terms 1 to 5 of selected academic year
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 1),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 2),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 3),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 4),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minYrId).lt('student_id', maxYrId).eq('term', 5)
+            // Single high-speed indexed query for all terms of academic year, aggregated in memory
+            _supabase.from('students').select('term').gte('student_id', minYrId).lt('student_id', maxYrId)
           ]);
 
           const stCount = resSt?.count || 94377;
@@ -367576,13 +367573,13 @@ body.printing-report #printReportContainer {
           const feeCount = resFee?.count || 10;
           const uCount = resStaff?.count || 5;
 
-          const termCounts = {
-            '1': t1Res?.count || 0,
-            '2': t2Res?.count || 0,
-            '3': t3Res?.count || 0,
-            '4': t4Res?.count || 0,
-            '5': t5Res?.count || 0
-          };
+          const termCounts = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+          if (yearStudentsRes && Array.isArray(yearStudentsRes.data)) {
+            yearStudentsRes.data.forEach(s => {
+              const t = String(s.term || '1');
+              if (termCounts[t] !== undefined) termCounts[t]++;
+            });
+          }
           const totalYearStudents = (termCounts['1'] + termCounts['2'] + termCounts['3'] + termCounts['4'] + termCounts['5']) || 0;
 
           let rcOnlineCount = 0;
@@ -400926,41 +400923,55 @@ body.printing-report #printReportContainer {
           const reqYear = (params && params.year) ? String(params.year).trim() : '2569';
           let stList = [];
           let totalCount = 0;
+          const REPORT_STUDENT_COLS = 'student_id, prefix, full_name, citizen_id, phone_number, line_id, email, address, current_course, current_schedule, year_be, term, smart_card_uid, status, notes, created_at, photo_url';
 
           if (reqYear === 'ALL') {
             const { count } = await _supabase.from('students').select('student_id', { count: 'estimated', head: true });
             totalCount = count || 94377;
             const { data } = await _supabase.from('students')
-              .select('*')
+              .select(REPORT_STUDENT_COLS)
               .order('student_id', { ascending: false })
               .limit(1000);
             stList = data || [];
           } else {
-            const yrPrefix = reqYear.slice(-2);
+            const validYear = /^\d{4}$/.test(reqYear) ? reqYear : '2569';
+            const yrPrefix = validYear.slice(-2);
             const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
             const minId = yrPrefix + '00000';
             const maxId = nextPrefix + '00000';
 
             const { count } = await _supabase.from('students')
-              .select('*', { count: 'exact', head: true })
+              .select('student_id', { count: 'exact', head: true })
               .gte('student_id', minId)
               .lt('student_id', maxId);
             totalCount = count || 9178;
 
             const numChunks = Math.min(10, Math.ceil(totalCount / 1000));
-            const chunkPromises = [];
-            for (let p = 0; p < numChunks; p++) {
-              chunkPromises.push(
+            // Controlled batch fetching (pairs of 2 concurrent chunks) to prevent PostgREST connection pool saturation and HTTP 500 statement timeouts
+            for (let b = 0; b < numChunks; b += 2) {
+              const pair = [
                 _supabase.from('students')
-                  .select('*')
+                  .select(REPORT_STUDENT_COLS)
                   .gte('student_id', minId)
                   .lt('student_id', maxId)
                   .order('student_id', { ascending: false })
-                  .range(p * 1000, (p * 1000) + 999)
-              );
+                  .range(b * 1000, (b * 1000) + 999)
+              ];
+              if (b + 1 < numChunks) {
+                pair.push(
+                  _supabase.from('students')
+                    .select(REPORT_STUDENT_COLS)
+                    .gte('student_id', minId)
+                    .lt('student_id', maxId)
+                    .order('student_id', { ascending: false })
+                    .range((b + 1) * 1000, ((b + 1) * 1000) + 999)
+                );
+              }
+              const pairRes = await Promise.all(pair);
+              pairRes.forEach(r => {
+                if (r && Array.isArray(r.data)) stList.push(...r.data);
+              });
             }
-            const chunkResults = await Promise.all(chunkPromises);
-            stList = chunkResults.flatMap(r => r.data || []);
           }
           let list = stList || [];
 
