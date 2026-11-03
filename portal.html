@@ -157713,8 +157713,8 @@ body.printing-report #printReportContainer {
 
 
 
-                <select id="selSearchYear" class="oca-input" onchange="doSearchStatus()">
-                  <option value="ALL">-- ทุกปีการศึกษา --</option>
+                <select id="selSearchYear" class="oca-input" onchange="window._userExplicitlySelectedAllYears = (this.value === 'ALL'); doSearchStatus()">
+                  <option value="2569" selected>ปีการศึกษา 2569 (ปีล่าสุด)</option>
                   <option value="2570" >ปีการศึกษา 2570</option>
                   <option value="2569" selected>ปีการศึกษา 2569</option>
                   <option value="2568" >ปีการศึกษา 2568</option>
@@ -487122,7 +487122,8 @@ if (action === 'getDashboardStats') {
       if (selYear && (!selYear.value || selYear.value === 'ALL')) {
         selYear.value = '2569';
       }
-      const activeYear = (selYear && selYear.value) ? selYear.value : '2569';
+      const activeYear = (selYear && selYear.value && selYear.value !== 'ALL') ? selYear.value : '2569';
+      _loadedSearchYear = activeYear;
       if (cachedSearchStudentsData && cachedSearchStudentsData.length > 50 && _loadedSearchYear === activeYear) {
         filterAndRenderSearchStudents();
       } else {
@@ -487965,7 +487966,13 @@ if (action === 'getDashboardStats') {
 
 
       const selYearEl = document.getElementById('selSearchYear');
-      const curYear = (selYearEl && selYearEl.value) ? selYearEl.value : '2569';
+      let curYear = (selYearEl && selYearEl.value) ? selYearEl.value : '2569';
+      if (!curYear || curYear === 'ALL') {
+        if (!window._userExplicitlySelectedAllYears) {
+          curYear = '2569';
+          if (selYearEl) selYearEl.value = '2569';
+        }
+      }
       _loadedSearchYear = curYear;
       callGasApi('getStudentReport', { year: curYear, course: 'ALL', query: (document.getElementById('inpSearchQuery')?.value || '').trim() }, 'GET')
 
@@ -488708,12 +488715,14 @@ if (action === 'getDashboardStats') {
           const selYear = document.getElementById('selSearchYear');
           if (selYear && Array.isArray(res.availableYears) && res.availableYears.length > 0) {
             const currentSel = selYear.value || curYear || '2569';
-            let yearHtml = '<option value="ALL"' + (currentSel === 'ALL' ? ' selected' : '') + '>-- ทุกปีการศึกษา --</option>';
-            res.availableYears.forEach(y => {
+            let yearHtml = '';
+            const sortedYears = res.availableYears.filter(y => String(y).trim() !== 'ALL').sort((a, b) => Number(b) - Number(a));
+            sortedYears.forEach(y => {
               const yStr = String(y).trim();
               const isSel = (yStr === currentSel) ? ' selected' : '';
-              yearHtml += '<option value="' + escapeHtml(yStr) + '"' + isSel + '>ปีการศึกษา ' + toArabicDigits(yStr) + '</option>';
+              yearHtml += '<option value="' + escapeHtml(yStr) + '"' + isSel + '>ปีการศึกษา ' + toArabicDigits(yStr) + (yStr === '2569' ? ' (ปีล่าสุด)' : '') + '</option>';
             });
+            yearHtml += '<option value="ALL"' + (currentSel === 'ALL' ? ' selected' : '') + '>-- ทุกปีการศึกษา --</option>';
             selYear.innerHTML = yearHtml;
             if (currentSel) selYear.value = currentSel;
           }
@@ -489395,7 +489404,12 @@ if (action === 'getDashboardStats') {
         if (inpClean) inpClean.value = '';
         q = '';
       }
-      const selYear = document.getElementById('selSearchYear')?.value || '2569';
+      const selYearEl = document.getElementById('selSearchYear');
+      let selYear = (selYearEl && selYearEl.value) ? selYearEl.value : '2569';
+      if (selYear === 'ALL' && !window._userExplicitlySelectedAllYears) {
+        selYear = '2569';
+        if (selYearEl) selYearEl.value = '2569';
+      }
       const selDel = document.getElementById('selSearchDelivery')?.value || 'ALL';
       const selStatus = document.getElementById('selSearchStatus')?.value || 'ALL';
       let filtered = (cachedSearchStudentsData || []).slice();
@@ -489696,7 +489710,12 @@ if (action === 'getDashboardStats') {
         q = '';
       }
       _lastSearchedStatusQuery = q;
-      const selYear = document.getElementById('selSearchYear')?.value || '2569';
+      const selYearEl = document.getElementById('selSearchYear');
+      let selYear = (selYearEl && selYearEl.value) ? selYearEl.value : '2569';
+      if (selYear === 'ALL' && !window._userExplicitlySelectedAllYears) {
+        selYear = '2569';
+        if (selYearEl) selYearEl.value = '2569';
+      }
       _loadedSearchYear = selYear;
       // กรองในเครื่องทันที
       filterAndRenderSearchStudents();
@@ -593830,7 +593849,7 @@ if (action === 'getDashboardStats') {
 
       // Re-cache in background only, do not pop open results automatically
 
-      cachedSearchStudentsData = null;
+      // Preserving search status cache across card navigation
 
       callGasApi("searchStudentsForCard", { query: "" })
 
