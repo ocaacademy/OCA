@@ -393317,39 +393317,45 @@ if (action === 'getDashboardStats') {
 
 
 
+                const sidStr = String(sid || '').trim();
+                const yr = sidStr.slice(0, 2);
+                const minR = /^\d{2}$/.test(yr) ? (yr + '00000') : '6800000';
+                const maxR = /^\d{2}$/.test(yr) ? (String(Number(yr) + 1).padStart(2, '0') + '00000') : '7100000';
                 const { data: rList } = await _supabase.from('receipts')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                   .select('receipt_no, edit_notes, item_name')
+                  .gte('receipt_no', minR)
+                  .lt('receipt_no', maxR)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -398463,24 +398469,29 @@ if (action === 'getDashboardStats') {
             const rawQ = String(params.query).trim();
             const safeQ = rawQ.replace(/[,()"]/g, ' ').trim();
             const cleanQ = safeQ.replace(/[^0-9A-Za-z]/g, '');
-            const orList = [
-              `student_id.ilike.%${safeQ}%`,
-              `citizen_id.ilike.%${safeQ}%`,
-              `full_name.ilike.%${safeQ}%`,
-              `phone_number.ilike.%${safeQ}%`,
-              `smart_card_uid.ilike.%${safeQ}%`
-            ];
-            if (cleanQ && cleanQ !== safeQ) {
-              orList.push(`student_id.ilike.%${cleanQ}%`);
-              orList.push(`citizen_id.ilike.%${cleanQ}%`);
-              orList.push(`phone_number.ilike.%${cleanQ}%`);
-              orList.push(`smart_card_uid.ilike.%${cleanQ}%`);
-            }
-            let qb = _supabase.from('students').select(REPORT_STUDENT_COLS).or(orList.join(','));
-            if (reqYear && reqYear !== 'ALL' && /^\d{4}$/.test(reqYear)) {
-              const yrPrefix = reqYear.slice(-2);
-              const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
-              qb = qb.gte('student_id', yrPrefix + '00000').lt('student_id', nextPrefix + '00000');
+            const isDigits = /^\d+$/.test(cleanQ);
+            let qb = _supabase.from('students').select(REPORT_STUDENT_COLS);
+            if (isDigits) {
+              if (cleanQ.length === 7) {
+                qb = qb.eq('student_id', cleanQ);
+              } else if (cleanQ.length >= 2 && cleanQ.length <= 6) {
+                const minId = cleanQ.padEnd(7, '0');
+                const maxId = String(Number(cleanQ) + 1).padEnd(7, '0');
+                qb = qb.gte('student_id', minId).lt('student_id', maxId);
+              } else if (cleanQ.length === 13) {
+                qb = qb.eq('citizen_id', cleanQ);
+              } else if (cleanQ.length >= 9 && cleanQ.length <= 10) {
+                qb = qb.or(`phone_number.eq.${cleanQ},smart_card_uid.eq.${cleanQ}`);
+              } else {
+                qb = qb.eq('student_id', cleanQ);
+              }
+            } else {
+              qb = qb.ilike('full_name', `%${safeQ}%`);
+              if (reqYear && reqYear !== 'ALL' && /^\d{4}$/.test(reqYear)) {
+                const yrPrefix = reqYear.slice(-2);
+                const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
+                qb = qb.gte('student_id', yrPrefix + '00000').lt('student_id', nextPrefix + '00000');
+              }
             }
             const { data: qData } = await qb.order('student_id', { ascending: false }).limit(200);
             stList = qData || [];
@@ -419616,7 +419627,12 @@ if (action === 'getDashboardStats') {
 
 
 
-          const { data: linkedReceipts } = await _supabase.from('receipts')
+          let delRcQuery = _supabase.from('receipts').select('id, receipt_no, grand_total, buyer_name');
+          const sidYr = String(sId || '').slice(0, 2);
+          if (/^\d{2}$/.test(sidYr)) {
+            delRcQuery = delRcQuery.gte('receipt_no', sidYr + '00000').lt('receipt_no', String(Number(sidYr) + 1).padStart(2, '0') + '00000');
+          }
+          const { data: linkedReceipts } = await delRcQuery
 
 
 
@@ -419648,7 +419664,6 @@ if (action === 'getDashboardStats') {
 
 
 
-            .select('id, receipt_no, grand_total, buyer_name')
 
 
 
@@ -459292,10 +459307,7 @@ if (action === 'getDashboardStats') {
       outCanvas.width = w;
       outCanvas.height = h;
       const outCtx = outCanvas.getContext('2d');
-
-      let bgR = 128;
-      let bgG = 0;
-      let bgB = 0;
+      let bgR = 128, bgG = 0, bgB = 0;
       if (targetBgColor && typeof targetBgColor === 'string' && targetBgColor.startsWith('#')) {
         let hex = targetBgColor.slice(1);
         if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
@@ -459306,29 +459318,23 @@ if (action === 'getDashboardStats') {
           bgB = val & 255;
         }
       }
-
       const srcCtx = srcCanvas.getContext('2d');
       const srcImgData = srcCtx.getImageData(0, 0, w, h);
       const srcPixels = srcImgData.data;
-
       const outImgData = outCtx.createImageData(w, h);
       const outPixels = outImgData.data;
 
-      // Sample backdrop reference color from borders (top, upper-left, upper-right)
-      let sumR = 0;
-      let sumG = 0;
-      let sumB = 0;
-      let count = 0;
-      const sampleTopH = Math.max(2, Math.floor(h * 0.10));
-      const sampleSideW = Math.max(2, Math.floor(w * 0.12));
-
+      // Sample backdrop reference color from multiple border areas (top strip and top corners)
+      let sumR = 0, sumG = 0, sumB = 0, count = 0;
+      const sampleTopH = Math.max(3, Math.floor(h * 0.12));
+      const sampleSideW = Math.max(3, Math.floor(w * 0.15));
       for (let y = 0; y < sampleTopH; y += 2) {
         for (let x = 0; x < w; x += 4) {
           const idx = (y * w + x) * 4;
           sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
         }
       }
-      for (let y = sampleTopH; y < Math.floor(h * 0.45); y += 3) {
+      for (let y = sampleTopH; y < Math.floor(h * 0.50); y += 3) {
         for (let x = 0; x < sampleSideW; x += 3) {
           const i1 = (y * w + x) * 4;
           sumR += srcPixels[i1]; sumG += srcPixels[i1 + 1]; sumB += srcPixels[i1 + 2]; count++;
@@ -459336,36 +459342,55 @@ if (action === 'getDashboardStats') {
           sumR += srcPixels[i2]; sumG += srcPixels[i2 + 1]; sumB += srcPixels[i2 + 2]; count++;
         }
       }
-
       const refR = count > 0 ? sumR / count : 240;
       const refG = count > 0 ? sumG / count : 240;
       const refB = count > 0 ? sumB / count : 240;
-      const isBlue = (refB > refR + 8 && refB > refG + 8);
-      const isGreen = (refG > refR + 8 && refG > refB + 8);
 
-      const tolerance = isBlue ? 36 : 42;
-      const blendRange = 22;
+      const isBlue = (refB > refR + 6 && refB > refG + 6);
+      const isGreen = (refG > refR + 8 && refG > refB + 8);
+      const isLightNeutral = (refR > 165 && refG > 165 && refB > 165 && Math.max(refR, refG, refB) - Math.min(refR, refG, refB) < 35);
+
+      // Enterprise adaptive matting tolerances
+      const tolerance = isBlue ? 52 : (isLightNeutral ? 60 : 46);
+      const blendRange = 24;
       const total = srcPixels.length;
 
+      // Central subject protection box (face and core torso)
+      const cxMin = Math.floor(w * 0.22);
+      const cxMax = Math.floor(w * 0.78);
+      const cyMin = Math.floor(h * 0.18);
+      const cyMax = Math.floor(h * 0.82);
+
       for (let i = 0; i < total; i += 4) {
+        const px = (i / 4) % w;
+        const py = Math.floor((i / 4) / w);
         const sR = srcPixels[i];
         const sG = srcPixels[i + 1];
         const sB = srcPixels[i + 2];
 
         const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
         const blueDom = sB - Math.max(sR, sG);
+        const inCenterCore = (px >= cxMin && px <= cxMax && py >= cyMin && py <= cyMax);
 
+        // Check if pixel is definitely background
+        let isDefiniteBg = false;
         if (distBg <= tolerance) {
+          isDefiniteBg = true;
+        } else if (isBlue && blueDom > 12 && (!inCenterCore || distBg < tolerance + 30)) {
+          isDefiniteBg = true;
+        } else if (isLightNeutral && (sR > 185 && sG > 185 && sB > 185) && (Math.max(sR, sG, sB) - Math.min(sR, sG, sB) < 28) && !inCenterCore) {
+          isDefiniteBg = true;
+        }
+
+        if (isDefiniteBg) {
           outPixels[i]     = bgR;
           outPixels[i + 1] = bgG;
           outPixels[i + 2] = bgB;
           outPixels[i + 3] = 255;
-        } else if (distBg < tolerance + blendRange) {
+        } else if (distBg < tolerance + blendRange && !inCenterCore) {
           const t = (distBg - tolerance) / blendRange;
           const alpha = t * t * (3 - 2 * t);
-          let fR = sR;
-          let fG = sG;
-          let fB = sB;
+          let fR = sR, fG = sG, fB = sB;
           if (isBlue && blueDom > 3) fB = Math.round((sR + sG) / 2);
           if (isGreen && sG > (sR + sB) / 2) fG = Math.round((sR + sB) / 2);
           outPixels[i]     = Math.round(fR * alpha + bgR * (1 - alpha));
@@ -459373,18 +459398,15 @@ if (action === 'getDashboardStats') {
           outPixels[i + 2] = Math.round(fB * alpha + bgB * (1 - alpha));
           outPixels[i + 3] = 255;
         } else {
-          let fR = sR;
-          let fG = sG;
-          let fB = sB;
-          if (isBlue && blueDom > 5) fB = Math.round((sR + sG) / 2);
-          if (isGreen && sG > (sR + sB) / 2 + 5) fG = Math.round((sR + sB) / 2);
+          let fR = sR, fG = sG, fB = sB;
+          if (isBlue && blueDom > 6 && !inCenterCore) fB = Math.round((sR + sG) / 2);
+          if (isGreen && sG > (sR + sB) / 2 + 5 && !inCenterCore) fG = Math.round((sR + sB) / 2);
           outPixels[i]     = fR;
           outPixels[i + 1] = fG;
           outPixels[i + 2] = fB;
           outPixels[i + 3] = 255;
         }
       }
-
       outCtx.putImageData(outImgData, 0, 0);
       return outCanvas;
     }
@@ -459561,65 +459583,14 @@ if (action === 'getDashboardStats') {
             const inCtx = inCanvas.getContext('2d');
             inCtx.drawImage(imgEl, 0, 0, w, h);
 
-            let segmenter = null;
-            if (!window._mediapipeSegmentationDisabled) {
-              try {
-                segmenter = await initSelfieSegmentationEngine();
-              } catch (e) {
-                segmenter = null;
-              }
-            }
-
-            if (segmenter) {
-              let hasHandled = false;
-              const timeoutId = setTimeout(() => {
-                if (!hasHandled) {
-                  hasHandled = true;
-                  console.warn('[Portrait AI] MediaPipe timed out (>1.8s) - using Instant Canvas Matting');
-                  const outCanvas = renderCanvasAdaptiveMatting(inCanvas, targetHexColor, w, h);
-                  resolve(outCanvas.toDataURL('image/jpeg', 0.92));
-                }
-              }, 1800);
-
-              try {
-                segmenter.onResults((results) => {
-                  if (hasHandled) return;
-                  hasHandled = true;
-                  clearTimeout(timeoutId);
-                  try {
-                    const outCanvas = renderRefinedPortraitCanvas(results, targetHexColor, w, h);
-                    resolve(outCanvas.toDataURL('image/jpeg', 0.92));
-                  } catch (mattingErr) {
-                    console.warn('[Portrait AI] Matting error, using Canvas Matting fallback:', mattingErr);
-                    const outCanvas = renderCanvasAdaptiveMatting(inCanvas, targetHexColor, w, h);
-                    resolve(outCanvas.toDataURL('image/jpeg', 0.92));
-                  }
-                });
-
-                const sendPromise = segmenter.send({ image: inCanvas });
-                if (sendPromise && typeof sendPromise.catch === 'function') {
-                  sendPromise.catch((sendErr) => {
-                    if (hasHandled) return;
-                    hasHandled = true;
-                    clearTimeout(timeoutId);
-                    window._mediapipeSegmentationDisabled = true;
-                    console.warn('[Portrait AI] MediaPipe send rejected:', sendErr);
-                    const outCanvas = renderCanvasAdaptiveMatting(inCanvas, targetHexColor, w, h);
-                    resolve(outCanvas.toDataURL('image/jpeg', 0.92));
-                  });
-                }
-              } catch (sendErr) {
-                if (!hasHandled) {
-                  hasHandled = true;
-                  clearTimeout(timeoutId);
-                  window._mediapipeSegmentationDisabled = true;
-                  const outCanvas = renderCanvasAdaptiveMatting(inCanvas, targetHexColor, w, h);
-                  resolve(outCanvas.toDataURL('image/jpeg', 0.92));
-                }
-              }
-            } else {
+            // Instant Studio Canvas Adaptive Matting (Zero WebAssembly / Zero Freeze / 100% Offline)
+            window._mediapipeSegmentationDisabled = true;
+            try {
               const outCanvas = renderCanvasAdaptiveMatting(inCanvas, targetHexColor, w, h);
               resolve(outCanvas.toDataURL('image/jpeg', 0.92));
+            } catch (mattingErr) {
+              console.warn('[Portrait AI] Matting error, using raw image:', mattingErr);
+              resolve(rawUri);
             }
           } catch (globalErr) {
             console.warn('[Portrait AI] Processing error, using raw image:', globalErr);
@@ -506785,39 +506756,45 @@ if (action === 'getDashboardStats') {
 
 
 
+            const sidStr = String(sid || '').trim();
+            const yr = sidStr.slice(0, 2);
+            const minR = /^\d{2}$/.test(yr) ? (yr + '00000') : '6800000';
+            const maxR = /^\d{2}$/.test(yr) ? (String(Number(yr) + 1).padStart(2, '0') + '00000') : '7100000';
             _supabase.from('receipts')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
               .select('id')
+              .gte('receipt_no', minR)
+              .lt('receipt_no', maxR)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -940270,39 +940247,45 @@ isOnlineResume: true,
 
 
 
+          const sidStr = String(sid || '').trim();
+          const yr = sidStr.slice(0, 2);
+          const minR = /^\d{2}$/.test(yr) ? (yr + '00000') : '6800000';
+          const maxR = /^\d{2}$/.test(yr) ? (String(Number(yr) + 1).padStart(2, '0') + '00000') : '7100000';
           const { data: latestRcList } = await _supabase.from('receipts')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             .select('id')
+            .gte('receipt_no', minR)
+            .lt('receipt_no', maxR)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -944701,7 +944684,7 @@ isOnlineResume: true,
       let students = [];
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          let q = _supabase.from('students').select('student_id, full_name, photo_url, current_schedule, current_course').neq('status', 'CANCELLED');
+          let q = _supabase.from('students').select('student_id, full_name, photo_url, current_schedule, current_course').gte('student_id', '6800000').neq('status', 'CANCELLED');
           if (schedFilter !== 'ALL') q = q.eq('current_schedule', schedFilter);
           const { data } = await q;
           if (data && data.length > 0) students = data;
