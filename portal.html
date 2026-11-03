@@ -147264,6 +147264,7 @@ body.printing-report #printReportContainer {
               <div class="oca-cam-screen" style="position:relative; overflow:hidden;">
                 <!-- Floating AI Maroon Processing Overlay -->
                 <div id="enrollPhotoAiOverlay" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.78); backdrop-filter:blur(4px); z-index:15; flex-direction:column; align-items:center; justify-content:center; gap:8px; border-radius:8px;">
+                  <button type="button" onclick="document.getElementById('enrollPhotoAiOverlay').style.display='none'" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.18); border:none; color:#FFFFFF; width:26px; height:26px; border-radius:50%; cursor:pointer; font-size:13px; font-weight:bold; display:flex; align-items:center; justify-content:center; z-index:16;" title="ปิดหน้าต่าง">✕</button>
                   <i class="fa-solid fa-wand-magic-sparkles fa-spin" style="font-size:26px; color:#EF4444;"></i>
                   <span style="font-size:12.5px; font-weight:700; color:#FDE047;">AI กำลังปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000)...</span>
                   <span style="font-size:10.5px; color:#E2E8F0; opacity:0.85;">มาตรฐานรูปติดบัตรสถาบัน OCA</span>
@@ -461710,8 +461711,124 @@ if (action === 'getDashboardStats') {
     window.handleEnrollPhotoFileUpload = handleEnrollPhotoFileUpload;
 
     /**
-     * Enterprise Edge Refinement & De-fringing Pipeline for Portrait Background Standardizer
-     * Eliminates blue backdrop halos, enforces strict alpha cutoff, and micro-feathers crisp contours.
+     * Pure HTML5 Canvas Adaptive Studio Matting Engine (Zero WebAssembly / 100% Offline)
+     * Replaces background with solid Maroon (#800000) using edge-color matting and geometry protection.
+     */
+    function renderCanvasAdaptiveMatting(srcCanvas, targetBgColor, w, h) {
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = w;
+      outCanvas.height = h;
+      const outCtx = outCanvas.getContext('2d');
+
+      let bgR = 128;
+      let bgG = 0;
+      let bgB = 0;
+      if (targetBgColor && typeof targetBgColor === 'string' && targetBgColor.startsWith('#')) {
+        let hex = targetBgColor.slice(1);
+        if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+        const val = parseInt(hex, 16);
+        if (!isNaN(val)) {
+          bgR = (val >> 16) & 255;
+          bgG = (val >> 8) & 255;
+          bgB = val & 255;
+        }
+      }
+
+      const srcCtx = srcCanvas.getContext('2d');
+      const srcImgData = srcCtx.getImageData(0, 0, w, h);
+      const srcPixels = srcImgData.data;
+
+      const outImgData = outCtx.createImageData(w, h);
+      const outPixels = outImgData.data;
+
+      // Sample backdrop reference color from corners
+      let sumR = 0;
+      let sumG = 0;
+      let sumB = 0;
+      let count = 0;
+      const sampleH = Math.max(1, Math.floor(h * 0.12));
+      const sampleW = Math.max(1, Math.floor(w * 0.14));
+      for (let y = 0; y < sampleH; y += 2) {
+        for (let x = 0; x < sampleW; x += 2) {
+          const i1 = (y * w + x) * 4;
+          sumR += srcPixels[i1]; sumG += srcPixels[i1 + 1]; sumB += srcPixels[i1 + 2]; count++;
+          const i2 = (y * w + (w - 1 - x)) * 4;
+          sumR += srcPixels[i2]; sumG += srcPixels[i2 + 1]; sumB += srcPixels[i2 + 2]; count++;
+        }
+      }
+      const refR = count > 0 ? sumR / count : 20;
+      const refG = count > 0 ? sumG / count : 30;
+      const refB = count > 0 ? sumB / count : 50;
+      const isBlue = (refB > refR + 8 && refB > refG + 8);
+
+      const centerX = w * 0.5;
+      const headCenterY = h * 0.38;
+      const headRadiusX = w * 0.28;
+      const headRadiusY = h * 0.26;
+      const chestThresholdY = Math.floor(h * 0.60);
+      const chestMinX = Math.floor(w * 0.15);
+      const chestMaxX = Math.floor(w * 0.85);
+
+      const total = srcPixels.length;
+      for (let i = 0; i < total; i += 4) {
+        const pIdx = i / 4;
+        const x = pIdx % w;
+        const y = Math.floor(pIdx / w);
+
+        const sR = srcPixels[i];
+        const sG = srcPixels[i + 1];
+        const sB = srcPixels[i + 2];
+
+        const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
+        const blueDom = sB - Math.max(sR, sG);
+
+        const dxHead = (x - centerX) / headRadiusX;
+        const dyHead = (y - headCenterY) / headRadiusY;
+        const distHead = Math.hypot(dxHead, dyHead);
+
+        const inTorso = (y >= chestThresholdY && x >= chestMinX && x <= chestMaxX);
+        const inHead = (distHead <= 1.05 && y >= h * 0.12);
+        const isSkin = (sR > 85 && sG > 45 && sR > sG && sR > sB && distHead <= 1.25);
+
+        let isSubject = false;
+        if (inTorso) {
+          isSubject = (distBg > 40 || !isBlue || blueDom < 5);
+        } else if (inHead || isSkin) {
+          isSubject = (distBg > 35 || !isBlue || blueDom < 6);
+        }
+
+        if (y < h * 0.08 || x < w * 0.05 || x > w * 0.95) {
+          isSubject = false;
+        }
+
+        if (!isSubject) {
+          outPixels[i]     = bgR;
+          outPixels[i + 1] = bgG;
+          outPixels[i + 2] = bgB;
+          outPixels[i + 3] = 255;
+        } else {
+          let fR = sR;
+          let fG = sG;
+          let fB = sB;
+          if (isBlue && blueDom > 4) {
+            fB = Math.round((sR + sG) / 2);
+          }
+          outPixels[i]     = fR;
+          outPixels[i + 1] = fG;
+          outPixels[i + 2] = fB;
+          outPixels[i + 3] = 255;
+        }
+      }
+
+      outCtx.putImageData(outImgData, 0, 0);
+      return outCanvas;
+    }
+    window.renderCanvasAdaptiveMatting = renderCanvasAdaptiveMatting;
+
+    /**
+     * Enterprise Edge Refinement & Studio Backdrop Matting Engine for OCA ID Portraits
+     * Eliminates blue backdrop halos, purges false-positive background masks,
+     * neutralizes optical blue flare on hair/collar, and smoothly blends with Maroon (#800000).
      */
     function renderRefinedPortraitCanvas(results, targetBgColor, w, h) {
       const outCanvas = document.createElement('canvas');
@@ -461719,8 +461836,9 @@ if (action === 'getDashboardStats') {
       outCanvas.height = h;
       const outCtx = outCanvas.getContext('2d');
 
-      // Parse target background color (Default to #800000 Maroon)
-      let bgR = 128, bgG = 0, bgB = 0;
+      let bgR = 128;
+      let bgG = 0;
+      let bgB = 0;
       if (targetBgColor && typeof targetBgColor === 'string' && targetBgColor.startsWith('#')) {
         let hex = targetBgColor.slice(1);
         if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
@@ -461733,7 +461851,6 @@ if (action === 'getDashboardStats') {
       }
 
       try {
-        // 1. Offscreen canvas for segmentation mask
         const maskCanvas = document.createElement('canvas');
         maskCanvas.width = w;
         maskCanvas.height = h;
@@ -461742,7 +461859,6 @@ if (action === 'getDashboardStats') {
         const maskImgData = maskCtx.getImageData(0, 0, w, h);
         const maskPixels = maskImgData.data;
 
-        // 2. Offscreen canvas for source image
         const srcCanvas = document.createElement('canvas');
         srcCanvas.width = w;
         srcCanvas.height = h;
@@ -461751,53 +461867,90 @@ if (action === 'getDashboardStats') {
         const srcImgData = srcCtx.getImageData(0, 0, w, h);
         const srcPixels = srcImgData.data;
 
-        // 3. Output pixel buffer
         const outImgData = outCtx.createImageData(w, h);
         const outPixels = outImgData.data;
 
-        // Tuned High-Precision Matting Parameters:
-        // Pixels with confidence <= lowCut (47%) are guaranteed background -> eliminate blue halo!
-        // Pixels with confidence >= highCut (70%) are 100% solid subject
-        const lowCut = 120;
-        const highCut = 180;
-        const range = highCut - lowCut;
+        // Sample backdrop color from top-left and top-right corners
+        let sampleSumR = 0;
+        let sampleSumG = 0;
+        let sampleSumB = 0;
+        let sampleCount = 0;
+        const maxSampleY = Math.max(1, Math.floor(h * 0.10));
+        const sampleW = Math.max(1, Math.floor(w * 0.12));
+        for (let py = 0; py < maxSampleY; py += 2) {
+          for (let px = 0; px < sampleW; px += 2) {
+            const idx1 = (py * w + px) * 4;
+            sampleSumR += srcPixels[idx1];
+            sampleSumG += srcPixels[idx1 + 1];
+            sampleSumB += srcPixels[idx1 + 2];
+            sampleCount++;
+            const idx2 = (py * w + (w - 1 - px)) * 4;
+            sampleSumR += srcPixels[idx2];
+            sampleSumG += srcPixels[idx2 + 1];
+            sampleSumB += srcPixels[idx2 + 2];
+            sampleCount++;
+          }
+        }
+        const refBgR = sampleCount > 0 ? sampleSumR / sampleCount : 20;
+        const refBgG = sampleCount > 0 ? sampleSumG / sampleCount : 30;
+        const refBgB = sampleCount > 0 ? sampleSumB / sampleCount : 50;
+        const isBlueBackdrop = (refBgB > refBgR + 8 && refBgB > refBgG + 8);
+
         const totalPixels = maskPixels.length;
+        const lowCut = 80;
+        const highCut = 200;
+        const range = highCut - lowCut;
+        const chestThresholdY = Math.floor(h * 0.65);
+        const chestMinX = Math.floor(w * 0.18);
+        const chestMaxX = Math.floor(w * 0.82);
 
         for (let i = 0; i < totalPixels; i += 4) {
-          // MediaPipe mask confidence is stored in alpha (i+3) or red (i)
-          const conf = Math.max(maskPixels[i], maskPixels[i + 3]);
+          const pixelIndex = i / 4;
+          const px = pixelIndex % w;
+          const py = Math.floor(pixelIndex / w);
+
+          let conf = Math.max(maskPixels[i], maskPixels[i + 3]);
+          const sR = srcPixels[i];
+          const sG = srcPixels[i + 1];
+          const sB = srcPixels[i + 2];
+
+          const dR = sR - refBgR;
+          const dG = sG - refBgG;
+          const dB = sB - refBgB;
+          const distToBg = Math.hypot(dR, dG, dB);
+          const blueDominance = sB - Math.max(sR, sG);
+
+          const isTorsoZone = (py >= chestThresholdY && px >= chestMinX && px <= chestMaxX);
+          if (!isTorsoZone && conf < 235) {
+            if (distToBg < 55 || (isBlueBackdrop && blueDominance > 7)) {
+              conf = 0;
+            }
+          }
 
           if (conf <= lowCut) {
-            // 100% Solid Target Background - Zero remnant of old blue background
             outPixels[i]     = bgR;
             outPixels[i + 1] = bgG;
             outPixels[i + 2] = bgB;
             outPixels[i + 3] = 255;
           } else {
-            let sR = srcPixels[i];
-            let sG = srcPixels[i + 1];
-            let sB = srcPixels[i + 2];
-
-            // Edge Color Spill Suppression (Blue De-Fringing):
-            // Neutralize optical blue flare on hair/collar boundary where confidence < 220
-            if (conf < 220 && sB > sR && sB > sG) {
-              const maxOther = Math.max(sR, sG);
-              sB = maxOther;
+            let finalR = sR;
+            let finalG = sG;
+            let finalB = sB;
+            if (isBlueBackdrop && blueDominance > 4 && conf < 225) {
+              finalB = Math.round((sR + sG) / 2);
             }
 
             if (conf >= highCut) {
-              // 100% Solid Subject
-              outPixels[i]     = sR;
-              outPixels[i + 1] = sG;
-              outPixels[i + 2] = sB;
+              outPixels[i]     = finalR;
+              outPixels[i + 1] = finalG;
+              outPixels[i + 2] = finalB;
               outPixels[i + 3] = 255;
             } else {
-              // Crisp Hermite smoothstep micro-feather (1px sharp edge, zero stair-stepping)
               const t = (conf - lowCut) / range;
               const alpha = t * t * (3 - 2 * t);
-              outPixels[i]     = Math.round(sR * alpha + bgR * (1 - alpha));
-              outPixels[i + 1] = Math.round(sG * alpha + bgG * (1 - alpha));
-              outPixels[i + 2] = Math.round(sB * alpha + bgB * (1 - alpha));
+              outPixels[i]     = Math.round(finalR * alpha + bgR * (1 - alpha));
+              outPixels[i + 1] = Math.round(finalG * alpha + bgG * (1 - alpha));
+              outPixels[i + 2] = Math.round(finalB * alpha + bgB * (1 - alpha));
               outPixels[i + 3] = 255;
             }
           }
@@ -461819,13 +461972,108 @@ if (action === 'getDashboardStats') {
     }
     window.renderRefinedPortraitCanvas = renderRefinedPortraitCanvas;
 
+    /**
+     * Enterprise Unified Portrait Background Processor
+     * Guaranteed never to hang or freeze. Enforces 1.8-second timeout race with automatic Canvas fallback.
+     */
+    async function processPortraitToMaroonDataUri(rawUri, targetHexColor = '#800000') {
+      if (!rawUri) return null;
+      return new Promise((resolve) => {
+        const imgEl = new Image();
+        imgEl.crossOrigin = 'anonymous';
+        imgEl.onload = async () => {
+          try {
+            const maxDim = 800;
+            let w = imgEl.width || 600;
+            let h = imgEl.height || 800;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+              else { w = Math.round((w * maxDim) / h); h = maxDim; }
+            }
+            const inCanvas = document.createElement('canvas');
+            inCanvas.width = w;
+            inCanvas.height = h;
+            const inCtx = inCanvas.getContext('2d');
+            inCtx.drawImage(imgEl, 0, 0, w, h);
 
+            let segmenter = null;
+            if (!window._mediapipeSegmentationDisabled) {
+              try {
+                segmenter = await initSelfieSegmentationEngine();
+              } catch (e) {
+                segmenter = null;
+              }
+            }
+
+            if (segmenter) {
+              let hasHandled = false;
+              const timeoutId = setTimeout(() => {
+                if (!hasHandled) {
+                  hasHandled = true;
+                  console.warn('[Portrait AI] MediaPipe timed out (>1.8s) - using Instant Canvas Matting');
+                  const outCanvas = renderCanvasAdaptiveMatting(inCanvas, targetHexColor, w, h);
+                  resolve(outCanvas.toDataURL('image/jpeg', 0.92));
+                }
+              }, 1800);
+
+              try {
+                segmenter.onResults((results) => {
+                  if (hasHandled) return;
+                  hasHandled = true;
+                  clearTimeout(timeoutId);
+                  try {
+                    const outCanvas = renderRefinedPortraitCanvas(results, targetHexColor, w, h);
+                    resolve(outCanvas.toDataURL('image/jpeg', 0.92));
+                  } catch (mattingErr) {
+                    console.warn('[Portrait AI] Matting error, using Canvas Matting fallback:', mattingErr);
+                    const outCanvas = renderCanvasAdaptiveMatting(inCanvas, targetHexColor, w, h);
+                    resolve(outCanvas.toDataURL('image/jpeg', 0.92));
+                  }
+                });
+
+                const sendPromise = segmenter.send({ image: inCanvas });
+                if (sendPromise && typeof sendPromise.catch === 'function') {
+                  sendPromise.catch((sendErr) => {
+                    if (hasHandled) return;
+                    hasHandled = true;
+                    clearTimeout(timeoutId);
+                    window._mediapipeSegmentationDisabled = true;
+                    console.warn('[Portrait AI] MediaPipe send rejected:', sendErr);
+                    const outCanvas = renderCanvasAdaptiveMatting(inCanvas, targetHexColor, w, h);
+                    resolve(outCanvas.toDataURL('image/jpeg', 0.92));
+                  });
+                }
+              } catch (sendErr) {
+                if (!hasHandled) {
+                  hasHandled = true;
+                  clearTimeout(timeoutId);
+                  window._mediapipeSegmentationDisabled = true;
+                  const outCanvas = renderCanvasAdaptiveMatting(inCanvas, targetHexColor, w, h);
+                  resolve(outCanvas.toDataURL('image/jpeg', 0.92));
+                }
+              }
+            } else {
+              const outCanvas = renderCanvasAdaptiveMatting(inCanvas, targetHexColor, w, h);
+              resolve(outCanvas.toDataURL('image/jpeg', 0.92));
+            }
+          } catch (globalErr) {
+            console.warn('[Portrait AI] Processing error, using raw image:', globalErr);
+            resolve(rawUri);
+          }
+        };
+        imgEl.onerror = () => {
+          resolve(rawUri);
+        };
+        imgEl.src = rawUri;
+      });
+    }
+    window.processPortraitToMaroonDataUri = processPortraitToMaroonDataUri;
 
     /**
      * Enhanced Offline Enrollment: AI Maroon (#800000) Background Standardizer
-     * Uses MediaPipe Selfie Segmentation WebAssembly for solid Maroon portrait background
+     * Uses Unified Portrait Matting Engine with zero-freeze timeout and guaranteed UI recovery.
      */
-        async function applyPhotoBackgroundMaroonForEnroll(rawUri) {
+    async function applyPhotoBackgroundMaroonForEnroll(rawUri) {
       if (!rawUri) return;
       const MAROON_COLOR = '#800000';
       const aiStatus = document.getElementById('lblEnrollPhotoAiStatus');
@@ -461834,65 +462082,36 @@ if (action === 'getDashboardStats') {
 
       if (aiStatus) {
         aiStatus.style.display = 'block';
-        if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: กำลังตัดและปรับพื้นหลังสีแดงเลือดหมู (#800000)...';
+        if (aiStatusText) aiStatusText.textContent = 'AI Studio: กำลังปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000)...';
       }
       if (overlay) overlay.style.display = 'flex';
 
       // Immediately display raw photo in viewfinder so staff sees instant feedback
       applyCapturedPhoto(rawUri);
 
+      // Failsafe auto-close safety timer: guarantees overlay closes in max 2.5s no matter what
+      const safetyTimer = setTimeout(() => {
+        if (overlay) overlay.style.display = 'none';
+      }, 2500);
+
       try {
-        const segmenter = await initSelfieSegmentationEngine();
-        const imgEl = new Image();
-        imgEl.crossOrigin = 'anonymous';
-        imgEl.onload = async () => {
-          if (!segmenter) {
-            if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ใช้รูปถ่ายต้นฉบับ';
-            if (overlay) overlay.style.display = 'none';
-            return;
-          }
+        const processedUri = await processPortraitToMaroonDataUri(rawUri, MAROON_COLOR);
+        if (processedUri) {
+          applyCapturedPhoto(processedUri);
 
-          // Pre-scale input canvas to optimal 600x800 for high speed and sharpness
-          const inCanvas = document.createElement('canvas');
-          const maxDim = 800;
-          let w = imgEl.width || 600;
-          let h = imgEl.height || 800;
-          if (w > maxDim || h > maxDim) {
-            if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
-            else { w = Math.round((w * maxDim) / h); h = maxDim; }
-          }
-          inCanvas.width = w;
-          inCanvas.height = h;
-          const inCtx = inCanvas.getContext('2d');
-          inCtx.drawImage(imgEl, 0, 0, w, h);
+          // Update dedicated Real System Result Box
+          const realImg = document.getElementById('imgEnrollPhotoRealSystem');
+          const realBox = document.getElementById('boxEnrollPhotoRealSystemPreview');
+          if (realImg) realImg.src = processedUri;
+          if (realBox) realBox.style.display = 'block';
 
-          segmenter.onResults((results) => {
-            const outCanvas = renderRefinedPortraitCanvas(results, MAROON_COLOR, w, h);
-            const processedUri = outCanvas.toDataURL('image/jpeg', 0.92);
-
-            // Immediately update capturedPreview and CR80 Card!
-            applyCapturedPhoto(processedUri);
-
-            // Update dedicated Real System Result Box
-            const realImg = document.getElementById('imgEnrollPhotoRealSystem');
-            const realBox = document.getElementById('boxEnrollPhotoRealSystemPreview');
-            if (realImg) realImg.src = processedUri;
-            if (realBox) realBox.style.display = 'block';
-
-            if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย';
-            if (overlay) overlay.style.display = 'none';
-          });
-
-          await segmenter.send({ image: inCanvas });
-        };
-        imgEl.onerror = () => {
-          if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ใช้รูปถ่ายต้นฉบับ';
-          if (overlay) overlay.style.display = 'none';
-        };
-        imgEl.src = rawUri;
+          if (aiStatusText) aiStatusText.textContent = 'AI Studio: ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย';
+        }
       } catch (err) {
         console.warn('[Enroll AI Maroon Photo] fallback:', err);
-        if (aiStatusText) aiStatusText.textContent = 'AI MediaPipe: ใช้รูปถ่ายต้นฉบับ';
+        if (aiStatusText) aiStatusText.textContent = 'AI Studio: ใช้รูปถ่ายต้นฉบับ';
+      } finally {
+        clearTimeout(safetyTimer);
         if (overlay) overlay.style.display = 'none';
       }
     }
@@ -945561,6 +945780,7 @@ isOnlineResume: true,
      * Initialize MediaPipe Selfie Segmentation WebAssembly engine
      */
     async function initSelfieSegmentationEngine() {
+      if (window._mediapipeSegmentationDisabled) return null;
       if (_selfieSegmentationInstance) return _selfieSegmentationInstance;
       const SegmenterClass = window.SelfieSegmentation || (typeof SelfieSegmentation !== 'undefined' ? SelfieSegmentation : null);
       if (!SegmenterClass) {
@@ -949713,9 +949933,9 @@ async function loadTeacherTimesheetReport() {
     window.handlePubPhotoFile = handlePubPhotoFile;
 
     /**
-     * Apply AI Maroon Background Color (#800000)
+     * Apply AI Maroon Background Color (#800000) for Public Admission
      */
-        async function applyPhotoBackground(targetHexColor) {
+    async function applyPhotoBackground(targetHexColor) {
       _currentPhotoBgColor = targetHexColor || MAROON_BG_COLOR;
       if (!_rawOriginalPhotoDataUri) return;
       const bgPanel = document.getElementById('panelPhotoBgOptions');
@@ -949725,56 +949945,29 @@ async function loadTeacherTimesheetReport() {
       if (procEl) procEl.style.display = 'block';
       if (succEl) succEl.style.display = 'none';
 
+      const safetyTimer = setTimeout(() => {
+        if (procEl) procEl.style.display = 'none';
+        if (succEl) succEl.style.display = 'flex';
+      }, 2500);
+
       try {
-        const segmenter = await initSelfieSegmentationEngine();
-        const imgEl = new Image();
-        imgEl.crossOrigin = 'anonymous';
-        imgEl.onload = async () => {
-          if (!segmenter) {
-            if (procEl) procEl.style.display = 'none';
-            if (succEl) succEl.style.display = 'flex';
-            return;
-          }
+        const processedUri = await processPortraitToMaroonDataUri(_rawOriginalPhotoDataUri, _currentPhotoBgColor);
+        if (processedUri) {
+          pubStudentPhotoDataUri = processedUri;
+          const img = document.getElementById('imgPubPhotoPreview');
+          if (img) img.src = pubStudentPhotoDataUri;
 
-          const inCanvas = document.createElement('canvas');
-          const maxDim = 800;
-          let w = imgEl.width || 600;
-          let h = imgEl.height || 800;
-          if (w > maxDim || h > maxDim) {
-            if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
-            else { w = Math.round((w * maxDim) / h); h = maxDim; }
-          }
-          inCanvas.width = w;
-          inCanvas.height = h;
-          const inCtx = inCanvas.getContext('2d');
-          inCtx.drawImage(imgEl, 0, 0, w, h);
+          const realImg = document.getElementById('imgPubPhotoRealSystem');
+          const realBox = document.getElementById('boxPubPhotoRealSystemPreview');
+          if (realImg) realImg.src = pubStudentPhotoDataUri;
+          if (realBox) realBox.style.display = 'block';
 
-          segmenter.onResults((results) => {
-            const outCanvas = renderRefinedPortraitCanvas(results, _currentPhotoBgColor || '#800000', w, h);
-            pubStudentPhotoDataUri = outCanvas.toDataURL('image/jpeg', 0.92);
-            const img = document.getElementById('imgPubPhotoPreview');
-            if (img) img.src = pubStudentPhotoDataUri;
-
-            // Update Real System Photo Result Preview Box with genuine Maroon photo!
-            const realImg = document.getElementById('imgPubPhotoRealSystem');
-            const realBox = document.getElementById('boxPubPhotoRealSystemPreview');
-            if (realImg) realImg.src = pubStudentPhotoDataUri;
-            if (realBox) realBox.style.display = 'block';
-
-            if (procEl) procEl.style.display = 'none';
-            if (succEl) succEl.style.display = 'flex';
-            if (typeof savePublicRegisterDraft === 'function') savePublicRegisterDraft();
-          });
-
-          await segmenter.send({ image: inCanvas });
-        };
-        imgEl.onerror = () => {
-          if (procEl) procEl.style.display = 'none';
-          if (succEl) succEl.style.display = 'flex';
-        };
-        imgEl.src = _rawOriginalPhotoDataUri;
+          if (typeof savePublicRegisterDraft === 'function') savePublicRegisterDraft();
+        }
       } catch (err) {
-        console.warn('[AI Photo] Maroon background segmentation fallback:', err);
+        console.warn('[Public AI Photo] fallback:', err);
+      } finally {
+        clearTimeout(safetyTimer);
         if (procEl) procEl.style.display = 'none';
         if (succEl) succEl.style.display = 'flex';
       }
