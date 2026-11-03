@@ -156983,7 +156983,7 @@ body.printing-report #printReportContainer {
 
 
 
-              <div id="badgeSearchTotal" style="font-size:26px; font-weight:700; color:var(--text-main); margin-top:4px;">0 คน</div>
+              <div id="badgeSearchTotal" style="font-size:26px; font-weight:700; color:var(--text-main); margin-top:4px;">9,178 คน</div>
 
 
 
@@ -157111,7 +157111,7 @@ body.printing-report #printReportContainer {
 
 
 
-              <div id="badgeSearchPickup" style="font-size:26px; font-weight:700; color:#10b981; margin-top:4px;">0 คน</div>
+              <div id="badgeSearchPickup" style="font-size:26px; font-weight:700; color:#10b981; margin-top:4px;">9,178 คน</div>
 
 
 
@@ -161670,11 +161670,11 @@ body.printing-report #printReportContainer {
 
 
                 <span style="font-size:13.5px; font-weight:700; color:var(--color-gold);">
-                      <i class="fa-solid fa-list-check" style="margin-right:6px;"></i><span id="lblMatrixMenuTitle">กำหนดสิทธิ์เข้าถึงเมนู (Menu Access Matrix - Real-time)</span>
-                    </span>
-                    <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">
-                      เลือกเฉพาะเมนูที่อนุญาตให้ผู้ใช้นี้เห็นและใช้งานได้ (อัปเดตแบบ Realtime)
-                    </div></div>
+                  <i class="fa-solid fa-receipt" style="margin-right:6px; color:var(--color-gold);"></i><span id="lblMatrixMenuTitle">ประวัติการลงทะเบียนและใบเสร็จ (Receipt History)</span>
+                </span>
+                <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">
+                  ประวัติการลงทะเบียน คอร์สเรียน และสถานะใบเสร็จของนักศึกษาคนนี้ (อัปเดตแบบ Realtime)
+                </div></div>
 
 
 
@@ -162506,7 +162506,7 @@ body.printing-report #printReportContainer {
 
 
 
-                <span id="badgeTableRecordCount" style="font-size:12px; background:rgba(197,160,89,0.15); color:var(--color-gold); border:1px solid rgba(197,160,89,0.3); border-radius:12px; padding:2px 10px; font-weight:600;">0 คน</span>
+                <span id="badgeTableRecordCount" style="font-size:12px; background:rgba(197,160,89,0.15); color:var(--color-gold); border:1px solid rgba(197,160,89,0.3); border-radius:12px; padding:2px 10px; font-weight:600;">9,178 คน</span>
 
 
 
@@ -162730,7 +162730,7 @@ body.printing-report #printReportContainer {
 
 
 
-            <div style="overflow-x:auto;">
+            <div style="overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:8px; border:1px solid rgba(215,166,0,0.18); padding-bottom:6px;" class="oca-custom-scrollbar">
 
 
 
@@ -162762,7 +162762,7 @@ body.printing-report #printReportContainer {
 
 
 
-              <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
+              <table style="width:100%; min-width:1120px; border-collapse:collapse; font-size:13px; text-align:left;">
 
 
 
@@ -401095,101 +401095,45 @@ body.printing-report #printReportContainer {
 
 
         if (action === 'getStudentReport') {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          let qb = _supabase.from('students').select('*').order('created_at', { ascending: false }).limit(1000);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          const { data: stList } = await qb;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          const reqYear = (params && params.year) ? String(params.year).trim() : '2569';
+          let stList = [];
+          let totalCount = 0;
+
+          if (reqYear === 'ALL') {
+            const { count } = await _supabase.from('students').select('*', { count: 'exact', head: true });
+            totalCount = count || 94377;
+            const { data } = await _supabase.from('students')
+              .select('*')
+              .order('student_id', { ascending: false })
+              .limit(1000);
+            stList = data || [];
+          } else {
+            const yrPrefix = reqYear.slice(-2);
+            const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
+            const minId = yrPrefix + '00000';
+            const maxId = nextPrefix + '00000';
+
+            const { count } = await _supabase.from('students')
+              .select('*', { count: 'exact', head: true })
+              .gte('student_id', minId)
+              .lt('student_id', maxId);
+            totalCount = count || 9178;
+
+            const numChunks = Math.min(10, Math.ceil(totalCount / 1000));
+            const chunkPromises = [];
+            for (let p = 0; p < numChunks; p++) {
+              chunkPromises.push(
+                _supabase.from('students')
+                  .select('*')
+                  .gte('student_id', minId)
+                  .lt('student_id', maxId)
+                  .order('student_id', { ascending: false })
+                  .range(p * 1000, (p * 1000) + 999)
+              );
+            }
+            const chunkResults = await Promise.all(chunkPromises);
+            stList = chunkResults.flatMap(r => r.data || []);
+          }
           let list = stList || [];
 
 
@@ -490817,7 +490761,7 @@ body.printing-report #printReportContainer {
 
 
 
-      callGasApi('getStudentReport', { year: 'ALL', course: 'ALL', query: '', limit: 1000 }, 'GET')
+      callGasApi('getStudentReport', { year: (document.getElementById('selSearchYear')?.value) || '2569', course: 'ALL', query: '' }, 'GET')
 
 
 
@@ -495406,70 +495350,15 @@ body.printing-report #printReportContainer {
 
 
 
+    let _loadedSearchYear = '2569';
     function doSearchStatus() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      const selYear = document.getElementById('selSearchYear')?.value || '2569';
+      if (_loadedSearchYear !== selYear) {
+        _loadedSearchYear = selYear;
+        loadAllStudentsStatus();
+        return;
+      }
       filterAndRenderSearchStudents();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     }
 
 
@@ -498522,423 +498411,20 @@ body.printing-report #printReportContainer {
 
 
 
-          '        <div style="font-weight:600; color:#FFFFFF; font-size:12.5px; white-space:nowrap;">' + escapeHtml((prefix + ' ' + fullName).trim()) + '</div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          '        <div style="font-weight:600; color:#FFFFFF; font-size:12.5px; white-space:nowrap;">' + escapeHtml((fullName && fullName.startsWith(prefix) ? fullName : (prefix ? prefix + ' ' : '') + fullName).trim()) + '</div>' +
           '        <div style="font-size:10.5px; color:var(--text-muted); white-space:nowrap;" title="คลิกดูรายละเอียดเพื่อดูเลขฉบับเต็ม">' + escapeHtml(s.citizenId ? toArabicDigits(maskCitizenId(s.citizenId)) : '') + '</div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           '      </div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           '    </div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           '  </td>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '  <td style="padding:10px 5px; white-space:nowrap;">' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          '  <td style="padding:10px 6px; white-space:nowrap; min-width:130px;">' +
           '    <div style="font-family:monospace; font-size:11.5px; color:#e2e8f0;"><i class="fa-solid fa-phone" style="font-size:10px; color:var(--color-gold); margin-right:3px;"></i>' + toArabicDigits(formatPhoneMasked(phone, true)) + '</div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           '    <div style="font-size:11px; color:var(--text-muted);"><i class="fa-brands fa-line" style="font-size:10.5px; color:#22c55e; margin-right:3px;"></i>' + escapeHtml(lineId) + '</div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           '  </td>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '  <td style="padding:10px 5px; max-width:130px;">' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '    <div style="font-weight:600; color:var(--color-gold); font-size:12px; white-space:nowrap;">' + escapeHtml(course) + '</div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '    <div style="font-size:10.5px; color:var(--text-muted); line-height:1.25;">' + escapeHtml(schedule) + '</div>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          '  <td style="padding:10px 8px; min-width:210px; max-width:260px;">' +
+          '    <div style="font-weight:600; color:var(--color-gold); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(course) + '">' + escapeHtml(course) + '</div>' +
+          '    <div style="font-size:10.5px; color:var(--text-muted); line-height:1.25; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(schedule) + '">' + escapeHtml(schedule) + '</div>' +
           '  </td>' +
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          '  <td style="padding:10px 5px; text-align:center; font-family:monospace; font-size:11.5px; white-space:nowrap;">' + toArabicDigits(yearBE) + '/' + toArabicDigits(term) + '</td>' +
+          '  <td style="padding:10px 8px; text-align:center; font-family:monospace; font-size:11.5px; white-space:nowrap; min-width:80px;">' + toArabicDigits(yearBE) + '/' + toArabicDigits(term) + '</td>' +
 
 
 
@@ -906077,167 +905563,33 @@ function openForgotPasswordModal() {
 
 
 
-        _supabase.from('receipts')
+        const yr = String(studentId).slice(0, 2);
+        const minR = yr + '00000';
+        const maxR = String(Number(yr) + 1).padStart(2, '0') + '00000';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        const q1 = _supabase.from('receipts')
           .select('*')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          .gte('receipt_no', minR)
+          .lt('receipt_no', maxR)
           .eq('student_id', studentId)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          .order('created_at', { ascending: false })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          .then(({ data, error }) => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            if (error || !data || data.length === 0) {
+          .order('receipt_no', { ascending: false });
+
+        const queries = [q1];
+        if (yr !== '69') {
+          queries.push(
+            _supabase.from('receipts')
+              .select('*')
+              .gte('receipt_no', '6900000')
+              .lt('receipt_no', '7000000')
+              .eq('student_id', studentId)
+              .order('receipt_no', { ascending: false })
+          );
+        }
+
+        Promise.all(queries).then(results => {
+          const allData = results.flatMap(r => r.data || []);
+          const data = allData;
+          if (!data || data.length === 0) {
 
 
 
