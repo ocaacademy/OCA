@@ -367507,19 +367507,16 @@ if (action === 'getDashboardStats') {
           const maxYrId = nextYrPrefix + '00000';
 
           const [
-            resSt, resC, resRc, resSc, resFee, resStaff
+            resC, resSc, resFee, resStaff
           ] = await Promise.all([
-            _supabase.from('students').select('student_id', { count: 'estimated', head: true }),
             _supabase.from('courses').select('id', { count: 'exact', head: true }),
-            _supabase.from('receipts').select('receipt_no', { count: 'estimated', head: true }),
             _supabase.from('schedules').select('id', { count: 'exact', head: true }),
             _supabase.from('fee_settings').select('key', { count: 'exact', head: true }),
             _supabase.from('staff_users').select('id', { count: 'exact', head: true })
           ]);
-
-          const stCount = resSt?.count || 94377;
+          const stCount = 94377;
           const cCount = resC?.count || 28;
-          const rcCount = resRc?.count || 424215;
+          const rcCount = 424215;
           const scCount = resSc?.count || 8;
           const feeCount = resFee?.count || 10;
           const uCount = resStaff?.count || 5;
@@ -527084,15 +527081,12 @@ if (action === 'getDashboardStats') {
 
         // 2. Refresh live Database Records and Physical Storage
         if (typeof _supabase !== 'undefined' && _supabase) {
-          const [resSt, resRc, resC, resTier] = await Promise.allSettled([
-            _supabase.from('students').select('student_id', { count: 'estimated', head: true }),
-            _supabase.from('receipts').select('receipt_no', { count: 'estimated', head: true }),
+          const [resC, resTier] = await Promise.allSettled([
             _supabase.from('courses').select('*', { count: 'exact', head: true }),
             _supabase.from('fee_settings').select('*').eq('key', 'cloud_infra_tier').maybeSingle()
           ]);
-
-          const stCount = (resSt.status === 'fulfilled' && resSt.value && resSt.value.count) || 94377;
-          const rcCount = (resRc.status === 'fulfilled' && resRc.value && resRc.value.count) || 424215;
+          const stCount = 94377;
+          const rcCount = 424215;
           const cCount = (resC.status === 'fulfilled' && resC.value && resC.value.count) || 28;
 
           let isPro = true;
@@ -920396,7 +920390,12 @@ isOnlineResume: true,
 
           // 2. ตรวจสอบจากทะเบียนนักศึกษา (students) ในภาคเรียนที่เลือก
           try {
-            let qbSt = _supabase.from('students').select('current_course, year_be, term');
+            const yr = String(yearBE || '2569').slice(-2);
+            const nextYr = String(Number(yr) + 1).padStart(2, '0');
+            let qbSt = _supabase.from('students')
+              .select('current_course, year_be, term')
+              .gte('student_id', yr + '00000')
+              .lt('student_id', nextYr + '00000');
             if (yearBE && termNo) qbSt = qbSt.eq('year_be', yearBE).eq('term', termNo);
             const { data: stData } = await qbSt;
             if (Array.isArray(stData)) {
@@ -922274,7 +922273,12 @@ isOnlineResume: true,
 
 
 
-          const { data: stData } = await _supabase.from('students').select('*').eq('year_be', yearBE).eq('term', termNo);
+          const { data: stData } = await _supabase.from('students')
+            .select('*')
+            .gte('student_id', yr + '00000')
+            .lt('student_id', nextYr + '00000')
+            .eq('year_be', yearBE)
+            .eq('term', termNo);
 
 
 
@@ -943892,31 +943896,7 @@ isOnlineResume: true,
 
     function startTeacherClock() {
       if (_teacherClockTimer) clearInterval(_teacherClockTimer);
-
-      // Sync offset with Bangkok time (UTC+7) safely without throwing unhandled network errors
-      const syncWithNavyTime = async () => {
-        try {
-          _teacherClockOffsetMs = 0;
-          const controller = typeof window !== 'undefined' && typeof window.AbortController !== 'undefined' ? new window.AbortController() : null;
-          const timeoutId = controller ? setTimeout(() => controller.abort(), 2000) : null;
-          const resp = await fetch('https://worldtimeapi.org/api/timezone/Asia/Bangkok', {
-            cache: 'no-store',
-            signal: controller ? controller.signal : undefined
-          }).catch(() => null);
-          if (timeoutId) clearTimeout(timeoutId);
-          if (resp && resp.ok) {
-            const data = await resp.json().catch(() => null);
-            if (data && data.datetime) {
-              const serverMs = new Date(data.datetime).getTime();
-              _teacherClockOffsetMs = serverMs - Date.now();
-            }
-          }
-        } catch (_) {
-          _teacherClockOffsetMs = 0;
-        }
-      };
-      syncWithNavyTime();
-
+      _teacherClockOffsetMs = 0;
       const updateClockDisplay = () => {
         const el = document.getElementById('lblTeacherRealtimeClock');
         if (!el) return;
@@ -943926,7 +943906,6 @@ isOnlineResume: true,
         const ss = String(now.getSeconds()).padStart(2, '0');
         el.textContent = `${hh}:${mm}:${ss}`;
       };
-
       updateClockDisplay();
       _teacherClockTimer = setInterval(updateClockDisplay, 1000);
     }
@@ -944561,6 +944540,7 @@ isOnlineResume: true,
           const { data, error } = await _supabase
             .from('students')
             .select('student_id, full_name, photo_url, current_schedule, current_course, status')
+            .gte('student_id', '6800000')
             .neq('status', 'CANCELLED');
           if (data && data.length > 0) {
             studentsList = data.filter(s => {
@@ -945092,7 +945072,8 @@ isOnlineResume: true,
         try {
           const { data, error } = await _supabase
             .from('students')
-            .select('student_id, full_name, name_en, nickname, phone, emergency_phone, guardian_phone, email, line_id, photo_url, current_schedule, current_course, status')
+            .select('student_id, full_name, nickname, phone, emergency_phone, guardian_phone, email, line_id, photo_url, current_schedule, current_course, status, notes')
+            .gte('student_id', '6800000')
             .neq('status', 'CANCELLED');
           if (!error && Array.isArray(data) && data.length > 0) {
             students = data.filter(s => {
