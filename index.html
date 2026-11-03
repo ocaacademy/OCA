@@ -157597,8 +157597,6 @@ body.printing-report #printReportContainer {
 
                 <select id="selSearchYear" class="oca-input" onchange="window._userExplicitlySelectedAllYears = (this.value === 'ALL'); doSearchStatus()">
                   <option value="2569" selected>ปีการศึกษา 2569 (ปีล่าสุด)</option>
-                  <option value="2570" >ปีการศึกษา 2570</option>
-                  <option value="2569" selected>ปีการศึกษา 2569</option>
                   <option value="2568" >ปีการศึกษา 2568</option>
                   <option value="2567" >ปีการศึกษา 2567</option>
                   <option value="2566" >ปีการศึกษา 2566</option>
@@ -398405,8 +398403,8 @@ if (action === 'getDashboardStats') {
             const reg = window.OCA_ACADEMIC_YEARS_REGISTRY || {};
             totalCount = (reg[validYear] && reg[validYear].total) ? reg[validYear].total : 9178;
 
-            // Lightning-fast single indexed query for the latest active students of the year (< 180ms)
-            const fetchLimit = (params && params.all === true) ? 1000 : 200;
+            // Authoritative query for active students of the year (fetching full batch up to 1000)
+            const fetchLimit = (params && params.limit) ? Math.min(Number(params.limit), 1000) : 1000;
             const { data: recentStudents } = await _supabase.from('students')
               .select(REPORT_STUDENT_COLS)
               .gte('student_id', minId)
@@ -398415,6 +398413,23 @@ if (action === 'getDashboardStats') {
               .limit(fetchLimit);
 
             stList = recentStudents || [];
+
+            // Map delivery method from receipts for this academic year
+            try {
+              const { data: recDelivery } = await _supabase.from('receipts')
+                .select('student_id, delivery_method')
+                .eq('year_be', validYear)
+                .limit(1000);
+              if (recDelivery && Array.isArray(recDelivery)) {
+                const delivMap = {};
+                recDelivery.forEach(r => {
+                  if (r.student_id && r.delivery_method) delivMap[r.student_id] = r.delivery_method;
+                });
+                stList.forEach(s => {
+                  if (delivMap[s.student_id]) s.delivery_method = delivMap[s.student_id];
+                });
+              }
+            } catch (_) {}
           }
           let list = stList || [];
 
@@ -400434,7 +400449,7 @@ if (action === 'getDashboardStats') {
 
           // 1. Identify distinct academic years present among registered students (2550 to 2570 in DB)
           const allDbAcademicYears = [
-            '2570', '2569', '2568', '2567', '2566', '2565',
+            '2569', '2568', '2567', '2566', '2565',
             '2564', '2563', '2562', '2561', '2560', '2559',
             '2558', '2557', '2556', '2555', '2554', '2553',
             '2552', '2551', '2550'
@@ -401085,165 +401100,12 @@ if (action === 'getDashboardStats') {
 
 
           return {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             success: true,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            totalCount: totalCount,
+            total: totalCount,
             students: mapped,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             availableYears: availableYears,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             availableCourses: availableCourses
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           };
 
 
@@ -486799,7 +486661,7 @@ if (action === 'getDashboardStats') {
 
     function initSearchStatusModule() {
       const selYear = document.getElementById('selSearchYear');
-      if (selYear && (!selYear.value || selYear.value === 'ALL')) {
+      if (selYear && (!selYear.value || selYear.value === 'ALL' || selYear.value === '2570')) {
         selYear.value = '2569';
       }
       const activeYear = (selYear && selYear.value && selYear.value !== 'ALL') ? selYear.value : '2569';
@@ -488399,6 +488261,7 @@ if (action === 'getDashboardStats') {
             const sortedYears = res.availableYears.filter(y => String(y).trim() !== 'ALL').sort((a, b) => Number(b) - Number(a));
             sortedYears.forEach(y => {
               const yStr = String(y).trim();
+              if (yStr === '2570') return;
               const isSel = (yStr === currentSel) ? ' selected' : '';
               yearHtml += '<option value="' + escapeHtml(yStr) + '"' + isSel + '>ปีการศึกษา ' + toArabicDigits(yStr) + (yStr === '2569' ? ' (ปีล่าสุด)' : '') + '</option>';
             });
@@ -489182,7 +489045,7 @@ if (action === 'getDashboardStats') {
       if (badgeTotal) badgeTotal.textContent = toArabicDigits(totalDisplay) + ' คน';
       if (badgePickup) badgePickup.textContent = toArabicDigits(countPickup) + ' คน';
       if (badgeDelivery) badgeDelivery.textContent = toArabicDigits(countDelivery) + ' คน';
-      if (badgeCount) badgeCount.textContent = toArabicDigits(filtered.length) + ' คน';
+      if (badgeCount) badgeCount.textContent = toArabicDigits(totalDisplay) + ' คน';
       renderSearchStudentsTable(filtered);
       // หากมีคำค้นหาและตรงเพียง 1 คน ให้เปิดการ์ดแสดงรายละเอียดทันที
       if (q && filtered.length === 1 && window._searchTriggerExplicit) {
