@@ -193836,6 +193836,28 @@ body.printing-report #printReportContainer {
 
 
 
+                    
+                    <!-- PAYMENT METHOD CHECKBOX SELECTION -->
+                    <div class="oca-input-group" style="margin-top:8px; margin-bottom:10px; padding:10px 12px; background:rgba(2,132,199,0.08); border:1px solid rgba(2,132,199,0.3); border-radius:8px;">
+                      <label class="oca-label" style="font-size:12px; font-weight:700; color:#38bdf8; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <i class="fa-solid fa-credit-card"></i> การชำระเงิน (เลือกช่องทางชำระเงิน)
+                      </label>
+                      <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+                        <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#ffffff; cursor:pointer; font-weight:600;">
+                          <input type="checkbox" id="chkPayTransfer" name="rcptPayMethod" value="โอนเงิน" checked onchange="onPaymentMethodCheckboxChanged('โอนเงิน')" style="width:16px; height:16px; accent-color:#0284c7; cursor:pointer;">
+                          <span>โอนเงิน</span>
+                        </label>
+                        <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#ffffff; cursor:pointer; font-weight:600;">
+                          <input type="checkbox" id="chkPayCredit" name="rcptPayMethod" value="บัตรเครดิต" onchange="onPaymentMethodCheckboxChanged('บัตรเครดิต')" style="width:16px; height:16px; accent-color:#0284c7; cursor:pointer;">
+                          <span>เครดิต</span>
+                        </label>
+                        <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#ffffff; cursor:pointer; font-weight:600;">
+                          <input type="checkbox" id="chkPayCash" name="rcptPayMethod" value="เงินสด" onchange="onPaymentMethodCheckboxChanged('เงินสด')" style="width:16px; height:16px; accent-color:#0284c7; cursor:pointer;">
+                          <span>เงินสด</span>
+                        </label>
+                      </div>
+                    </div>
+
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
 
 
@@ -206188,7 +206210,7 @@ body.printing-report #printReportContainer {
 
 
 
-                    <span id="chkPrevCheque" style="color:#94a3b8;">[ ] เช็ค</span>
+                    <span id="chkPrevCredit" style="color:#94a3b8;">[ ] เครดิต</span>
 
 
 
@@ -654462,7 +654484,40 @@ body.printing-report #printReportContainer {
       updateReceiptLivePreview();
     }
 
-function updateReceiptLivePreview() {
+  // =========================================================================
+  // CASHIER PAYMENT METHOD SELECTOR (โอนเงิน / เครดิต / เงินสด)
+  // =========================================================================
+  function onPaymentMethodCheckboxChanged(selectedVal) {
+    const chkTrans = document.getElementById('chkPayTransfer');
+    const chkCred = document.getElementById('chkPayCredit');
+    const chkCash = document.getElementById('chkPayCash');
+
+    if (selectedVal === 'โอนเงิน') {
+      if (chkTrans) chkTrans.checked = true;
+      if (chkCred) chkCred.checked = false;
+      if (chkCash) chkCash.checked = false;
+    } else if (selectedVal === 'บัตรเครดิต' || selectedVal === 'เครดิต') {
+      if (chkTrans) chkTrans.checked = false;
+      if (chkCred) chkCred.checked = true;
+      if (chkCash) chkCash.checked = false;
+    } else if (selectedVal === 'เงินสด') {
+      if (chkTrans) chkTrans.checked = false;
+      if (chkCred) chkCred.checked = false;
+      if (chkCash) chkCash.checked = true;
+    }
+    // Guard: ensure at least one is checked
+    if (chkTrans && chkCred && chkCash && !chkTrans.checked && !chkCred.checked && !chkCash.checked) {
+      if (selectedVal === 'เงินสด' && chkCash) chkCash.checked = true;
+      else if ((selectedVal === 'บัตรเครดิต' || selectedVal === 'เครดิต') && chkCred) chkCred.checked = true;
+      else if (chkTrans) chkTrans.checked = true;
+    }
+    if (typeof updateReceiptLivePreview === 'function') {
+      updateReceiptLivePreview();
+    }
+  }
+  window.onPaymentMethodCheckboxChanged = onPaymentMethodCheckboxChanged;
+
+  function updateReceiptLivePreview() {
 
 
 
@@ -657471,166 +657526,39 @@ function updateReceiptLivePreview() {
 
 
       const chkCash = document.getElementById('chkPrevCash');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const chkTrans = document.getElementById('chkPrevTransfer');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const chkCheq = document.getElementById('chkPrevCheque');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      if (chkCash) { chkCash.textContent = '[ ] เงินสด'; chkCash.style.color = '#94a3b8'; chkCash.className = ''; }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      if (chkTrans) { chkTrans.innerHTML = '[<i class="fa-solid fa-check"></i>] โอนเงิน'; chkTrans.className = 'oca-receipt-blue'; chkTrans.style.fontWeight = '700'; }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      if (chkCheq) { chkCheq.textContent = '[ ] เช็ค'; chkCheq.style.color = '#94a3b8'; chkCheq.className = ''; }
+      const chkCredit = document.getElementById('chkPrevCredit') || document.getElementById('chkPrevCheque');
+
+      let curMethod = 'โอนเงิน';
+      const chkTransInp = document.getElementById('chkPayTransfer');
+      const chkCredInp = document.getElementById('chkPayCredit');
+      const chkCashInp = document.getElementById('chkPayCash');
+      if (chkCashInp && chkCashInp.checked) curMethod = 'เงินสด';
+      else if (chkCredInp && chkCredInp.checked) curMethod = 'เครดิต';
+      else curMethod = 'โอนเงิน';
+
+      const isCash = (curMethod === 'เงินสด');
+      const isTransfer = (curMethod === 'โอนเงิน' || curMethod === 'โอน');
+      const isCredit = (curMethod === 'เครดิต' || curMethod === 'บัตรเครดิต');
+
+      if (chkCash) {
+        chkCash.innerHTML = isCash ? '[<i class="fa-solid fa-check"></i>] เงินสด' : '[ ] เงินสด';
+        chkCash.className = isCash ? 'oca-receipt-blue' : '';
+        chkCash.style.fontWeight = isCash ? '700' : 'normal';
+        chkCash.style.color = isCash ? '#0284c7' : '#94a3b8';
+      }
+      if (chkTrans) {
+        chkTrans.innerHTML = isTransfer ? '[<i class="fa-solid fa-check"></i>] โอนเงิน' : '[ ] โอนเงิน';
+        chkTrans.className = isTransfer ? 'oca-receipt-blue' : '';
+        chkTrans.style.fontWeight = isTransfer ? '700' : 'normal';
+        chkTrans.style.color = isTransfer ? '#0284c7' : '#94a3b8';
+      }
+      if (chkCredit) {
+        chkCredit.innerHTML = isCredit ? '[<i class="fa-solid fa-check"></i>] เครดิต' : '[ ] เครดิต';
+        chkCredit.className = isCredit ? 'oca-receipt-blue' : '';
+        chkCredit.style.fontWeight = isCredit ? '700' : 'normal';
+        chkCredit.style.color = isCredit ? '#0284c7' : '#94a3b8';
+      }
 
 
 
@@ -664045,7 +663973,10 @@ function updateReceiptLivePreview() {
 
 
 
-      const payMethod = 'โอนเงิน';
+      let payMethod = 'โอนเงิน';
+      if (document.getElementById('chkPayCash')?.checked) payMethod = 'เงินสด';
+      else if (document.getElementById('chkPayCredit')?.checked) payMethod = 'บัตรเครดิต';
+      else payMethod = 'โอนเงิน';
 
 
 
@@ -673178,6 +673109,9 @@ function updateReceiptLivePreview() {
 
 
     function resetReceiptForm() {
+      if (typeof onPaymentMethodCheckboxChanged === 'function') {
+        onPaymentMethodCheckboxChanged('โอนเงิน');
+      }
 
 
 
