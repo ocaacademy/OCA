@@ -924390,7 +924390,13 @@ isOnlineResume: true,
         // 1. ตรวจสอบจากใบเสร็จรับเงิน (receipts) ในภาคเรียนที่เลือก
         if (typeof _supabase !== 'undefined' && _supabase) {
           try {
-            let qb = _supabase.from('receipts').select('item_code, item_name, year_be, term');
+            const yr = String(yearBE || '2569').slice(-2);
+            const nextYr = String(Number(yr) + 1).padStart(2, '0');
+            let qb = _supabase.from('receipts')
+              .select('item_code, item_name, year_be, term')
+              .gte('receipt_no', yr + '00000')
+              .lt('receipt_no', nextYr + '00000')
+              .limit(1000);
             if (yearBE && termNo) qb = qb.eq('year_be', yearBE).eq('term', termNo);
             const { data: rcData } = await qb;
             if (Array.isArray(rcData)) {
@@ -925610,14 +925616,14 @@ isOnlineResume: true,
 
 
 
+          const yr = String(yearBE || '2569').slice(-2);
+          const nextYr = String(Number(yr) + 1).padStart(2, '0');
           let qb = _supabase.from('receipts')
-            .select('student_id, student_no, buyer_name, item_code, item_name, room, schedule, year_be, term, phone')
-            .eq('year_be', yearBE)
-            .eq('term', termNo);
-          if (yearBE) {
-            const yr = String(yearBE).slice(-2);
-            qb = qb.gte('receipt_no', yr + '00000').lt('receipt_no', String(Number(yr) + 1).padStart(2, '0') + '00000');
-          }
+            .select('student_id, buyer_name, item_code, item_name, room, schedule, year_be, term')
+            .gte('receipt_no', yr + '00000')
+            .lt('receipt_no', nextYr + '00000')
+            .limit(1000);
+          if (yearBE && termNo) qb = qb.eq('year_be', yearBE).eq('term', termNo);
 
 
 
