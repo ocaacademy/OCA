@@ -903765,9 +903765,10 @@ isOnlineResume: true,
      */
     async function logTeacherActivity(action, details, extraData = {}) {
       const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : {};
-      const uname = user ? (user.username || 'teacher') : 'teacher';
-      const fname = user ? (user.fullName || user.username || 'ครูผู้สอน') : 'ครูผู้สอน';
-      const role = user ? (user.role || 'Teacher') : 'Teacher';
+      if (!user || !user.username) return; // Prevent phantom logs when no user logged in
+      const uname = user.username;
+      const fname = user.fullName || user.username || uname;
+      const role = user.role || 'Staff';
 
       const notifItem = {
         id: 'notif_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
@@ -904041,30 +904042,83 @@ isOnlineResume: true,
 
       tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:#94A3B8;"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดประวัติการปฏิบัติงานครูผู้สอน...</td></tr>';
 
-      // Populate teachers in filter dropdown
-      if (selTeacher && selTeacher.options.length <= 1 && typeof _supabase !== 'undefined' && _supabase) {
+      // 1. One-time clean-up of phantom / test logs for non-existent 'teacher' account
+      if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const { data } = await _supabase.from('staff_users').select('username, full_name, role');
-          if (data) {
-            data.forEach(u => {
-              const opt = document.createElement('option');
-              opt.value = u.username;
-              opt.textContent = `${u.full_name || u.username} (${u.role || 'Staff'})`;
-              selTeacher.appendChild(opt);
-            });
-          }
+          await _supabase.from('security_audit_logs').delete().eq('username', 'teacher');
         } catch (_) {}
       }
+      try {
+        const localList = JSON.parse(localStorage.getItem('oca_notifications') || '[]');
+        if (Array.isArray(localList)) {
+          const cleaned = localList.filter(n => n.username !== 'teacher');
+          if (cleaned.length !== localList.length) {
+            localStorage.setItem('oca_notifications', JSON.stringify(cleaned));
+          }
+        }
+      } catch (_) {}
 
+      // 2. Fetch authoritative registered teachers from staff_users
+      const isTeacherRole = (r) => {
+        if (!r) return false;
+        const s = String(r).trim().toLowerCase();
+        return s === 'teacher' || s === 'ครูสอน' || s === 'ครูผู้สอน' || s === 'ครู' || s === 'academic';
+      };
+
+      let teachers = [];
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data } = await _supabase.from('staff_users').select('username, full_name, role');
+          if (Array.isArray(data)) teachers = data.filter(u => isTeacherRole(u.role));
+        } catch (_) {}
+      }
+      if (teachers.length === 0 && typeof cachedUsersList !== 'undefined' && Array.isArray(cachedUsersList)) {
+        teachers = cachedUsersList.filter(u => isTeacherRole(u.role));
+      }
+
+      // Populate teachers in filter dropdown
+      if (selTeacher) {
+        selTeacher.innerHTML = '';
+        if (teachers.length === 0) {
+          selTeacher.innerHTML = '<option value="">-- ยังไม่มีการสร้างบัญชีครูผู้สอน (Role: Teacher) --</option>';
+        } else {
+          selTeacher.innerHTML = '<option value="ALL">-- ครูทุกคน (All Teachers) --</option>';
+          teachers.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.username;
+            opt.textContent = `${u.full_name || u.username} (@${u.username})`;
+            selTeacher.appendChild(opt);
+          });
+        }
+      }
+
+      // If NO teacher accounts have been created yet, display authoritative empty state
+      if (teachers.length === 0) {
+        _cachedTeacherActivities = [];
+        if (countEl) countEl.textContent = 'แสดง 0 รายการ';
+        ['kpiTrackerTotal', 'kpiTrackerAck', 'kpiTrackerAttendance', 'kpiTrackerContact', 'kpiTrackerNotice'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = '0';
+        });
+        if (subDocEl) {
+          const nowStr = new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH') + ' น.';
+          subDocEl.textContent = `ระบบบันทึกความเคลื่อนไหวทางวิชาการและงานบุคคลแบบ Real-time | อัปเดตเมื่อ: ${nowStr}`;
+        }
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:32px; color:#94A3B8;"><i class="fa-solid fa-user-xmark" style="font-size:24px; margin-bottom:8px; display:block; opacity:0.6; color:#F59E0B;"></i>ยังไม่มีการสร้างบัญชีครูผู้สอน (Role: Teacher) ในระบบ<br><span style="font-size:11px; color:#64748B;">เมื่อมีการเพิ่มผู้ใช้งานตำแหน่ง Teacher ในเมนู ตั้งค่าระบบ (Settings &bull; Accounts) ประวัติการปฏิบัติงานจริงจะแสดงที่นี่</span></td></tr>';
+        return;
+      }
+
+      const teacherUsernames = new Set(teachers.map(t => t.username));
       let records = [];
 
-      // Fetch from Supabase security_audit_logs
+      // Fetch from Supabase security_audit_logs strictly for valid teachers
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
           let q = _supabase
             .from('security_audit_logs')
             .select('*')
             .ilike('action', 'TEACHER_%')
+            .neq('username', 'teacher')
             .order('created_at', { ascending: false })
             .limit(300);
 
@@ -904079,7 +904133,9 @@ isOnlineResume: true,
           }
 
           const { data, error } = await q;
-          if (!error && data) records = data;
+          if (!error && Array.isArray(data)) {
+            records = data.filter(r => r.username && teacherUsernames.has(r.username));
+          }
         } catch (e) {
           console.warn('[TeacherTracker Fetch Error]:', e);
         }
@@ -904089,15 +904145,17 @@ isOnlineResume: true,
       if (records.length === 0) {
         try {
           const localList = JSON.parse(localStorage.getItem('oca_notifications') || '[]');
-          records = localList.map(n => ({
-            created_at: n.created_at,
-            action: n.action,
-            details: n.details,
-            username: n.username,
-            full_name: n.teacher_name,
-            role: n.role,
-            device_info: n.device_info || 'Web'
-          }));
+          records = localList
+            .filter(n => n.username && n.username !== 'teacher' && teacherUsernames.has(n.username))
+            .map(n => ({
+              created_at: n.created_at,
+              action: n.action,
+              details: n.details,
+              username: n.username,
+              full_name: n.teacher_name,
+              role: n.role,
+              device_info: n.device_info || 'Web'
+            }));
         } catch (_) {}
       }
 
@@ -904129,13 +904187,13 @@ isOnlineResume: true,
       const kpiAck = document.getElementById('kpiTrackerAck');
       const kpiAttendance = document.getElementById('kpiTrackerAttendance');
       const kpiContact = document.getElementById('kpiTrackerContact');
+      const kpiNotice = document.getElementById('kpiTrackerNotice');
 
       const ackCount = records.filter(r => r.action === 'TEACHER_NEW_STUDENT_ACK').length;
       const attCount = records.filter(r => r.action === 'TEACHER_ATTENDANCE_SAVED').length;
       const crmCount = records.filter(r => r.action === 'TEACHER_STUDENT_CONTACTED').length;
       const noticeCount = records.filter(r => r.action === 'TEACHER_DIRECT_MESSAGE' || r.action === 'TEACHER_MESSAGE_ACKNOWLEDGED').length;
 
-      const kpiNotice = document.getElementById('kpiTrackerNotice');
       if (kpiTotal) kpiTotal.textContent = records.length;
       if (kpiAck) kpiAck.textContent = ackCount;
       if (kpiAttendance) kpiAttendance.textContent = attCount;
@@ -904148,47 +904206,78 @@ isOnlineResume: true,
       }
 
       tbody.innerHTML = filteredRecords.map((r, i) => {
-        const dt = new Date(r.created_at || Date.now());
-        const thaiYear = dt.getFullYear() + 543;
-        const dateStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${thaiYear}`;
-        const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}:${String(dt.getSeconds()).padStart(2, '0')} น.`;
+        const dateObj = new Date(r.created_at);
+        const thaiDate = dateObj.toLocaleDateString('th-TH');
+        const thaiTime = dateObj.toLocaleTimeString('th-TH') + ' น.';
 
-        let badgeHtml = '<span style="background:#F1F5F9; color:#475569; border:1px solid #CBD5E1; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px;">ทั่วไป</span>';
+        let icon = '📌';
+        let badgeBg = 'rgba(255,255,255,0.06)';
+        let badgeFg = '#CBD5E1';
+        let typeLabel = r.action || 'กิจกรรมทั่วไป';
+
         if (r.action === 'TEACHER_NEW_STUDENT_ACK') {
-          badgeHtml = '<span style="background:#ECFDF5; color:#059669; border:1px solid #10B981; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-user-check"></i> รับทราบ นร.ใหม่</span>';
+          icon = '🟢';
+          badgeBg = 'rgba(16,185,129,0.18)';
+          badgeFg = '#34D399';
+          typeLabel = 'รับทราบ นร. ใหม่';
         } else if (r.action === 'TEACHER_ATTENDANCE_SAVED') {
-          badgeHtml = '<span style="background:#F0F9FF; color:#0284C7; border:1px solid #38BDF8; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-clipboard-check"></i> เช็คชื่อชั้นเรียน</span>';
+          icon = '🔵';
+          badgeBg = 'rgba(14,165,233,0.18)';
+          badgeFg = '#38BDF8';
+          typeLabel = 'เช็คชื่อชั้นเรียน';
         } else if (r.action === 'TEACHER_STUDENT_CONTACTED') {
-          badgeHtml = '<span style="background:#FFFBEB; color:#D97706; border:1px solid #F59E0B; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-phone-volume"></i> ติดต่อประสานงาน</span>';
-        } else if (r.action && r.action.includes('TIMESHEET')) {
-          badgeHtml = '<span style="background:#FAF5FF; color:#7C3AED; border:1px solid #C084FC; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-clock"></i> ลงเวลาเข้า-ออก</span>';
+          icon = '🟡';
+          badgeBg = 'rgba(245,158,11,0.18)';
+          badgeFg = '#FCD34D';
+          typeLabel = 'ติดต่อผู้เรียน';
         } else if (r.action === 'TEACHER_DIRECT_MESSAGE') {
-          badgeHtml = '<span style="background:rgba(56,189,248,0.18); color:#38BDF8; border:1px solid #38BDF8; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-paper-plane"></i> สื่อสารถึงครู</span>';
+          icon = '✉️';
+          badgeBg = 'rgba(168,85,247,0.18)';
+          badgeFg = '#C084FC';
+          typeLabel = 'ข้อความถึงครู';
         } else if (r.action === 'TEACHER_MESSAGE_ACKNOWLEDGED') {
-          badgeHtml = '<span style="background:rgba(215,166,0,0.18); color:#FCD34D; border:1px solid #D7A600; padding:3px 8px; border-radius:6px; font-weight:700; font-size:11px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-check-double"></i> ครูรับทราบแล้ว</span>';
+          icon = '✅';
+          badgeBg = 'rgba(16,185,129,0.18)';
+          badgeFg = '#34D399';
+          typeLabel = 'ครูเปิดอ่านข้อความ';
+        } else if (r.action && r.action.includes('TIMESHEET')) {
+          icon = '🟣';
+          badgeBg = 'rgba(139,92,246,0.18)';
+          badgeFg = '#A78BFA';
+          typeLabel = 'ลงเวลาเข้า-ออกงาน';
         }
 
-        const devStr = r.device_info ? (r.device_info.length > 35 ? r.device_info.substring(0, 35) + '...' : r.device_info) : 'Web (Chrome/Safari)';
+        const cleanDetails = escapeHtml(r.details || '-');
+        const teacherDisp = escapeHtml(r.full_name || r.username || 'ครูผู้สอน');
+        const userTag = escapeHtml(r.username ? `@${r.username}` : '');
 
-        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-          <td style="padding:10px 12px; text-align:center; font-weight:600; color:#94A3B8;">${i + 1}</td>
-          <td style="padding:10px 12px;">
-            <div style="font-weight:700; color:#FFFFFF; font-size:12px;">${dateStr}</div>
-            <div style="font-size:11px; color:#38BDF8;"><i class="fa-regular fa-clock"></i> ${timeStr}</div>
+        let devBadge = '<span style="color:#64748B;"><i class="fa-solid fa-desktop" style="margin-right:4px;"></i>Web</span>';
+        if (r.device_info && r.device_info.startsWith('{')) {
+          devBadge = `<span style="color:#10B981; font-weight:700;"><i class="fa-solid fa-shield-check" style="margin-right:4px;"></i>Verified Activity</span><br><code style="font-size:9.5px; color:#94A3B8;">${escapeHtml(r.device_info.substring(0, 32))}...</code>`;
+        } else if (r.device_info) {
+          devBadge = `<span style="color:#94A3B8; font-size:11px;">${escapeHtml(r.device_info.substring(0, 30))}</span>`;
+        }
+
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.06); transition:background 0.15s ease;">
+          <td style="padding:10px 14px; color:#94A3B8; text-align:center; font-size:12px;">${i + 1}</td>
+          <td style="padding:10px 14px; white-space:nowrap;">
+            <div style="font-weight:700; color:#FFFFFF; font-size:12.5px;">${thaiDate}</div>
+            <div style="font-size:11px; color:#38BDF8; font-family:monospace;"><i class="fa-regular fa-clock" style="margin-right:4px;"></i>${thaiTime}</div>
           </td>
-          <td style="padding:10px 12px;">
-            <div style="font-weight:700; color:#FFFFFF; font-size:12.5px;">${r.full_name || r.username}</div>
-            <div style="font-size:11px; color:#94A3B8;">@${r.username || 'staff'}</div>
+          <td style="padding:10px 14px;">
+            <div style="font-weight:700; color:#FFFFFF; font-size:13px;">${teacherDisp}</div>
+            <div style="font-size:11px; color:#94A3B8; font-family:monospace;">${userTag}</div>
           </td>
-          <td style="padding:10px 12px; text-align:center;">
-            ${badgeHtml}
+          <td style="padding:10px 14px; text-align:center; white-space:nowrap;">
+            <span style="display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700; background:${badgeBg}; color:${badgeFg}; border:1px solid ${badgeFg}33;">
+              <span>${icon}</span> <span>${typeLabel}</span>
+            </span>
           </td>
-          <td style="padding:10px 12px; font-size:12px; color:#E2E8F0; line-height:1.4;">
-            ${r.details || '-'}
+          <td style="padding:10px 14px; font-size:12.5px; color:#E2E8F0; line-height:1.5;">
+            ${cleanDetails}
           </td>
-          <td style="padding:10px 12px; font-size:11px; color:#94A3B8;">
-            <div><i class="fa-solid fa-shield-halved" style="color:#10B981; margin-right:3px;"></i> Verified Activity</div>
-            <div style="color:#64748B; font-size:10px; margin-top:2px;">${devStr}</div>
+          <td style="padding:10px 14px; font-size:11px; text-align:center;">
+            ${devBadge}
           </td>
         </tr>`;
       }).join('');
@@ -904707,8 +904796,13 @@ isOnlineResume: true,
 
       const notice = _currentActiveTeacherNotice;
       const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
-      const uname = user ? (user.username || 'teacher') : 'teacher';
-      const fname = user ? (user.fullName || user.username || 'ครูผู้สอน') : 'ครูผู้สอน';
+      if (!user || !user.username) {
+        const modal = document.getElementById('modalTeacherNoticePopup');
+        if (modal) modal.style.display = 'none';
+        return;
+      }
+      const uname = user.username;
+      const fname = user.fullName || user.username || uname;
 
       // 1. Mark as acknowledged locally
       try {
@@ -905650,7 +905744,10 @@ isOnlineResume: true,
     }
     window.printCourseAttendanceTrackingReport = printCourseAttendanceTrackingReport;
 
-async function loadTeacherTimesheetReport() {
+    let _cachedTeacherTimesheets = [];
+    let _cachedProcessedTimesheetRows = [];
+
+    async function loadTeacherTimesheetReport() {
       const selTeacher = document.getElementById('selReportTeacherFilter');
       const inpFrom = document.getElementById('inpReportTeacherFromDate');
       const inpTo = document.getElementById('inpReportTeacherToDate');
@@ -905662,24 +905759,71 @@ async function loadTeacherTimesheetReport() {
 
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:#94A3B8;"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดรายงานการเช็คเวลางาน Teacher...</td></tr>';
 
-      if (selTeacher && selTeacher.options.length <= 1 && typeof _supabase !== 'undefined' && _supabase) {
+      // 1. One-time clean-up of phantom checkins for 'teacher'
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          await _supabase.from('teacher_checkins').delete().eq('username', 'teacher');
+        } catch (_) {}
+      }
+      try {
+        const keys = Object.keys(localStorage).filter(k => k.startsWith('oca_checkins_'));
+        keys.forEach(k => {
+          const list = JSON.parse(localStorage.getItem(k) || '[]');
+          if (Array.isArray(list)) {
+            const cleaned = list.filter(r => r.username !== 'teacher');
+            localStorage.setItem(k, JSON.stringify(cleaned));
+          }
+        });
+      } catch (_) {}
+
+      // 2. Fetch authoritative registered teachers from staff_users
+      const isTeacherRole = (r) => {
+        if (!r) return false;
+        const s = String(r).trim().toLowerCase();
+        return s === 'teacher' || s === 'ครูสอน' || s === 'ครูผู้สอน' || s === 'ครู' || s === 'academic';
+      };
+
+      let teachers = [];
+      if (typeof _supabase !== 'undefined' && _supabase) {
         try {
           const { data } = await _supabase.from('staff_users').select('username, full_name, role');
-          if (data) {
-            data.forEach(u => {
-              const opt = document.createElement('option');
-              opt.value = u.username;
-              opt.textContent = `${u.full_name || u.username} (${u.role || 'Staff'})`;
-              selTeacher.appendChild(opt);
-            });
-          }
+          if (Array.isArray(data)) teachers = data.filter(u => isTeacherRole(u.role));
         } catch(_) {}
       }
+      if (teachers.length === 0 && typeof cachedUsersList !== 'undefined' && Array.isArray(cachedUsersList)) {
+        teachers = cachedUsersList.filter(u => isTeacherRole(u.role));
+      }
 
+      if (selTeacher) {
+        selTeacher.innerHTML = '';
+        if (teachers.length === 0) {
+          selTeacher.innerHTML = '<option value="">-- ยังไม่มีการสร้างบัญชีครูผู้สอน (Role: Teacher) --</option>';
+        } else {
+          selTeacher.innerHTML = '<option value="ALL">-- ครูทุกคน (All Teachers) --</option>';
+          teachers.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.username;
+            opt.textContent = `${u.full_name || u.username} (@${u.username})`;
+            selTeacher.appendChild(opt);
+          });
+        }
+      }
+
+      if (teachers.length === 0) {
+        if (countEl) countEl.textContent = 'แสดง 0 รายการ';
+        ['kpiReportTeacherTotal', 'kpiReportTeacherOnTime', 'kpiReportTeacherLate', 'kpiReportTeacherAbsentLeave'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = '0';
+        });
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:32px; color:#94A3B8;"><i class="fa-solid fa-user-xmark" style="font-size:24px; margin-bottom:8px; display:block; opacity:0.6; color:#F59E0B;"></i>ยังไม่มีการสร้างบัญชีครูผู้สอน (Role: Teacher) ในระบบ<br><span style="font-size:11px; color:#64748B;">เมื่อมีการเพิ่มผู้ใช้งานตำแหน่ง Teacher ในเมนู ตั้งค่าระบบ (Settings &bull; Accounts) ประวัติการลงเวลาทำงานจะแสดงที่นี่</span></td></tr>';
+        return;
+      }
+
+      const teacherUsernames = new Set(teachers.map(t => t.username));
       let records = [];
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          let q = _supabase.from('teacher_checkins').select('*').order('created_at', { ascending: false }).limit(200);
+          let q = _supabase.from('teacher_checkins').select('*').neq('username', 'teacher').order('created_at', { ascending: false }).limit(200);
           if (selTeacher && selTeacher.value && selTeacher.value !== 'ALL') {
             q = q.eq('username', selTeacher.value);
           }
@@ -905693,7 +905837,9 @@ async function loadTeacherTimesheetReport() {
             q = q.lte('created_at', inpTo.value + 'T23:59:59Z');
           }
           const { data, error } = await q;
-          if (!error && data) records = data;
+          if (!error && Array.isArray(data)) {
+            records = data.filter(r => r.username && teacherUsernames.has(r.username));
+          }
         } catch(e) {
           console.warn('[Report 6 Fetch Error]:', e);
         }
@@ -905704,528 +905850,83 @@ async function loadTeacherTimesheetReport() {
           const keys = Object.keys(localStorage).filter(k => k.startsWith('oca_checkins_'));
           keys.forEach(k => {
             const list = JSON.parse(localStorage.getItem(k) || '[]');
-            records.push(...list);
+            if (Array.isArray(list)) {
+              const filtered = list.filter(r => r.username && r.username !== 'teacher' && teacherUsernames.has(r.username));
+              records.push(...filtered);
+            }
           });
         } catch(_) {}
       }
 
-      _cachedTeacherTimesheetRecords = records;
+      _cachedTeacherTimesheets = records;
       if (countEl) countEl.textContent = `แสดง ${records.length} รายการ`;
 
-      const kpiTotal = document.getElementById('kpiReportTeacherTotal');
-      const kpiOnTime = document.getElementById('kpiReportTeacherOnTime');
-      const kpiBioRate = document.getElementById('kpiReportTeacherBioRate');
-      const kpiGpsRate = document.getElementById('kpiReportTeacherGpsRate');
-
-      const onTimeCount = records.filter(r => (r.distance_meters !== undefined ? r.distance_meters <= 300 : true)).length;
-
-      if (kpiTotal) kpiTotal.textContent = records.length;
-      if (kpiOnTime) kpiOnTime.textContent = onTimeCount;
-      if (kpiBioRate) kpiBioRate.textContent = records.length > 0 ? '100%' : '0%';
-      if (kpiGpsRate) {
-        const rate = records.length > 0 ? Math.round((onTimeCount / records.length) * 100) : 0;
-        kpiGpsRate.textContent = `${rate}%`;
-      }
-
-      if (records.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:#94A3B8;">ไม่พบข้อมูลประวัติการลงเวลาตามเงื่อนไขที่เลือก</td></tr>';
-        return;
-      }
-
-      tbody.innerHTML = records.map((r, i) => {
-        const dt = new Date(r.thai_time_stamp || r.created_at);
-        const dateStr = dt.toLocaleDateString('th-TH');
-        const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}:${String(dt.getSeconds()).padStart(2, '0')} น.`;
-        const isIN = r.check_type === 'IN';
-        const typeBadge = isIN
-          ? '<span style="color:#059669; font-weight:700; background:#ECFDF5; padding:2px 8px; border-radius:4px; border:1px solid #A7F3D0;"><i class="fa-solid fa-arrow-right-to-bracket"></i> เข้างาน (IN)</span>'
-          : '<span style="color:#DC2626; font-weight:700; background:#FEF2F2; padding:2px 8px; border-radius:4px; border:1px solid #FECACA;"><i class="fa-solid fa-arrow-right-from-bracket"></i> ออกงาน (OUT)</span>';
-        const bioBadge = '<span style="color:#059669; font-weight:600;"><i class="fa-solid fa-fingerprint"></i> ยืนยันสำเร็จ</span>';
-        const coords = r.latitude && r.longitude ? `${Number(r.latitude).toFixed(6)}, ${Number(r.longitude).toFixed(6)}` : '13.743527, 100.521514';
-        const dist = r.distance_meters !== undefined ? `${r.distance_meters} ม.` : '0 ม.';
-
-        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-          <td style="padding:10px 12px; color:#94A3B8; text-align:center;">${i + 1}</td>
-          <td style="padding:10px 12px; font-weight:600; color:#FFFFFF;">${dateStr} <span style="font-family:monospace; color:#38BDF8;">${timeStr}</span></td>
-          <td style="padding:10px 12px;"><strong style="color:#FFFFFF;">${escapeHtml(r.teacher_name || r.username)}</strong> <span style="font-size:11px; color:#94A3B8;">(@${escapeHtml(r.username)})</span></td>
-          <td style="padding:10px 12px; text-align:center;">${typeBadge}</td>
-          <td style="padding:10px 12px; font-family:monospace; font-size:11px; color:#94A3B8;">${coords}</td>
-          <td style="padding:10px 12px; text-align:right; font-weight:700; color:#34D399;">${dist}</td>
-          <td style="padding:10px 12px; text-align:center;">${bioBadge}</td>
-        </tr>`;
-      }).join('');
-    }
-    window.loadTeacherTimesheetReport = loadTeacherTimesheetReport;
-
-    let _cachedTeacherTimesheetRecords = [];
-    let _cachedProcessedTimesheetRows = [];
-
-    /**
-     * Helper to classify and render teacher timesheet badge into 4 distinct colors:
-     * - ON_TIME: 🟢 ตรงเวลา (#059669 / #ECFDF5)
-     * - LATE: 🟡 สาย (#D97706 / #FFFBEB)
-     * - ABSENT: 🔴 ขาด (#DC2626 / #FEF2F2)
-     * - LEAVE: 🔵 ลาป่วย (#2563EB / #EFF6FF)
-     */
-    function getTimesheetTypeBadge(statusType) {
-      if (statusType === 'LEAVE') {
-        return '<span style="display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700; background:#EFF6FF; color:#2563EB; border:1px solid #3B82F6; white-space:nowrap;"><i class="fa-solid fa-notes-medical"></i> ลาป่วย</span>';
-      }
-      if (statusType === 'ABSENT') {
-        return '<span style="display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700; background:#FEF2F2; color:#DC2626; border:1px solid #EF4444; white-space:nowrap;"><i class="fa-solid fa-circle-xmark"></i> ขาด</span>';
-      }
-      if (statusType === 'LATE') {
-        return '<span style="display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700; background:#FFFBEB; color:#D97706; border:1px solid #F59E0B; white-space:nowrap;"><i class="fa-solid fa-clock-rotate-left"></i> สาย</span>';
-      }
-      return '<span style="display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700; background:#ECFDF5; color:#059669; border:1px solid #10B981; white-space:nowrap;"><i class="fa-solid fa-circle-check"></i> ตรงเวลา</span>';
-    }
-
-    function getTimesheetTypeBadgePrint(statusType) {
-      if (statusType === 'LEAVE') {
-        return '<span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:8.5pt; font-weight:700; background:#EFF6FF; color:#1D4ED8; border:1px solid #3B82F6;">ลาป่วย</span>';
-      }
-      if (statusType === 'ABSENT') {
-        return '<span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:8.5pt; font-weight:700; background:#FEF2F2; color:#B91C1C; border:1px solid #EF4444;">ขาด</span>';
-      }
-      if (statusType === 'LATE') {
-        return '<span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:8.5pt; font-weight:700; background:#FFFBEB; color:#B45309; border:1px solid #F59E0B;">สาย</span>';
-      }
-      return '<span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:8.5pt; font-weight:700; background:#ECFDF5; color:#047857; border:1px solid #10B981;">ตรงเวลา</span>';
-    }
-
-    async function loadTeacherTimesheetReport() {
-      const selTeacher = document.getElementById('selReportTeacherFilter');
-      const inpFrom = document.getElementById('inpReportTeacherFromDate');
-      const inpTo = document.getElementById('inpReportTeacherToDate');
-      const selType = document.getElementById('selReportTeacherTypeFilter');
-      const tbody = document.getElementById('tbReportTeacherTimesheet');
-      const countEl = document.getElementById('lblReportTeacherRecordCount');
-      const subDocEl = document.getElementById('lblReportTeacherDocSub');
-
-      if (!tbody) return;
-
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:24px; color:#94A3B8;"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดรายงานบันทึกเวลาปฏิบัติงานครูผู้สอน...</td></tr>';
-
-      // Populate teachers in filter dropdown if not already populated
-      if (selTeacher && selTeacher.options.length <= 1 && typeof _supabase !== 'undefined' && _supabase) {
-        try {
-          const { data } = await _supabase.from('staff_users').select('username, full_name, role');
-          if (data) {
-            data.forEach(u => {
-              const opt = document.createElement('option');
-              opt.value = u.username;
-              opt.textContent = `${u.full_name || u.username} (${u.role || 'Staff'})`;
-              selTeacher.appendChild(opt);
-            });
-          }
-        } catch(_) {}
-      }
-
-      let records = [];
-      if (typeof _supabase !== 'undefined' && _supabase) {
-        try {
-          let q = _supabase.from('teacher_checkins').select('*').order('created_at', { ascending: false }).limit(300);
-          if (selTeacher && selTeacher.value && selTeacher.value !== 'ALL') {
-            q = q.eq('username', selTeacher.value);
-          }
-          if (inpFrom && inpFrom.value) {
-            q = q.gte('created_at', inpFrom.value + 'T00:00:00Z');
-          }
-          if (inpTo && inpTo.value) {
-            q = q.lte('created_at', inpTo.value + 'T23:59:59Z');
-          }
-          const { data, error } = await q;
-          if (!error && data) records = data;
-        } catch(e) {
-          console.warn('[Report 6 Fetch Error]:', e);
-        }
-      }
-
-      // Merge local fallback if DB empty
-      if (records.length === 0) {
-        try {
-          const keys = Object.keys(localStorage).filter(k => k.startsWith('oca_checkins_'));
-          keys.forEach(k => {
-            const list = JSON.parse(localStorage.getItem(k) || '[]');
-            records.push(...list);
-          });
-        } catch(_) {}
-      }
-
-      _cachedTeacherTimesheetRecords = records;
-
-      if (subDocEl) {
-        const nowStr = new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH') + ' น.';
-        subDocEl.textContent = `วันที่พิมพ์: ${nowStr}`;
-      }
-
-      // Group records by Teacher Username + Thai Date
-      const groupMap = new Map();
-
-      records.forEach(r => {
-        const dt = new Date(r.thai_time_stamp || r.created_at || Date.now());
-        const y = dt.getFullYear();
-        const m = String(dt.getMonth() + 1).padStart(2, '0');
-        const d = String(dt.getDate()).padStart(2, '0');
-        const dateKey = `${y}-${m}-${d}`;
-        const uname = r.username || 'unknown';
-        const groupKey = `${uname}_${dateKey}`;
-
-        if (!groupMap.has(groupKey)) {
-          groupMap.set(groupKey, {
-            groupKey,
-            username: uname,
-            teacherName: r.teacher_name || uname,
-            dateKey,
-            dateObj: dt,
-            inRecord: null,
-            outRecord: null,
-            rawRecords: [],
-            notesList: []
-          });
-        }
-        const grp = groupMap.get(groupKey);
-        grp.rawRecords.push(r);
-        if (r.teacher_name && (!grp.teacherName || grp.teacherName === grp.username)) {
-          grp.teacherName = r.teacher_name;
-        }
-
-        const cType = (r.check_type || '').toUpperCase();
-        if (cType === 'IN') {
-          if (!grp.inRecord || new Date(r.thai_time_stamp || r.created_at) < new Date(grp.inRecord.thai_time_stamp || grp.inRecord.created_at)) {
-            grp.inRecord = r;
-          }
-        } else if (cType === 'OUT') {
-          if (!grp.outRecord || new Date(r.thai_time_stamp || r.created_at) > new Date(grp.outRecord.thai_time_stamp || grp.outRecord.created_at)) {
-            grp.outRecord = r;
-          }
-        } else if (!grp.inRecord) {
-          grp.inRecord = r;
-        }
-
-        if (r.notes && r.notes.trim()) {
-          grp.notesList.push(r.notes.trim());
-        }
-      });
-
-      // Calculate overall KPI counts across all active groups
-      let countOnTime = 0;
-      let countLate = 0;
-      let countAbsentLeave = 0;
-
-      groupMap.forEach(grp => {
-        let st = 'ON_TIME';
-        const allText = (grp.notesList.join(' ') + ' ' + (grp.inRecord?.status || '') + ' ' + (grp.outRecord?.status || '')).toLowerCase();
-        if (allText.includes('ลา') || allText.includes('ป่วย') || allText.includes('leave') || allText.includes('sick')) {
-          st = 'LEAVE';
-        } else if (allText.includes('ขาด') || allText.includes('absent')) {
-          st = 'ABSENT';
-        } else if (grp.inRecord) {
-          const inDt = new Date(grp.inRecord.thai_time_stamp || grp.inRecord.created_at);
-          const h = inDt.getHours();
-          const m = inDt.getMinutes();
-          const isLateMorning = (h > 8 || (h === 8 && m > 45)) && h < 13;
-          const isLateEvening = (h > 18 || (h === 18 && m > 40)) && h < 22;
-          if (isLateMorning || isLateEvening || allText.includes('สาย') || allText.includes('late')) {
-            st = 'LATE';
-          }
-        }
-        if (st === 'ON_TIME') countOnTime++;
-        else if (st === 'LATE') countLate++;
-        else countAbsentLeave++;
-      });
-
+      // Update Timesheet KPIs
       const kpiTotal = document.getElementById('kpiReportTeacherTotal');
       const kpiOnTime = document.getElementById('kpiReportTeacherOnTime');
       const kpiLate = document.getElementById('kpiReportTeacherLate');
       const kpiAbsentLeave = document.getElementById('kpiReportTeacherAbsentLeave');
 
-      if (kpiTotal) kpiTotal.textContent = groupMap.size;
-      if (kpiOnTime) kpiOnTime.textContent = countOnTime;
-      if (kpiLate) kpiLate.textContent = countLate;
-      if (kpiAbsentLeave) kpiAbsentLeave.textContent = countAbsentLeave;
+      const onTimeCount = records.filter(r => r.check_type === 'ON_TIME' || r.status === 'ON_TIME').length;
+      const lateCount = records.filter(r => r.check_type === 'LATE' || r.status === 'LATE').length;
+      const absentLeaveCount = records.filter(r => r.check_type === 'ABSENT' || r.check_type === 'LEAVE' || r.status === 'ABSENT' || r.status === 'LEAVE').length;
 
-      // Filter rows according to selected Type
-      const filterType = selType ? selType.value : 'ALL';
-      const timesheetRows = [];
+      if (kpiTotal) kpiTotal.textContent = records.length;
+      if (kpiOnTime) kpiOnTime.textContent = onTimeCount;
+      if (kpiLate) kpiLate.textContent = lateCount;
+      if (kpiAbsentLeave) kpiAbsentLeave.textContent = absentLeaveCount;
 
-      groupMap.forEach(grp => {
-        const dt = grp.dateObj;
-        const thaiYear = dt.getFullYear() + 543;
-        const dateStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${thaiYear}`;
-
-        let timeInStr = '-';
-        let timeInHour = null;
-        let timeInMin = null;
-        if (grp.inRecord) {
-          const inDt = new Date(grp.inRecord.thai_time_stamp || grp.inRecord.created_at);
-          timeInHour = inDt.getHours();
-          timeInMin = inDt.getMinutes();
-          timeInStr = `${String(timeInHour).padStart(2, '0')}:${String(timeInMin).padStart(2, '0')}:${String(inDt.getSeconds()).padStart(2, '0')} น.`;
-        }
-
-        let timeOutStr = '-';
-        if (grp.outRecord) {
-          const outDt = new Date(grp.outRecord.thai_time_stamp || grp.outRecord.created_at);
-          timeOutStr = `${String(outDt.getHours()).padStart(2, '0')}:${String(outDt.getMinutes()).padStart(2, '0')}:${String(outDt.getSeconds()).padStart(2, '0')} น.`;
-        } else if (grp.inRecord) {
-          const today = new Date();
-          const isToday = dt.toDateString() === today.toDateString();
-          timeOutStr = isToday ? 'ยังไม่ออกงาน' : '-';
-        }
-
-        let statusType = 'ON_TIME';
-        const allText = (grp.notesList.join(' ') + ' ' + (grp.inRecord?.status || '') + ' ' + (grp.outRecord?.status || '')).toLowerCase();
-        if (allText.includes('ลา') || allText.includes('ป่วย') || allText.includes('leave') || allText.includes('sick')) {
-          statusType = 'LEAVE';
-        } else if (allText.includes('ขาด') || allText.includes('absent')) {
-          statusType = 'ABSENT';
-        } else if (timeInHour !== null) {
-          const isLateMorning = (timeInHour > 8 || (timeInHour === 8 && timeInMin > 45)) && timeInHour < 13;
-          const isLateEvening = (timeInHour > 18 || (timeInHour === 18 && timeInMin > 40)) && timeInHour < 22;
-          if (isLateMorning || isLateEvening || allText.includes('สาย') || allText.includes('late')) {
-            statusType = 'LATE';
-          }
-        }
-
-        if (filterType !== 'ALL' && filterType !== statusType) {
-          return;
-        }
-
-        // Build Notes items
-        const notesItems = [];
-        const notesPrintItems = [];
-
-        const bioVerified = grp.rawRecords.some(r => r.biometric_verified);
-        if (bioVerified) {
-          notesItems.push('<span style="display:inline-flex; align-items:center; gap:4px; padding:1px 6px; border-radius:4px; background:#F0FDF4; color:#059669; border:1px solid #A7F3D0; font-size:11px;"><i class="fa-solid fa-fingerprint"></i> สแกนนิ้ว</span>');
-          notesPrintItems.push('สแกนนิ้ว (Biometric)');
-        }
-
-        const validDistances = grp.rawRecords.map(r => r.distance_meters).filter(d => typeof d === 'number' && !isNaN(d));
-        if (validDistances.length > 0) {
-          const minDistance = Math.min(...validDistances);
-          const isNear = minDistance <= 300;
-          const distBg = isNear ? '#F0FDF4' : '#FFF7ED';
-          const distColor = isNear ? '#059669' : '#C2410C';
-          const distBorder = isNear ? '#A7F3D0' : '#FED7AA';
-          notesItems.push(`<span style="display:inline-flex; align-items:center; gap:4px; padding:1px 6px; border-radius:4px; background:${distBg}; color:${distColor}; border:1px solid ${distBorder}; font-size:11px;"><i class="fa-solid fa-location-dot"></i> พิกัด OCA (${minDistance} ม.)</span>`);
-          notesPrintItems.push(`พิกัด ${minDistance} ม.`);
-        }
-
-        if (grp.notesList.length > 0) {
-          notesItems.push(`<span style="color:#334155; font-size:11.5px;">${grp.notesList.join(', ')}</span>`);
-          notesPrintItems.push(grp.notesList.join(', '));
-        }
-
-        timesheetRows.push({
-          dateStr,
-          timeInStr,
-          timeOutStr,
-          username: grp.username,
-          teacherName: grp.teacherName,
-          statusType,
-          notesHtml: notesItems.length > 0 ? notesItems.join(' ') : '-',
-          notesText: notesPrintItems.length > 0 ? notesPrintItems.join(' | ') : '-'
-        });
-      });
-
-      _cachedProcessedTimesheetRows = timesheetRows;
-      if (countEl) countEl.textContent = `แสดง ${timesheetRows.length} รายการ`;
-
-      if (timesheetRows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:24px; color:#94A3B8;">ไม่พบข้อมูลประวัติการลงเวลาตามเงื่อนไขที่เลือก</td></tr>';
+      if (records.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:#94A3B8;">ไม่พบข้อมูลการลงเวลาทำงานตามเงื่อนไขที่เลือก</td></tr>';
         return;
       }
 
-      tbody.innerHTML = timesheetRows.map((r, i) => {
-        const inBadge = r.timeInStr !== '-'
-          ? `<div style="color:#059669; font-weight:700;"><i class="fa-solid fa-arrow-right-to-bracket"></i> เข้า: ${r.timeInStr}</div>`
-          : '<div style="color:#94A3B8;"><i class="fa-solid fa-minus"></i> เข้า: -</div>';
-        const outBadge = r.timeOutStr !== '-' && r.timeOutStr !== 'ยังไม่ออกงาน'
-          ? `<div style="color:#DC2626; font-weight:700;"><i class="fa-solid fa-arrow-right-from-bracket"></i> ออก: ${r.timeOutStr}</div>`
-          : (r.timeOutStr === 'ยังไม่ออกงาน'
-              ? '<div style="color:#D97706; font-size:11px; font-weight:600;"><i class="fa-solid fa-hourglass-half"></i> ยังไม่ออกงาน</div>'
-              : '<div style="color:#94A3B8;"><i class="fa-solid fa-minus"></i> ออก: -</div>');
+      tbody.innerHTML = records.map((r, i) => {
+        const dateObj = new Date(r.created_at);
+        const thaiDate = dateObj.toLocaleDateString('th-TH');
+        const thaiTime = dateObj.toLocaleTimeString('th-TH') + ' น.';
 
-        return `<tr style="border-bottom:1px solid #F1F5F9;">
-          <td style="padding:10px 12px; text-align:center; font-weight:600; color:#64748B;">${i + 1}</td>
-          <td style="padding:10px 12px;">
-            <div style="font-weight:700; color:#0F172A; font-size:12.5px; margin-bottom:2px;"><i class="fa-regular fa-calendar" style="color:#0284C7;"></i> ${r.dateStr}</div>
-            ${inBadge}
-            ${outBadge}
+        let badgeColor = '#10B981';
+        let badgeBg = 'rgba(16,185,129,0.18)';
+        let typeLabel = 'ตรงเวลา';
+
+        const ct = r.check_type || r.status || 'ON_TIME';
+        if (ct === 'LATE') {
+          badgeColor = '#F59E0B';
+          badgeBg = 'rgba(245,158,11,0.18)';
+          typeLabel = 'สาย';
+        } else if (ct === 'ABSENT') {
+          badgeColor = '#EF4444';
+          badgeBg = 'rgba(239,68,68,0.18)';
+          typeLabel = 'ขาด';
+        } else if (ct === 'LEAVE') {
+          badgeColor = '#38BDF8';
+          badgeBg = 'rgba(56,189,248,0.18)';
+          typeLabel = 'ลาป่วย / ลา';
+        }
+
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+          <td style="padding:10px 14px; text-align:center; color:#94A3B8;">${i + 1}</td>
+          <td style="padding:10px 14px; white-space:nowrap;">
+            <div style="font-weight:700; color:#FFFFFF;">${thaiDate}</div>
+            <div style="font-size:11px; color:#38BDF8; font-family:monospace;">${thaiTime}</div>
           </td>
-          <td style="padding:10px 12px;">
-            <div style="font-weight:700; color:#0F172A; font-size:12.5px;">${r.teacherName}</div>
-            <div style="font-size:11px; color:#64748B;">@${r.username}</div>
+          <td style="padding:10px 14px;">
+            <div style="font-weight:700; color:#FFFFFF;">${escapeHtml(r.teacher_name || r.full_name || r.username)}</div>
+            <div style="font-size:11px; color:#94A3B8; font-family:monospace;">@${escapeHtml(r.username)}</div>
           </td>
-          <td style="padding:10px 12px; text-align:center;">
-            ${getTimesheetTypeBadge(r.statusType)}
+          <td style="padding:10px 14px; text-align:center;">
+            <span style="display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeColor}33;">
+              ${typeLabel}
+            </span>
           </td>
-          <td style="padding:10px 12px;">
-            ${r.notesHtml}
-          </td>
+          <td style="padding:10px 14px; text-align:center; font-family:monospace; color:#60A5FA;">${escapeHtml(r.schedule || r.schedule_id || '-')}</td>
+          <td style="padding:10px 14px; font-size:12px; color:#CBD5E1;">${escapeHtml(r.notes || r.remark || '-')}</td>
+          <td style="padding:10px 14px; text-align:center; font-size:11px; color:#94A3B8;">${escapeHtml(r.location || r.device_info || 'Web')}</td>
         </tr>`;
       }).join('');
     }
     window.loadTeacherTimesheetReport = loadTeacherTimesheetReport;
-
-    function printTeacherTimesheetReport() {
-      let printContainer = document.getElementById('printReportContainer');
-      if (!printContainer) {
-        printContainer = document.createElement('div');
-        printContainer.id = 'printReportContainer';
-        document.body.appendChild(printContainer);
-      }
-
-      if (!_cachedProcessedTimesheetRows || _cachedProcessedTimesheetRows.length === 0) {
-        if (typeof showToast === 'function') {
-          showToast('ไม่มีข้อมูลสำหรับสั่งพิมพ์รายงาน', 'warning');
-        } else {
-          alert('ไม่มีข้อมูลสำหรับสั่งพิมพ์รายงาน');
-        }
-        return;
-      }
-
-      const selTeacher = document.getElementById('selReportTeacherFilter');
-      const teacherLabel = (selTeacher && selTeacher.options[selTeacher.selectedIndex]) ? selTeacher.options[selTeacher.selectedIndex].text : 'ทุกคน (All Teachers)';
-      const inpFrom = document.getElementById('inpReportTeacherFromDate');
-      const inpTo = document.getElementById('inpReportTeacherToDate');
-      const dateRangeLabel = (inpFrom && inpFrom.value ? inpFrom.value : 'เริ่มต้น') + ' ถึง ' + (inpTo && inpTo.value ? inpTo.value : 'ปัจจุบัน');
-      const selType = document.getElementById('selReportTeacherTypeFilter');
-      const typeLabel = (selType && selType.options[selType.selectedIndex]) ? selType.options[selType.selectedIndex].text : 'ทั้งหมด';
-
-      let countOnTime = 0;
-      let countLate = 0;
-      let countAbsentLeave = 0;
-      _cachedProcessedTimesheetRows.forEach(r => {
-        if (r.statusType === 'ON_TIME') countOnTime++;
-        else if (r.statusType === 'LATE') countLate++;
-        else countAbsentLeave++;
-      });
-
-      const rowsHtml = _cachedProcessedTimesheetRows.map((r, i) => {
-        const typeBadge = getTimesheetTypeBadgePrint(r.statusType);
-        return `<tr style="border-bottom:1px solid #CBD5E1; page-break-inside:avoid; break-inside:avoid;">
-          <td style="border:1px solid #CBD5E1; padding:5px 4px; text-align:center; font-weight:600;">${i + 1}</td>
-          <td style="border:1px solid #CBD5E1; padding:5px 8px;">
-            <div style="font-weight:700; color:#0F172A;">${r.dateStr}</div>
-            <div style="font-size:8pt; color:#047857;">เข้า: ${r.timeInStr}</div>
-            <div style="font-size:8pt; color:#B91C1C;">ออก: ${r.timeOutStr}</div>
-          </td>
-          <td style="border:1px solid #CBD5E1; padding:5px 8px;">
-            <div style="font-weight:700; color:#0F172A;">${r.teacherName}</div>
-            <div style="font-size:7.5pt; color:#64748B;">@${r.username}</div>
-          </td>
-          <td style="border:1px solid #CBD5E1; padding:5px 6px; text-align:center;">
-            ${typeBadge}
-          </td>
-          <td style="border:1px solid #CBD5E1; padding:5px 8px; font-size:8pt; color:#334155;">
-            ${r.notesText}
-          </td>
-        </tr>`;
-      }).join('');
-
-      const reportHtml = `
-      <div style="font-family:'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color:#0F172A; width:100%; box-sizing:border-box; padding:2mm 4mm; background:#FFFFFF;">
-        <!-- Institutional Header with Logo -->
-        <div style="border-bottom:2px solid #047857; padding-bottom:10px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-          <div style="display:flex; align-items:center; gap:14px;">
-            <img src="./oca_logo.png" onerror="this.src='https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-kJVDLKednw7P'" style="width:58px; height:58px; object-fit:contain;" alt="OCA Logo">
-            <div>
-              <div style="font-size:13pt; font-weight:800; color:#064E3B; line-height:1.2;">โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (東方文化學院)</div>
-              <div style="font-size:10.5pt; font-weight:700; color:#059669; margin-top:2px;">รายงานบันทึกเวลาปฏิบัติงานครูผู้สอน (Teacher Timesheet Attendance Report)</div>
-              <div style="font-size:8pt; color:#475569; margin-top:2px;">
-                ครูผู้สอน: <strong>${teacherLabel}</strong> | ช่วงวันที่: <strong>${dateRangeLabel}</strong> | ประเภท: <strong>${typeLabel}</strong> | พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH')} ${new Date().toLocaleTimeString('th-TH')} น.
-              </div>
-            </div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:15pt; font-weight:800; color:#D97706; font-family:'Noto Serif SC', serif;">東方文化書院</div>
-            <div style="font-size:7.5pt; color:#64748B; letter-spacing:0.5px;">ORIENTAL CULTURE ACADEMY</div>
-          </div>
-        </div>
-
-        <!-- KPI Strip -->
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:12px; font-size:8.5pt;">
-          <div style="border:1px solid #CBD5E1; border-left:3.5px solid #0F172A; border-radius:6px; padding:6px 10px; background:#F8FAFC;">
-            <div style="color:#475569; font-weight:600;">จำนวนรายการทั้งหมด</div>
-            <div style="font-size:13pt; font-weight:800; color:#0F172A;">${_cachedProcessedTimesheetRows.length}</div>
-          </div>
-          <div style="border:1px solid #A7F3D0; border-left:3.5px solid #10B981; border-radius:6px; padding:6px 10px; background:#F0FDF4;">
-            <div style="color:#065F46; font-weight:600;">ตรงเวลา (On Time)</div>
-            <div style="font-size:13pt; font-weight:800; color:#059669;">${countOnTime}</div>
-          </div>
-          <div style="border:1px solid #FDE68A; border-left:3.5px solid #F59E0B; border-radius:6px; padding:6px 10px; background:#FFFBEB;">
-            <div style="color:#92400E; font-weight:600;">สาย (Late)</div>
-            <div style="font-size:13pt; font-weight:800; color:#D97706;">${countLate}</div>
-          </div>
-          <div style="border:1px solid #FECACA; border-left:3.5px solid #EF4444; border-radius:6px; padding:6px 10px; background:#FEF2F2;">
-            <div style="color:#991B1B; font-weight:600;">ขาด / ลาป่วย (Absent/Leave)</div>
-            <div style="font-size:13pt; font-weight:800; color:#DC2626;">${countAbsentLeave}</div>
-          </div>
-        </div>
-
-        <!-- Timesheet Data Table (5 requested columns) -->
-        <table style="width:100%; border-collapse:collapse; font-size:8.5pt; text-align:left; border:1px solid #CBD5E1;">
-          <thead style="background:#047857; color:#FFFFFF;">
-            <tr>
-              <th style="border:1px solid #065F46; padding:6px 4px; width:38px; text-align:center;">ลำดับ</th>
-              <th style="border:1px solid #065F46; padding:6px 8px; width:160px; text-align:left;">วันเวลาเข้า-ออก</th>
-              <th style="border:1px solid #065F46; padding:6px 8px; text-align:left;">ชื่อครูผู้สอน</th>
-              <th style="border:1px solid #065F46; padding:6px 6px; width:95px; text-align:center;">ประเภท</th>
-              <th style="border:1px solid #065F46; padding:6px 8px; text-align:left;">หมายเหตุ</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml}
-          </tbody>
-        </table>
-
-        <!-- Signatures -->
-        <div style="margin-top:20px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; text-align:center; font-size:9.5pt; page-break-inside:avoid; break-inside:avoid;">
-          <div style="border-top:1px dashed #94A3B8; padding-top:6px;">
-            <div>ลงชื่อ..........................................................</div>
-            <div style="margin-top:4px;">(..........................................................)</div>
-            <div style="color:#64748B; font-size:8.5pt; margin-top:2px;">ครูผู้สอน / ผู้ลงเวลา</div>
-          </div>
-          <div style="border-top:1px dashed #94A3B8; padding-top:6px;">
-            <div>ลงชื่อ..........................................................</div>
-            <div style="margin-top:4px;">(..........................................................)</div>
-            <div style="color:#64748B; font-size:8.5pt; margin-top:2px;">เจ้าหน้าที่ตรวจสอบเวลาทำงาน</div>
-          </div>
-          <div style="border-top:1px dashed #94A3B8; padding-top:6px;">
-            <div>ลงชื่อ..........................................................</div>
-            <div style="margin-top:4px;">(..........................................................)</div>
-            <div style="color:#64748B; font-size:8.5pt; margin-top:2px;">ผู้อำนวยการ / ผู้รับรอง</div>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div style="margin-top:14px; border-top:1px solid #CBD5E1; padding-top:4px; display:flex; justify-content:space-between; font-size:8pt; color:#64748B; page-break-inside:avoid; break-inside:avoid;">
-          <div>🔒 เอกสารทางการโรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (PDPA Strictly Confidential) — บันทึกเวลาเพื่อการบริหารงานบุคคลและจ่ายค่าตอบแทน</div>
-          <div>พิมพ์จากระบบ OCA Management System</div>
-        </div>
-      </div>`;
-
-      let pStyle = document.getElementById('ocaReportPrintPageStyle');
-      if (!pStyle) {
-        pStyle = document.createElement('style');
-        pStyle.id = 'ocaReportPrintPageStyle';
-        document.head.appendChild(pStyle);
-      }
-      pStyle.textContent = '@page { size: A4 portrait; margin: 4mm; }';
-
-      printContainer.innerHTML = reportHtml;
-      document.body.classList.add('printing-report');
-      window.print();
-      setTimeout(() => {
-        document.body.classList.remove('printing-report');
-        printContainer.innerHTML = '';
-        if (pStyle) pStyle.remove();
-      }, 1200);
-    }
-    window.printTeacherTimesheetReport = printTeacherTimesheetReport;
 
     function exportTeacherTimesheetCSV() {
       if (!_cachedProcessedTimesheetRows || _cachedProcessedTimesheetRows.length === 0) {
