@@ -121134,72 +121134,28 @@ body.printing-report #printReportContainer {
 
 
       #oca-app-root #tblStudentCourseHist,
-      #oca-app-root #tblSrStudentReceiptHist,
-      #oca-app-root #tblReceiptsHistory,
+      #oca-app-root #tblSrStudentReceiptHist {
+        min-width: 750px !important;
+      }
+      #oca-app-root #tblReceiptsHistory {
+        min-width: 1200px !important;
+        width: 100% !important;
+      }
+      #oca-app-root #tblReceiptsHistory th,
+      #oca-app-root #tblReceiptsHistory td {
+        white-space: nowrap !important;
+      }
       #oca-app-root #tblClaimHistoryLogs {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        min-width: 640px !important;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        min-width: 1150px !important;
+        width: 100% !important;
+      }
+      #oca-app-root #inpRcptHistSearch,
+      #oca-app-root #inpCardStudentSearch,
+      #oca-app-root #txtClaimHistorySearch,
+      #oca-app-root #inpShippingSearch,
+      #oca-app-root #inpRcptStudentSearch {
+        padding-left: 44px !important;
+        padding-right: 32px !important;
       }
 
 
@@ -202467,7 +202423,7 @@ body.printing-report #printReportContainer {
 
 
 
-                    <input type="text" id="inpRcptHistSearch" class="oca-input" style="padding-left:38px !important; padding-right:32px; height:38px; font-size:13px;" placeholder="ค้นหาเลขบัตร, เลขนักศึกษา, ชื่อ..." oninput="filterReceiptHistoryTable()">
+                    <input type="text" id="inpRcptHistSearch" class="oca-input" style="padding-left:44px !important; padding-right:32px; height:38px; font-size:13px;" placeholder="ค้นหาเลขบัตร, เลขนักศึกษา, ชื่อ..." oninput="filterReceiptHistoryTable()">
 
 
 
@@ -321822,6 +321778,35 @@ body.printing-report #printReportContainer {
 
 
 
+    // Global Name and Term Normalization Helpers
+    function formatStudentNameWithPrefix(prefix, fullName) {
+      prefix = (prefix || '').trim();
+      fullName = (fullName || '').trim();
+      if (!fullName) return prefix || '-';
+      if (!prefix) return fullName;
+      const pClean = prefix.replace(/[\s.]+/g, '');
+      const fnClean = fullName.replace(/[\s.]+/g, '');
+      if (fnClean.startsWith(pClean)) {
+        return fullName;
+      }
+      const knownPrefixes = ['ด.ช.', 'ด.ญ.', 'ด.ช', 'ด.ญ', 'นาย', 'นางสาว', 'นาง', 'น.ส.', 'น.ส', 'Mr.', 'Mrs.', 'Ms.'];
+      for (const kp of knownPrefixes) {
+        if (fullName.startsWith(kp)) {
+          return fullName;
+        }
+      }
+      return prefix + ' ' + fullName;
+    }
+
+    function cleanTermNumber(termVal) {
+      if (termVal === undefined || termVal === null || termVal === '') return '';
+      const s = String(termVal).trim();
+      if (s.length > 1 && parseInt(s, 10) > 5) {
+        return s.charAt(0);
+      }
+      return s;
+    }
+
     // Global Unhandled Rejection Boundary
 
 
@@ -331744,7 +331729,14 @@ body.printing-report #printReportContainer {
 
 
 
-      copy.term = r.term !== undefined ? r.term : 1;
+      let rawT = r.term !== undefined ? String(r.term).trim() : '';
+      if (!rawT && r.receipt_no && String(r.receipt_no).length >= 3) {
+        rawT = String(r.receipt_no).charAt(2);
+      }
+      if (rawT.length > 1 && parseInt(rawT, 10) > 5) {
+        rawT = rawT.charAt(0);
+      }
+      copy.term = parseInt(rawT, 10) || 1;
 
 
 
@@ -487931,7 +487923,7 @@ if (action === 'getDashboardStats') {
 
 
 
-      if (elName) elName.textContent = ((s.prefix || '') + ' ' + (s.fullName || s.rawName || '-')).trim();
+      if (elName) elName.textContent = formatStudentNameWithPrefix(s.prefix, s.fullName || s.rawName || '-');
 
 
 
@@ -488475,7 +488467,7 @@ if (action === 'getDashboardStats') {
 
 
 
-      if (elTerm) elTerm.textContent = 'เทอม ' + toArabicDigits(s.term || '-');
+      if (elTerm) elTerm.textContent = 'เทอม ' + toArabicDigits(cleanTermNumber(s.term) || '-');
 
 
 
@@ -616912,7 +616904,7 @@ if (action === 'getDashboardStats') {
 
 
 
-          if (elName) elName.textContent = student.profile.fullName || '-';
+          if (elName) elName.textContent = formatStudentNameWithPrefix(student.profile.prefix, student.profile.fullName || '-');
 
 
 
@@ -617392,7 +617384,8 @@ if (action === 'getDashboardStats') {
 
 
 
-            elYearTerm.textContent = 'ปี ' + toArabicDigits(student.profile.latestYearBE || '-') + ' เทอม ' + toArabicDigits(student.profile.latestTerm || '-');
+            const cT = cleanTermNumber(student.profile.latestTerm);
+        elYearTerm.textContent = (student.profile.latestYearBE ? toArabicDigits(student.profile.latestYearBE) : '-') + (cT ? ('/' + toArabicDigits(cT)) : '');
 
 
 
@@ -618576,7 +618569,9 @@ if (action === 'getDashboardStats') {
 
 
 
-                const termYear = (r.term ? ('เทอม ' + toArabicDigits(r.term)) : '') + (r.yearBe || r.year_be ? ('/' + toArabicDigits(r.yearBe || r.year_be)) : '');
+                const cleanT = cleanTermNumber(r.term);
+                const yrVal = r.yearBe || r.year_be || '';
+                const termYear = (yrVal && cleanT) ? (toArabicDigits(yrVal) + '/' + toArabicDigits(cleanT)) : (yrVal ? toArabicDigits(yrVal) : (cleanT ? toArabicDigits(cleanT) : ''));
 
 
 
@@ -619778,7 +619773,7 @@ if (action === 'getDashboardStats') {
             if (txtAddr && cAddr) txtAddr.value = cAddr;
             const txtRef = document.getElementById('txtRcptPaymentRef');
             if (txtRef) {
-              txtRef.value = '[นักศึกษา: ' + student.profile.studentId + ' ' + (student.profile.prefix || '') + ' ' + student.profile.fullName + ']';
+              txtRef.value = '[นักศึกษา: ' + student.profile.studentId + ' ' + formatStudentNameWithPrefix(student.profile.prefix, student.profile.fullName || '') + ']';
             }
           }
           if (corpPending && corpPending.course) {
@@ -888906,7 +888901,9 @@ function openForgotPasswordModal() {
 
 
 
-              const termYear = (r.term ? ('เทอม ' + toArabicDigits(r.term)) : '') + (r.yearBe ? ('/' + toArabicDigits(r.yearBe)) : '');
+              const cleanT = cleanTermNumber(r.term);
+              const yrVal = r.yearBe || '';
+              const termYear = (yrVal && cleanT) ? (toArabicDigits(yrVal) + '/' + toArabicDigits(cleanT)) : (yrVal ? toArabicDigits(yrVal) : (cleanT ? toArabicDigits(cleanT) : ''));
 
 
 
