@@ -169409,6 +169409,7 @@ body.printing-report #printReportContainer {
 
 
 
+              <!-- [ANCHOR: GENERAL_FEE_SETTINGS] ตั้งค่าอัตราค่าธรรมเนียมและส่วนลดทั่วไป 5 รายการ -->
               <!-- 1. ค่าเล่าเรียน -->
               <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
@@ -189380,6 +189381,7 @@ body.printing-report #printReportContainer {
 
 
 
+                      <!-- [ANCHOR: CASHIER_EXTRA_FEES] กล่องค่าธรรมเนียมเพิ่มเติม แคชเชียร์ -->
                       <i class="fa-solid fa-coins"></i> ค่าธรรมเนียมเพิ่มเติม (คลิกการ์ดเพื่อเลือก)
 
 
@@ -426617,6 +426619,7 @@ if (action === 'getDashboardStats') {
     // MODNet Studio AI Portrait Matting Engine (All Colors, All Patterns, Zero Halo)
     // Runs client-side via ONNX Runtime Web (WASM). Quantized 6.3MB Model.
     // =========================================================================
+    // [ANCHOR: AI_PORTRAIT_MATTING] ระบบถ่ายรูปและลบพื้นหลัง AI
     const MODNET_IN_W = 512;
     const MODNET_IN_H = 672;
     let _modnetSessionPromise = null;
@@ -461544,6 +461547,7 @@ if (action === 'getDashboardStats') {
 
 
 
+    // [ANCHOR: STUDENT_CARD_DETAIL] แสดงข้อมูลบัตรนักศึกษาและคำนำหน้าชื่อ
     function displayStudentDetailCard(s) {
 
 
@@ -614948,6 +614952,7 @@ if (action === 'getDashboardStats') {
 
 
 
+        // [ANCHOR: CALC_RECEIPT_TOTALS] คำนวณยอดเงินและส่วนลดใบเสร็จ
         function calcReceiptTotals() {
       let baseAmount = 0;
       let regFee = 0;
@@ -861280,6 +861285,7 @@ function openForgotPasswordModal() {
 
 
 
+    // [ANCHOR: RECEIPT_TERM_FORMAT] ฟอร์แมตเทอมและปีการศึกษาใบเสร็จ
     function loadSrStudentReceipts(studentId) {
 
 
@@ -880732,19 +880738,19 @@ isOnlineResume: true,
 
       try {
         const enrolledMap = new Map();
+        const yr = String(yearBE || '2569').slice(-2);
+        const tPrefix = yr + String(termNo || '5');
+        const nextTPrefix = (termNo < 5) ? (yr + String(termNo + 1)) : (String(Number(yr) + 1) + '0');
 
-        // 1. ตรวจสอบจากใบเสร็จรับเงิน (receipts) ในภาคเรียนที่เลือก
+        // 1. ตรวจสอบจากใบเสร็จรับเงิน (receipts) ในภาคเรียนที่เลือก (Indexed receipt_no range)
         if (typeof _supabase !== 'undefined' && _supabase) {
           try {
-            const yr = String(yearBE || '2569').slice(-2);
-            const nextYr = String(Number(yr) + 1).padStart(2, '0');
-            let qb = _supabase.from('receipts')
+            const { data: rcData } = await _supabase.from('receipts')
               .select('item_code, item_name, year_be, term')
-              .gte('receipt_no', yr + '00000')
-              .lt('receipt_no', nextYr + '00000')
-              .limit(1000);
-            if (yearBE && termNo) qb = qb.eq('year_be', yearBE).eq('term', termNo);
-            const { data: rcData } = await qb;
+              .gte('receipt_no', tPrefix + '0000')
+              .lt('receipt_no', nextTPrefix + '0000')
+              .limit(2000);
+
             if (Array.isArray(rcData)) {
               rcData.forEach(r => {
                 const code = (r.item_code || '').trim();
@@ -880763,14 +880769,11 @@ isOnlineResume: true,
 
           // 2. ตรวจสอบจากทะเบียนนักศึกษา (students) ในภาคเรียนที่เลือก
           try {
-            const yr = String(yearBE || '2569').slice(-2);
-            const nextYr = String(Number(yr) + 1).padStart(2, '0');
-            let qbSt = _supabase.from('students')
+            const { data: stData } = await _supabase.from('students')
               .select('current_course, year_be, term')
-              .gte('student_id', yr + '00000')
-              .lt('student_id', nextYr + '00000');
-            if (yearBE && termNo) qbSt = qbSt.eq('year_be', yearBE).eq('term', termNo);
-            const { data: stData } = await qbSt;
+              .or(`student_id.gte.${tPrefix}0000,and(year_be.eq.${yearBE},term.eq.${termNo})`)
+              .limit(2000);
+
             if (Array.isArray(stData)) {
               stData.forEach(s => {
                 const raw = (s.current_course || '').trim();
@@ -880861,6 +880864,9 @@ isOnlineResume: true,
               break;
             }
           }
+        }
+        if (selCourse.selectedIndex <= 0 && selCourse.options.length > 1) {
+          selCourse.selectedIndex = 1;
         }
       } catch (err) {
         console.error('populateClassroomEnrolledCourses error:', err);
@@ -881072,2192 +881078,184 @@ isOnlineResume: true,
      * ดึงรายชื่อนักศึกษาเมื่อเปลี่ยนตัวกรองใน Modal พิมพ์ใบแจ้งห้องเรียน
      */
     async function onRosterFilterChanged() {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const selYT = document.getElementById('selRosterYearTerm')?.value || '2569_5';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const [yearBE, termNo] = selYT.split('_').map(Number);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const selCourse = document.getElementById('selModalRosterCourse');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const selSched = document.getElementById('selRosterSchedule');
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const courseVal = selCourse ? selCourse.value : '';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const courseText = (selCourse && selCourse.selectedIndex >= 0) ? selCourse.options[selCourse.selectedIndex].text : '';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const schedVal = selSched ? selSched.value : 'ALL';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const schedText = (selSched && selSched.selectedIndex >= 0) ? selSched.options[selSched.selectedIndex].text : '';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const badgeCount = document.getElementById('badgeRosterCount');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       const tbody = document.getElementById('tbodyRosterPreview');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       if (!tbody) return;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       if (!courseVal) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:18px; color:var(--text-muted);">กรุณาเลือกคอร์สเรียนเพื่อดูรายชื่อนักศึกษา</td></tr>';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:18px; color:var(--text-muted);">กรุณาเลือกคอร์สเรียนที่ต้องการพิมพ์ใบแจ้งห้องเรียน</td></tr>';
         if (badgeCount) badgeCount.textContent = '0 คน';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         currentRosterStudents = [];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         return;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
       }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:18px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>กำลังรวบรวมรายชื่อนักศึกษาในคอร์สนี้...</td></tr>';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:18px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin" style="margin-right:8px; color:var(--color-gold);"></i>กำลังค้นหารายชื่อนักศึกษาในคอร์สนี้...</td></tr>';
 
       try {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         let studentsList = [];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
         if (_supabase) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          // Query receipts for this course and term
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           const yr = String(yearBE || '2569').slice(-2);
-          const nextYr = String(Number(yr) + 1).padStart(2, '0');
-          let qb = _supabase.from('receipts')
+          const tPrefix = yr + String(termNo || '5');
+          const nextTPrefix = (termNo < 5) ? (yr + String(termNo + 1)) : (String(Number(yr) + 1) + '0');
+
+          // 1. Query receipts for this course and term (indexed receipt_no range)
+          const { data: rcData, error: rcErr } = await _supabase.from('receipts')
             .select('student_id, buyer_name, item_code, item_name, room, schedule, year_be, term')
-            .gte('receipt_no', yr + '00000')
-            .lt('receipt_no', nextYr + '00000')
-            .limit(1000);
-          if (yearBE && termNo) qb = qb.eq('year_be', yearBE).eq('term', termNo);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          const { data: rcData, error: rcErr } = await qb;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          if (!rcErr && rcData && rcData.length > 0) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            rcData.forEach(r => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              const rNorm = normalizeReceiptObject(r);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              const matchCourse = (rNorm.itemCode === courseVal || rNorm.itemName === courseVal || courseText.includes(rNorm.itemCode) || (rNorm.itemName && courseText.includes(rNorm.itemName)));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              const matchSched = (schedVal === 'ALL' || rNorm.schedule === schedVal || schedText.includes(rNorm.schedule) || rNorm.schedule.includes(schedVal));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              if (matchCourse && matchSched) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                studentsList.push({
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  studentId: rNorm.buyerId,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  fullName: rNorm.buyerName,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  schedule: rNorm.schedule,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  room: rNorm.room,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  courseCode: rNorm.itemCode || courseVal,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  courseName: rNorm.itemName
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          // Also check students table for current_course
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            .gte('receipt_no', tPrefix + '0000')
+            .lt('receipt_no', nextTPrefix + '0000')
+            .limit(2000);
+
+          // 2. Query students registered in this term
           const { data: stData } = await _supabase.from('students')
-            .select('*')
-            .gte('student_id', yr + '00000')
-            .lt('student_id', nextYr + '00000')
-            .eq('year_be', yearBE)
-            .eq('term', termNo);
+            .select('student_id, prefix, full_name, current_course, current_schedule, year_be, term')
+            .or(`student_id.gte.${tPrefix}0000,and(year_be.eq.${yearBE},term.eq.${termNo})`)
+            .limit(2000);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          if (stData && stData.length > 0) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          // Build student name lookup map from stData
+          const stNameMap = new Map();
+          if (Array.isArray(stData)) {
             stData.forEach(s => {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              const matchCourse = (s.current_course && (s.current_course === courseVal || courseText.includes(s.current_course) || s.current_course.includes(courseVal)));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              const matchSched = (schedVal === 'ALL' || (s.current_schedule && (s.current_schedule === schedVal || schedText.includes(s.current_schedule))));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              if (matchCourse && matchSched && !studentsList.some(item => item.studentId === s.student_id)) {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                studentsList.push({
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  studentId: s.student_id,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  fullName: s.full_name,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  schedule: s.current_schedule,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  room: '',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  courseCode: courseVal,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                  courseName: s.current_course
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+              if (s.student_id && s.full_name) {
+                const cleanName = (typeof formatStudentNameWithPrefix === 'function') 
+                  ? formatStudentNameWithPrefix(s.prefix, s.full_name) 
+                  : (s.full_name || '');
+                stNameMap.set(String(s.student_id).trim(), cleanName);
               }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           }
 
+          // Course matching helper
+          const cleanCourseKey = (str) => String(str || '').replace(/[\s\-_]/g, '').toUpperCase();
+          const targetCourseClean = cleanCourseKey(courseVal);
+          const targetCourseTextClean = cleanCourseKey(courseText);
 
+          const isCourseMatch = (code, name) => {
+            if (!targetCourseClean) return false;
+            const cCode = cleanCourseKey(code);
+            const cName = cleanCourseKey(name);
+            return (
+              (cCode && (targetCourseClean.includes(cCode) || cCode.includes(targetCourseClean) || targetCourseTextClean.includes(cCode))) ||
+              (cName && (targetCourseClean.includes(cName) || cName.includes(targetCourseClean) || targetCourseTextClean.includes(cName)))
+            );
+          };
 
+          const isSchedMatch = (sched) => {
+            if (schedVal === 'ALL') return true;
+            if (!sched) return false;
+            return sched === schedVal || schedText.includes(sched) || schedVal.includes(sched);
+          };
 
+          // Process receipts
+          if (!rcErr && Array.isArray(rcData) && rcData.length > 0) {
+            const missingIds = [];
+            rcData.forEach(r => {
+              const rNorm = normalizeReceiptObject(r);
+              const matchCourse = isCourseMatch(rNorm.itemCode, rNorm.itemName);
+              const matchSched = isSchedMatch(rNorm.schedule);
+              if (matchCourse && matchSched) {
+                const sid = String(rNorm.buyerId || '').trim();
+                let dispName = rNorm.buyerName;
+                if (stNameMap.has(sid)) {
+                  dispName = stNameMap.get(sid);
+                } else if (!dispName || dispName.startsWith('นักศึกษา') || /^\d+$/.test(dispName.replace(/\s+/g, ''))) {
+                  if (sid) missingIds.push(sid);
+                }
+                studentsList.push({
+                  studentId: sid,
+                  fullName: dispName,
+                  schedule: rNorm.schedule || '',
+                  room: rNorm.room || '',
+                  courseCode: rNorm.itemCode || courseVal,
+                  courseName: rNorm.itemName || courseText
+                });
+              }
+            });
 
+            // Fast batch lookup for remaining generic names
+            if (missingIds.length > 0) {
+              try {
+                const uniqueMissing = [...new Set(missingIds)].slice(0, 100);
+                const { data: lookedUp } = await _supabase.from('students')
+                  .select('student_id, prefix, full_name')
+                  .in('student_id', uniqueMissing);
+                if (Array.isArray(lookedUp)) {
+                  lookedUp.forEach(s => {
+                    const sid = String(s.student_id).trim();
+                    const cleanName = (typeof formatStudentNameWithPrefix === 'function')
+                      ? formatStudentNameWithPrefix(s.prefix, s.full_name)
+                      : s.full_name;
+                    stNameMap.set(sid, cleanName);
+                  });
+                  studentsList.forEach(item => {
+                    if (stNameMap.has(item.studentId)) {
+                      item.fullName = stNameMap.get(item.studentId);
+                    }
+                  });
+                }
+              } catch (_) {}
+            }
+          }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          // Process students table
+          if (Array.isArray(stData) && stData.length > 0) {
+            stData.forEach(s => {
+              const matchCourse = isCourseMatch('', s.current_course);
+              const matchSched = isSchedMatch(s.current_schedule);
+              const sid = String(s.student_id).trim();
+              if (matchCourse && matchSched && !studentsList.some(item => item.studentId === sid)) {
+                const cleanName = (typeof formatStudentNameWithPrefix === 'function')
+                  ? formatStudentNameWithPrefix(s.prefix, s.full_name)
+                  : s.full_name;
+                studentsList.push({
+                  studentId: sid,
+                  fullName: cleanName,
+                  schedule: s.current_schedule || '',
+                  room: '',
+                  courseCode: courseVal,
+                  courseName: s.current_course
+                });
+              }
+            });
+          }
         }
 
+        // 3. Fallback to local cache if no database results
+        if (studentsList.length === 0) {
+          const localList = Array.isArray(cachedStudentReportData) && cachedStudentReportData.length > 0
+            ? cachedStudentReportData
+            : (Array.isArray(cachedSearchStudentsData) ? cachedSearchStudentsData : []);
+          const cleanCourseKey = (str) => String(str || '').replace(/[\s\-_]/g, '').toUpperCase();
+          const targetClean = cleanCourseKey(courseVal);
+          const targetTextClean = cleanCourseKey(courseText);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          localList.forEach(st => {
+            const cStr = cleanCourseKey(st.course || st.current_course);
+            const matchCourse = targetClean && (targetClean.includes(cStr) || cStr.includes(targetClean) || targetTextClean.includes(cStr));
+            const sStr = st.schedule || st.current_schedule || '';
+            const matchSched = schedVal === 'ALL' || sStr === schedVal || schedText.includes(sStr);
+            if (matchCourse && matchSched) {
+              const sid = String(st.student_id || st.studentId || st.id || '').trim();
+              studentsList.push({
+                studentId: sid,
+                fullName: st.full_name || st.fullName || st.name || '',
+                schedule: sStr,
+                room: st.room || '',
+                courseCode: courseVal,
+                courseName: st.course || st.current_course || courseText
+              });
+            }
+          });
+        }
 
         // Deduplicate and sort
 
