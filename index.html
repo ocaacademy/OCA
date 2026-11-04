@@ -10695,7 +10695,7 @@ body.printing-report #printReportContainer {
 
               <div class="no-print" style="display:flex; align-items:center; gap:10px;">
                 <label for="selFinanceFilterYearTerm" style="font-size:12.5px; color:var(--text-muted);">เลือกปี พ.ศ.:</label>
-                <select id="selFinanceFilterYearTerm" class="oca-input" style="padding:4px 10px; font-size:12.5px; width:auto;" onchange="loadFinancialReport()">
+                <select id="selFinanceFilterYearTerm" class="oca-input" style="padding:4px 10px; font-size:12.5px; width:auto;" onchange="loadFinancialReport(true)">
                   <option value="ALL">-- ทุกปี พ.ศ. --</option>
                   <option value="2570">ปี 2570</option>
                   <option value="2569">ปี 2569</option>
@@ -18269,12 +18269,15 @@ if (action === 'getDashboardStats') {
 
           if (rcpts) {
             rcpts.forEach(r => {
-              const gt = Number(r.grand_total || 0);
               const tu = Number(r.base_amount || 0);
               const rg = Number(r.reg_fee || 0);
               const cd = Number(r.card_fee || 0);
               const ot = Number(r.other_reg_fee || 0);
               const dc = Number(r.discount_normal || 0) + Number(r.discount_other || 0);
+              const otherFees = rg + cd + ot;
+              const calcNet = tu + otherFees - dc;
+              const rawGt = Number(r.grand_total || 0);
+              const gt = (rawGt > 0 && Math.abs(rawGt - calcNet) <= 1) ? rawGt : calcNet;
               totalRev += gt;
               totalTuition += tu;
               totalReg += rg;
@@ -18286,8 +18289,17 @@ if (action === 'getDashboardStats') {
               if (yBe === 2499) yBe = 2549; // Normalize legacy 2499 receipt year to 2549
 
               const rawT = (r.term !== undefined && r.term !== null && r.term !== '') ? String(r.term).trim() : '5';
-              const cleanT = (rawT.length > 1 && parseInt(rawT, 10) > 5) ? rawT.charAt(0) : rawT;
-              const termNo = parseInt(cleanT, 10) || 5;
+              let termNo = 5;
+              if (rawT.length === 2 && /^[1-9][1-5]$/.test(rawT)) {
+                termNo = parseInt(rawT.charAt(1), 10);
+              } else if (/^[1-5]$/.test(rawT)) {
+                termNo = parseInt(rawT, 10);
+              } else {
+                const rcStr = String(r.receipt_no || '');
+                if (rcStr.length >= 3 && /^[1-5]$/.test(rcStr.charAt(2))) {
+                  termNo = parseInt(rcStr.charAt(2), 10);
+                }
+              }
 
               // 1. Group by Year
 
@@ -18297,7 +18309,7 @@ if (action === 'getDashboardStats') {
 
               yearMap[yBe].receiptCount += 1;
               yearMap[yBe].tuitionTotal += tu;
-              yearMap[yBe].otherFeesTotal += (rg + cd + ot);
+              yearMap[yBe].otherFeesTotal += otherFees;
               yearMap[yBe].discountTotal += dc;
               yearMap[yBe].grandTotal += gt;
 
@@ -18312,7 +18324,7 @@ if (action === 'getDashboardStats') {
 
               termMap[termKey].receiptCount += 1;
               termMap[termKey].tuitionTotal += tu;
-              termMap[termKey].otherFeesTotal += (rg + cd + ot);
+              termMap[termKey].otherFeesTotal += otherFees;
               termMap[termKey].discountTotal += dc;
               termMap[termKey].grandTotal += gt;
 
@@ -18327,7 +18339,7 @@ if (action === 'getDashboardStats') {
 
               dailyMap[dIso].receiptCount += 1;
               dailyMap[dIso].tuitionTotal += tu;
-              dailyMap[dIso].otherFeesTotal += (rg + cd + ot);
+              dailyMap[dIso].otherFeesTotal += otherFees;
               dailyMap[dIso].discountTotal += dc;
               dailyMap[dIso].grandTotal += gt;
 
@@ -18357,6 +18369,20 @@ if (action === 'getDashboardStats') {
 
           if (filterYear) {
             termSummary = termSummary.filter(t => t.yearBE === filterYear);
+            if (termSummary.length === 0 && window.OCA_ANNUAL_REVENUE_REGISTRY && window.OCA_ANNUAL_REVENUE_REGISTRY[String(filterYear)]) {
+              const reg = window.OCA_ANNUAL_REVENUE_REGISTRY[String(filterYear)];
+              termSummary = [{
+                termKey: `${filterYear}_T5`,
+                termLabel: `ภาคเรียนที่ 5 (ปี พ.ศ. ${filterYear})`,
+                yearBE: filterYear,
+                term: 5,
+                receiptCount: Number(reg.receiptCount || 0),
+                tuitionTotal: Number(reg.tuitionTotal || 0),
+                otherFeesTotal: Number(reg.otherFeesTotal || 0),
+                discountTotal: Number(reg.discountTotal || 0),
+                grandTotal: Number(reg.grandTotal || 0)
+              }];
+            }
           }
 
           const dailySummary = Object.values(dailyMap).sort((a, b) => b.dateIso.localeCompare(a.dateIso));
@@ -37730,10 +37756,10 @@ if (action === 'getDashboardStats') {
       const tbodyT = document.getElementById('tbodyFinanceTerm');
       const tbodyD = document.getElementById('tbodyFinanceDaily');
 
-      if (!isSilent && !cachedFinancialSummary) {
-        if (tbodyY) tbodyY.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปรายปี...</td></tr>';
-        if (tbodyT) tbodyT.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปรายเทอม...</td></tr>';
-        if (tbodyD) tbodyD.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปรายวัน...</td></tr>';
+      if (forceRefresh || (!isSilent && !cachedFinancialSummary)) {
+        if (tbodyY && !cachedFinancialSummary) tbodyY.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปรายปี...</td></tr>';
+        if (tbodyT) tbodyT.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปปี พ.ศ. ' + toArabicDigits(filterYear === 'ALL' ? 'ทุกปี' : filterYear) + '...</td></tr>';
+        if (tbodyD && !cachedFinancialSummary) tbodyD.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปรายวัน...</td></tr>';
       }
 
       callGasApi('getFinancialSummary', { filterYear: filterYear })
@@ -38121,7 +38147,7 @@ if (action === 'getDashboardStats') {
                       const sel = document.getElementById('selFinanceFilterYearTerm');
                       if (sel && selectedYear) {
                         sel.value = selectedYear;
-                        loadFinancialReport();
+                        loadFinancialReport(true);
                       }
                     }
                   }
