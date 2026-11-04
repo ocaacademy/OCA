@@ -22936,24 +22936,41 @@ body.printing-report #printReportContainer {
       return s;
     }
 
-    // Global Unhandled Rejection Boundary
-
-    window.addEventListener('unhandledrejection', (event) => {
-
-        const reason = (event && event.reason);
-        const reasonStr = String((reason && (reason.stack || reason.message || reason)) || '');
-        if (reasonStr.includes('Module.arguments') || reasonStr.includes('selfie_segmentation') || reasonStr.includes('wasm_bin') || reasonStr.includes('RuntimeError: Aborted')) {
-          if (typeof event.preventDefault === 'function') event.preventDefault();
-          window._mediapipeSegmentationDisabled = true;
+    // Global Unhandled Rejection Boundary & WebAssembly Console Filter
+    (function initWasmConsoleSanitizer() {
+      const _origError = console.error;
+      console.error = function(...args) {
+        const msg = (args && args[0] !== undefined) ? String(args[0]) : '';
+        if (msg.includes('INFO: Created TensorFlow Lite') ||
+            msg.includes('XNNPACK delegate') ||
+            (msg.includes('vision_wasm_internal') && msg.includes('INFO:'))) {
+          console.info(...args);
           return;
         }
-      if (reasonStr.includes('Module.arguments') || reasonStr.includes('selfie_segmentation') || reasonStr.includes('wasm_bin')) {
+        _origError.apply(console, args);
+      };
+
+      const _origWarn = console.warn;
+      console.warn = function(...args) {
+        const msg = (args && args[0] !== undefined) ? String(args[0]) : '';
+        if (msg.includes('OpenGL error checking is disabled') ||
+            msg.includes('inference_feedback_manager.cc') ||
+            msg.includes('Feedback manager requires a model')) {
+          return;
+        }
+        _origWarn.apply(console, args);
+      };
+    })();
+
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason = (event && event.reason);
+      const reasonStr = String((reason && (reason.stack || reason.message || reason)) || '');
+      if (reasonStr.includes('Module.arguments') || reasonStr.includes('selfie_segmentation') || reasonStr.includes('wasm_bin') || reasonStr.includes('RuntimeError: Aborted')) {
         if (typeof event.preventDefault === 'function') event.preventDefault();
         window._mediapipeSegmentationDisabled = true;
         return;
       }
       console.warn('[OCA Safety Shield] Unhandled rejection intercepted:', event.reason);
-
     });
 
     // ส่งสัญญาณแจ้งหน้าต่างหลัก Shell ให้ปลดหน้า Splash Screen ทันที
