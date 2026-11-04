@@ -22739,6 +22739,17 @@ body.printing-report #printReportContainer {
 
   <script>
 
+    // Global Public Registration & Address State (Hoisted to top of script to eliminate TDZ ReferenceErrors)
+    let currentRegLanguage = 'th';
+    let pubThaiAddressDB = null;
+    let pubStudentPhotoDataUri = '';
+    let pubPaymentSlipDataUri = '';
+    let _rawOriginalPhotoDataUri = '';
+    let _currentPhotoBgColor = '#800000';
+    let _selfieSegmentationInstance = null;
+    window.currentRegLanguage = currentRegLanguage;
+    window.pubThaiAddressDB = pubThaiAddressDB;
+
     // Global Name and Term Normalization Helpers
     function formatStudentNameWithPrefix(prefix, fullName) {
       prefix = (prefix || '').trim();
@@ -49547,10 +49558,9 @@ if (action === 'getDashboardStats') {
 
     }
 
-    // Execute routing
+    // Execute routing (deferred to DOMContentLoaded when all dictionaries and modules are ready)
 
     if (typeof renderNotificationBell === 'function') renderNotificationBell();
-      checkInitialRoute();
 
     // =========================================================================
 
@@ -60795,13 +60805,14 @@ function openForgotPasswordModal() {
 
     // =========================================================================
 
-    let pubStudentPhotoDataUri = '';
-    let pubPaymentSlipDataUri = '';
-    let _rawOriginalPhotoDataUri = '';
-    let _currentPhotoBgColor = '#800000';
-    let _selfieSegmentationInstance = null;
+    pubStudentPhotoDataUri = pubStudentPhotoDataUri || '';
+    pubPaymentSlipDataUri = pubPaymentSlipDataUri || '';
+    _rawOriginalPhotoDataUri = _rawOriginalPhotoDataUri || '';
+    _currentPhotoBgColor = _currentPhotoBgColor || '#800000';
+    _selfieSegmentationInstance = _selfieSegmentationInstance || null;
 
-    let currentRegLanguage = 'th';
+    currentRegLanguage = currentRegLanguage || 'th';
+    window.currentRegLanguage = currentRegLanguage;
 
     const OCA_SCHEDULE_I18N = {
     'SCH-01': { en: 'Mon-Wed 18:30-21:00', zh: '周一至周三 18:30-21:00' },
@@ -62001,91 +62012,69 @@ function openForgotPasswordModal() {
     window.clearPublicRegisterForm = clearPublicRegisterForm;
 
 function openPublicRegisterView() {
-      if (typeof initPubAddressDropdowns === 'function') initPubAddressDropdowns();
+      try {
+        if (typeof initPubAddressDropdowns === 'function') initPubAddressDropdowns();
+      } catch (err) {
+        console.warn('[Public Register] initPubAddressDropdowns deferred:', err);
+      }
       if (typeof checkAndAutoRestoreDraft === 'function') checkAndAutoRestoreDraft();
 
       // Security Layer 3: Record form open timestamp to detect rapid bot submissions
-
       window._pubFormOpenTimestamp = Date.now();
 
       const regView = document.getElementById('viewPublicRegister');
-
       const welcome = document.getElementById('viewWelcome');
-
       const login = document.getElementById('viewLoginSplit');
 
       if (welcome) welcome.style.display = 'none';
-
       if (login) login.style.display = 'none';
 
       if (regView) {
-
         regView.style.display = 'block';
-
         window.scrollTo({ top: 0, behavior: 'smooth' });
-
       }
 
       // Check Online Enrollment Schedule Gate
+      if (typeof getOnlineEnrollScheduleStatus === 'function') {
+        const schedStatus = getOnlineEnrollScheduleStatus();
+        const formBody = document.getElementById('boxPublicRegisterFormBody');
+        const closedScreen = document.getElementById('boxPublicRegisterClosedScreen');
+        const bannerOpen = document.getElementById('bannerPubRegOpenSchedule');
 
-      const schedStatus = getOnlineEnrollScheduleStatus();
-
-      const formBody = document.getElementById('boxPublicRegisterFormBody');
-
-      const closedScreen = document.getElementById('boxPublicRegisterClosedScreen');
-
-      const bannerOpen = document.getElementById('bannerPubRegOpenSchedule');
-
-      if (!schedStatus.isOpen) {
-
-        if (formBody) formBody.style.display = 'none';
-
-        if (closedScreen) {
-
-          closedScreen.style.display = 'block';
-
-          renderPublicRegisterClosedScreen(schedStatus);
-
-        }
-
-        if (bannerOpen) bannerOpen.style.display = 'none';
-
-      } else {
-
-        if (formBody) formBody.style.display = 'block';
-
-        if (closedScreen) closedScreen.style.display = 'none';
-
-        if (bannerOpen) {
-
-          if (schedStatus.endDate) {
-
-            bannerOpen.style.display = 'flex';
-
-            bannerOpen.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> <span>เปิดรับสมัครเรียนออนไลน์ถึงวันที่ <strong>${formatThaiDateTime(schedStatus.endDate)}</strong></span>`;
-
-          } else {
-
-            bannerOpen.style.display = 'none';
-
+        if (!schedStatus.isOpen) {
+          if (formBody) formBody.style.display = 'none';
+          if (closedScreen) {
+            closedScreen.style.display = 'block';
+            renderPublicRegisterClosedScreen(schedStatus);
           }
-
+          if (bannerOpen) bannerOpen.style.display = 'none';
+        } else {
+          if (formBody) formBody.style.display = 'block';
+          if (closedScreen) closedScreen.style.display = 'none';
+          if (bannerOpen) {
+            if (schedStatus.endDate) {
+              bannerOpen.style.display = 'flex';
+              bannerOpen.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> <span>เปิดรับสมัครเรียนออนไลน์ถึงวันที่ <strong>${formatThaiDateTime(schedStatus.endDate)}</strong></span>`;
+            } else {
+              bannerOpen.style.display = 'none';
+            }
+          }
         }
-
       }
 
       try {
         const savedLang = localStorage.getItem('oca_reg_language');
         if (savedLang && ['th', 'en', 'zh'].includes(savedLang)) {
           currentRegLanguage = savedLang;
+          window.currentRegLanguage = savedLang;
         }
       } catch (_) {}
-      setRegisterLanguage(currentRegLanguage);
+      if (typeof setRegisterLanguage === 'function') {
+        setRegisterLanguage(currentRegLanguage || 'th');
+      }
 
-      initPublicRegisterAutoSave();
-
-      checkAndAutoRestoreDraft();
-
+      if (typeof initPublicRegisterAutoSave === 'function') initPublicRegisterAutoSave();
+      if (typeof checkAndAutoRestoreDraft === 'function') checkAndAutoRestoreDraft();
     }
 
     function closePublicRegisterView() {
@@ -69141,7 +69130,8 @@ isOnlineResume: true,
     /* ==========================================================================
        OFFLINE THAI ADDRESS CASCADING DROPDOWN ENGINE
        ========================================================================== */
-    let pubThaiAddressDB = null;
+    pubThaiAddressDB = pubThaiAddressDB || null;
+    window.pubThaiAddressDB = pubThaiAddressDB;
 
     /**
      * Initialize Offline Thailand Address Dropdowns (77 Provinces, Districts, Subdistricts, Zip)
