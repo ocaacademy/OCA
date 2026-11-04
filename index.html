@@ -459015,8 +459015,8 @@ if (action === 'getDashboardStats') {
     // MODNet Studio AI Portrait Matting Engine (All Colors, All Patterns, Zero Halo)
     // Runs client-side via ONNX Runtime Web (WASM). Quantized 6.3MB Model.
     // =========================================================================
-    const MODNET_IN_W = 384;
-    const MODNET_IN_H = 512;
+    const MODNET_IN_W = 512;
+    const MODNET_IN_H = 672;
     let _modnetSessionPromise = null;
 
     async function getModnetSession() {
@@ -459035,31 +459035,6 @@ if (action === 'getDashboardStats') {
         })();
       }
       return _modnetSessionPromise;
-    }
-
-    function modnetBoxBlur(src, w, h, r) {
-      const tmp = new Float32Array(w * h);
-      const out = new Float32Array(w * h);
-      const n = 2 * r + 1;
-      const cx = (x) => Math.min(w - 1, Math.max(0, x));
-      const cy = (y) => Math.min(h - 1, Math.max(0, y));
-      for (let y = 0; y < h; y++) {
-        let acc = 0;
-        for (let x = -r; x <= r; x++) acc += src[y * w + cx(x)];
-        for (let x = 0; x < w; x++) {
-          tmp[y * w + x] = acc / n;
-          acc += src[y * w + cx(x + r + 1)] - src[y * w + cx(x - r)];
-        }
-      }
-      for (let x = 0; x < w; x++) {
-        let acc = 0;
-        for (let y = -r; y <= r; y++) acc += tmp[cy(y) * w + x];
-        for (let y = 0; y < h; y++) {
-          out[y * w + x] = acc / n;
-          acc += tmp[cy(y + r + 1) * w + x] - tmp[cy(y - r) * w + x];
-        }
-      }
-      return out;
     }
 
     async function renderModnetMatting(srcCanvas, targetBgColor, w, h) {
@@ -459083,7 +459058,7 @@ if (action === 'getDashboardStats') {
       const results = await session.run({ input: tensor });
       const rawMatte = results[Object.keys(results)[0]].data;
 
-      // Bilinear upscale matte from 384x512 back to target dimensions (e.g. 600x800)
+      // Bilinear upscale matte from 512x672 back to target dimensions (e.g. 600x800)
       const mSmallCanvas = document.createElement('canvas');
       mSmallCanvas.width = MODNET_IN_W;
       mSmallCanvas.height = MODNET_IN_H;
@@ -459113,7 +459088,7 @@ if (action === 'getDashboardStats') {
         alphaArr[i] = alphaPixels[i * 4] / 255;
       }
 
-      // Parse target background hex color
+      // Parse target background hex color (default #800000 maroon)
       let bgR = 128, bgG = 0, bgB = 0;
       if (targetBgColor && typeof targetBgColor === 'string' && targetBgColor.startsWith('#')) {
         let hex = targetBgColor.slice(1);
@@ -459127,23 +459102,65 @@ if (action === 'getDashboardStats') {
       }
       const bg = [bgR, bgG, bgB];
 
-      // Optical decontamination of backdrop color reflection on edges
       const srcCtx = srcCanvas.getContext('2d');
       const srcPixels = srcCtx.getImageData(0, 0, w, h).data;
-      const binMask = new Float32Array(N);
-      for (let i = 0; i < N; i++) binMask[i] = alphaArr[i] > 0.05 ? 1 : 0;
-      const farBg = modnetBoxBlur(binMask, w, h, 14);
 
+      // Sample backdrop reference from outer perimeter zones (top corners & upper sides - guaranteed background)
       let sumR = 0, sumG = 0, sumB = 0, count = 0;
-      for (let i = 0; i < N; i += 3) {
-        if (farBg[i] < 0.001) {
-          sumR += srcPixels[i * 4];
-          sumG += srcPixels[i * 4 + 1];
-          sumB += srcPixels[i * 4 + 2];
-          count++;
+      const topH = Math.max(10, Math.floor(h * 0.08));
+      // Top-left and Top-right corners
+      for (let y = 0; y < topH; y += 2) {
+        for (let x = 0; x < Math.floor(w * 0.15); x += 2) {
+          const idx = (y * w + x) * 4;
+          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
+        }
+        for (let x = Math.floor(w * 0.85); x < w; x += 2) {
+          const idx = (y * w + x) * 4;
+          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
         }
       }
-      const refBackdrop = count > 0 ? [sumR / count, sumG / count, sumB / count] : [240, 240, 240];
+      // Upper-left and Upper-right side strips
+      const midH1 = Math.floor(h * 0.10), midH2 = Math.floor(h * 0.35);
+      for (let y = midH1; y < midH2; y += 2) {
+        for (let x = 0; x < Math.floor(w * 0.06); x += 2) {
+          const idx = (y * w + x) * 4;
+          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
+        }
+        for (let x = Math.floor(w * 0.94); x < w; x += 2) {
+          const idx = (y * w + x) * 4;
+          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
+        }
+      }
+
+      let refR = count > 0 ? sumR / count : 240;
+      let refG = count > 0 ? sumG / count : 240;
+      let refB = count > 0 ? sumB / count : 240;
+
+      // Check if backdrop is Chroma Blue or Chroma Green
+      let isBackdropBlue = (refB > refR + 15 && refB > refG + 15);
+      let isBackdropGreen = (refG > refR + 15 && refG > refB + 15);
+
+      // Edge case: If perimeter was already marooned from prior crop, detect if bottom corners contain residual blue/green backdrop
+      if (!isBackdropBlue && !isBackdropGreen) {
+        let bCornerSumR = 0, bCornerSumG = 0, bCornerSumB = 0, bCornerCount = 0;
+        const bStart = Math.floor(h * 0.70);
+        for (let y = bStart; y < h; y += 3) {
+          for (const x of [0, 4, 8, 12, 16, w - 20, w - 16, w - 12, w - 8, w - 4]) {
+            if (x < 0 || x >= w) continue;
+            const idx = (y * w + x) * 4;
+            const cr = srcPixels[idx], cg = srcPixels[idx + 1], cb = srcPixels[idx + 2];
+            if (cb > cr + 30 && cb > 80) {
+              bCornerSumR += cr; bCornerSumG += cg; bCornerSumB += cb; bCornerCount++;
+            }
+          }
+        }
+        if (bCornerCount > 10) {
+          refR = bCornerSumR / bCornerCount;
+          refG = bCornerSumG / bCornerCount;
+          refB = bCornerSumB / bCornerCount;
+          isBackdropBlue = true;
+        }
+      }
 
       const outCanvas = document.createElement('canvas');
       outCanvas.width = w;
@@ -459154,13 +459171,42 @@ if (action === 'getDashboardStats') {
 
       for (let i = 0; i < N; i++) {
         let a = alphaArr[i];
-        a = a < 0.04 ? 0 : (a > 0.96 ? 1 : a);
         const j = i * 4;
+        const sR = srcPixels[j];
+        const sG = srcPixels[j + 1];
+        const sB = srcPixels[j + 2];
+
+        // Chroma backdrop suppression: removes residual blue/green background patches
+        // outside human skin and clothing
+        if (isBackdropBlue || isBackdropGreen) {
+          const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
+          // Skin tone protection: human skin is warm (R > G, R > B, R > 70)
+          const isSkinTone = (sR > sG + 10 && sR > sB + 20 && sR > 80);
+
+          if (!isSkinTone) {
+            if (isBackdropBlue) {
+              const blueDom = sB - Math.max(sR, sG);
+              if (distBg < 45 || (blueDom > 12 && distBg < 75)) {
+                const suppressed = distBg < 25 ? 0 : (distBg - 25) / 20;
+                a = Math.min(a, suppressed);
+              }
+            } else if (isBackdropGreen) {
+              const greenDom = sG - Math.max(sR, sB);
+              if (distBg < 45 || (greenDom > 12 && distBg < 75)) {
+                const suppressed = distBg < 25 ? 0 : (distBg - 25) / 20;
+                a = Math.min(a, suppressed);
+              }
+            }
+          }
+        }
+
+        a = a < 0.04 ? 0 : (a > 0.96 ? 1 : a);
+
         for (let c = 0; c < 3; c++) {
           let fg = srcPixels[j + c];
           if (a > 0 && a < 1) {
-            // Decontaminate edge pixels by removing proportional backdrop color spill
-            fg = Math.min(255, Math.max(0, (fg - (1 - a) * refBackdrop[c]) / Math.max(a, 0.35)));
+            const refVal = c === 0 ? refR : (c === 1 ? refG : refB);
+            fg = Math.min(255, Math.max(0, (fg - (1 - a) * refVal) / Math.max(a, 0.35)));
           }
           outPixels[j + c] = Math.round(fg * a + bg[c] * (1 - a));
         }
