@@ -458863,17 +458863,25 @@ if (action === 'getDashboardStats') {
       const outImgData = outCtx.createImageData(w, h);
       const outPixels = outImgData.data;
 
-      // Sample backdrop reference color from border strips (top, corners, and upper sides)
+      // Sample backdrop ONLY from narrow outer border strips (top 8%, sides 10%, bottom 5%)
+      // to avoid sampling clothing or face pixels into the reference color
       let sumR = 0, sumG = 0, sumB = 0, count = 0;
-      const sampleTopH = Math.max(3, Math.floor(h * 0.12));
-      const sampleSideW = Math.max(3, Math.floor(w * 0.15));
+      const sampleTopH = Math.max(2, Math.floor(h * 0.08));
+      const sampleBotH = Math.max(2, Math.floor(h * 0.05));
+      const sampleSideW = Math.max(2, Math.floor(w * 0.10));
       for (let y = 0; y < sampleTopH; y += 2) {
         for (let x = 0; x < w; x += 4) {
           const idx = (y * w + x) * 4;
           sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
         }
       }
-      for (let y = sampleTopH; y < Math.floor(h * 0.50); y += 3) {
+      for (let y = h - sampleBotH; y < h; y += 2) {
+        for (let x = 0; x < w; x += 4) {
+          const idx = (y * w + x) * 4;
+          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
+        }
+      }
+      for (let y = sampleTopH; y < h - sampleBotH; y += 3) {
         for (let x = 0; x < sampleSideW; x += 3) {
           const i1 = (y * w + x) * 4;
           sumR += srcPixels[i1]; sumG += srcPixels[i1 + 1]; sumB += srcPixels[i1 + 2]; count++;
@@ -458889,11 +458897,22 @@ if (action === 'getDashboardStats') {
       const isGreen = (refG > refR + 8 && refG > refB + 8);
       const isLightNeutral = (refR > 165 && refG > 165 && refB > 165 && Math.max(refR, refG, refB) - Math.min(refR, refG, refB) < 35);
 
-      // Face core strictly for skin tone protection (eyes, nose, mouth)
-      const faceMinX = Math.floor(w * 0.32);
-      const faceMaxX = Math.floor(w * 0.68);
-      const faceMinY = Math.floor(h * 0.20);
-      const faceMaxY = Math.floor(h * 0.55);
+      // Edge-only classification boundary: pixels more than these margins from the edge
+      // require a much tighter color match to be classified as background
+      const edgeMarginX = Math.floor(w * 0.18);
+      const edgeMarginY = Math.floor(h * 0.18);
+
+      // Extended subject protection zone: face + hair + shoulders + torso center
+      const subjectMinX = Math.floor(w * 0.22);
+      const subjectMaxX = Math.floor(w * 0.78);
+      const subjectMinY = Math.floor(h * 0.08);
+      const subjectMaxY = Math.floor(h * 0.92);
+
+      // Face core protection (tighter — only genuine skin pixels need 100% guard)
+      const faceMinX = Math.floor(w * 0.28);
+      const faceMaxX = Math.floor(w * 0.72);
+      const faceMinY = Math.floor(h * 0.08);
+      const faceMaxY = Math.floor(h * 0.60);
 
       const total = srcPixels.length;
       for (let i = 0; i < total; i += 4) {
@@ -458906,9 +458925,11 @@ if (action === 'getDashboardStats') {
         const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
         const blueDom = sB - Math.max(sR, sG);
         const isFaceZone = (px >= faceMinX && px <= faceMaxX && py >= faceMinY && py <= faceMaxY);
+        const isSubjectZone = (px >= subjectMinX && px <= subjectMaxX && py >= subjectMinY && py <= subjectMaxY);
+        const isNearEdge = (px < edgeMarginX || px > w - edgeMarginX || py < edgeMarginY || py > h - edgeMarginY);
         const isSkinTone = (sR > sB + 25 && sR > sG && sR > 75);
 
-        // If strictly inside face zone with genuine skin color, protect 100%
+        // Face zone with skin tone: always protect
         if (isFaceZone && isSkinTone) {
           outPixels[i]     = sR;
           outPixels[i + 1] = sG;
@@ -458917,24 +458938,44 @@ if (action === 'getDashboardStats') {
           continue;
         }
 
+        // Subject interior zone (not near edge): require very tight match to classify as background
+        // This prevents clothing or dark suit pixels from being removed
+        if (isSubjectZone && !isNearEdge) {
+          // Only replace if pixel is extremely close to the detected backdrop color
+          const interiorThreshold = isBlue ? 30 : (isLightNeutral ? 28 : 22);
+          if (distBg > interiorThreshold) {
+            // Keep original pixel — it is part of the subject
+            let fR = sR, fG = sG, fB = sB;
+            if (isBlue && blueDom > 1) fB = Math.min(sB, Math.round((sR + sG) / 2));
+            if (isGreen && sG > (sR + sB) / 2 + 3) fG = Math.round((sR + sB) / 2);
+            outPixels[i]     = fR;
+            outPixels[i + 1] = fG;
+            outPixels[i + 2] = fB;
+            outPixels[i + 3] = 255;
+            continue;
+          }
+        }
+
         let isBackground = false;
         if (isBlue) {
-          // For blue backdrop: any pixel matching backdrop color or having blue dominance is backdrop
-          if (distBg <= 68) {
+          if (distBg <= 55) {
             isBackground = true;
-          } else if (blueDom > 10 && (sB > 65 || distBg < 100)) {
+          } else if (blueDom > 12 && (sB > 70 || distBg < 80) && !isSubjectZone) {
             isBackground = true;
-          } else if (blueDom > 4 && distBg < 85) {
+          } else if (blueDom > 6 && distBg < 70 && isNearEdge) {
             isBackground = true;
           }
         } else if (isLightNeutral) {
-          if (distBg <= 62) {
+          if (distBg <= 50) {
             isBackground = true;
-          } else if (sR > 180 && sG > 180 && sB > 180 && (Math.max(sR, sG, sB) - Math.min(sR, sG, sB) < 28) && distBg < 90) {
+          } else if (sR > 185 && sG > 185 && sB > 185 && (Math.max(sR, sG, sB) - Math.min(sR, sG, sB) < 25) && distBg < 75 && isNearEdge) {
             isBackground = true;
           }
         } else {
-          if (distBg <= 50) {
+          // Dark/maroon/colored backdrop: apply strict spatial constraint
+          // Only near-edge pixels can be classified as background at normal threshold
+          const bgThreshold = isNearEdge ? 40 : 18;
+          if (distBg <= bgThreshold) {
             isBackground = true;
           }
         }
@@ -458945,10 +458986,8 @@ if (action === 'getDashboardStats') {
           outPixels[i + 2] = bgB;
           outPixels[i + 3] = 255;
         } else {
-          // Foreground person pixel: completely neutralize any residual optical blue spill on edges
           let fR = sR, fG = sG, fB = sB;
           if (isBlue && blueDom > 1) {
-            // Kill blue fringing on hair, collar, and suit shoulders
             fB = Math.min(sB, Math.round((sR + sG) / 2));
           }
           if (isGreen && sG > (sR + sB) / 2 + 3) {
