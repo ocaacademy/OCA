@@ -458885,8 +458885,7 @@ if (action === 'getDashboardStats') {
       const outImgData = outCtx.createImageData(w, h);
       const outPixels = outImgData.data;
 
-      // Sample backdrop ONLY from narrow outer border strips (top 8%, sides 10%, bottom 5%)
-      // to avoid sampling clothing or face pixels into the reference color
+      // Sample backdrop from narrow outer border (top 8%, bottom 5%, sides 10%)
       let sumR = 0, sumG = 0, sumB = 0, count = 0;
       const sampleTopH = Math.max(2, Math.floor(h * 0.08));
       const sampleBotH = Math.max(2, Math.floor(h * 0.05));
@@ -458918,23 +458917,22 @@ if (action === 'getDashboardStats') {
       const isBlue = (refB > refR + 8 && refB > refG + 8);
       const isGreen = (refG > refR + 8 && refG > refB + 8);
       const isLightNeutral = (refR > 165 && refG > 165 && refB > 165 && Math.max(refR, refG, refB) - Math.min(refR, refG, refB) < 35);
+      // Dark backdrop: maroon, grey, or any backdrop without clear hue dominance
+      const isDarkBackdrop = (!isBlue && !isGreen && !isLightNeutral);
 
-      // Edge-only classification boundary: pixels more than these margins from the edge
-      // require a much tighter color match to be classified as background
-      const edgeMarginX = Math.floor(w * 0.18);
-      const edgeMarginY = Math.floor(h * 0.18);
+      // Face protection zone (wider than before to cover forehead, hairline, neck)
+      const faceMinX = Math.floor(w * 0.28);
+      const faceMaxX = Math.floor(w * 0.72);
+      const faceMinY = Math.floor(h * 0.06);
+      const faceMaxY = Math.floor(h * 0.62);
 
-      // Extended subject protection zone: face + hair + shoulders + torso center
+      // Subject centre zone — only used for DARK backdrops to prevent erosion of red clothing
       const subjectMinX = Math.floor(w * 0.22);
       const subjectMaxX = Math.floor(w * 0.78);
       const subjectMinY = Math.floor(h * 0.08);
       const subjectMaxY = Math.floor(h * 0.92);
-
-      // Face core protection (tighter — only genuine skin pixels need 100% guard)
-      const faceMinX = Math.floor(w * 0.28);
-      const faceMaxX = Math.floor(w * 0.72);
-      const faceMinY = Math.floor(h * 0.08);
-      const faceMaxY = Math.floor(h * 0.60);
+      const edgeMarginX = Math.floor(w * 0.16);
+      const edgeMarginY = Math.floor(h * 0.16);
 
       const total = srcPixels.length;
       for (let i = 0; i < total; i += 4) {
@@ -458946,12 +458944,11 @@ if (action === 'getDashboardStats') {
 
         const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
         const blueDom = sB - Math.max(sR, sG);
+        const greenDom = sG - Math.max(sR, sB);
         const isFaceZone = (px >= faceMinX && px <= faceMaxX && py >= faceMinY && py <= faceMaxY);
-        const isSubjectZone = (px >= subjectMinX && px <= subjectMaxX && py >= subjectMinY && py <= subjectMaxY);
-        const isNearEdge = (px < edgeMarginX || px > w - edgeMarginX || py < edgeMarginY || py > h - edgeMarginY);
         const isSkinTone = (sR > sB + 25 && sR > sG && sR > 75);
 
-        // Face zone with skin tone: always protect
+        // --- FACE PROTECTION: skin tone inside face zone is always preserved ---
         if (isFaceZone && isSkinTone) {
           outPixels[i]     = sR;
           outPixels[i + 1] = sG;
@@ -458960,43 +458957,51 @@ if (action === 'getDashboardStats') {
           continue;
         }
 
-        // Subject interior zone (not near edge): require very tight match to classify as background
-        // This prevents clothing or dark suit pixels from being removed
-        if (isSubjectZone && !isNearEdge) {
-          // Only replace if pixel is extremely close to the detected backdrop color
-          const interiorThreshold = isBlue ? 30 : (isLightNeutral ? 28 : 22);
-          if (distBg > interiorThreshold) {
-            // Keep original pixel — it is part of the subject
-            let fR = sR, fG = sG, fB = sB;
-            if (isBlue && blueDom > 1) fB = Math.min(sB, Math.round((sR + sG) / 2));
-            if (isGreen && sG > (sR + sB) / 2 + 3) fG = Math.round((sR + sB) / 2);
-            outPixels[i]     = fR;
-            outPixels[i + 1] = fG;
-            outPixels[i + 2] = fB;
+        // --- DARK BACKDROP INTERIOR GUARD (only for maroon/dark, not blue/green/light) ---
+        // Prevents red-ish clothing in subject centre from being erased
+        if (isDarkBackdrop) {
+          const isNearEdge = (px < edgeMarginX || px > w - edgeMarginX || py < edgeMarginY || py > h - edgeMarginY);
+          const isSubjectCentre = (px >= subjectMinX && px <= subjectMaxX && py >= subjectMinY && py <= subjectMaxY);
+          if (isSubjectCentre && !isNearEdge && distBg > 20) {
+            outPixels[i]     = sR;
+            outPixels[i + 1] = sG;
+            outPixels[i + 2] = sB;
             outPixels[i + 3] = 255;
             continue;
           }
         }
 
         let isBackground = false;
+
         if (isBlue) {
-          if (distBg <= 55) {
+          // Blue screen: colour + dominance based detection
+          if (distBg <= 65) {
             isBackground = true;
-          } else if (blueDom > 12 && (sB > 70 || distBg < 80) && !isSubjectZone) {
+          } else if (blueDom > 10 && (sB > 65 || distBg < 95)) {
             isBackground = true;
-          } else if (blueDom > 6 && distBg < 70 && isNearEdge) {
+          } else if (blueDom > 4 && distBg < 80) {
+            isBackground = true;
+          }
+        } else if (isGreen) {
+          // Green screen: colour + dominance based detection
+          if (distBg <= 65) {
+            isBackground = true;
+          } else if (greenDom > 10 && (sG > 65 || distBg < 95)) {
+            isBackground = true;
+          } else if (greenDom > 4 && distBg < 80) {
             isBackground = true;
           }
         } else if (isLightNeutral) {
-          if (distBg <= 50) {
+          // Light/white backdrop
+          if (distBg <= 58) {
             isBackground = true;
-          } else if (sR > 185 && sG > 185 && sB > 185 && (Math.max(sR, sG, sB) - Math.min(sR, sG, sB) < 25) && distBg < 75 && isNearEdge) {
+          } else if (sR > 182 && sG > 182 && sB > 182 && (Math.max(sR, sG, sB) - Math.min(sR, sG, sB) < 28) && distBg < 85) {
             isBackground = true;
           }
         } else {
-          // Dark/maroon/colored backdrop: apply strict spatial constraint
-          // Only near-edge pixels can be classified as background at normal threshold
-          const bgThreshold = isNearEdge ? 40 : 18;
+          // Dark/maroon backdrop — spatial-constrained to avoid erasing red clothing
+          const isNearEdge = (px < edgeMarginX || px > w - edgeMarginX || py < edgeMarginY || py > h - edgeMarginY);
+          const bgThreshold = isNearEdge ? 42 : 20;
           if (distBg <= bgThreshold) {
             isBackground = true;
           }
@@ -459008,12 +459013,13 @@ if (action === 'getDashboardStats') {
           outPixels[i + 2] = bgB;
           outPixels[i + 3] = 255;
         } else {
+          // Preserve subject pixel — suppress residual colour spill on edges
           let fR = sR, fG = sG, fB = sB;
           if (isBlue && blueDom > 1) {
             fB = Math.min(sB, Math.round((sR + sG) / 2));
           }
-          if (isGreen && sG > (sR + sB) / 2 + 3) {
-            fG = Math.round((sR + sB) / 2);
+          if (isGreen && greenDom > 1) {
+            fG = Math.min(sG, Math.round((sR + sB) / 2));
           }
           outPixels[i]     = fR;
           outPixels[i + 1] = fG;
