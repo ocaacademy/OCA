@@ -35,6 +35,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Chart.js 4.x: Official Analytics Graph Engine -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
 
     /* =========================================================================
@@ -5133,15 +5135,12 @@ body.printing-report #printReportContainer {
       }
       /* Annual Revenue Growth Bar Chart */
       #oca-app-root .oca-growth-barchart-container {
-        height: 250px;
-        display: flex;
-        align-items: flex-end;
-        gap: 12px;
-        padding: 24px 12px 12px 12px;
-        border-bottom: 2px solid rgba(215, 166, 0, 0.4);
+        height: 320px;
         position: relative;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+        padding: 10px 4px;
+        border-bottom: 2px solid rgba(215, 166, 0, 0.4);
+        width: 100%;
+        box-sizing: border-box;
       }
       #oca-app-root .oca-growth-barchart-col {
         flex: 1;
@@ -10654,8 +10653,8 @@ body.printing-report #printReportContainer {
                 </span>
               </div>
               <!-- Responsive Bar Chart Container -->
-              <div class="oca-growth-barchart-container" id="boxFinanceYearlyBarChart">
-                <div style="width:100%; text-align:center; padding:30px; color:var(--text-muted);">กำลังสร้างแผนภูมิการเติบโต...</div>
+              <div class="oca-growth-barchart-container" id="boxFinanceYearlyBarChart" style="height:320px; position:relative; width:100%; box-sizing:border-box;">
+                <canvas id="canvasFinanceYearlyChart" style="width:100%; height:100%; max-height:300px; display:block;"></canvas>
               </div>
             </div>
 
@@ -37909,6 +37908,8 @@ if (action === 'getDashboardStats') {
 
      */
 
+    let _financeYearlyChartInstance = null;
+
     function renderFinancialReport(data) {
       if (!data) return;
       const kpis = data.kpis || {};
@@ -37966,6 +37967,10 @@ if (action === 'getDashboardStats') {
       const boxBarChart = document.getElementById('boxFinanceYearlyBarChart');
       if (boxBarChart) {
         if (yearly.length === 0) {
+          if (_financeYearlyChartInstance) {
+            _financeYearlyChartInstance.destroy();
+            _financeYearlyChartInstance = null;
+          }
           boxBarChart.innerHTML = '<div style="width:100%; text-align:center; padding:40px; color:var(--text-muted);">ไม่พบข้อมูลสถิติรายได้รายปี</div>';
         } else {
           // Sort chronologically (oldest to newest) for growth progression
@@ -38000,41 +38005,149 @@ if (action === 'getDashboardStats') {
             elTrend.textContent = '-';
           }
 
-          let bHtml = '';
-          for (let i = 0; i < chronYearly.length; i++) {
-            const yItem = chronYearly[i];
-            const isPeak = yItem.yearBE === peakItem.yearBE;
-            const heightPct = Math.max(12, Math.min(100, (yItem.grandTotal / maxRev) * 100)).toFixed(1);
-            let yoyBadge = '';
-            if (i > 0) {
-              const prevItem = chronYearly[i - 1];
-              const yoyDiff = yItem.grandTotal - prevItem.grandTotal;
-              const yoyPct = prevItem.grandTotal > 0 ? ((yoyDiff / prevItem.grandTotal) * 100).toFixed(1) : '0';
-              if (yoyDiff > 0) {
-                yoyBadge = '<span class="oca-growth-bar-badge" style="background:rgba(16,185,129,0.2); color:#34d399;">+' + toArabicDigits(yoyPct) + '%</span>';
-              } else if (yoyDiff < 0) {
-                yoyBadge = '<span class="oca-growth-bar-badge" style="background:rgba(239,68,68,0.2); color:#f87171;">' + toArabicDigits(yoyPct) + '%</span>';
-              } else {
-                yoyBadge = '<span class="oca-growth-bar-badge" style="background:rgba(255,255,255,0.08); color:var(--text-muted);">0.0%</span>';
-              }
-            } else {
-              yoyBadge = '<span class="oca-growth-bar-badge" style="background:rgba(255,255,255,0.05); color:var(--text-muted);">&bull;</span>';
+          if (typeof Chart !== 'undefined') {
+            // Render Professional Interactive Chart.js Graph
+            if (!boxBarChart.querySelector('canvas')) {
+              boxBarChart.innerHTML = '<canvas id="canvasFinanceYearlyChart" style="width:100%; height:100%; max-height:300px; display:block;"></canvas>';
             }
+            const cvs = document.getElementById('canvasFinanceYearlyChart');
+            if (cvs) {
+              if (_financeYearlyChartInstance) {
+                _financeYearlyChartInstance.destroy();
+                _financeYearlyChartInstance = null;
+              }
+              const ctx = cvs.getContext('2d');
+              const labels = chronYearly.map(y => 'ปี ' + toArabicDigits(y.yearBE));
+              const dataPoints = chronYearly.map(y => y.grandTotal);
+              const bgColors = chronYearly.map(y => y.yearBE === peakItem.yearBE ? 'rgba(251, 191, 36, 0.88)' : 'rgba(16, 185, 129, 0.78)');
+              const borderColors = chronYearly.map(y => y.yearBE === peakItem.yearBE ? '#f59e0b' : '#10b981');
 
-            const formattedVal = yItem.grandTotal >= 1e6
-              ? '฿' + (yItem.grandTotal / 1e6).toFixed(2) + 'M'
-              : '฿' + (yItem.grandTotal / 1e3).toFixed(0) + 'k';
+              _financeYearlyChartInstance = new Chart(ctx, {
+                data: {
+                  labels: labels,
+                  datasets: [
+                    {
+                      type: 'bar',
+                      label: 'ยอดเงินสุทธิ (บาท)',
+                      data: dataPoints,
+                      backgroundColor: bgColors,
+                      borderColor: borderColors,
+                      borderWidth: 1.5,
+                      borderRadius: 6,
+                      order: 2
+                    },
+                    {
+                      type: 'line',
+                      label: 'ยอดเฉลี่ยต่อปี (฿' + toArabicDigits(Math.round(avgRev).toLocaleString()) + ')',
+                      data: chronYearly.map(() => Math.round(avgRev)),
+                      borderColor: '#38bdf8',
+                      borderWidth: 2,
+                      borderDash: [5, 5],
+                      pointRadius: 0,
+                      fill: false,
+                      tension: 0,
+                      order: 1
+                    }
+                  ]
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  interaction: {
+                    mode: 'index',
+                    intersect: false
+                  },
+                  plugins: {
+                    legend: {
+                      position: 'top',
+                      labels: {
+                        color: '#cbd5e1',
+                        font: { size: 12, weight: '600' },
+                        boxWidth: 14,
+                        boxHeight: 14
+                      }
+                    },
+                    tooltip: {
+                      backgroundColor: 'rgba(2, 44, 34, 0.95)',
+                      titleColor: '#fbbf24',
+                      bodyColor: '#ffffff',
+                      borderColor: 'rgba(215, 166, 0, 0.4)',
+                      borderWidth: 1,
+                      padding: 10,
+                      callbacks: {
+                        label: function(cItem) {
+                          if (cItem.dataset.type === 'line') {
+                            return ' ' + cItem.dataset.label;
+                          }
+                          const idx = cItem.dataIndex;
+                          const item = chronYearly[idx];
+                          return [
+                            ' ยอดเงินสุทธิ: ฿' + toArabicDigits(item.grandTotal.toLocaleString()) + ' บาท',
+                            ' จำนวนใบเสร็จ: ' + toArabicDigits(item.receiptCount.toLocaleString()) + ' ใบ'
+                          ];
+                        }
+                      }
+                    }
+                  },
+                  scales: {
+                    x: {
+                      ticks: {
+                        color: '#94a3b8',
+                        font: { size: 11, weight: '600' }
+                      },
+                      grid: {
+                        color: 'rgba(255, 255, 255, 0.05)'
+                      }
+                    },
+                    y: {
+                      ticks: {
+                        color: '#94a3b8',
+                        font: { size: 11 },
+                        callback: function(val) {
+                          if (val >= 1e6) return '฿' + (val / 1e6).toFixed(1) + 'M';
+                          if (val >= 1e3) return '฿' + (val / 1e3).toFixed(0) + 'k';
+                          return '฿' + val;
+                        }
+                      },
+                      grid: {
+                        color: 'rgba(255, 255, 255, 0.08)'
+                      }
+                    }
+                  },
+                  onClick: function(evt, elements) {
+                    if (elements && elements.length > 0) {
+                      const idx = elements[0].index;
+                      const selectedYear = chronYearly[idx]?.yearBE;
+                      const sel = document.getElementById('selFinanceFilterYearTerm');
+                      if (sel && selectedYear) {
+                        sel.value = selectedYear;
+                        loadFinancialReport();
+                      }
+                    }
+                  }
+                }
+              });
+            }
+          } else {
+            // Fallback to CSS bar pills if Chart.js is unavailable
+            let bHtml = '';
+            for (let i = 0; i < chronYearly.length; i++) {
+              const yItem = chronYearly[i];
+              const isPeak = yItem.yearBE === peakItem.yearBE;
+              const heightPct = Math.max(12, Math.min(100, (yItem.grandTotal / maxRev) * 100)).toFixed(1);
+              const formattedVal = yItem.grandTotal >= 1e6
+                ? '฿' + (yItem.grandTotal / 1e6).toFixed(2) + 'M'
+                : '฿' + (yItem.grandTotal / 1e3).toFixed(0) + 'k';
 
-            bHtml +=
-              '<div class="oca-growth-barchart-col ' + (isPeak ? 'is-peak' : '') + '" title="ปี พ.ศ. ' + toArabicDigits(yItem.yearBE) + ': ฿' + toArabicDigits(yItem.grandTotal.toLocaleString()) + ' (' + toArabicDigits(yItem.receiptCount.toLocaleString()) + ' ใบ)" onclick="if (document.getElementById(\'selFinanceFilterYearTerm\')) { document.getElementById(\'selFinanceFilterYearTerm\').value = \'' + yItem.yearBE + '\'; triggerFinancialReportFilter(); }">' +
-              '  ' + yoyBadge +
-              '  <div class="oca-growth-bar-top">' + toArabicDigits(formattedVal) + '</div>' +
-              '  <div class="oca-growth-bar-pill" style="height:' + heightPct + '%;"></div>' +
-              '  <div class="oca-growth-bar-bottom">ปี ' + toArabicDigits(yItem.yearBE) + '</div>' +
-              '  ' + (isPeak ? '<span style="font-size:9px; background:#fbbf24; color:#000; padding:1px 4px; border-radius:3px; font-weight:800; margin-top:2px;">สูงสุด</span>' : '') +
-              '</div>';
+              bHtml +=
+                '<div class="oca-growth-barchart-col ' + (isPeak ? 'is-peak' : '') + '" title="ปี พ.ศ. ' + toArabicDigits(yItem.yearBE) + ': ฿' + toArabicDigits(yItem.grandTotal.toLocaleString()) + '">' +
+                '  <div class="oca-growth-bar-top">' + toArabicDigits(formattedVal) + '</div>' +
+                '  <div class="oca-growth-bar-pill" style="height:' + heightPct + '%;"></div>' +
+                '  <div class="oca-growth-bar-bottom">ปี ' + toArabicDigits(yItem.yearBE) + '</div>' +
+                '</div>';
+            }
+            boxBarChart.innerHTML = bHtml;
           }
-          boxBarChart.innerHTML = bHtml;
         }
       }
 
