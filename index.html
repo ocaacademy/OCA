@@ -22920,6 +22920,7 @@ body.printing-report #printReportContainer {
     let _ocaRealtimeChannel = null;
 
     let _realtimePulseTimer = null;
+    let _realtimeReconnectTimer = null;
 
     // =========================================================================
 
@@ -23055,9 +23056,34 @@ body.printing-report #printReportContainer {
 
               console.log('[Realtime DB Engine] 100% Live Realtime Subscriptions Active (All 10 Tables)');
 
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+
+              const errMsg = err ? (err.message || String(err)) : '';
+              const isNormalSocketClose = errMsg.includes('1006') || errMsg.includes('socket closed') || errMsg.includes('WebSocket is not open');
+
+              if (!isNormalSocketClose && err) {
+                console.warn('[Realtime DB Engine] Subscription Notice:', status, errMsg);
+              }
+
+              // Safely release dead channel handle to prevent stuck state
+              if (_supabase && _ocaRealtimeChannel) {
+                try { _supabase.removeChannel(_ocaRealtimeChannel); } catch (_) {}
+                _ocaRealtimeChannel = null;
+              }
+
+              // Auto-reconnect with safe backoff
+              if (!_realtimeReconnectTimer) {
+                _realtimeReconnectTimer = setTimeout(() => {
+                  _realtimeReconnectTimer = null;
+                  if (navigator.onLine && !document.hidden) {
+                    initOcaRealtimeEngine();
+                  }
+                }, 3000);
+              }
+
             } else if (err) {
 
-              console.warn('[Realtime DB Engine] Subscription Notice:', status, err);
+              console.warn('[Realtime DB Engine] Subscription Notice:', status, err.message || err);
 
             }
 
@@ -23077,6 +23103,15 @@ body.printing-report #printReportContainer {
 
         }, 60000);
 
+        // Reactive network and visibility reconnection listeners
+
+        window.addEventListener('online', () => {
+          if (!_ocaRealtimeChannel) {
+            initOcaRealtimeEngine();
+          }
+          triggerRealtimeSilentRefresh();
+        });
+
         // Throttled sync on window / tab focus (minimum 20s between triggers)
 
         let _lastFocusSyncTime = 0;
@@ -23085,12 +23120,14 @@ body.printing-report #printReportContainer {
 
           const now = Date.now();
 
-          if (navigator.onLine && (now - _lastFocusSyncTime > 20000)) {
-
-            _lastFocusSyncTime = now;
-
-            triggerRealtimeSilentRefresh();
-
+          if (navigator.onLine) {
+            if (!_ocaRealtimeChannel) {
+              initOcaRealtimeEngine();
+            }
+            if (now - _lastFocusSyncTime > 20000) {
+              _lastFocusSyncTime = now;
+              triggerRealtimeSilentRefresh();
+            }
           }
 
         });
@@ -23099,12 +23136,14 @@ body.printing-report #printReportContainer {
 
           const now = Date.now();
 
-          if (!document.hidden && navigator.onLine && (now - _lastFocusSyncTime > 20000)) {
-
-            _lastFocusSyncTime = now;
-
-            triggerRealtimeSilentRefresh();
-
+          if (!document.hidden && navigator.onLine) {
+            if (!_ocaRealtimeChannel) {
+              initOcaRealtimeEngine();
+            }
+            if (now - _lastFocusSyncTime > 20000) {
+              _lastFocusSyncTime = now;
+              triggerRealtimeSilentRefresh();
+            }
           }
 
         });
