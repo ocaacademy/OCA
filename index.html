@@ -1152,6 +1152,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
 
 
 
@@ -459010,13 +459011,172 @@ if (action === 'getDashboardStats') {
      * Enterprise Unified Portrait Background Processor
      * Guaranteed never to hang or freeze. Enforces 1.8-second timeout race with automatic Canvas fallback.
      */
+    // =========================================================================
+    // MODNet Studio AI Portrait Matting Engine (All Colors, All Patterns, Zero Halo)
+    // Runs client-side via ONNX Runtime Web (WASM). Quantized 6.3MB Model.
+    // =========================================================================
+    const MODNET_IN_W = 384;
+    const MODNET_IN_H = 512;
+    let _modnetSessionPromise = null;
+
+    async function getModnetSession() {
+      if (!_modnetSessionPromise) {
+        _modnetSessionPromise = (async () => {
+          if (typeof ort === 'undefined') throw new Error('ONNX Runtime Web library not loaded');
+          if (ort.env && ort.env.wasm) {
+            ort.env.wasm.numThreads = 1;
+          }
+          try {
+            return await ort.InferenceSession.create('./modnet_quantized.onnx', { executionProviders: ['wasm'] });
+          } catch (localErr) {
+            console.warn('[MODNet] Local model file load failed, falling back to CDN...', localErr);
+            return await ort.InferenceSession.create('https://huggingface.co/Xenova/modnet/resolve/main/onnx/model_quantized.onnx', { executionProviders: ['wasm'] });
+          }
+        })();
+      }
+      return _modnetSessionPromise;
+    }
+
+    function modnetBoxBlur(src, w, h, r) {
+      const tmp = new Float32Array(w * h);
+      const out = new Float32Array(w * h);
+      const n = 2 * r + 1;
+      const cx = (x) => Math.min(w - 1, Math.max(0, x));
+      const cy = (y) => Math.min(h - 1, Math.max(0, y));
+      for (let y = 0; y < h; y++) {
+        let acc = 0;
+        for (let x = -r; x <= r; x++) acc += src[y * w + cx(x)];
+        for (let x = 0; x < w; x++) {
+          tmp[y * w + x] = acc / n;
+          acc += src[y * w + cx(x + r + 1)] - src[y * w + cx(x - r)];
+        }
+      }
+      for (let x = 0; x < w; x++) {
+        let acc = 0;
+        for (let y = -r; y <= r; y++) acc += tmp[cy(y) * w + x];
+        for (let y = 0; y < h; y++) {
+          out[y * w + x] = acc / n;
+          acc += tmp[cy(y + r + 1) * w + x] - tmp[cy(y - r) * w + x];
+        }
+      }
+      return out;
+    }
+
+    async function renderModnetMatting(srcCanvas, targetBgColor, w, h) {
+      const session = await getModnetSession();
+      const tCanvas = document.createElement('canvas');
+      tCanvas.width = MODNET_IN_W;
+      tCanvas.height = MODNET_IN_H;
+      const tCtx = tCanvas.getContext('2d');
+      tCtx.drawImage(srcCanvas, 0, 0, MODNET_IN_W, MODNET_IN_H);
+      const inPixels = tCtx.getImageData(0, 0, MODNET_IN_W, MODNET_IN_H).data;
+
+      const P = MODNET_IN_W * MODNET_IN_H;
+      const tensorData = new Float32Array(3 * P);
+      for (let i = 0; i < P; i++) {
+        for (let c = 0; c < 3; c++) {
+          tensorData[c * P + i] = (inPixels[i * 4 + c] - 127.5) / 127.5;
+        }
+      }
+
+      const tensor = new ort.Tensor('float32', tensorData, [1, 3, MODNET_IN_H, MODNET_IN_W]);
+      const results = await session.run({ input: tensor });
+      const rawMatte = results[Object.keys(results)[0]].data;
+
+      // Bilinear upscale matte from 384x512 back to target dimensions (e.g. 600x800)
+      const mSmallCanvas = document.createElement('canvas');
+      mSmallCanvas.width = MODNET_IN_W;
+      mSmallCanvas.height = MODNET_IN_H;
+      const mSmallCtx = mSmallCanvas.getContext('2d');
+      const mSmallImg = mSmallCtx.createImageData(MODNET_IN_W, MODNET_IN_H);
+      for (let i = 0; i < P; i++) {
+        const v = Math.round(Math.min(1, Math.max(0, rawMatte[i])) * 255);
+        mSmallImg.data[i * 4] = v;
+        mSmallImg.data[i * 4 + 1] = v;
+        mSmallImg.data[i * 4 + 2] = v;
+        mSmallImg.data[i * 4 + 3] = 255;
+      }
+      mSmallCtx.putImageData(mSmallImg, 0, 0);
+
+      const mTargetCanvas = document.createElement('canvas');
+      mTargetCanvas.width = w;
+      mTargetCanvas.height = h;
+      const mTargetCtx = mTargetCanvas.getContext('2d');
+      mTargetCtx.imageSmoothingEnabled = true;
+      mTargetCtx.imageSmoothingQuality = 'high';
+      mTargetCtx.drawImage(mSmallCanvas, 0, 0, w, h);
+      const alphaPixels = mTargetCtx.getImageData(0, 0, w, h).data;
+
+      const N = w * h;
+      const alphaArr = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        alphaArr[i] = alphaPixels[i * 4] / 255;
+      }
+
+      // Parse target background hex color
+      let bgR = 128, bgG = 0, bgB = 0;
+      if (targetBgColor && typeof targetBgColor === 'string' && targetBgColor.startsWith('#')) {
+        let hex = targetBgColor.slice(1);
+        if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+        const val = parseInt(hex, 16);
+        if (!isNaN(val)) {
+          bgR = (val >> 16) & 255;
+          bgG = (val >> 8) & 255;
+          bgB = val & 255;
+        }
+      }
+      const bg = [bgR, bgG, bgB];
+
+      // Optical decontamination of backdrop color reflection on edges
+      const srcCtx = srcCanvas.getContext('2d');
+      const srcPixels = srcCtx.getImageData(0, 0, w, h).data;
+      const binMask = new Float32Array(N);
+      for (let i = 0; i < N; i++) binMask[i] = alphaArr[i] > 0.05 ? 1 : 0;
+      const farBg = modnetBoxBlur(binMask, w, h, 14);
+
+      let sumR = 0, sumG = 0, sumB = 0, count = 0;
+      for (let i = 0; i < N; i += 3) {
+        if (farBg[i] < 0.001) {
+          sumR += srcPixels[i * 4];
+          sumG += srcPixels[i * 4 + 1];
+          sumB += srcPixels[i * 4 + 2];
+          count++;
+        }
+      }
+      const refBackdrop = count > 0 ? [sumR / count, sumG / count, sumB / count] : [240, 240, 240];
+
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = w;
+      outCanvas.height = h;
+      const outCtx = outCanvas.getContext('2d');
+      const outImgData = outCtx.createImageData(w, h);
+      const outPixels = outImgData.data;
+
+      for (let i = 0; i < N; i++) {
+        let a = alphaArr[i];
+        a = a < 0.04 ? 0 : (a > 0.96 ? 1 : a);
+        const j = i * 4;
+        for (let c = 0; c < 3; c++) {
+          let fg = srcPixels[j + c];
+          if (a > 0 && a < 1) {
+            // Decontaminate edge pixels by removing proportional backdrop color spill
+            fg = Math.min(255, Math.max(0, (fg - (1 - a) * refBackdrop[c]) / Math.max(a, 0.35)));
+          }
+          outPixels[j + c] = Math.round(fg * a + bg[c] * (1 - a));
+        }
+        outPixels[j + 3] = 255;
+      }
+      outCtx.putImageData(outImgData, 0, 0);
+      return outCanvas;
+    }
+    window.renderModnetMatting = renderModnetMatting;
+
     async function processPortraitToMaroonDataUri(rawUri, targetHexColor = '#800000') {
       if (!rawUri) return null;
-      // AI background matting disabled — return original photo cropped to 3:4 portrait
       return new Promise((resolve) => {
         const imgEl = new Image();
         imgEl.crossOrigin = 'anonymous';
-        imgEl.onload = () => {
+        imgEl.onload = async () => {
           try {
             const imgW = imgEl.naturalWidth || imgEl.width || 600;
             const imgH = imgEl.naturalHeight || imgEl.height || 800;
@@ -459026,6 +459186,7 @@ if (action === 'getDashboardStats') {
             const currentRatio = imgW / imgH;
             inCanvas.width = 600;
             inCanvas.height = 800;
+
             if (currentRatio > targetRatio + 0.05) {
               const cropW = Math.round(imgH * targetRatio);
               const sx = Math.max(0, Math.floor((imgW - cropW) / 2));
@@ -459037,6 +459198,21 @@ if (action === 'getDashboardStats') {
             } else {
               inCtx.drawImage(imgEl, 0, 0, imgW, imgH, 0, 0, 600, 800);
             }
+
+            // MODNet Studio AI Portrait Matting (Zero Halo, All Colors & Patterns Protected)
+            try {
+              const mattingPromise = renderModnetMatting(inCanvas, targetHexColor, 600, 800);
+              const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('MODNet timeout')), 9000));
+              const outCanvas = await Promise.race([mattingPromise, timeoutPromise]);
+              if (outCanvas) {
+                resolve(outCanvas.toDataURL('image/jpeg', 0.92));
+                return;
+              }
+            } catch (modnetErr) {
+              console.warn('[Portrait AI] MODNet matting fallback to 3:4 crop:', modnetErr);
+            }
+
+            // High-safety fallback: 3:4 crop
             resolve(inCanvas.toDataURL('image/jpeg', 0.92));
           } catch (e) {
             resolve(rawUri);
@@ -459068,10 +459244,10 @@ if (action === 'getDashboardStats') {
       // Immediately display raw photo in viewfinder so staff sees instant feedback
       applyCapturedPhoto(rawUri);
 
-      // Failsafe auto-close safety timer: guarantees overlay closes in max 2.5s no matter what
+      // Failsafe auto-close safety timer: guarantees overlay closes in max 6s no matter what
       const safetyTimer = setTimeout(() => {
         if (overlay) overlay.style.display = 'none';
-      }, 2500);
+      }, 6000);
 
       try {
         const processedUri = await processPortraitToMaroonDataUri(rawUri, MAROON_COLOR);
@@ -943596,7 +943772,7 @@ async function loadTeacherTimesheetReport() {
       const safetyTimer = setTimeout(() => {
         if (procEl) procEl.style.display = 'none';
         if (succEl) succEl.style.display = 'flex';
-      }, 2500);
+      }, 6000);
 
       try {
         const processedUri = await processPortraitToMaroonDataUri(_rawOriginalPhotoDataUri, _currentPhotoBgColor);
