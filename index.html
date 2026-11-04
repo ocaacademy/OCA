@@ -458860,179 +458860,6 @@ if (action === 'getDashboardStats') {
     window.handleEnrollPhotoFileUpload = handleEnrollPhotoFileUpload;
 
     /**
-     * Pure HTML5 Canvas Adaptive Studio Matting Engine (Zero WebAssembly / 100% Offline)
-     * Replaces background with solid Maroon (#800000) using edge-color matting and geometry protection.
-     */
-    function renderCanvasAdaptiveMatting(srcCanvas, targetBgColor, w, h) {
-      const outCanvas = document.createElement('canvas');
-      outCanvas.width = w;
-      outCanvas.height = h;
-      const outCtx = outCanvas.getContext('2d');
-      let bgR = 128, bgG = 0, bgB = 0;
-      if (targetBgColor && typeof targetBgColor === 'string' && targetBgColor.startsWith('#')) {
-        let hex = targetBgColor.slice(1);
-        if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-        const val = parseInt(hex, 16);
-        if (!isNaN(val)) {
-          bgR = (val >> 16) & 255;
-          bgG = (val >> 8) & 255;
-          bgB = val & 255;
-        }
-      }
-      const srcCtx = srcCanvas.getContext('2d');
-      const srcImgData = srcCtx.getImageData(0, 0, w, h);
-      const srcPixels = srcImgData.data;
-      const outImgData = outCtx.createImageData(w, h);
-      const outPixels = outImgData.data;
-
-      // Sample backdrop from narrow outer border (top 8%, bottom 5%, sides 10%)
-      let sumR = 0, sumG = 0, sumB = 0, count = 0;
-      const sampleTopH = Math.max(2, Math.floor(h * 0.08));
-      const sampleBotH = Math.max(2, Math.floor(h * 0.05));
-      const sampleSideW = Math.max(2, Math.floor(w * 0.10));
-      for (let y = 0; y < sampleTopH; y += 2) {
-        for (let x = 0; x < w; x += 4) {
-          const idx = (y * w + x) * 4;
-          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
-        }
-      }
-      for (let y = h - sampleBotH; y < h; y += 2) {
-        for (let x = 0; x < w; x += 4) {
-          const idx = (y * w + x) * 4;
-          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
-        }
-      }
-      for (let y = sampleTopH; y < h - sampleBotH; y += 3) {
-        for (let x = 0; x < sampleSideW; x += 3) {
-          const i1 = (y * w + x) * 4;
-          sumR += srcPixels[i1]; sumG += srcPixels[i1 + 1]; sumB += srcPixels[i1 + 2]; count++;
-          const i2 = (y * w + (w - 1 - x)) * 4;
-          sumR += srcPixels[i2]; sumG += srcPixels[i2 + 1]; sumB += srcPixels[i2 + 2]; count++;
-        }
-      }
-      const refR = count > 0 ? sumR / count : 240;
-      const refG = count > 0 ? sumG / count : 240;
-      const refB = count > 0 ? sumB / count : 240;
-
-      const isBlue = (refB > refR + 8 && refB > refG + 8);
-      const isGreen = (refG > refR + 8 && refG > refB + 8);
-      const isLightNeutral = (refR > 165 && refG > 165 && refB > 165 && Math.max(refR, refG, refB) - Math.min(refR, refG, refB) < 35);
-      // Dark backdrop: maroon, grey, or any backdrop without clear hue dominance
-      const isDarkBackdrop = (!isBlue && !isGreen && !isLightNeutral);
-
-      // Face protection zone (wider than before to cover forehead, hairline, neck)
-      const faceMinX = Math.floor(w * 0.28);
-      const faceMaxX = Math.floor(w * 0.72);
-      const faceMinY = Math.floor(h * 0.06);
-      const faceMaxY = Math.floor(h * 0.62);
-
-      // Subject centre zone — only used for DARK backdrops to prevent erosion of red clothing
-      const subjectMinX = Math.floor(w * 0.22);
-      const subjectMaxX = Math.floor(w * 0.78);
-      const subjectMinY = Math.floor(h * 0.08);
-      const subjectMaxY = Math.floor(h * 0.92);
-      const edgeMarginX = Math.floor(w * 0.16);
-      const edgeMarginY = Math.floor(h * 0.16);
-
-      const total = srcPixels.length;
-      for (let i = 0; i < total; i += 4) {
-        const px = (i / 4) % w;
-        const py = Math.floor((i / 4) / w);
-        const sR = srcPixels[i];
-        const sG = srcPixels[i + 1];
-        const sB = srcPixels[i + 2];
-
-        const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
-        const blueDom = sB - Math.max(sR, sG);
-        const greenDom = sG - Math.max(sR, sB);
-        const isFaceZone = (px >= faceMinX && px <= faceMaxX && py >= faceMinY && py <= faceMaxY);
-        const isSkinTone = (sR > sB + 25 && sR > sG && sR > 75);
-
-        // --- FACE PROTECTION: skin tone inside face zone is always preserved ---
-        if (isFaceZone && isSkinTone) {
-          outPixels[i]     = sR;
-          outPixels[i + 1] = sG;
-          outPixels[i + 2] = sB;
-          outPixels[i + 3] = 255;
-          continue;
-        }
-
-        // --- DARK BACKDROP INTERIOR GUARD (only for maroon/dark, not blue/green/light) ---
-        // Prevents red-ish clothing in subject centre from being erased
-        if (isDarkBackdrop) {
-          const isNearEdge = (px < edgeMarginX || px > w - edgeMarginX || py < edgeMarginY || py > h - edgeMarginY);
-          const isSubjectCentre = (px >= subjectMinX && px <= subjectMaxX && py >= subjectMinY && py <= subjectMaxY);
-          if (isSubjectCentre && !isNearEdge && distBg > 20) {
-            outPixels[i]     = sR;
-            outPixels[i + 1] = sG;
-            outPixels[i + 2] = sB;
-            outPixels[i + 3] = 255;
-            continue;
-          }
-        }
-
-        let isBackground = false;
-
-        if (isBlue) {
-          // Blue screen: colour + dominance based detection
-          if (distBg <= 65) {
-            isBackground = true;
-          } else if (blueDom > 10 && (sB > 65 || distBg < 95)) {
-            isBackground = true;
-          } else if (blueDom > 4 && distBg < 80) {
-            isBackground = true;
-          }
-        } else if (isGreen) {
-          // Green screen: colour + dominance based detection
-          if (distBg <= 65) {
-            isBackground = true;
-          } else if (greenDom > 10 && (sG > 65 || distBg < 95)) {
-            isBackground = true;
-          } else if (greenDom > 4 && distBg < 80) {
-            isBackground = true;
-          }
-        } else if (isLightNeutral) {
-          // Light/white backdrop
-          if (distBg <= 58) {
-            isBackground = true;
-          } else if (sR > 182 && sG > 182 && sB > 182 && (Math.max(sR, sG, sB) - Math.min(sR, sG, sB) < 28) && distBg < 85) {
-            isBackground = true;
-          }
-        } else {
-          // Dark/maroon backdrop — spatial-constrained to avoid erasing red clothing
-          const isNearEdge = (px < edgeMarginX || px > w - edgeMarginX || py < edgeMarginY || py > h - edgeMarginY);
-          const bgThreshold = isNearEdge ? 42 : 20;
-          if (distBg <= bgThreshold) {
-            isBackground = true;
-          }
-        }
-
-        if (isBackground) {
-          outPixels[i]     = bgR;
-          outPixels[i + 1] = bgG;
-          outPixels[i + 2] = bgB;
-          outPixels[i + 3] = 255;
-        } else {
-          // Preserve subject pixel — suppress residual colour spill on edges
-          let fR = sR, fG = sG, fB = sB;
-          if (isBlue && blueDom > 1) {
-            fB = Math.min(sB, Math.round((sR + sG) / 2));
-          }
-          if (isGreen && greenDom > 1) {
-            fG = Math.min(sG, Math.round((sR + sB) / 2));
-          }
-          outPixels[i]     = fR;
-          outPixels[i + 1] = fG;
-          outPixels[i + 2] = fB;
-          outPixels[i + 3] = 255;
-        }
-      }
-      outCtx.putImageData(outImgData, 0, 0);
-      return outCanvas;
-    }
-    window.renderCanvasAdaptiveMatting = renderCanvasAdaptiveMatting;
-
-    /**
      * Enterprise Edge Refinement & Studio Backdrop Matting Engine for OCA ID Portraits
      * Eliminates blue backdrop halos, purges false-positive background masks,
      * neutralizes optical blue flare on hair/collar, and smoothly blends with Maroon (#800000).
@@ -459185,60 +459012,37 @@ if (action === 'getDashboardStats') {
      */
     async function processPortraitToMaroonDataUri(rawUri, targetHexColor = '#800000') {
       if (!rawUri) return null;
+      // AI background matting disabled — return original photo cropped to 3:4 portrait
       return new Promise((resolve) => {
         const imgEl = new Image();
         imgEl.crossOrigin = 'anonymous';
-        imgEl.onload = async () => {
+        imgEl.onload = () => {
           try {
             const imgW = imgEl.naturalWidth || imgEl.width || 600;
             const imgH = imgEl.naturalHeight || imgEl.height || 800;
             const inCanvas = document.createElement('canvas');
             const inCtx = inCanvas.getContext('2d');
-
-            // Standard Official OCA Student Card 3:4 Portrait Ratio (600x800)
             const targetRatio = 3 / 4;
             const currentRatio = imgW / imgH;
-
+            inCanvas.width = 600;
+            inCanvas.height = 800;
             if (currentRatio > targetRatio + 0.05) {
-              // Source is landscape or wide: crop center 3:4 portrait
               const cropW = Math.round(imgH * targetRatio);
-              const cropH = imgH;
               const sx = Math.max(0, Math.floor((imgW - cropW) / 2));
-              inCanvas.width = 600;
-              inCanvas.height = 800;
-              inCtx.drawImage(imgEl, sx, 0, cropW, cropH, 0, 0, 600, 800);
+              inCtx.drawImage(imgEl, sx, 0, cropW, imgH, 0, 0, 600, 800);
             } else if (currentRatio < targetRatio - 0.05) {
-              // Source is taller than 3:4: crop center 3:4 portrait
-              const cropW = imgW;
               const cropH = Math.round(imgW / targetRatio);
               const sy = Math.max(0, Math.floor((imgH - cropH) / 2));
-              inCanvas.width = 600;
-              inCanvas.height = 800;
-              inCtx.drawImage(imgEl, 0, sy, cropW, cropH, 0, 0, 600, 800);
+              inCtx.drawImage(imgEl, 0, sy, imgW, cropH, 0, 0, 600, 800);
             } else {
-              // Source is already approximately 3:4 portrait
-              inCanvas.width = 600;
-              inCanvas.height = 800;
               inCtx.drawImage(imgEl, 0, 0, imgW, imgH, 0, 0, 600, 800);
             }
-
-            // Studio Canvas Adaptive Matting (Zero WebAssembly / 100% Offline / Zero Blue Halo)
-            window._mediapipeSegmentationDisabled = true;
-            try {
-              const outCanvas = renderCanvasAdaptiveMatting(inCanvas, targetHexColor, inCanvas.width, inCanvas.height);
-              resolve(outCanvas.toDataURL('image/jpeg', 0.92));
-            } catch (mattingErr) {
-              console.warn('[Portrait AI] Matting error, using raw image:', mattingErr);
-              resolve(rawUri);
-            }
-          } catch (globalErr) {
-            console.warn('[Portrait AI] Processing error, using raw image:', globalErr);
+            resolve(inCanvas.toDataURL('image/jpeg', 0.92));
+          } catch (e) {
             resolve(rawUri);
           }
         };
-        imgEl.onerror = () => {
-          resolve(rawUri);
-        };
+        imgEl.onerror = () => resolve(rawUri);
         imgEl.src = rawUri;
       });
     }
