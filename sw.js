@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oca-pwa-v356';
+const CACHE_NAME = 'oca-pwa-v357';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -33,7 +33,7 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME).then((cache) => {
       return Promise.allSettled(
         ASSETS_TO_CACHE.map((url) => {
-          return fetch(url)
+          return fetch(url, { cache: 'reload' })
             .then((res) => {
               if (res.ok || res.type === 'opaque') {
                 return cache.put(url, res);
@@ -88,7 +88,7 @@ self.addEventListener('fetch', (event) => {
 
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request, { cache: 'no-cache' })
+      fetch(event.request, { cache: 'reload' })
         .then((response) => {
           if (response && response.status === 200) {
             const clone = response.clone();
