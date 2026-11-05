@@ -7659,14 +7659,14 @@ body.printing-report #printReportContainer {
             <!-- Left: Students by Term (5 Terms Bar Chart) -->
             <div class="oca-chart-card">
               <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
-                <div class="oca-chart-header" style="margin-bottom:0; white-space:nowrap;">
-                  <i class="fa-solid fa-chart-simple" style="color:var(--color-gold); margin-right:6px;"></i>
-
-                  นักศึกษาแยกตามเทอม (ปีการศึกษา <span id="dashChartYear">2569</span>)
-
+                <div class="oca-chart-header" style="margin-bottom:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <i class="fa-solid fa-chart-line" style="color:var(--color-gold); font-size:16px;"></i>
+                  <span>นักศึกษาแยกตามเทอม (ปีการศึกษา <span id="dashChartYear">2569</span>)</span>
+                  <span style="font-size:10.5px; font-weight:700; color:#34d399; background:rgba(16,185,129,0.14); border:1px solid rgba(16,185,129,0.35); padding:2px 8px; border-radius:999px;">กราฟเส้นแนวโน้ม (Trend Line)</span>
                 </div>
 
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0;">
+                  <span id="dashChartPeakBadge" style="background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.35); color:#fbbf24; font-weight:700; padding:4px 10px; border-radius:12px; font-size:11.5px; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;">★ สูงสุด: เทอม 3 (2,396 คน)</span>
                   <span style="font-size:12px; color:var(--text-muted); white-space:nowrap;">รวม 5 ภาคเรียน</span>
                   <span style="background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); color:#34d399; font-weight:700; padding:4px 12px; border-radius:12px; font-size:12px; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; flex-shrink:0;">
                     <i class="fa-solid fa-users" style="font-size:12px;"></i> รวมทั้งปี: <strong id="dashChartYearTotal" style="color:#ffffff; font-size:13.5px;">9,178</strong> คน
@@ -7674,70 +7674,119 @@ body.printing-report #printReportContainer {
                 </div>
               </div>
 
-              <div class="oca-barchart-container">
-                <div class="oca-barchart-col">
-                  <span class="oca-bar-top-val" id="bVal1">1,329</span>
-                  <div class="oca-bar-pill" id="bBar1" style="height: 55%;"></div>
-                  <span class="oca-bar-bottom-label">เทอม 1</span>
-                </div>
+              <!-- Executive SVG Smooth Spline Area & Line Chart Container -->
+              <div id="dashTermLineChartWrap" style="width:100%; position:relative; background:radial-gradient(ellipse at top, rgba(16,185,129,0.06) 0%, rgba(1,21,16,0.6) 100%); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:12px 14px 6px 14px; box-sizing:border-box; margin-bottom:14px; overflow:hidden;">
+                <svg id="svgDashTermLineChart" viewBox="0 0 960 230" preserveAspectRatio="xMidYMid meet" style="width:100%; height:225px; display:block; overflow:visible;">
+                  <defs>
+                    <linearGradient id="dashLineAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.28" />
+                      <stop offset="55%" stop-color="#10b981" stop-opacity="0.12" />
+                      <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+                    </linearGradient>
+                    <linearGradient id="dashLineStrokeGrad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stop-color="#10b981" />
+                      <stop offset="30%" stop-color="#fbbf24" />
+                      <stop offset="50%" stop-color="#f59e0b" />
+                      <stop offset="75%" stop-color="#fbbf24" />
+                      <stop offset="100%" stop-color="#10b981" />
+                    </linearGradient>
+                    <filter id="dashLineGlow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feGaussianBlur stdDeviation="3" result="blur" />
+                      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
+                  </defs>
+                  <!-- Horizontal Gridlines & Y-Axis Scale Labels -->
+                  <g opacity="0.35">
+                    <line x1="56" y1="35" x2="930" y2="35" stroke="rgba(255,255,255,0.18)" stroke-dasharray="4,4" />
+                    <line x1="56" y1="85" x2="930" y2="85" stroke="rgba(255,255,255,0.12)" stroke-dasharray="4,4" />
+                    <line x1="56" y1="135" x2="930" y2="135" stroke="rgba(255,255,255,0.12)" stroke-dasharray="4,4" />
+                    <line x1="56" y1="185" x2="930" y2="185" stroke="rgba(255,255,255,0.22)" />
+                  </g>
+                  <g font-size="11" font-weight="600" fill="#64748b" text-anchor="end" font-family="'JetBrains Mono', monospace">
+                    <text x="48" y="39" id="dashLineYMax">2,700</text>
+                    <text x="48" y="89" id="dashLineYMid2">1,800</text>
+                    <text x="48" y="139" id="dashLineYMid1">900</text>
+                    <text x="48" y="189">0</text>
+                  </g>
+                  <!-- Dynamic SVG Elements (Area, Stroke, Drop Lines, Nodes, Badges) -->
+                  <g id="dashTermLineDynamicGroup">
+                    <path d="M 130,116 C 208,116 237,72 315,72 C 393,72 422,61 500,61 C 578,61 607,86 685,86 C 763,86 792,115 870,115 L 870,185 L 130,185 Z" fill="url(#dashLineAreaGrad)" />
+                    <path d="M 130,116 C 208,116 237,72 315,72 C 393,72 422,61 500,61 C 578,61 607,86 685,86 C 763,86 792,115 870,115" fill="none" stroke="url(#dashLineStrokeGrad)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+                    <line x1="130" y1="116" x2="130" y2="185" stroke="rgba(255,255,255,0.12)" stroke-dasharray="3,3" />
+                    <line x1="315" y1="72" x2="315" y2="185" stroke="rgba(255,255,255,0.12)" stroke-dasharray="3,3" />
+                    <line x1="500" y1="61" x2="500" y2="185" stroke="rgba(251,191,36,0.32)" stroke-dasharray="3,3" />
+                    <line x1="685" y1="86" x2="685" y2="185" stroke="rgba(255,255,255,0.12)" stroke-dasharray="3,3" />
+                    <line x1="870" y1="115" x2="870" y2="185" stroke="rgba(255,255,255,0.12)" stroke-dasharray="3,3" />
+                    <circle cx="130" cy="116" r="5" fill="#10b981" stroke="#ffffff" stroke-width="2" />
+                    <rect x="94" y="88" width="72" height="22" rx="11" fill="rgba(15,23,42,0.88)" stroke="rgba(16,185,129,0.35)" />
+                    <text x="130" y="103" fill="#34d399" font-size="12" font-weight="700" text-anchor="middle" font-family="'JetBrains Mono', monospace">1,329</text>
+                    <text x="130" y="206" fill="#94a3b8" font-size="12" font-weight="600" text-anchor="middle">เทอม 1</text>
+                    <circle cx="315" cy="72" r="5" fill="#fbbf24" stroke="#ffffff" stroke-width="2" />
+                    <rect x="279" y="44" width="72" height="22" rx="11" fill="rgba(15,23,42,0.88)" stroke="rgba(251,191,36,0.35)" />
+                    <text x="315" y="59" fill="#fbbf24" font-size="12" font-weight="700" text-anchor="middle" font-family="'JetBrains Mono', monospace">2,176</text>
+                    <text x="315" y="206" fill="#94a3b8" font-size="12" font-weight="600" text-anchor="middle">เทอม 2</text>
+                    <circle cx="500" cy="61" r="10" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="2,2" opacity="0.8" />
+                    <circle cx="500" cy="61" r="6.5" fill="#f59e0b" stroke="#ffffff" stroke-width="2.5" filter="url(#dashLineGlow)" />
+                    <rect x="456" y="28" width="88" height="24" rx="12" fill="rgba(245,158,11,0.2)" stroke="#f59e0b" stroke-width="1.5" />
+                    <text x="500" y="44" fill="#fbbf24" font-size="12.5" font-weight="800" text-anchor="middle" font-family="'JetBrains Mono', monospace">★ 2,396</text>
+                    <text x="500" y="206" fill="#fbbf24" font-size="12.5" font-weight="800" text-anchor="middle">เทอม 3 (สูงสุด)</text>
+                    <circle cx="685" cy="86" r="5" fill="#fbbf24" stroke="#ffffff" stroke-width="2" />
+                    <rect x="649" y="58" width="72" height="22" rx="11" fill="rgba(15,23,42,0.88)" stroke="rgba(251,191,36,0.35)" />
+                    <text x="685" y="73" fill="#fbbf24" font-size="12" font-weight="700" text-anchor="middle" font-family="'JetBrains Mono', monospace">1,919</text>
+                    <text x="685" y="206" fill="#fcd34d" font-size="12" font-weight="700" text-anchor="middle">เทอม 4</text>
+                    <circle cx="870" cy="115" r="5" fill="#10b981" stroke="#ffffff" stroke-width="2" />
+                    <rect x="834" y="87" width="72" height="22" rx="11" fill="rgba(15,23,42,0.88)" stroke="rgba(16,185,129,0.35)" />
+                    <text x="870" y="102" fill="#34d399" font-size="12" font-weight="700" text-anchor="middle" font-family="'JetBrains Mono', monospace">1,358</text>
+                    <text x="870" y="206" fill="#94a3b8" font-size="12" font-weight="600" text-anchor="middle">เทอม 5</text>
+                  </g>
+                </svg>
+              </div>
 
-                <div class="oca-barchart-col">
-                  <span class="oca-bar-top-val" id="bVal2">2,176</span>
-                  <div class="oca-bar-pill" id="bBar2" style="height: 91%;"></div>
-                  <span class="oca-bar-bottom-label">เทอม 2</span>
-                </div>
-
-                <div class="oca-barchart-col">
-                  <span class="oca-bar-top-val" id="bVal3">2,396</span>
-                  <div class="oca-bar-pill peak" id="bBar3" style="height: 100%;"></div>
-                  <span class="oca-bar-bottom-label">เทอม 3</span>
-                </div>
-
-                <div class="oca-barchart-col">
-                  <span class="oca-bar-top-val" id="bVal4">1,919</span>
-                  <div class="oca-bar-pill" id="bBar4" style="height: 80%;"></div>
-                  <span class="oca-bar-bottom-label" style="color:var(--color-gold-light); font-weight:700;">เทอม 4</span>
-                </div>
-
-                <div class="oca-barchart-col">
-                  <span class="oca-bar-top-val" id="bVal5">1,358</span>
-                  <div class="oca-bar-pill" id="bBar5" style="height: 57%;"></div>
-                  <span class="oca-bar-bottom-label">เทอม 5</span>
-                </div>
-                <!-- 6th column spacer to align bars exactly with 6 summary boxes below -->
-                <div class="oca-barchart-col oca-barchart-col-spacer" style="visibility:hidden;" aria-hidden="true"></div>
+              <!-- Compatibility Hook (Keeping bVal1..bVal5 & bBar1..bBar5 for tests & legacy calls) -->
+              <div style="display:none;" aria-hidden="true">
+                <span id="bVal1">1,329</span><div id="bBar1"></div>
+                <span id="bVal2">2,176</span><div id="bBar2"></div>
+                <span id="bVal3">2,396</span><div id="bBar3"></div>
+                <span id="bVal4">1,919</span><div id="bBar4"></div>
+                <span id="bVal5">1,358</span><div id="bBar5"></div>
               </div>
 
               <!-- Term Mini Summary Row (6 columns including รวมทั้งปี) -->
               <div class="oca-dash-term-summary">
-                <div style="background:rgba(255,255,255,0.03); padding:8px 6px; border-radius:8px; border:1px solid var(--border-soft);">
+                <div id="dashTermCard1" style="background:rgba(255,255,255,0.03); padding:8px 6px; border-radius:8px; border:1px solid var(--border-soft); transition:all 0.2s ease;">
                   <div style="font-size:12px; color:var(--text-muted);">เทอม 1</div>
-                  <div style="font-size:15px; font-weight:700; color:#ffffff;" id="kpiTerm1">0</div>
+                  <div style="font-size:15px; font-weight:700; color:#ffffff;" id="kpiTerm1">1,329</div>
+                  <div id="kpiTermPct1" style="font-size:11px; color:var(--text-muted); margin-top:2px;">14.5% ของทั้งปี</div>
                 </div>
 
-                <div style="background:rgba(255,255,255,0.03); padding:8px 6px; border-radius:8px; border:1px solid var(--border-soft);">
+                <div id="dashTermCard2" style="background:rgba(255,255,255,0.03); padding:8px 6px; border-radius:8px; border:1px solid var(--border-soft); transition:all 0.2s ease;">
                   <div style="font-size:12px; color:var(--text-muted);">เทอม 2</div>
-                  <div style="font-size:15px; font-weight:700; color:#ffffff;" id="kpiTerm2">0</div>
+                  <div style="font-size:15px; font-weight:700; color:#ffffff;" id="kpiTerm2">2,176</div>
+                  <div id="kpiTermPct2" style="font-size:11px; color:var(--text-muted); margin-top:2px;">23.7% ของทั้งปี</div>
                 </div>
 
-                <div style="background:rgba(255,255,255,0.03); padding:8px 6px; border-radius:8px; border:1px solid var(--border-soft);">
-                  <div style="font-size:12px; color:var(--text-muted);">เทอม 3</div>
-                  <div style="font-size:15px; font-weight:700; color:#ffffff;" id="kpiTerm3">0</div>
+                <div id="dashTermCard3" style="background:rgba(251,191,36,0.06); padding:8px 6px; border-radius:8px; border:1px solid rgba(251,191,36,0.45); transition:all 0.2s ease;">
+                  <div style="font-size:12px; color:#fbbf24; font-weight:700;">เทอม 3 (สูงสุด)</div>
+                  <div style="font-size:15px; font-weight:800; color:#fbbf24;" id="kpiTerm3">2,396</div>
+                  <div id="kpiTermPct3" style="font-size:11px; color:#fde68a; margin-top:2px;">26.1% ของทั้งปี</div>
                 </div>
 
-                <div style="background:rgba(255,255,255,0.03); padding:8px 6px; border-radius:8px; border:1px solid var(--border-soft);">
+                <div id="dashTermCard4" style="background:rgba(255,255,255,0.03); padding:8px 6px; border-radius:8px; border:1px solid var(--border-soft); transition:all 0.2s ease;">
                   <div style="font-size:12px; color:var(--text-muted);">เทอม 4</div>
-                  <div style="font-size:15px; font-weight:700; color:#ffffff;" id="kpiTerm4">0</div>
+                  <div style="font-size:15px; font-weight:700; color:#ffffff;" id="kpiTerm4">1,919</div>
+                  <div id="kpiTermPct4" style="font-size:11px; color:var(--text-muted); margin-top:2px;">20.9% ของทั้งปี</div>
                 </div>
 
-                <div style="background:rgba(255,255,255,0.03); padding:8px 6px; border-radius:8px; border:1px solid var(--border-soft);">
+                <div id="dashTermCard5" style="background:rgba(255,255,255,0.03); padding:8px 6px; border-radius:8px; border:1px solid var(--border-soft); transition:all 0.2s ease;">
                   <div style="font-size:12px; color:var(--text-muted);">เทอม 5</div>
-                  <div style="font-size:15px; font-weight:700; color:#ffffff;" id="kpiTerm5">0</div>
+                  <div style="font-size:15px; font-weight:700; color:#ffffff;" id="kpiTerm5">1,358</div>
+                  <div id="kpiTermPct5" style="font-size:11px; color:var(--text-muted); margin-top:2px;">14.8% ของทั้งปี</div>
                 </div>
 
                 <div style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.35); padding:8px 6px; border-radius:8px;">
                   <div style="font-size:12px; color:#34d399; font-weight:700;"><i class="fa-solid fa-users" style="margin-right:3px;"></i>รวมทั้งปี</div>
-                  <div style="font-size:16px; font-weight:800; color:#10b981;" id="kpiTermTotal">0</div>
+                  <div style="font-size:16px; font-weight:800; color:#10b981;" id="kpiTermTotal">9,178</div>
+                  <div style="font-size:11px; color:#34d399; margin-top:2px;">100% สรุปภาพรวม</div>
                 </div>
               </div>
             </div>
@@ -9386,9 +9435,9 @@ body.printing-report #printReportContainer {
               <div style="flex:1; min-width:0;">
                 <div id="lblTeacherGpsTitle" style="font-weight:800; font-size:12.5px; color:#FFFFFF;">กำลังค้นหาพิกัด GPS เรียลไทม์...</div>
                 <div id="lblTeacherGpsDetails" style="font-size:11px; color:#A7F3D0; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">สถาบัน OCA (13.743527, 100.521514) รัศมี 50 เมตร</div>
-                <div id="lblTeacherGpsLiveCoords" style="font-size:10.5px; color:#38BDF8; font-family:monospace; margin-top:2px; display:flex; align-items:center;">
-                  <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#10B981; box-shadow:0 0 6px #10B981; margin-right:4px;"></span>
-                  🛰️ พิกัดสด: กำลังเชื่อมต่อดาวเทียม...
+                <div id="lblTeacherGpsLiveCoords" style="font-size:10.5px; color:#38BDF8; font-family:monospace; margin-top:2px; display:flex; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                  <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#10B981; box-shadow:0 0 6px #10B981; margin-right:4px; flex-shrink:0;"></span>
+                  <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🛰️ พิกัดสด: กำลังเชื่อมต่อดาวเทียม...</span>
                 </div>
               </div>
               <div id="badgeGpsDistance" style="font-size:13.5px; font-weight:800; font-family:monospace; padding:5px 10px; border-radius:8px; background:#011510; border:1px solid rgba(252,211,77,0.35); color:#FCD34D; white-space:nowrap;">-- ม.</div>
@@ -9398,16 +9447,16 @@ body.printing-report #printReportContainer {
               <div id="stateBiometricNotEnrolled" style="display:none; padding:10px 12px; border-radius:10px; border:1px solid rgba(245,158,11,0.35); background:linear-gradient(135deg, rgba(217,119,6,0.14), rgba(180,83,9,0.06));">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
                   <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:190px;">
-                    <div style="width:32px; height:32px; border-radius:8px; background:rgba(245,158,11,0.22); color:#FCD34D; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;">
-                      <i class="fa-solid fa-hand-sparkles"></i>
+                    <div style="width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg, rgba(245,158,11,0.25), rgba(217,119,6,0.12)); border:1px solid rgba(251,191,36,0.45); color:#FCD34D; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;">
+                      <i class="fa-solid fa-fingerprint"></i>
                     </div>
                     <div>
                       <div id="txtBioNotEnrolledTitle" style="font-size:12px; font-weight:800; color:#FCD34D;">กรุณาลงทะเบียนลายนิ้วมือครั้งแรก</div>
                       <div id="txtBioNotEnrolledSub" style="font-size:10.5px; color:#FDE68A; line-height:1.3;">ผูกกับอุปกรณ์นี้ (บันทึกได้ครั้งเดียว แก้ไขต้องแจ้ง Admin)</div>
                     </div>
                   </div>
-                  <button type="button" id="btnTeacherEnrollBiometric" class="oca-btn-gold-submit" onclick="enrollTeacherBiometric()" style="padding:6px 13px; font-size:11.5px; font-weight:800; border-radius:9999px; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;">
-                    <i class="fa-solid fa-fingerprint"></i> <span id="txtEnrollBioBtn">ลงทะเบียนลายนิ้วมือ (Enroll)</span>
+                  <button type="button" id="btnTeacherEnrollBiometric" class="oca-btn-gold-submit" onclick="enrollTeacherBiometric()" style="height:38px; padding:0 16px; font-size:12px; font-weight:800; border-radius:9999px; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; flex-shrink:0;">
+                    <i class="fa-solid fa-fingerprint"></i> <span id="txtEnrollBioBtn">สแกนนิ้วครั้งแรก (Enroll)</span>
                   </button>
                 </div>
               </div>
@@ -9435,7 +9484,7 @@ body.printing-report #printReportContainer {
             <div style="display:flex; flex-direction:column; gap:10px; flex:1; justify-content:center;">
               <button type="button" id="btnClockInAction" class="oca-tp-terminal-btn oca-tp-terminal-btn-in" onclick="performTeacherCheckInWithType('IN')">
                 <div style="display:flex; align-items:center; gap:12px;">
-                  <div style="width:40px; height:40px; border-radius:10px; background:rgba(16,185,129,0.22); border:1px solid rgba(52,211,153,0.45); display:flex; align-items:center; justify-content:center; font-size:17px; color:#34D399; flex-shrink:0;">
+                  <div style="width:46px; height:46px; border-radius:12px; background:rgba(16,185,129,0.22); border:1px solid rgba(52,211,153,0.45); display:flex; align-items:center; justify-content:center; font-size:18px; color:#34D399; flex-shrink:0;">
                     <i class="fa-solid fa-arrow-right-to-bracket"></i>
                   </div>
                   <div>
@@ -9446,7 +9495,7 @@ body.printing-report #printReportContainer {
               </button>
               <button type="button" id="btnClockOutAction" class="oca-tp-terminal-btn oca-tp-terminal-btn-out" onclick="performTeacherCheckInWithType('OUT')">
                 <div style="display:flex; align-items:center; gap:12px;">
-                  <div style="width:40px; height:40px; border-radius:10px; background:rgba(244,63,94,0.22); border:1px solid rgba(251,113,133,0.45); display:flex; align-items:center; justify-content:center; font-size:17px; color:#FDA4AF; flex-shrink:0;">
+                  <div style="width:46px; height:46px; border-radius:12px; background:rgba(244,63,94,0.22); border:1px solid rgba(251,113,133,0.45); display:flex; align-items:center; justify-content:center; font-size:18px; color:#FDA4AF; flex-shrink:0;">
                     <i class="fa-solid fa-arrow-right-from-bracket"></i>
                   </div>
                   <div>
@@ -9480,7 +9529,12 @@ body.printing-report #printReportContainer {
                   </tr>
                 </thead>
                 <tbody id="tbTeacherMyCheckinHistory">
-                  <tr><td id="txtNoHistoryTodayCell" colspan="4" style="text-align:center; padding:14px; color:#94A3B8;">ยังไม่มีประวัติการลงเวลาวันนี้</td></tr>
+                  <tr><td id="txtNoHistoryTodayCell" colspan="4" style="text-align:center; padding:18px 10px; color:#94A3B8;">
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                      <div style="width:36px; height:36px; border-radius:50%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:center; color:#64748B; font-size:14px;"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                      <span>ยังไม่มีประวัติการลงเวลาวันนี้</span>
+                    </div>
+                  </td></tr>
                 </tbody>
               </table>
             </div>
@@ -9521,7 +9575,7 @@ body.printing-report #printReportContainer {
             <div style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; flex:1;">
               <div style="min-width:300px; flex:1.5;">
                 <label id="lblSelectScheduleText" style="display:block; font-size:11px; font-weight:800; color:#94A3B8; margin-bottom:5px; letter-spacing:0.4px;">เลือกตารางเรียน / รอบเวลาเปิดสอน (8 รอบมาตรฐาน)</label>
-                <select id="selTeacherSchedule" class="oca-input" onchange="onTeacherScheduleChange()" style="width:100%; height:40px; padding:7px 12px; font-size:12.5px; font-weight:700; background:#02261E; color:#FFFFFF; border:1px solid rgba(252,211,77,0.35); border-radius:9px; box-sizing:border-box;">
+                <select id="selTeacherSchedule" class="oca-input" onchange="onTeacherScheduleChange()" style="width:100%; height:44px; padding:7px 12px; font-size:12.5px; font-weight:700; background:#02261E; color:#FFFFFF; border:1px solid rgba(252,211,77,0.35); border-radius:9px; box-sizing:border-box;">
                   <option value="SCH-01">SCH-01: จันทร์และพุธ 18.30-21.00 น.</option>
                   <option value="SCH-02">SCH-02: อังคารและพฤหัส 09.30-12.00 น.</option>
                   <option value="SCH-03">SCH-03: อังคารและพฤหัส 13.30-16.00 น.</option>
@@ -9534,33 +9588,33 @@ body.printing-report #printReportContainer {
               </div>
               <div style="width:175px;">
                 <label id="lblSelectDateText" style="display:block; font-size:11px; font-weight:800; color:#94A3B8; margin-bottom:5px; letter-spacing:0.4px;">วันที่เช็คชื่อ</label>
-                <input type="date" id="inpTeacherAttendanceDate" class="oca-input" onchange="onTeacherAttendanceDateChange()" style="width:100%; height:40px; padding:6px 12px; font-size:12.5px; font-weight:700; background:#02261E; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2); border-radius:9px; box-sizing:border-box;">
+                <input type="date" id="inpTeacherAttendanceDate" class="oca-input" onchange="onTeacherAttendanceDateChange()" style="width:100%; height:44px; padding:6px 12px; font-size:12.5px; font-weight:700; background:#02261E; color:#FFFFFF; border:1px solid rgba(255,255,255,0.2); border-radius:9px; box-sizing:border-box;">
               </div>
             </div>
             <!-- 5 Structured Horizontal KPI Pills -->
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-              <div class="oca-tp-kpi-card" style="background:#02261E; border:1px solid rgba(255,255,255,0.14); border-left:3.5px solid #94A3B8 !important; border-radius:9px; padding:8px 14px; height:40px; display:inline-flex; align-items:center; gap:8px; white-space:nowrap;">
+              <div class="oca-tp-kpi-card" style="background:#02261E; border:1px solid rgba(255,255,255,0.14); border-left:3.5px solid #94A3B8 !important; border-radius:9px; padding:8px 14px; height:44px; display:inline-flex; align-items:center; gap:8px; white-space:nowrap; box-sizing:border-box;">
                 <span id="txtSummaryTotalText" style="font-size:11.5px; font-weight:700; color:#CBD5E1;">ทั้งหมด</span>
                 <strong id="cntAttTotal" style="font-size:15px; font-weight:800; color:#FFFFFF; font-family:monospace;">0</strong>
               </div>
-              <div class="oca-tp-kpi-card" style="background:#02261E; border:1px solid rgba(16,185,129,0.25); border-left:3.5px solid #10B981 !important; border-radius:9px; padding:8px 14px; height:40px; display:inline-flex; align-items:center; gap:8px; white-space:nowrap;">
+              <div class="oca-tp-kpi-card" style="background:#02261E; border:1px solid rgba(16,185,129,0.25); border-left:3.5px solid #10B981 !important; border-radius:9px; padding:8px 14px; height:44px; display:inline-flex; align-items:center; gap:8px; white-space:nowrap; box-sizing:border-box;">
                 <span id="txtSummaryPresentText" style="font-size:11.5px; font-weight:700; color:#6EE7B7;">มาเรียน</span>
                 <strong id="cntAttPresent" style="font-size:15px; font-weight:800; color:#34D399; font-family:monospace;">0</strong>
               </div>
-              <div class="oca-tp-kpi-card" style="background:#02261E; border:1px solid rgba(245,158,11,0.25); border-left:3.5px solid #F59E0B !important; border-radius:9px; padding:8px 14px; height:40px; display:inline-flex; align-items:center; gap:8px; white-space:nowrap;">
+              <div class="oca-tp-kpi-card" style="background:#02261E; border:1px solid rgba(245,158,11,0.25); border-left:3.5px solid #F59E0B !important; border-radius:9px; padding:8px 14px; height:44px; display:inline-flex; align-items:center; gap:8px; white-space:nowrap; box-sizing:border-box;">
                 <span id="txtSummaryLateText" style="font-size:11.5px; font-weight:700; color:#FCD34D;">สาย</span>
                 <strong id="cntAttLate" style="font-size:15px; font-weight:800; color:#FBBF24; font-family:monospace;">0</strong>
               </div>
-              <div class="oca-tp-kpi-card" style="background:#02261E; border:1px solid rgba(56,189,248,0.25); border-left:3.5px solid #38BDF8 !important; border-radius:9px; padding:8px 14px; height:40px; display:inline-flex; align-items:center; gap:8px; white-space:nowrap;">
+              <div class="oca-tp-kpi-card" style="background:#02261E; border:1px solid rgba(56,189,248,0.25); border-left:3.5px solid #38BDF8 !important; border-radius:9px; padding:8px 14px; height:44px; display:inline-flex; align-items:center; gap:8px; white-space:nowrap; box-sizing:border-box;">
                 <span id="txtSummaryLeaveText" style="font-size:11.5px; font-weight:700; color:#7DD3FC;">ลา</span>
                 <strong id="cntAttLeave" style="font-size:15px; font-weight:800; color:#38BDF8; font-family:monospace;">0</strong>
               </div>
-              <div class="oca-tp-kpi-card" style="background:#02261E; border:1px solid rgba(239,68,68,0.25); border-left:3.5px solid #EF4444 !important; border-radius:9px; padding:8px 14px; height:40px; display:inline-flex; align-items:center; gap:8px; white-space:nowrap;">
+              <div class="oca-tp-kpi-card" style="background:#02261E; border:1px solid rgba(239,68,68,0.25); border-left:3.5px solid #EF4444 !important; border-radius:9px; padding:8px 14px; height:44px; display:inline-flex; align-items:center; gap:8px; white-space:nowrap; box-sizing:border-box;">
                 <span id="txtSummaryAbsentText" style="font-size:11.5px; font-weight:700; color:#FCA5A5;">ขาด</span>
                 <strong id="cntAttAbsent" style="font-size:15px; font-weight:800; color:#F87171; font-family:monospace;">0</strong>
               </div>
             </div>
-            <button type="button" id="btnTeacherMarkAllPresent" onclick="markAllAttendancePresent()" style="height:40px; padding:0 18px; font-size:12.5px; font-weight:800; border-radius:9px; cursor:pointer; background:linear-gradient(135deg, rgba(16,185,129,0.24) 0%, rgba(5,150,105,0.16) 100%); color:#6EE7B7; border:1.5px solid #10B981; display:inline-flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 12px rgba(16,185,129,0.2); white-space:nowrap; transition:all 0.2s ease;">
+            <button type="button" id="btnTeacherMarkAllPresent" onclick="markAllAttendancePresent()" style="height:44px; padding:0 18px; font-size:12.5px; font-weight:800; border-radius:9px; cursor:pointer; background:linear-gradient(135deg, rgba(16,185,129,0.24) 0%, rgba(5,150,105,0.16) 100%); color:#6EE7B7; border:1.5px solid #10B981; display:inline-flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 12px rgba(16,185,129,0.2); white-space:nowrap; box-sizing:border-box; transition:all 0.2s ease;">
               <i class="fa-solid fa-check-double" style="color:#34D399;"></i> <span id="txtMarkAllPresentBtn">เช็คมาเรียนทุกคน</span>
             </button>
           </div>
@@ -9576,7 +9630,12 @@ body.printing-report #printReportContainer {
                 </tr>
               </thead>
               <tbody id="tbTeacherAttendanceRoster">
-                <tr><td colspan="4" style="text-align:center; padding:32px; color:#94A3B8;"><span id="txtEmptyRosterNotice">กรุณาเลือกตารางเรียนเพื่อแสดงรายชื่อนักเรียน</span></td></tr>
+                <tr><td colspan="4" style="text-align:center; padding:36px 16px; color:#94A3B8;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+                    <div style="width:44px; height:44px; border-radius:50%; background:rgba(252,211,77,0.08); border:1px solid rgba(252,211,77,0.25); display:flex; align-items:center; justify-content:center; color:#FCD34D; font-size:18px;"><i class="fa-solid fa-clipboard-user"></i></div>
+                    <span id="txtEmptyRosterNotice" style="font-size:13px; font-weight:600; color:#CBD5E1;">กรุณาเลือกตารางเรียนเพื่อแสดงรายชื่อนักเรียน</span>
+                  </div>
+                </td></tr>
               </tbody>
             </table>
           </div>
@@ -10700,47 +10759,68 @@ body.printing-report #printReportContainer {
 
           <!-- SUB-VIEW 2: TEXTBOOK CATALOG -->
           <div id="secTbCatalog" style="display:none;">
-            <!-- Page Header -->
-            <div class="oca-table-header-row" style="margin-bottom:18px;">
-              <div>
-                <div class="chinese-calligraphy" style="font-size:24px; color:var(--color-gold);">教材庫存管理</div>
-                <h2 style="font-size:20px; font-weight:700; color:var(--text-main); margin:2px 0 0 0;">คลังตำราเรียน (Textbook Catalog)</h2>
-                <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">จัดการรายการตำราเรียนและกำหนดราคาจำหน่าย</div>
+            <!-- Executive Hero Header Banner -->
+            <div class="oca-table-header-row" style="margin-bottom:18px; padding:16px 20px; background:linear-gradient(135deg, rgba(6,78,59,0.28) 0%, rgba(2,38,30,0.55) 100%); border:1px solid rgba(252,211,77,0.3); border-radius:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; box-shadow:0 4px 18px rgba(0,0,0,0.25);">
+              <div style="display:flex; align-items:center; gap:16px;">
+                <div style="width:48px; height:48px; border-radius:12px; background:linear-gradient(135deg, rgba(215,166,0,0.22), rgba(215,166,0,0.08)); border:1px solid rgba(252,211,77,0.45); color:#FCD34D; display:flex; align-items:center; justify-content:center; font-size:20px; box-shadow:0 4px 14px rgba(215,166,0,0.2), inset 0 1px 1px rgba(255,255,255,0.2); flex-shrink:0;">
+                  <i class="fa-solid fa-book-bookmark"></i>
+                </div>
+                <div>
+                  <div class="chinese-calligraphy" style="font-size:22px; color:var(--color-gold); line-height:1.1;">教材庫存管理</div>
+                  <h2 style="font-size:19px; font-weight:800; color:#FFFFFF; margin:2px 0 0 0; letter-spacing:-0.2px;">คลังตำราเรียน (Textbook Catalog)</h2>
+                  <div style="font-size:12.5px; color:#94A3B8; margin-top:2px;">จัดการรายการตำราเรียน รหัสหนังสือ และกำหนดราคาจำหน่ายมาตรฐานประจำหลักสูตร</div>
+                </div>
               </div>
-              <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                <button class="oca-btn-gold-submit" style="padding:9px 20px; font-size:13.5px; display:inline-flex; align-items:center; gap:6px;" onclick="openAddTextbookModal()">
+              <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <span id="tbCatalogHeroCountPill" style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#34d399; background:rgba(16,185,129,0.14); border:1px solid rgba(16,185,129,0.35); padding:5px 12px; border-radius:999px;">
+                  <i class="fa-solid fa-layer-group" style="font-size:11px;"></i>
+                  <span>ทั้งหมด 0 รายการ</span>
+                </span>
+                <span id="tbCatalogHeroPriceRangePill" style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#fbbf24; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.35); padding:5px 12px; border-radius:999px; font-family:'JetBrains Mono', monospace;">
+                  <i class="fa-solid fa-tags" style="font-size:11px;"></i>
+                  <span>ช่วงราคา ฿350 – ฿450</span>
+                </span>
+                <button type="button" class="oca-menu-item-btn" style="padding:7px 14px; font-size:12.5px; border:1px solid rgba(255,255,255,0.18); border-radius:8px; display:inline-flex; align-items:center; gap:6px; background:#011812; color:#E2E8F0; cursor:pointer;" onclick="loadTextbooksData()" title="รีเฟรชข้อมูลตำราเรียน">
+                  <i class="fa-solid fa-arrows-rotate" style="color:#38bdf8;"></i>
+                  <span>รีเฟรช</span>
+                </button>
+                <button type="button" class="oca-btn-gold-submit" style="padding:8px 18px; font-size:13px; font-weight:800; border-radius:9px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;" onclick="openAddTextbookModal()">
                   <i class="fa-solid fa-plus"></i>
-                  <span>เพิ่มตำราเรียนใหม่</span>
+                  <span>+ เพิ่มตำราเรียนใหม่</span>
                 </button>
               </div>
             </div>
 
-            <!-- Textbook Inventory & Catalog Table -->
-            <div class="oca-table-card" style="width:100%;">
-              <div class="oca-table-header-row" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <!-- Textbook Inventory & Catalog Table Card -->
+            <div class="oca-table-card" style="width:100%; border:1px solid rgba(255,255,255,0.08); border-radius:14px; overflow:hidden;">
+              <div class="oca-table-header-row" style="padding:14px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; border-bottom:1px solid rgba(255,255,255,0.08); background:rgba(1,21,16,0.6);">
                 <div>
-                  <div class="oca-table-title">รายชื่อตำราเรียนและราคาจำหน่าย <span id="textbooksCountBadge" class="oca-badge-count" style="margin-left:6px; font-size:12px; font-weight:600; color:var(--color-gold); background:rgba(217,119,6,0.15); padding:2px 8px; border-radius:12px;">0 รายการ</span></div>
+                  <div class="oca-table-title" style="display:flex; align-items:center; gap:8px; font-size:14.5px; font-weight:800; color:#FFFFFF;">
+                    <i class="fa-solid fa-book-open" style="color:var(--color-gold);"></i>
+                    <span>รายชื่อตำราเรียนและราคาจำหน่าย</span>
+                    <span id="textbooksCountBadge" class="oca-badge-count" style="margin-left:6px; font-size:11.5px; font-weight:700; color:#FCD34D; background:rgba(217,119,6,0.18); border:1px solid rgba(251,191,36,0.35); padding:2px 10px; border-radius:999px;">0 รายการ</span>
+                  </div>
                 </div>
                 <div style="position:relative; width:100%; max-width:320px;">
                   <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:12px;"></i>
-                  <input type="text" id="inpSearchTextbooks" class="oca-input" placeholder="ค้นหาตำราเรียน..." oninput="filterTextbooksCatalog(this.value)" style="padding-left:32px; padding-right:30px; font-size:12.5px !important;">
+                  <input type="text" id="inpSearchTextbooks" class="oca-input" placeholder="ค้นหาตำราเรียน..." oninput="filterTextbooksCatalog(this.value)" style="padding-left:32px; padding-right:30px; font-size:12.5px !important; border-radius:8px;">
                   <button type="button" id="btnClearSearchTextbooks" onclick="document.getElementById('inpSearchTextbooks').value=''; filterTextbooksCatalog('');" style="display:none; position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
                 </div>
               </div>
-              <div class="oca-table-scroll-container" style="max-height:520px; overflow-y:auto; overflow-x:auto;">
-                <table class="oca-live-table" id="tblTextbooksCatalog">
+              <div class="oca-table-scroll-container" style="max-height:540px; overflow-y:auto; overflow-x:auto;">
+                <table class="oca-live-table" id="tblTextbooksCatalog" style="width:100%; border-collapse:collapse;">
                   <thead>
                     <tr>
-                      <th>รหัสตำรา</th>
-                      <th>ชื่อตำราเรียน</th>
-                      <th>ราคาจำหน่าย</th>
-                      <th>หน่วยนับ</th>
-                      <th>จัดการ</th>
+                      <th style="padding:14px 16px 14px 28px !important; text-align:left; width:170px; background:#02261E !important; border-bottom:1px solid rgba(252,211,77,0.3) !important;">รหัสตำรา</th>
+                      <th style="padding:14px 16px !important; text-align:left; background:#02261E !important; border-bottom:1px solid rgba(252,211,77,0.3) !important;">ชื่อตำราเรียน</th>
+                      <th style="padding:14px 16px !important; text-align:center; width:160px; background:#02261E !important; border-bottom:1px solid rgba(252,211,77,0.3) !important;">ราคาจำหน่าย</th>
+                      <th style="padding:14px 16px !important; text-align:center; width:130px; background:#02261E !important; border-bottom:1px solid rgba(252,211,77,0.3) !important;">หน่วยนับ</th>
+                      <th style="padding:14px 28px 14px 16px !important; text-align:center; width:210px; background:#02261E !important; border-bottom:1px solid rgba(252,211,77,0.3) !important;">จัดการ</th>
                     </tr>
                   </thead>
                   <tbody id="tbodyTextbooksCatalog">
                     <tr>
-                      <td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">กำลังโหลดข้อมูลตำราเรียน...</td>
+                      <td colspan="5" style="text-align:center; padding:28px; color:var(--text-muted);">กำลังโหลดข้อมูลตำราเรียน...</td>
                     </tr>
                   </tbody>
                 </table>
@@ -19448,11 +19528,12 @@ if (action === 'getDashboardStats') {
         // --- 9. GET RECEIPTS LIST ---
 
         if (action === 'getReceipts') {
-          // Fast B-Tree indexed query for modern active receipts (2568-2569: receipt_no >= '6800000')
+          // Fast B-Tree indexed query for modern active receipts (2568-2569: receipt_no >= '6800000' and < '7000000')
           // Prevents PostgREST 500 Statement Timeout on 424,000 rows (executes in <150ms)
           let rcQuery = _supabase.from('receipts')
             .select('*')
             .gte('receipt_no', '6800000')
+            .lt('receipt_no', '7000000')
             .order('receipt_no', { ascending: false })
             .limit(300);
           let { data, error } = await rcQuery;
@@ -20067,6 +20148,7 @@ if (action === 'getDashboardStats') {
             const { data } = await _supabase.from('students')
               .select(REPORT_STUDENT_COLS)
               .gte('student_id', '6900000')
+              .lt('student_id', '7000000')
               .order('student_id', { ascending: false })
               .limit(300);
             stList = data || [];
@@ -20465,7 +20547,7 @@ if (action === 'getDashboardStats') {
         }
 
         if (action === 'getTextbookClaimLogs') {
-          let query = _supabase.from('receipts').select('*').gte('receipt_no', '6900000');
+          let query = _supabase.from('receipts').select('*').gte('receipt_no', '6900000').lt('receipt_no', '7000000');
 
           if (params && params.status) {
             const st = String(params.status).trim().toUpperCase();
@@ -20507,21 +20589,22 @@ if (action === 'getDashboardStats') {
         // --- 14. SHIPPING ORDERS & CARRIER STATUS ---
 
         if (action === 'getShippingOrders') {
-          const { data, error } = await _supabase.from('receipts')
-
+          const { data: rawYearReceipts, error } = await _supabase.from('receipts')
             .select('*')
-
             .gte('receipt_no', '6900000')
-            .or('delivery_method.eq.ส่งตำรา,delivery_method.eq.จัดส่งตามที่อยู่,delivery_method.eq.ส่งไปตามที่อยู่,delivery_method.ilike.%ส่ง%')
-
-            .order('receipt_no', { ascending: false }).limit(500);
+            .lt('receipt_no', '7000000')
+            .order('receipt_no', { ascending: false })
+            .limit(500);
 
           if (error) {
             console.error('[Supabase getShippingOrders error]', error);
             return { success: false, message: error.message, orders: [] };
           }
 
-          const rawReceipts = data || [];
+          const rawReceipts = (rawYearReceipts || []).filter(r => {
+            const dm = String(r.delivery_method || '').trim();
+            return dm === 'ส่งตำรา' || dm === 'จัดส่งตามที่อยู่' || dm === 'ส่งไปตามที่อยู่' || dm.includes('ส่ง');
+          });
           const toArabic = (typeof toArabicDigits === 'function')
 
             ? toArabicDigits
@@ -26370,6 +26453,128 @@ if (action === 'getDashboardStats') {
     }
     window.refreshCloudStorageAndEmail = refreshCloudStorageAndEmail;
 
+    function renderDashTermLineChart(termDist, yearTotal) {
+      const vals = [1, 2, 3, 4, 5].map(t => Number(termDist && (termDist[String(t)] || termDist[t]) || 0));
+      const maxVal = Math.max(...vals, 1);
+      let peakIdx = 2; // Default to Term 3
+      let curMax = -1;
+      vals.forEach((v, idx) => {
+        if (v > curMax) { curMax = v; peakIdx = idx; }
+      });
+      const sumTerms = vals.reduce((a, b) => a + b, 0);
+      const total = Math.max(sumTerms, Number(yearTotal || 0));
+
+      // 1. Update Peak Badge in Header
+      const peakBadge = document.getElementById('dashChartPeakBadge');
+      if (peakBadge) {
+        peakBadge.textContent = '★ สูงสุด: เทอม ' + (peakIdx + 1) + ' (' + toArabicDigits(vals[peakIdx].toLocaleString('en-US')) + ' คน)';
+      }
+
+      // 2. Compute Scale & Gridline Labels
+      const scaleMax = Math.max(100, Math.ceil((maxVal * 1.15) / 100) * 100);
+      const yMaxEl = document.getElementById('dashLineYMax');
+      const yMid2El = document.getElementById('dashLineYMid2');
+      const yMid1El = document.getElementById('dashLineYMid1');
+      if (yMaxEl) yMaxEl.textContent = toArabicDigits(scaleMax.toLocaleString('en-US'));
+      if (yMid2El) yMid2El.textContent = toArabicDigits(Math.round((scaleMax * 2) / 3).toLocaleString('en-US'));
+      if (yMid1El) yMid1El.textContent = toArabicDigits(Math.round(scaleMax / 3).toLocaleString('en-US'));
+
+      // 3. Compute Coordinates (Baseline y=185, top y=45)
+      const xs = [130, 315, 500, 685, 870];
+      const ys = vals.map(v => 185 - Math.round((v / scaleMax) * 140));
+
+      // Build Smooth Cubic Bézier Spline Path
+      let dStroke = 'M ' + xs[0] + ',' + ys[0];
+      for (let i = 0; i < xs.length - 1; i++) {
+        const x0 = xs[i], y0 = ys[i];
+        const x1 = xs[i + 1], y1 = ys[i + 1];
+        const dx = x1 - x0;
+        const cp1x = Math.round(x0 + dx * 0.42);
+        const cp1y = y0;
+        const cp2x = Math.round(x1 - dx * 0.42);
+        const cp2y = y1;
+        dStroke += ' C ' + cp1x + ',' + cp1y + ' ' + cp2x + ',' + cp2y + ' ' + x1 + ',' + y1;
+      }
+      const dArea = dStroke + ' L ' + xs[4] + ',185 L ' + xs[0] + ',185 Z';
+
+      // 4. Render Dynamic SVG Elements
+      const dynGroup = document.getElementById('dashTermLineDynamicGroup');
+      if (dynGroup) {
+        let svgHtml = '';
+        // Area fill
+        svgHtml += '<path d="' + dArea + '" fill="url(#dashLineAreaGrad)" />';
+        // Stroke line
+        svgHtml += '<path d="' + dStroke + '" fill="none" stroke="url(#dashLineStrokeGrad)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />';
+
+        // Drop lines
+        xs.forEach((x, i) => {
+          const isPeak = (i === peakIdx);
+          const stroke = isPeak ? 'rgba(251,191,36,0.32)' : 'rgba(255,255,255,0.12)';
+          svgHtml += '<line x1="' + x + '" y1="' + ys[i] + '" x2="' + x + '" y2="185" stroke="' + stroke + '" stroke-dasharray="3,3" />';
+        });
+
+        // Data node circles & Floating Value Badges
+        xs.forEach((x, i) => {
+          const isPeak = (i === peakIdx);
+          const val = vals[i];
+          const valStr = toArabicDigits(val.toLocaleString('en-US'));
+          const y = ys[i];
+
+          if (isPeak) {
+            svgHtml += '<circle cx="' + x + '" cy="' + y + '" r="10" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="2,2" opacity="0.8" />';
+            svgHtml += '<circle cx="' + x + '" cy="' + y + '" r="6.5" fill="#f59e0b" stroke="#ffffff" stroke-width="2.5" filter="url(#dashLineGlow)" />';
+            svgHtml += '<rect x="' + (x - 44) + '" y="' + (y - 33) + '" width="88" height="24" rx="12" fill="rgba(245,158,11,0.2)" stroke="#f59e0b" stroke-width="1.5" />';
+            svgHtml += '<text x="' + x + '" y="' + (y - 17) + '" fill="#fbbf24" font-size="12.5" font-weight="800" text-anchor="middle" font-family="\'JetBrains Mono\', monospace">★ ' + valStr + '</text>';
+          } else {
+            const fillCol = (i === 0 || i === 4) ? '#10b981' : '#fbbf24';
+            svgHtml += '<circle cx="' + x + '" cy="' + y + '" r="5" fill="' + fillCol + '" stroke="#ffffff" stroke-width="2" />';
+            svgHtml += '<rect x="' + (x - 36) + '" y="' + (y - 28) + '" width="72" height="22" rx="11" fill="rgba(15,23,42,0.88)" stroke="' + (fillCol === '#10b981' ? 'rgba(16,185,129,0.35)' : 'rgba(251,191,36,0.35)') + '" />';
+            svgHtml += '<text x="' + x + '" y="' + (y - 13) + '" fill="' + (fillCol === '#10b981' ? '#34d399' : '#fbbf24') + '" font-size="12" font-weight="700" text-anchor="middle" font-family="\'JetBrains Mono\', monospace">' + valStr + '</text>';
+          }
+
+          // X axis label
+          const labelY = 206;
+          if (isPeak) {
+            svgHtml += '<text x="' + x + '" y="' + labelY + '" fill="#fbbf24" font-size="12.5" font-weight="800" text-anchor="middle">เทอม ' + (i + 1) + ' (สูงสุด)</text>';
+          } else if (i === 3) {
+            svgHtml += '<text x="' + x + '" y="' + labelY + '" fill="#fcd34d" font-size="12" font-weight="700" text-anchor="middle">เทอม 4</text>';
+          } else {
+            svgHtml += '<text x="' + x + '" y="' + labelY + '" fill="#94a3b8" font-size="12" font-weight="600" text-anchor="middle">เทอม ' + (i + 1) + '</text>';
+          }
+        });
+        dynGroup.innerHTML = svgHtml;
+      }
+
+      // 5. Update Legacy & Summary Elements (bVal, bBar, kpiTerm, kpiTermPct, dashTermCard)
+      vals.forEach((val, i) => {
+        const t = i + 1;
+        const bValEl = document.getElementById('bVal' + t);
+        const bBarEl = document.getElementById('bBar' + t);
+        const kpiEl = document.getElementById('kpiTerm' + t);
+        const kpiPctEl = document.getElementById('kpiTermPct' + t);
+        const cardEl = document.getElementById('dashTermCard' + t);
+        const valStr = toArabicDigits(val.toLocaleString('en-US'));
+        if (bValEl) bValEl.textContent = valStr;
+        if (bBarEl) bBarEl.style.height = Math.round((val / maxVal) * 82) + '%';
+        if (kpiEl) kpiEl.textContent = valStr;
+
+        if (kpiPctEl) {
+          const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+          kpiPctEl.textContent = toArabicDigits(pct) + '% ของทั้งปี';
+        }
+
+        if (cardEl) {
+          if (i === peakIdx) {
+            cardEl.style.border = '1px solid rgba(251,191,36,0.45)';
+            cardEl.style.background = 'rgba(251,191,36,0.06)';
+          } else {
+            cardEl.style.border = '1px solid var(--border-soft)';
+            cardEl.style.background = 'rgba(255,255,255,0.03)';
+          }
+        }
+      });
+    }
+
     function loadDashData(targetYear) {
       if (targetYear) currentDashboardYear = targetYear;
       if (typeof refreshBrevoQuota === 'function') refreshBrevoQuota();
@@ -26414,35 +26619,17 @@ if (action === 'getDashboardStats') {
             elChartYear.textContent = toArabicDigits(s.targetYearBE);
           }
 
-          // 2.1 นักศึกษาแยกตามเทอม (Bar Chart 5 เทอม)
+          // 2.1 นักศึกษาแยกตามเทอม (Executive Smooth Spline Line Chart 5 เทอม)
           const termDist = s.termsDistribution || s.terms || s.termData || {};
-          const maxTermVal = Math.max(1,
-            Number(termDist['1'] || 0),
-            Number(termDist['2'] || 0),
-            Number(termDist['3'] || 0),
-            Number(termDist['4'] || 0),
-            Number(termDist['5'] || 0)
-          );
           let chartYearSum = 0;
           for (let t = 1; t <= 5; t++) {
-            const tVal = Number(termDist[String(t)] || 0);
-            chartYearSum += tVal;
-            const elVal = document.getElementById('bVal' + t);
-            const elBar = document.getElementById('bBar' + t);
-            if (elVal) elVal.textContent = toArabicDigits(tVal.toLocaleString('en-US'));
-            if (elBar) {
-              const pct = maxTermVal > 0 ? Math.round((tVal / maxTermVal) * 100) : 0;
-              elBar.style.height = Math.max(8, Math.min(100, pct)) + '%';
-              if (tVal === maxTermVal && tVal > 0) {
-                elBar.classList.add('peak');
-              } else {
-                elBar.classList.remove('peak');
-              }
-            }
+            chartYearSum += Number(termDist[String(t)] || 0);
           }
+          const yearTotalStudents = Math.max(chartYearSum, Number(s.totalStudents || 0));
+          renderDashTermLineChart(termDist, yearTotalStudents);
           const elChartYearTotal = document.getElementById('dashChartYearTotal');
           if (elChartYearTotal) {
-            elChartYearTotal.textContent = toArabicDigits((chartYearSum || s.totalStudents || 0).toLocaleString('en-US'));
+            elChartYearTotal.textContent = toArabicDigits((yearTotalStudents || 0).toLocaleString('en-US'));
           }
 
           const elCourseYear = document.getElementById('dashCourseYear');
@@ -26561,27 +26748,12 @@ if (action === 'getDashboardStats') {
             }
           }
 
-          // Term Distribution (5 terms bar chart & mini cards)
-
+          // Term Distribution (5 terms executive line chart & mini cards)
           if (s.termsDistribution) {
-            const maxVal = Math.max(...[1,2,3,4,5].map(t => s.termsDistribution[String(t)] || 0)) || 1;
-            let sumTerms = 0;
-
-            [1, 2, 3, 4, 5].forEach(t => {
-              const val = s.termsDistribution[String(t)] || 0;
-              sumTerms += val;
-              const kpiEl = document.getElementById('kpiTerm' + t);
-              const bValEl = document.getElementById('bVal' + t);
-              const bBarEl = document.getElementById('bBar' + t);
-              if (kpiEl) kpiEl.textContent = toArabicDigits(val);
-              if (bValEl) bValEl.textContent = toArabicDigits(val);
-              if (bBarEl) bBarEl.style.height = Math.round((val / maxVal) * 82) + '%';
-            });
-
-            // คำนวณยอดจำนวนนักศึกษารวมทั้งปี (Year Total across terms)
-
+            const sumTerms = [1, 2, 3, 4, 5].reduce((acc, t) => acc + Number(s.termsDistribution[String(t)] || s.termsDistribution[t] || 0), 0);
             const yearTotal = Math.max(sumTerms, Number(s.targetYearTotalStudents || s.totalStudents || 0));
             const yearTotalStr = toArabicDigits(Number(yearTotal).toLocaleString('en-US'));
+            renderDashTermLineChart(s.termsDistribution, yearTotal);
             const kpiTotalEl = document.getElementById('kpiTotal');
             if (kpiTotalEl) kpiTotalEl.textContent = yearTotalStr;
             const kpiTermTotalEl = document.getElementById('kpiTermTotal');
@@ -34177,18 +34349,34 @@ if (action === 'getDashboardStats') {
     function renderTextbooksCatalogTable(books, searchQuery = '') {
       const tbody = document.getElementById('tbodyTextbooksCatalog');
       const badge = document.getElementById('textbooksCountBadge');
+      const heroCountPill = document.getElementById('tbCatalogHeroCountPill');
+      const heroPricePill = document.getElementById('tbCatalogHeroPriceRangePill');
       if (!tbody) return;
-      const totalCount = Array.isArray(receiptBooksList) ? receiptBooksList.length : (books ? books.length : 0);
+      const allBooks = Array.isArray(receiptBooksList) ? receiptBooksList : (books || []);
+      const totalCount = allBooks.length;
+
+      // Update Hero Badges
+      if (heroCountPill) {
+        heroCountPill.innerHTML = '<i class="fa-solid fa-layer-group" style="font-size:11px;"></i><span>ทั้งหมด ' + toArabicDigits(totalCount) + ' รายการ</span>';
+      }
+      if (heroPricePill && totalCount > 0) {
+        const prices = allBooks.map(b => Number(b.price || 0)).filter(p => p > 0);
+        if (prices.length > 0) {
+          const minP = Math.min(...prices);
+          const maxP = Math.max(...prices);
+          const priceText = minP === maxP ? ('฿' + toArabicDigits(minP.toLocaleString('en-US'))) : ('ช่วงราคา ฿' + toArabicDigits(minP.toLocaleString('en-US')) + ' – ฿' + toArabicDigits(maxP.toLocaleString('en-US')));
+          heroPricePill.innerHTML = '<i class="fa-solid fa-tags" style="font-size:11px;"></i><span>' + priceText + '</span>';
+        }
+      }
 
       if (!books || books.length === 0) {
         if (searchQuery) {
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px 15px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px; color:var(--color-gold);"></i>ไม่พบตำราเรียนที่ตรงกับคำค้นหา "<span style="color:#FAF0D7;">' + escapeHtml(searchQuery) + '</span>"</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:36px 15px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px; color:var(--color-gold);"></i>ไม่พบตำราเรียนที่ตรงกับคำค้นหา "<span style="color:#FAF0D7;">' + escapeHtml(searchQuery) + '</span>"</td></tr>';
           if (badge) badge.textContent = '0 / ' + toArabicDigits(totalCount) + ' รายการ';
         } else {
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">ยังไม่มีตำราเรียนในคลัง</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:36px 15px; color:var(--text-muted);"><div style="display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:42px; height:42px; border-radius:50%; background:rgba(255,255,255,0.04); display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:16px;"><i class="fa-solid fa-book"></i></div><span>ยังไม่มีตำราเรียนในคลัง</span></div></td></tr>';
           if (badge) badge.textContent = '0 รายการ';
         }
-
         return;
       }
 
@@ -34200,32 +34388,44 @@ if (action === 'getDashboardStats') {
         }
       }
 
-      tbody.innerHTML = books.map(b =>
-
-        '<tr>' +
-
-          '<td style="font-family:monospace; font-weight:700; color:var(--color-gold);">' + toArabicDigits(b.id) + '</td>' +
-
-          '<td><strong>' + escapeHtml(b.title) + '</strong></td>' +
-
-          '<td style="font-weight:700; color:#10B981;">฿' + toArabicDigits(Number(b.price || 0).toLocaleString('en-US')) + '</td>' +
-
-          '<td>' + escapeHtml(b.unit || 'เล่ม') + '</td>' +
-
-          '<td>' +
-
-            '<div class="oca-table-actions">' +
-
-              '<button type="button" class="oca-btn-action-edit" onclick="openAddTextbookModal(\'' + escapeHtml(b.id) + '\')"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>' +
-
-              '<button type="button" class="oca-btn-action-del" onclick="deleteTextbook(\'' + escapeHtml(b.id) + '\')"><i class="fa-solid fa-trash-can"></i> ลบ</button>' +
-
-            '</div>' +
-
+      tbody.innerHTML = books.map(b => {
+        const rawCode = String(b.linkedCourseId || b.id || '').replace(/^BK-/i, '').trim();
+        const courseBadge = rawCode ? '<span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; color:#38bdf8; background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.3); padding:2px 8px; border-radius:6px; margin-left:8px; vertical-align:middle;">หลักสูตร ' + escapeHtml(rawCode) + '</span>' : '';
+        return '<tr style="border-bottom:1px solid rgba(255,255,255,0.06); transition:background 0.15s ease;">' +
+          '<td style="padding:14px 16px 14px 28px !important; text-align:left;">' +
+            '<span style="display:inline-flex; align-items:center; gap:6px; font-family:\'JetBrains Mono\',monospace; font-size:12.5px; font-weight:700; color:#fcd34d; background:rgba(251,191,36,0.12); border:1px solid rgba(251,191,36,0.35); padding:4px 11px; border-radius:7px;">' +
+              '<i class="fa-solid fa-barcode" style="font-size:11px; opacity:0.85;"></i>' + escapeHtml(toArabicDigits(b.id)) +
+            '</span>' +
           '</td>' +
-
-        '</tr>'
-      ).join('');
+          '<td style="padding:14px 16px !important; text-align:left;">' +
+            '<div style="display:flex; align-items:center; gap:12px;">' +
+              '<span style="width:32px; height:32px; border-radius:8px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); color:#34d399; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;">' +
+                '<i class="fa-solid fa-book" style="font-size:13px;"></i>' +
+              '</span>' +
+              '<div style="min-width:0;">' +
+                '<strong style="color:#ffffff; font-size:13.5px; font-weight:700;">' + escapeHtml(b.title) + '</strong>' +
+                courseBadge +
+              '</div>' +
+            '</div>' +
+          '</td>' +
+          '<td style="padding:14px 16px !important; text-align:center;">' +
+            '<span style="display:inline-flex; align-items:center; justify-content:center; font-family:\'JetBrains Mono\',monospace; font-size:13px; font-weight:800; color:#34d399; background:rgba(16,185,129,0.14); border:1px solid rgba(16,185,129,0.35); padding:4px 14px; border-radius:999px; min-width:72px;">' +
+              '฿' + toArabicDigits(Number(b.price || 0).toLocaleString('en-US')) +
+            '</span>' +
+          '</td>' +
+          '<td style="padding:14px 16px !important; text-align:center;">' +
+            '<span style="display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:#cbd5e1; background:rgba(148,163,184,0.12); border:1px solid rgba(148,163,184,0.28); padding:3px 12px; border-radius:999px;">' +
+              escapeHtml(b.unit || 'เล่ม') +
+            '</span>' +
+          '</td>' +
+          '<td style="padding:14px 28px 14px 16px !important; text-align:center;">' +
+            '<div class="oca-table-actions" style="display:inline-flex; align-items:center; justify-content:center; gap:8px;">' +
+              '<button type="button" class="oca-btn-action-edit" onclick="openAddTextbookModal(\'' + escapeHtml(b.id) + '\')"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>' +
+              '<button type="button" class="oca-btn-action-del" onclick="deleteTextbook(\'' + escapeHtml(b.id) + '\')"><i class="fa-solid fa-trash-can"></i> ลบ</button>' +
+            '</div>' +
+          '</td>' +
+        '</tr>';
+      }).join('');
     }
 
     function loadTextbooksData() {
@@ -46465,7 +46665,7 @@ isOnlineResume: true,
               .eq('student_id', targetId);
           } else {
             // Guard: active academic years receipts only to avoid statement timeout on 424k rows
-            rcQb = rcQb.gte('receipt_no', '6800000').ilike('buyer_name', `%${cleanQ}%`);
+            rcQb = rcQb.gte('receipt_no', '6800000').lt('receipt_no', '7000000').ilike('buyer_name', `%${cleanQ}%`);
           }
           const { data: rcData } = await rcQb
             .order('receipt_no', { ascending: false })
@@ -46988,7 +47188,7 @@ isOnlineResume: true,
         gpsNotice: 'อยู่นอกรัศมีของสถาบัน OCA ระบบไม่อนุญาตให้ลงเวลาโดยเด็ดขาด',
         bioNotEnrolledTitle: 'กรุณาลงทะเบียนลายนิ้วมือครั้งแรก',
         bioNotEnrolledSub: 'บันทึกลายนิ้วมือกับอุปกรณ์ของคุณ (บันทึกได้เพียงครั้งเดียว ไม่สามารถแก้ไขได้ หากต้องการเปลี่ยนต้องแจ้ง Admin ให้ลบข้อมูลเดิม)',
-        enrollBioBtn: 'ลงทะเบียนลายนิ้วมือครั้งแรก (Enroll)',
+        enrollBioBtn: 'สแกนนิ้วครั้งแรก (Enroll)',
         bioEnrolledTitle: '🔒 ลงทะเบียนลายนิ้วมือเรียบร้อยแล้ว (Verified & Locked)',
         bioEnrolledDetails: 'พร้อมสแกนเข้า-ออกงาน (หากต้องการเปลี่ยนนิ้วต้องให้ Admin ลบลายนิ้วมือเดิม)',
         selectActionLabel: 'กดปุ่มเพื่อสแกนนิ้วบันทึกเวลา:',
@@ -48007,11 +48207,12 @@ isOnlineResume: true,
             .select('student_id, buyer_name, item_code, item_name, schedule')
             .gte('receipt_no', tPrefix + '0000')
             .lt('receipt_no', nextTPrefix + '0000')
-            .limit(2000);
+            .limit(500);
           const { data: stData } = await _supabase.from('students')
             .select('student_id, prefix, full_name, current_schedule, current_course')
-            .or(`student_id.gte.${tPrefix}0000,and(year_be.eq.${yBE},term.eq.${tNo})`)
-            .limit(2000);
+            .gte('student_id', tPrefix + '0000')
+            .lt('student_id', nextTPrefix + '0000')
+            .limit(500);
           const lookupNames = new Map();
           if (Array.isArray(stData)) {
             stData.forEach(s => {
@@ -48597,6 +48798,7 @@ isOnlineResume: true,
             .from('students')
             .select('student_id, prefix, full_name, phone_number, email, line_id, current_schedule, current_course, status, notes')
             .gte('student_id', '6900000')
+            .lt('student_id', '7000000')
             .neq('status', 'CANCELLED')
             .order('student_id', { ascending: false })
             .limit(500);
@@ -50381,13 +50583,14 @@ isOnlineResume: true,
             .select('student_id, buyer_name, item_code, item_name, room, schedule, year_be, term')
             .gte('receipt_no', tPrefix + '0000')
             .lt('receipt_no', nextTPrefix + '0000')
-            .limit(2000);
+            .limit(500);
 
           // 1.2 Query students registered for this term
           const { data: stData, error: stErr } = await _supabase.from('students')
             .select('student_id, prefix, full_name, current_course, current_schedule, year_be, term')
-            .or(`student_id.gte.${tPrefix}0000,and(year_be.eq.${yearBE},term.eq.${termNo})`)
-            .limit(2000);
+            .gte('student_id', tPrefix + '0000')
+            .lt('student_id', nextTPrefix + '0000')
+            .limit(500);
 
           if (Array.isArray(stData)) {
             stData.forEach(s => {
