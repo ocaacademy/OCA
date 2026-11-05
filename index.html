@@ -7489,7 +7489,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v301';
+      var LATEST_VERSION = 'oca-pwa-v358-15';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -16978,7 +16978,16 @@ body.printing-report #printReportContainer {
       return prefix + ' ' + fullName;
     }
 
-    function cleanTermNumber(termVal) {
+    function cleanTermNumber(termVal, receiptNo) {
+      if (receiptNo) {
+        const rStr = String(receiptNo).trim();
+        if (/^\d{7,8}$/.test(rStr)) {
+          const tFromRcpt = parseInt(rStr.charAt(2), 10);
+          if (tFromRcpt >= 1 && tFromRcpt <= 5 && (termVal === undefined || termVal === null || termVal === '' || parseInt(String(termVal).trim(), 10) > 5)) {
+            return String(tFromRcpt);
+          }
+        }
+      }
       if (termVal === undefined || termVal === null || termVal === '') return '';
       let s = String(termVal).trim().replace(/^เทอม\s*/, '').trim();
       if (s.includes('/')) {
@@ -16986,13 +16995,14 @@ body.printing-report #printReportContainer {
         if (parts.length === 2) {
           const p0 = parts[0].trim();
           const p1 = parts[1].trim();
-          if (p0.length <= 2 && parseInt(p0, 10) <= 5) return p0;
-          if (p1.length <= 2 && parseInt(p1, 10) <= 5) return p1;
+          if (p0.length <= 2 && parseInt(p0, 10) >= 1 && parseInt(p0, 10) <= 5) return p0;
+          if (p1.length <= 2 && parseInt(p1, 10) >= 1 && parseInt(p1, 10) <= 5) return p1;
         }
       }
       if (/^\d{3}$/.test(s)) return s.slice(-1);
+      if (/^\d{2}$/.test(s) && parseInt(s, 10) > 5) return s.charAt(0);
       if (/^(\d)\1+$/.test(s)) return s.charAt(0);
-      if (/^\d+$/.test(s) && parseInt(s, 10) > 5) return s.slice(-1);
+      if (/^\d+$/.test(s) && parseInt(s, 10) > 5) return s.charAt(0);
       return s;
     }
 
@@ -31862,7 +31872,7 @@ if (action === 'getDashboardStats') {
                 // Display Course + schedule / term subtext
 
                 const sched = r.schedule || '';
-                const cleanT = cleanTermNumber(r.term);
+                const cleanT = cleanTermNumber(r.term, r.receiptNo || r.receipt_no);
                 const yrVal = r.yearBe || r.year_be || '';
                 const termYear = (yrVal && cleanT) ? (toArabicDigits(yrVal) + '/' + toArabicDigits(cleanT)) : (yrVal ? toArabicDigits(yrVal) : (cleanT ? toArabicDigits(cleanT) : ''));
                 let courseDisplay = '<div><strong style="color:#ffffff;">' + escapeHtml(rawItem) + '</strong></div>';
@@ -45419,7 +45429,7 @@ function openForgotPasswordModal() {
           const txType = getReceiptTransactionType(r);
           const txBadge = '<span style="background:' + txType.bg + '; color:' + txType.color + '; padding:2px 6px; border-radius:6px; font-weight:600; font-size:11px; white-space:nowrap; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid ' + txType.icon + '"></i> ' + escapeHtml(txType.label) + '</span>';
           const yrVal = r.yearBe || '';
-          const cleanT = cleanTermNumber(r.term);
+          const cleanT = cleanTermNumber(r.term, r.receiptNo || r.receipt_no);
           const termYear = (yrVal && cleanT) ? (toArabicDigits(yrVal) + '/' + toArabicDigits(cleanT)) : (yrVal ? toArabicDigits(yrVal) : '');
 
           // Try to match with academic history item
@@ -53828,7 +53838,7 @@ function openPublicRegisterView() {
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=357';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-15';
 
       // Auto-refresh on SW update with state preservation & toast notice
       let isRefreshing = false;
@@ -53844,7 +53854,7 @@ function openPublicRegisterView() {
           }
         } catch(_) {}
         if (typeof showToast === 'function') {
-          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (v357)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
+          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-15)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
         }
         setTimeout(function() {
           window.location.reload();
@@ -53859,7 +53869,7 @@ function openPublicRegisterView() {
             if (w.state === 'installed' && navigator.serviceWorker.controller) w.postMessage({ type: 'SKIP_WAITING' });
           });
         });
-        console.log('OCA PWA ServiceWorker Active (v357):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-15):', reg.scope);
         if (typeof reg.update === 'function') reg.update();
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
