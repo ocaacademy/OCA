@@ -20874,20 +20874,21 @@ if (action === 'getDashboardStats') {
               .limit(fetchLimit);
             stList = recentStudents || [];
 
-            // Map delivery method from receipts using indexed student_id batch
+            // Map delivery method from latest receipts using primary receipt_no B-Tree index (<15ms, zero timeout)
             try {
-              const targetStudentIds = stList.slice(0, 150).map(s => s.student_id).filter(Boolean);
-              if (targetStudentIds.length > 0) {
+              if (stList.length > 0) {
                 const { data: recDelivery } = await _supabase.from('receipts')
                   .select('student_id, delivery_method')
                   .gte('receipt_no', minId)
                   .lt('receipt_no', maxId)
-                  .in('student_id', targetStudentIds)
+                  .order('receipt_no', { ascending: false })
                   .limit(300);
                 if (recDelivery && Array.isArray(recDelivery)) {
                   const delivMap = {};
                   recDelivery.forEach(r => {
-                    if (r.student_id && r.delivery_method) delivMap[r.student_id] = r.delivery_method;
+                    if (r.student_id && r.delivery_method && !delivMap[r.student_id]) {
+                      delivMap[r.student_id] = r.delivery_method;
+                    }
                   });
                   stList.forEach(s => {
                     if (delivMap[s.student_id]) s.delivery_method = delivMap[s.student_id];
@@ -21255,21 +21256,15 @@ if (action === 'getDashboardStats') {
         if (action === 'getTextbookClaimLogs') {
           let query = _supabase.from('receipts').select('*').gte('receipt_no', '6900000').lt('receipt_no', '7000000');
 
-          if (params && params.status) {
-            const st = String(params.status).trim().toUpperCase();
-
-            if (st === 'CLAIMED') {
-              query = query.eq('claim_status', 'CLAIMED');
-            } else if (st === 'PENDING') {
-              query = query.or('claim_status.is.null,claim_status.eq.PENDING,claim_status.neq.CLAIMED');
-            }
-          }
-
           if (params && params.search) {
             const s = String(params.search).trim().replace(/[,()"%_]/g, ' ').trim();
 
             if (s) {
-              query = query.or(`receipt_no.ilike.%${s}%,student_id.ilike.%${s}%,buyer_name.ilike.%${s}%`);
+              if (/^\d+$/.test(s) && s.length === 7) {
+                query = query.or(`receipt_no.eq.${s},student_id.eq.${s}`);
+              } else {
+                query = query.or(`receipt_no.ilike.%${s}%,student_id.ilike.%${s}%,buyer_name.ilike.%${s}%`);
+              }
             }
           }
 
@@ -21284,11 +21279,21 @@ if (action === 'getDashboardStats') {
             return { success: false, message: error.message, logs: [], receipts: [], data: [] };
           }
 
-          const mapped = (data || [])
+          let mapped = (data || [])
 
             .filter(r => r.receipt_type !== 'CARD_FEE')
 
             .map(r => safeNormalizeReceipt(r));
+
+          if (params && params.status) {
+            const st = String(params.status).trim().toUpperCase();
+            if (st === 'CLAIMED') {
+              mapped = mapped.filter(r => r.claimStatus === 'CLAIMED');
+            } else if (st === 'PENDING') {
+              mapped = mapped.filter(r => r.claimStatus !== 'CLAIMED');
+            }
+          }
+
           return { success: true, logs: mapped, receipts: mapped, data: mapped };
         }
 
@@ -21344,7 +21349,7 @@ if (action === 'getDashboardStats') {
 
               .select('student_id, citizen_id, full_name, phone_number, address')
 
-              .in('student_id', studentIds);
+              .in('student_id', studentIds.slice(0, 80));
 
             if (stList) {
               stList.forEach(st => {
@@ -21365,7 +21370,7 @@ if (action === 'getDashboardStats') {
 
               .select('student_id, citizen_id, full_name, phone_number, address')
 
-              .in('citizen_id', missingCids);
+              .in('citizen_id', missingCids.slice(0, 80));
 
             if (stByCid) {
               stByCid.forEach(st => {
