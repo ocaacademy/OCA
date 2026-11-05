@@ -18175,7 +18175,7 @@ body.printing-report #printReportContainer {
         if (openDate && openDate !== '-') {
           const roomHtml = (room && room !== '-') 
 
-            ? ` &nbsp;|&nbsp; ห้องเรียน: <strong style="color:#0284c7;">${room}</strong>` 
+            ? ` &nbsp;|&nbsp; ห้องเรียน: <strong style="color:#0284c7;">${escapeHtml(room)}</strong>` 
 
             : ` &nbsp;|&nbsp; <span style="color:#0284c7; font-weight:600;">(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)</span>`;
 
@@ -18205,7 +18205,7 @@ body.printing-report #printReportContainer {
 
                     <div style="font-size:12px; color:#0f172a; font-weight:600; line-height:1.45;">
 
-                      ตำรา: <strong style="color:#0369a1;">${courseName}</strong> <span style="font-size:11px; color:#64748b;">[ ${materialType} ]</span>
+                      ตำรา: <strong style="color:#0369a1;">${escapeHtml(courseName)}</strong> <span style="font-size:11px; color:#64748b;">[ ${escapeHtml(materialType)} ]</span>
 
                     </div>
 
@@ -18218,7 +18218,7 @@ body.printing-report #printReportContainer {
                     ${(isShip && shippingAddress) ? `
 
                     <div style="font-size:12px; color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe; border-radius:4px; padding:4px 8px; margin-top:4px;">
-                      <strong>ที่อยู่จัดส่งทางพัสดุ:</strong> ${shippingAddress}
+                      <strong>ที่อยู่จัดส่งทางพัสดุ:</strong> ${escapeHtml(shippingAddress)}
                     </div>` : ''}
 
                     <div style="font-size:11px; color:#64748b; margin-top:4px; line-height:1.4;">
@@ -18674,6 +18674,17 @@ body.printing-report #printReportContainer {
 
             onlineEnrollSchedule: (() => {
               const schedSetting = (fees || []).find(f => f.key === 'online_enroll_schedule');
+              if (schedSetting && schedSetting.updated_at) {
+                try {
+                  const sTime = new Date(schedSetting.updated_at).getTime();
+                  if (!isNaN(sTime) && sTime > 0) {
+                    const diff = sTime - Date.now();
+                    if (Math.abs(diff) < 86400000) {
+                      window._ocaServerTimeOffsetMs = diff;
+                    }
+                  }
+                } catch (_) {}
+              }
 
               if (schedSetting) {
                 const rawMode = schedSetting.mode || schedSetting.name || 'SCHEDULED';
@@ -26162,31 +26173,6 @@ if (action === 'getDashboardStats') {
     function openTransferCourseModal(studentId) {
       if (!studentId) return;
       openReceiptForTransfer(studentId);
-      return;
-      const modal = document.getElementById('modalTransferCourse');
-      if (!modal) return;
-      let student = cachedSearchStudentsData.find(item => item.studentId === studentId);
-
-      if (!student && activeSearchStudent && activeSearchStudent.studentId === studentId) {
-        student = activeSearchStudent;
-      }
-
-      if (!student) {
-        callGasApi('checkStatus', { query: studentId })
-
-          .then(res => {
-            if (res && res.success && res.student) {
-              populateAndShowTransferModal(res.student);
-            } else {
-              showModal('ไม่พบข้อมูล', 'ไม่พบข้อมูลนักศึกษารหัส ' + toArabicDigits(studentId), '⚠️');
-            }
-          })
-
-          .catch(e => showModal('เกิดข้อผิดพลาด', e.message || '', '❌'));
-        return;
-      }
-
-      populateAndShowTransferModal(student);
     }
 
     function populateAndShowTransferModal(student) {
@@ -28831,7 +28817,7 @@ if (action === 'getDashboardStats') {
 
       // Mode: SCHEDULED (ตรวจสอบเวลาตามจริง)
 
-      const now = new Date().getTime();
+      const now = Date.now() + (window._ocaServerTimeOffsetMs || 0);
       const start = cfg.startDate ? new Date(cfg.startDate).getTime() : 0;
       const end = cfg.endDate ? new Date(cfg.endDate).getTime() : 0;
 
@@ -32820,12 +32806,12 @@ if (action === 'getDashboardStats') {
         const chkTuition = document.getElementById('chkRcptApplyTuitionFee');
         const isTuitionChecked = chkTuition ? chkTuition.checked : true;
         const rawBase = Math.max(0, Number(document.getElementById('inpRcptBaseFee')?.value) || 0);
-        baseAmount = isTuitionChecked ? rawBase : 0;
-        regFee = feeReg.amount;
-        cardFee = feeCard.amount;
-        otherRegFee = feeOther.amount;
-        transferFee = feeTransfer.amount;
-        subTotal = baseAmount + regFee + cardFee + otherRegFee + transferFee;
+        baseAmount = isTuitionChecked ? Math.max(0, rawBase) : 0;
+        regFee = Math.max(0, feeReg.amount);
+        cardFee = Math.max(0, feeCard.amount);
+        otherRegFee = Math.max(0, feeOther.amount);
+        transferFee = Math.max(0, feeTransfer.amount);
+        subTotal = Math.max(0, baseAmount + regFee + cardFee + otherRegFee + transferFee);
         const chkNorm = document.getElementById('chkRcptApplyDiscountNormal');
         normalDiscount = (chkNorm && chkNorm.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountNormal')?.value) || 0) : 0;
         const chkOther = document.getElementById('chkRcptApplyDiscountOther');
@@ -33287,8 +33273,8 @@ if (action === 'getDashboardStats') {
       let cardFee = 0;
       let otherRegFee = 0;
       let transferFee = 0;
-      let normalDiscount = Number(document.getElementById('inpRcptDiscountNormal')?.value) || 0;
-      let otherDiscount = Number(document.getElementById('inpRcptDiscountOther')?.value) || 0;
+      let normalDiscount = Math.max(0, Number(document.getElementById('inpRcptDiscountNormal')?.value) || 0);
+      let otherDiscount = Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || 0);
 
       if (receiptCurrentType === 'tuition') {
         const selC = document.getElementById('selRcptCourse');
@@ -41708,11 +41694,9 @@ if (action === 'getDashboardStats') {
               return;
             }
 
-            const localSessionStart = parseInt(sessionStorage.getItem('oca_session_start_time') || localStorage.getItem('oca_session_start_time') || '0', 10);
-
-            // 3. เฉพาะกรณีที่มีอุปกรณ์อื่น (cloudDeviceId != myDeviceId) ล็อกอินใหม่สดๆ ภายใน 5 นาที และใหม่กว่าเครื่องนี้ -> เตะออก
-            if (cloudDeviceId && myDeviceId && cloudDeviceId !== myDeviceId && cloudUpdatedAt > localSessionStart) {
-              console.warn('[Session Security] Newer active cloud session on another device:', cloudDeviceId, 'my device:', myDeviceId);
+            // 3. เตะออกทันทีหาก Session ID หรือ Device ID บน Cloud ไม่ตรงกับเครื่องนี้ โดยไม่พึ่งพาค่าใน localStorage
+            if ((mySessionId && data.name && data.name !== mySessionId) || (cloudDeviceId && myDeviceId && cloudDeviceId !== myDeviceId)) {
+              console.warn('[Session Security] Authoritative server session/device mismatch. Cloud device:', cloudDeviceId, 'my device:', myDeviceId, 'Cloud session:', data.name, 'my session:', mySessionId);
               executeForcedSessionLogout({
                 username: u,
                 sessionId: data.name,
@@ -41724,6 +41708,12 @@ if (action === 'getDashboardStats') {
         } catch (_) {}
       }
     }
+
+    try {
+      Object.defineProperty(window, 'handleSingleSessionKick', { value: handleSingleSessionKick, writable: false, configurable: false });
+      Object.defineProperty(window, 'executeForcedSessionLogout', { value: executeForcedSessionLogout, writable: false, configurable: false });
+      Object.defineProperty(window, 'verifyActiveUserSession', { value: verifyActiveUserSession, writable: false, configurable: false });
+    } catch (_e) {}
 
     function saveCurrentUser(user) {
       try {
@@ -44990,7 +44980,7 @@ function openForgotPasswordModal() {
      */
 
     async function syncOfflineQueue(isManual = false) {
-      if (_isSyncingOfflineQueue) return;
+      if (_isSyncingOfflineQueue || window._isFlushingOfflineOutbox) return;
 
       if (!navigator.onLine) {
         if (isManual) {
@@ -45000,17 +44990,18 @@ function openForgotPasswordModal() {
         return;
       }
 
-      const items = await OcaOfflineDB.getOutbox();
-
-      if (!items || items.length === 0) {
-        if (isManual) {
-          showToast('ซิงก์ข้อมูล', 'ไม่มีรายการค้างในคิวออฟไลน์ ข้อมูลทุกรายการเป็นปัจจุบันแล้ว', '✓');
-        }
-
-        return;
-      }
-
+      window._isFlushingOfflineOutbox = true;
       _isSyncingOfflineQueue = true;
+      try {
+        const items = await OcaOfflineDB.getOutbox();
+
+        if (!items || items.length === 0) {
+          if (isManual) {
+            showToast('ซิงก์ข้อมูล', 'ไม่มีรายการค้างในคิวออฟไลน์ ข้อมูลทุกรายการเป็นปัจจุบันแล้ว', '✓');
+          }
+
+          return;
+        }
       const pill = document.getElementById('btnPwaOfflineStatus');
       const label = document.getElementById('txtPwaStatusLabel');
       const spin = document.getElementById('iconPwaSyncSpin');
@@ -45057,7 +45048,12 @@ function openForgotPasswordModal() {
       }
 
       renderOfflineQueueList();
+      } finally {
+        _isSyncingOfflineQueue = false;
+        window._isFlushingOfflineOutbox = false;
+      }
     }
+    window.flushOfflineOutboxQueue = syncOfflineQueue;
 
     /**
 
@@ -47023,48 +47019,25 @@ function openPublicRegisterView() {
       }
 
       const payload = {
-        yearBE: 2569,
-
-        term: 5,
-
         citizenId: cleanCid,
-
         prefix: prefix,
-
         fullName: fullName,
-
         fullNameEn: nameEn,
-
         dob: dob,
-
         gender: gender,
-
         phoneNumber: phone,
-
         emergencyPhone: emergencyPhone,
-
         email: email,
-
         lineId: lineId,
-
-        address: combinedAddress,
-
+        address: typeof sanitizeInputText === 'function' ? sanitizeInputText(combinedAddress) : combinedAddress,
         level: 'รอจัดระดับหลักสูตร',
-
-        course: 'รอจัดระดับหลักสูตร (Basic Chinese)',
-
-        schedule: 'ยังไม่กำหนดรอบเรียน',
-
         deliveryMethod: 'จัดส่งตามที่อยู่',
-
         photoBase64: pubStudentPhotoDataUri,
-
         status: 'ACTIVE',
-
         allowUpdate: true,
         course: selCourse,
         schedule: selSchedule,
-        userNotes: userNotes,
+        userNotes: typeof sanitizeInputText === 'function' ? sanitizeInputText(userNotes) : userNotes,
         yearBE: (() => {
           if (typeof resolveCurrentAcademicTerm === 'function') {
             try { const a = resolveCurrentAcademicTerm(); if (a && a.yearBE) return Number(a.yearBE); } catch(_) {}
@@ -47077,14 +47050,12 @@ function openPublicRegisterView() {
           }
           return 5;
         })(),
-
-                isCorporate: isCorporate,
-        companyName: companyName,
-        companyBranch: companyBranch,
+        isCorporate: isCorporate,
+        companyName: typeof sanitizeInputText === 'function' ? sanitizeInputText(companyName) : companyName,
+        companyBranch: typeof sanitizeInputText === 'function' ? sanitizeInputText(companyBranch) : companyBranch,
         companyTaxId: companyTaxId,
-        companyAddress: companyAddress,
-isOnlineResume: true,
-
+        companyAddress: typeof sanitizeInputText === 'function' ? sanitizeInputText(companyAddress) : companyAddress,
+        isOnlineResume: true,
         notes: `สมัครเรียนออนไลน์แบบ OCA (${currentRegLanguage.toUpperCase()})`
       };
 
@@ -51271,8 +51242,8 @@ isOnlineResume: true,
           <td style="border:1px solid #CBD5E1; padding:5px 4px; text-align:center; font-weight:600;">${i + 1}</td>
           <td style="border:1px solid #CBD5E1; padding:5px 6px; font-size:8pt; white-space:nowrap;">${dateStr}</td>
           <td style="border:1px solid #CBD5E1; padding:5px 8px;">
-            <div style="font-weight:700; color:#0F172A;">${r.full_name || r.username}</div>
-            <div style="font-size:7.5pt; color:#64748B;">@${r.username}</div>
+            <div style="font-weight:700; color:#0F172A;">${typeof escapeHtml === 'function' ? escapeHtml(r.full_name || r.username) : (r.full_name || r.username)}</div>
+            <div style="font-size:7.5pt; color:#64748B;">@${typeof escapeHtml === 'function' ? escapeHtml(r.username) : r.username}</div>
           </td>
           <td style="border:1px solid #CBD5E1; padding:5px 6px; text-align:center; font-weight:700; font-size:8pt;">
             ${typeLabel}
@@ -52803,6 +52774,28 @@ isOnlineResume: true,
       }
 
       _cachedTeacherTimesheets = records;
+      _cachedProcessedTimesheetRows = records.map(r => {
+        const dateObj = new Date(r.created_at || Date.now());
+        const thaiDate = dateObj.toLocaleDateString('th-TH');
+        const thaiTime = dateObj.toLocaleTimeString('th-TH') + ' น.';
+        let typeLabel = 'ตรงเวลา';
+        const ct = r.check_type || r.status || 'ON_TIME';
+        if (ct === 'LATE') typeLabel = 'สาย';
+        else if (ct === 'ABSENT') typeLabel = 'ขาด';
+        else if (ct === 'LEAVE') typeLabel = 'ลาป่วย / ลา';
+        return {
+          dateStr: thaiDate,
+          timeInStr: r.check_type === 'OUT' ? '-' : thaiTime,
+          timeOutStr: r.check_type === 'OUT' ? thaiTime : '-',
+          teacherName: r.teacher_name || r.full_name || r.username || '-',
+          username: r.username || '-',
+          statusType: typeLabel,
+          notesText: r.notes || r.remark || '-',
+          method: r.location || r.device_info || 'Web',
+          hours: r.work_hours || '-'
+        };
+      });
+      window._cachedProcessedTimesheetRows = _cachedProcessedTimesheetRows;
       if (countEl) countEl.textContent = `แสดง ${records.length} รายการ`;
 
       // Update Timesheet KPIs
@@ -52898,6 +52891,102 @@ isOnlineResume: true,
       URL.revokeObjectURL(url);
     }
     window.exportTeacherTimesheetCSV = exportTeacherTimesheetCSV;
+
+    function printTeacherTimesheetReport() {
+      const rows = (window._cachedProcessedTimesheetRows && window._cachedProcessedTimesheetRows.length > 0)
+        ? window._cachedProcessedTimesheetRows
+        : ((window._cachedTeacherTimesheets && window._cachedTeacherTimesheets.length > 0)
+          ? window._cachedTeacherTimesheets.map(r => {
+              const dt = new Date(r.created_at || Date.now());
+              const ct = r.check_type || r.status || 'ON_TIME';
+              let typeLabel = 'ตรงเวลา';
+              if (ct === 'LATE') typeLabel = 'สาย';
+              else if (ct === 'ABSENT') typeLabel = 'ขาด';
+              else if (ct === 'LEAVE') typeLabel = 'ลาป่วย / ลา';
+              return {
+                dateStr: dt.toLocaleDateString('th-TH'),
+                timeInStr: r.check_type === 'OUT' ? '-' : dt.toLocaleTimeString('th-TH') + ' น.',
+                timeOutStr: r.check_type === 'OUT' ? dt.toLocaleTimeString('th-TH') + ' น.' : '-',
+                teacherName: r.teacher_name || r.full_name || r.username || '-',
+                username: r.username || '-',
+                statusType: typeLabel,
+                notesText: r.notes || r.remark || '-',
+                method: r.location || r.device_info || 'Web',
+                hours: r.work_hours || '-'
+              };
+            })
+          : []);
+
+      if (!rows || rows.length === 0) {
+        if (typeof showToast === 'function') {
+          showToast('ไม่พบข้อมูลการลงเวลาสำหรับพิมพ์รายงาน', 'warning');
+        } else {
+          alert('ไม่พบข้อมูลการลงเวลาสำหรับพิมพ์รายงาน');
+        }
+        return;
+      }
+
+      const printWin = window.open('', '_blank', 'width=960,height=720');
+      if (!printWin) {
+        if (typeof showToast === 'function') showToast('แจ้งเตือน', 'เบราว์เซอร์บล็อกหน้าต่างพิมพ์ กรุณาอนุญาตป๊อปอัป', '⚠️');
+        return;
+      }
+
+      const tableRowsHtml = rows.map((r, i) => `
+        <tr style="page-break-inside:avoid;">
+          <td style="text-align:center;">${i + 1}</td>
+          <td><strong>${typeof escapeHtml === 'function' ? escapeHtml(r.teacherName || '') : (r.teacherName || '')}</strong> <span style="font-size:10px; color:#555;">(@${typeof escapeHtml === 'function' ? escapeHtml(r.username || '') : (r.username || '')})</span></td>
+          <td style="text-align:center;">${typeof escapeHtml === 'function' ? escapeHtml(r.dateStr || '') : (r.dateStr || '')}</td>
+          <td style="text-align:center;">${typeof escapeHtml === 'function' ? escapeHtml(r.timeInStr || '-') : (r.timeInStr || '-')}</td>
+          <td style="text-align:center;">${typeof escapeHtml === 'function' ? escapeHtml(r.timeOutStr || '-') : (r.timeOutStr || '-')}</td>
+          <td style="text-align:center;">${typeof escapeHtml === 'function' ? escapeHtml(String(r.hours || '-')) : (r.hours || '-')}</td>
+          <td style="text-align:center;">${typeof escapeHtml === 'function' ? escapeHtml(r.method || 'Web') : (r.method || 'Web')}</td>
+          <td style="text-align:center; font-weight:600;">${typeof escapeHtml === 'function' ? escapeHtml(r.statusType || '') : (r.statusType || '')}</td>
+        </tr>
+      `).join('');
+
+      printWin.document.write(`<!DOCTYPE html><html><head>
+        <meta charset="utf-8">
+        <title>รายงานการลงเวลาครูผู้สอน (Teacher Timesheet Report)</title>
+        <style>
+          @page { size: A4 portrait; margin: 10mm; }
+          body { font-family: 'Sarabun', 'Noto Sans Thai', Arial, sans-serif; font-size: 11px; color: #111; margin: 0; padding: 10px; }
+          .header { text-align: center; margin-bottom: 14px; border-bottom: 2px solid #0284C7; padding-bottom: 8px; }
+          .title { font-size: 16px; font-weight: bold; color: #0369A1; }
+          .sub { font-size: 11px; color: #475569; margin-top: 3px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          th, td { border: 1px solid #CBD5E1; padding: 5px 6px; }
+          th { background-color: #F1F5F9; font-weight: bold; font-size: 11px; }
+          @media print { body { -webkit-print-color-adjust: exact; } }
+        </style>
+      </head><body>
+        <div class="header">
+          <div class="title">โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (東方文化學院)</div>
+          <div class="sub">รายงานการลงเวลาปฏิบัติงานครูผู้สอน (Teacher Timesheet Report) | ทั้งหมด ${rows.length} รายการ</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:40px;">ลำดับ</th>
+              <th>ชื่อ-สกุลครูผู้สอน</th>
+              <th style="width:85px;">วันที่</th>
+              <th style="width:75px;">เวลาเข้างาน</th>
+              <th style="width:75px;">เวลาออกงาน</th>
+              <th style="width:70px;">ชั่วโมงทำงาน</th>
+              <th style="width:75px;">วิธีสแกน</th>
+              <th style="width:75px;">สถานะ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+        </table>
+      </body></html>`);
+      printWin.document.close();
+      printWin.focus();
+      setTimeout(() => { try { printWin.print(); } catch(_) {} }, 500);
+    }
+    window.printTeacherTimesheetReport = printTeacherTimesheetReport;
 
     function initTeacherPortal() {
       const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
