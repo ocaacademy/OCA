@@ -16980,10 +16980,19 @@ body.printing-report #printReportContainer {
 
     function cleanTermNumber(termVal) {
       if (termVal === undefined || termVal === null || termVal === '') return '';
-      const s = String(termVal).trim();
-      if (s.length > 1 && parseInt(s, 10) > 5) {
-        return s.charAt(0);
+      let s = String(termVal).trim().replace(/^เทอม\s*/, '').trim();
+      if (s.includes('/')) {
+        const parts = s.split('/');
+        if (parts.length === 2) {
+          const p0 = parts[0].trim();
+          const p1 = parts[1].trim();
+          if (p0.length <= 2 && parseInt(p0, 10) <= 5) return p0;
+          if (p1.length <= 2 && parseInt(p1, 10) <= 5) return p1;
+        }
       }
+      if (/^\d{3}$/.test(s)) return s.slice(-1);
+      if (/^(\d)\1+$/.test(s)) return s.charAt(0);
+      if (/^\d+$/.test(s) && parseInt(s, 10) > 5) return s.slice(-1);
       return s;
     }
 
@@ -25725,7 +25734,7 @@ if (action === 'getDashboardStats') {
 
           '      <div style="min-width:0;">' +
 
-          '        <div style="font-weight:600; color:#FFFFFF; font-size:12.5px; white-space:nowrap;">' + escapeHtml((fullName && fullName.startsWith(prefix) ? fullName : (prefix ? prefix + ' ' : '') + fullName).trim()) + '</div>' +
+          '        <div style="font-weight:600; color:#FFFFFF; font-size:12.5px; white-space:nowrap;">' + escapeHtml(formatStudentNameWithPrefix(prefix, fullName)) + '</div>' +
           '        <div style="font-size:10.5px; color:var(--text-muted); white-space:nowrap;" title="คลิกดูรายละเอียดเพื่อดูเลขฉบับเต็ม">' + escapeHtml(s.citizenId ? toArabicDigits(maskCitizenId(s.citizenId)) : '') + '</div>' +
           '      </div>' +
           '    </div>' +
@@ -26022,7 +26031,8 @@ if (action === 'getDashboardStats') {
       const hasCourse = Boolean(rawDetailCourse && rawDetailCourse !== '-' && rawDetailCourse !== 'หลักสูตรทั่วไป');
       if (elCourse) elCourse.textContent = hasCourse ? rawDetailCourse : 'ยังไม่ได้ลงทะเบียนคอร์ส (รอเลือกคอร์ส)';
       if (elYear) elYear.textContent = toArabicDigits(s.yearBE || '-');
-      if (elTerm) elTerm.textContent = 'เทอม ' + toArabicDigits(cleanTermNumber(s.term) || '-');
+      const cTerm = cleanTermNumber(s.term);
+      if (elTerm) elTerm.textContent = cTerm ? ('เทอม ' + toArabicDigits(cTerm)) : '-';
       if (elCardUid) elCardUid.textContent = s.smartCardUid ? toArabicDigits(s.smartCardUid) : 'รอออกบัตร';
       const rawPhone = s.phone ? s.phone : (s.phoneNumber ? s.phoneNumber : '');
 
@@ -26185,7 +26195,7 @@ if (action === 'getDashboardStats') {
       const lblOldCourse = document.getElementById('lblTransferOldCourse');
       const lblOldSch = document.getElementById('lblTransferOldSchedule');
       const lblOldTermYear = document.getElementById('lblTransferOldTermYear');
-      const sName = ((student.prefix || '') + ' ' + (student.fullName || student.rawName || '')).trim();
+      const sName = formatStudentNameWithPrefix(student.prefix, student.fullName || student.rawName || '');
       if (lblName) lblName.textContent = sName;
       if (lblId) lblId.textContent = toArabicDigits(student.studentId || '-');
       if (lblCit) lblCit.textContent = student.citizenId ? toArabicDigits(student.citizenId) : '-';
@@ -26704,7 +26714,7 @@ if (action === 'getDashboardStats') {
       const inpDel = document.getElementById('inpEditDeliveryMethod');
       const inpStatus = document.getElementById('inpEditStatus');
       const inpNotes = document.getElementById('inpEditNotes');
-      const fullDisp = ((student.prefix || '') + ' ' + (student.fullName || student.rawName || '')).trim();
+      const fullDisp = formatStudentNameWithPrefix(student.prefix, student.fullName || student.rawName || '');
       if (lblName) lblName.textContent = fullDisp + ' [' + toArabicDigits(student.studentId) + ']';
       if (inpId) inpId.value = student.studentId || '';
       if (inpPrefix) inpPrefix.value = student.prefix || 'นาย';
@@ -26769,8 +26779,7 @@ if (action === 'getDashboardStats') {
       const found = (cachedSearchStudentsData || []).find(item => item.studentId === studentId) ||
 
                     (activeSearchStudent && activeSearchStudent.studentId === studentId ? activeSearchStudent : null);
-      const prefix = found && found.prefix ? found.prefix + ' ' : '';
-      const dispName = (prefix + (fullName || (found && (found.fullName || found.rawName)) || '')).trim() || '-';
+      const dispName = formatStudentNameWithPrefix(found ? found.prefix : '', fullName || (found && (found.fullName || found.rawName)) || '') || '-';
       const dispCourse = (found && found.course) ? found.course : '-';
       const dispSchedule = (found && found.schedule) ? found.schedule : '';
       const htmlMsg =
@@ -45450,7 +45459,7 @@ function openForgotPasswordModal() {
 
           html +=
             '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">' +
-            '  <td style="padding:6px 6px; white-space:nowrap;"><strong style="font-family:monospace; color:var(--color-gold); cursor:pointer;" onclick="previewReceiptFromHistory(&#39;' + escapeHtml(r.receiptNo || r.receipt_no) + '&#39;)">' + rNo + '</strong>' + (termYear ? ('<div style="font-size:10px; color:#fbbf24;">เทอม ' + termYear + '</div>') : '') + '</td>' +
+            '  <td style="padding:6px 6px; white-space:nowrap;"><strong style="font-family:monospace; color:var(--color-gold); cursor:pointer;" onclick="previewReceiptFromHistory(&#39;' + escapeHtml(r.receiptNo || r.receipt_no) + '&#39;)">' + rNo + '</strong>' + (termYear ? ('<div style="font-size:10px; color:#fbbf24;">' + termYear + '</div>') : '') + '</td>' +
             '  <td style="padding:6px 6px;">' + courseCell + '</td>' +
             '  <td style="padding:6px 6px; white-space:nowrap;">' + instructorCell + '</td>' +
             '  <td style="padding:6px 6px; white-space:nowrap;">' + txBadge + '</td>' +
@@ -45471,7 +45480,18 @@ function openForgotPasswordModal() {
             const key = a.semesterId + '|' + a.courseNo;
             if (matchedSemCourse.has(key)) return;
             totalRecords++;
-            const termYear = a.yearBE ? (toArabicDigits(a.yearBE) + (a.term ? ('/' + toArabicDigits(a.term)) : '')) : toArabicDigits(a.semesterId);
+            let termYear = '';
+            if (a.yearBE) {
+              const cTerm = cleanTermNumber(a.term);
+              termYear = toArabicDigits(a.yearBE) + (cTerm ? ('/' + toArabicDigits(cTerm)) : '');
+            } else if (a.semesterId && /^\d{3}$/.test(String(a.semesterId).trim())) {
+              const semStr = String(a.semesterId).trim();
+              const semYr = toArabicDigits('25' + semStr.slice(0, 2));
+              const semTerm = toArabicDigits(semStr.slice(-1));
+              termYear = semYr + '/' + semTerm;
+            } else if (a.semesterId) {
+              termYear = toArabicDigits(a.semesterId);
+            }
             let courseCell = '<div><strong style="color:#ffffff;">' + escapeHtml(a.courseNo + ' ' + (a.courseTitle !== a.courseNo ? a.courseTitle : '')) + '</strong></div>';
             courseCell += '<div style="margin-top:2px; font-size:11px; color:#94a3b8; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">';
             if (a.section) courseCell += '<span style="background:rgba(245,158,11,0.12); color:#fbbf24; border:1px solid rgba(245,158,11,0.25); padding:1px 5px; border-radius:4px; font-size:10px; font-weight:700;">กลุ่ม ' + escapeHtml(a.section) + '</span>';
@@ -45488,7 +45508,7 @@ function openForgotPasswordModal() {
 
             html +=
               '<tr style="border-bottom:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.01);">' +
-              '  <td style="padding:6px 6px; white-space:nowrap;"><span style="color:#94a3b8; font-size:11px;">เทอม ' + termYear + '</span></td>' +
+              '  <td style="padding:6px 6px; white-space:nowrap;"><span style="color:#94a3b8; font-size:11px;">' + (termYear ? termYear : '-') + '</span></td>' +
               '  <td style="padding:6px 6px;">' + courseCell + '</td>' +
               '  <td style="padding:6px 6px; white-space:nowrap;">' + instructorCell + '</td>' +
               '  <td style="padding:6px 6px; white-space:nowrap;"><span style="background:rgba(56,189,248,0.12); color:#38bdf8; padding:2px 6px; border-radius:6px; font-weight:600; font-size:11px;">ประวัติการเรียน</span></td>' +
@@ -47101,7 +47121,7 @@ function openPublicRegisterView() {
                     .eq('student_id', sid);
                   const pendingRecord = {
                     studentId: sid,
-                    fullName: prefix + ' ' + fullName,
+                    fullName: formatStudentNameWithPrefix(prefix, fullName),
                     isCorporate: isCorporate,
                     companyName: companyName,
                     companyBranch: companyBranch,
@@ -47163,7 +47183,7 @@ function openPublicRegisterView() {
             const lblPhone = document.getElementById('lblPubSuccessPhone');
             const lblAddr = document.getElementById('lblPubSuccessAddr');
             if (lblSid) lblSid.textContent = toArabicDigits(sid);
-            if (lblName) lblName.textContent = prefix + ' ' + fullName;
+            if (lblName) lblName.textContent = formatStudentNameWithPrefix(prefix, fullName);
             if (lblPhone) lblPhone.textContent = phone;
             if (lblAddr) lblAddr.textContent = combinedAddress;
               const lblCourse = document.getElementById('lblPubSuccessCourse');
