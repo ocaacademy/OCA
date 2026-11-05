@@ -20029,7 +20029,7 @@ if (action === 'getDashboardStats') {
           const reqYear = (params && params.year) ? String(params.year).trim() : '2569';
           let stList = [];
           let totalCount = 0;
-          const REPORT_STUDENT_COLS = 'student_id, prefix, full_name, citizen_id, phone_number, line_id, email, address, current_course, current_schedule, year_be, term, smart_card_uid, status, notes, created_at, photo_url';
+          const REPORT_STUDENT_COLS = 'student_id, prefix, full_name, citizen_id, phone_number, line_id, email, address, current_course, current_schedule, year_be, term, smart_card_uid, status, notes, created_at';
 
           if (params && params.query && String(params.query).trim()) {
             const rawQ = String(params.query).trim();
@@ -20068,7 +20068,7 @@ if (action === 'getDashboardStats') {
               .select(REPORT_STUDENT_COLS)
               .gte('student_id', '6900000')
               .order('student_id', { ascending: false })
-              .limit(500);
+              .limit(300);
             stList = data || [];
           } else {
             const validYear = /^\d{4}$/.test(reqYear) ? reqYear : '2569';
@@ -20081,8 +20081,8 @@ if (action === 'getDashboardStats') {
             const reg = window.OCA_ACADEMIC_YEARS_REGISTRY || {};
             totalCount = (reg[validYear] && reg[validYear].total) ? reg[validYear].total : 9178;
 
-            // Authoritative query for active students of the year (fetching full batch up to 1000)
-            const fetchLimit = (params && params.limit) ? Math.min(Number(params.limit), 1000) : 1000;
+            // Authoritative query for active students of the year (fetching batch up to 300)
+            const fetchLimit = (params && params.limit) ? Math.min(Number(params.limit), 300) : 300;
             const { data: recentStudents } = await _supabase.from('students')
               .select(REPORT_STUDENT_COLS)
               .gte('student_id', minId)
@@ -22103,10 +22103,15 @@ if (action === 'getDashboardStats') {
         activate('tabReport');
         activate('btnNavReport');
         activate('mobNavReport');
-        if (typeof initStudentReportModule === 'function') initStudentReportModule();
         if (typeof refreshReportsModuleRealtime === 'function') refreshReportsModuleRealtime('all', true);
         if (typeof switchReportSubTab === 'function') {
-          switchReportSubTab('students');
+          const validReportSubTabs = ['finance', 'classroom', 'teacher', 'checker', 'attendance-tracking', 'teacher-tracker'];
+          let targetSub = 'finance';
+          try {
+            const savedSub = localStorage.getItem('oca_last_active_report_subtab');
+            if (savedSub && validReportSubTabs.includes(savedSub)) targetSub = savedSub;
+          } catch (_) {}
+          switchReportSubTab(targetSub);
         }
       } else if (navKey === 'settings') {
         activate('tabSettings');
@@ -22698,6 +22703,162 @@ if (action === 'getDashboardStats') {
       return _modnetSessionPromise;
     }
 
+    function applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels) {
+      const N = w * h;
+      const aWork = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        let a = alphaArr[i];
+        const j = i * 4;
+        const sR = srcPixels[j];
+        const sG = srcPixels[j + 1];
+        const sB = srcPixels[j + 2];
+        if (isBackdropBlue || isBackdropGreen) {
+          const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
+          const isSkinTone = (sR > sG + 8 && sR > sB + 15 && sR > 75);
+          if (!isSkinTone) {
+            if (isBackdropBlue) {
+              const blueDom = sB - Math.max(sR, sG);
+              if (distBg < 45 || (blueDom > 12 && distBg < 80)) {
+                const suppressed = distBg < 25 ? 0 : Math.min(1, (distBg - 25) / 55);
+                a = Math.min(a, suppressed);
+              }
+            } else if (isBackdropGreen) {
+              const greenDom = sG - Math.max(sR, sB);
+              if (distBg < 45 || (greenDom > 12 && distBg < 80)) {
+                const suppressed = distBg < 25 ? 0 : Math.min(1, (distBg - 25) / 55);
+                a = Math.min(a, suppressed);
+              }
+            }
+          }
+        }
+        aWork[i] = a;
+      }
+      const distMap = new Int32Array(N);
+      for (let i = 0; i < N; i++) {
+        const j = i * 4;
+        const sR = srcPixels[j];
+        const sG = srcPixels[j + 1];
+        const sB = srcPixels[j + 2];
+        const isMaroon = (sR > 95 && sG < 38 && sB < 38 && sR > sG * 2.8 && sR > sB * 2.8);
+        if (aWork[i] < 0.45 || isMaroon) {
+          distMap[i] = 0;
+        } else {
+          distMap[i] = 999;
+        }
+      }
+      for (let y = 0; y < h; y++) {
+        const row = y * w;
+        for (let x = 0; x < w; x++) {
+          const idx = row + x;
+          let d = distMap[idx];
+          if (d === 0) continue;
+          if (x > 0) d = Math.min(d, distMap[idx - 1] + 1);
+          if (y > 0) {
+            d = Math.min(d, distMap[idx - w] + 1);
+            if (x > 0) d = Math.min(d, distMap[idx - w - 1] + 1);
+            if (x + 1 < w) d = Math.min(d, distMap[idx - w + 1] + 1);
+          }
+          distMap[idx] = d;
+        }
+      }
+      for (let y = h - 1; y >= 0; y--) {
+        const row = y * w;
+        for (let x = w - 1; x >= 0; x--) {
+          const idx = row + x;
+          let d = distMap[idx];
+          if (d === 0) continue;
+          if (x + 1 < w) d = Math.min(d, distMap[idx + 1] + 1);
+          if (y + 1 < h) {
+            d = Math.min(d, distMap[idx + w] + 1);
+            if (x + 1 < w) d = Math.min(d, distMap[idx + w + 1] + 1);
+            if (x > 0) d = Math.min(d, distMap[idx + w - 1] + 1);
+          }
+          distMap[idx] = d;
+        }
+      }
+      const shoulderCutY = Math.floor(h * 0.57);
+      const pocketSuppressed = new Uint8Array(N);
+      for (let y = 0; y < shoulderCutY; y++) {
+        const row = y * w;
+        for (let x = 0; x < w; x++) {
+          const i = row + x;
+          const d = distMap[i];
+          if (d > 0 && d <= 16) {
+            const j = i * 4;
+            const sR = srcPixels[j];
+            const sG = srcPixels[j + 1];
+            const sB = srcPixels[j + 2];
+            const isSkinTone = (sR > sG + 8 && sR > sB + 15 && sR > 75);
+            const isCyanBluePocket = !isSkinTone && sB > 118 && (sB - sR) > 38 && ((sG - sR) > 15 || sB > 145);
+            if (isCyanBluePocket) {
+              const ramp = Math.max(0, Math.min(aWork[i], 1 - (sB - sR - 32) / 18));
+              aWork[i] = ramp;
+              if (ramp < 0.5) pocketSuppressed[i] = 1;
+            }
+          }
+        }
+      }
+      for (let y = 1; y < shoulderCutY - 1; y++) {
+        const row = y * w;
+        for (let x = 1; x < w - 1; x++) {
+          const i = row + x;
+          if (pocketSuppressed[i] === 0 && (
+            pocketSuppressed[i - 1] === 1 || pocketSuppressed[i + 1] === 1 ||
+            pocketSuppressed[i - w] === 1 || pocketSuppressed[i + w] === 1
+          )) {
+            const j = i * 4;
+            const sR = srcPixels[j];
+            const sG = srcPixels[j + 1];
+            const sB = srcPixels[j + 2];
+            const isSkinTone = (sR > sG + 8 && sR > sB + 15 && sR > 75);
+            if (!isSkinTone && (sB > sR + 20 || sG > sR + 20)) {
+              aWork[i] = Math.min(aWork[i], 0.35);
+            }
+          }
+        }
+      }
+      const hairCutY = Math.floor(h * 0.55);
+      for (let y = 0; y < h; y++) {
+        const row = y * w;
+        for (let x = 0; x < w; x++) {
+          const i = row + x;
+          let a = aWork[i];
+          const j = i * 4;
+          const sR = srcPixels[j];
+          const sG = srcPixels[j + 1];
+          const sB = srcPixels[j + 2];
+          const d = distMap[i];
+          if (y < hairCutY && d <= 2 && (sB - sR > 22)) {
+            a = Math.min(a, 0.55);
+          }
+          a = a < 0.04 ? 0 : (a > 0.96 ? 1 : a);
+          let fgR = sR;
+          let fgG = sG;
+          let fgB = sB;
+          if (a > 0 && a < 1 && (isBackdropBlue || isBackdropGreen)) {
+            fgR = Math.min(255, Math.max(0, (fgR - (1 - a) * refR) / Math.max(a, 0.35)));
+            fgG = Math.min(255, Math.max(0, (fgG - (1 - a) * refG) / Math.max(a, 0.35)));
+            fgB = Math.min(255, Math.max(0, (fgB - (1 - a) * refB) / Math.max(a, 0.35)));
+          }
+          if (y < hairCutY && d <= 12) {
+            const isSkinTone = (sR > sG + 8 && sR > sB + 15 && sR > 75);
+            if (!isSkinTone) {
+              if (fgB > fgR + 4) {
+                fgB = Math.round(fgR * 0.88 + Math.min(fgG, fgR) * 0.12);
+              }
+              if (fgG > fgR + 4) {
+                fgG = Math.round(fgR * 0.90 + fgB * 0.10);
+              }
+            }
+          }
+          outPixels[j] = Math.round(fgR * a + bg[0] * (1 - a));
+          outPixels[j + 1] = Math.round(fgG * a + bg[1] * (1 - a));
+          outPixels[j + 2] = Math.round(fgB * a + bg[2] * (1 - a));
+          outPixels[j + 3] = 255;
+        }
+      }
+    }
+
     async function renderModnetMatting(srcCanvas, targetBgColor, w, h) {
       const session = await getModnetSession();
       const tCanvas = document.createElement('canvas');
@@ -22825,50 +22986,7 @@ if (action === 'getDashboardStats') {
       const outCtx = outCanvas.getContext('2d');
       const outImgData = outCtx.createImageData(w, h);
       const outPixels = outImgData.data;
-
-      for (let i = 0; i < N; i++) {
-        let a = alphaArr[i];
-        const j = i * 4;
-        const sR = srcPixels[j];
-        const sG = srcPixels[j + 1];
-        const sB = srcPixels[j + 2];
-
-        // Chroma backdrop suppression: removes residual blue/green background patches
-        // outside human skin and clothing
-        if (isBackdropBlue || isBackdropGreen) {
-          const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
-          // Skin tone protection: human skin is warm (R > G, R > B, R > 70)
-          const isSkinTone = (sR > sG + 10 && sR > sB + 20 && sR > 80);
-
-          if (!isSkinTone) {
-            if (isBackdropBlue) {
-              const blueDom = sB - Math.max(sR, sG);
-              if (distBg < 45 || (blueDom > 12 && distBg < 75)) {
-                const suppressed = distBg < 25 ? 0 : (distBg - 25) / 20;
-                a = Math.min(a, suppressed);
-              }
-            } else if (isBackdropGreen) {
-              const greenDom = sG - Math.max(sR, sB);
-              if (distBg < 45 || (greenDom > 12 && distBg < 75)) {
-                const suppressed = distBg < 25 ? 0 : (distBg - 25) / 20;
-                a = Math.min(a, suppressed);
-              }
-            }
-          }
-        }
-
-        a = a < 0.04 ? 0 : (a > 0.96 ? 1 : a);
-
-        for (let c = 0; c < 3; c++) {
-          let fg = srcPixels[j + c];
-          if (a > 0 && a < 1) {
-            const refVal = c === 0 ? refR : (c === 1 ? refG : refB);
-            fg = Math.min(255, Math.max(0, (fg - (1 - a) * refVal) / Math.max(a, 0.35)));
-          }
-          outPixels[j + c] = Math.round(fg * a + bg[c] * (1 - a));
-        }
-        outPixels[j + 3] = 255;
-      }
+      applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels);
       outCtx.putImageData(outImgData, 0, 0);
       return outCanvas;
     }
@@ -22971,47 +23089,12 @@ if (action === 'getDashboardStats') {
       const outImgData = outCtx.createImageData(w, h);
       const outPixels = outImgData.data;
       const N = w * h;
-
+      const alphaArr = new Float32Array(N);
       for (let i = 0; i < N; i++) {
-        let a = alphaPixels[i * 4] / 255;
-        const j = i * 4;
-        const sR = srcPixels[j];
-        const sG = srcPixels[j + 1];
-        const sB = srcPixels[j + 2];
-
-        // Chroma backdrop suppression
-        if (isBackdropBlue || isBackdropGreen) {
-          const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
-          const isSkinTone = (sR > sG + 10 && sR > sB + 20 && sR > 80);
-          if (!isSkinTone) {
-            if (isBackdropBlue) {
-              const blueDom = sB - Math.max(sR, sG);
-              if (distBg < 45 || (blueDom > 12 && distBg < 75)) {
-                const suppressed = distBg < 25 ? 0 : (distBg - 25) / 20;
-                a = Math.min(a, suppressed);
-              }
-            } else if (isBackdropGreen) {
-              const greenDom = sG - Math.max(sR, sB);
-              if (distBg < 45 || (greenDom > 12 && distBg < 75)) {
-                const suppressed = distBg < 25 ? 0 : (distBg - 25) / 20;
-                a = Math.min(a, suppressed);
-              }
-            }
-          }
-        }
-
-        a = a < 0.04 ? 0 : (a > 0.96 ? 1 : a);
-
-        for (let c = 0; c < 3; c++) {
-          let fg = srcPixels[j + c];
-          if (a > 0 && a < 1 && (isBackdropBlue || isBackdropGreen)) {
-            const refVal = c === 0 ? refR : (c === 1 ? refG : refB);
-            fg = Math.min(255, Math.max(0, (fg - (1 - a) * refVal) / Math.max(a, 0.35)));
-          }
-          outPixels[j + c] = Math.round(fg * a + bg[c] * (1 - a));
-        }
-        outPixels[j + 3] = 255;
+        alphaArr[i] = alphaPixels[i * 4] / 255;
       }
+
+      applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels);
       outCtx.putImageData(outImgData, 0, 0);
       return outCanvas;
     }
@@ -34347,7 +34430,6 @@ if (action === 'getDashboardStats') {
       const tbody = document.getElementById('tbodyClaimHistoryLogs');
       if (!tbody) return;
       tbody.innerHTML = '';
-
       const countBadge = document.getElementById('badgeClaimHistoryCount');
       if (countBadge) countBadge.textContent = (Array.isArray(logs) ? logs.length : 0) + ' รายการ';
 
@@ -37992,7 +38074,8 @@ if (action === 'getDashboardStats') {
      */
 
     function switchReportSubTab(subTab) {
-      if (!subTab) subTab = 'students';
+      const validReportSubTabs = ['finance', 'classroom', 'teacher', 'checker', 'attendance-tracking', 'teacher-tracker', 'roster'];
+      if (!subTab || !validReportSubTabs.includes(subTab)) subTab = 'finance';
       try {
         localStorage.setItem('oca_last_active_report_subtab', subTab);
       } catch (_) {}
@@ -38004,7 +38087,7 @@ if (action === 'getDashboardStats') {
         });
 
         // 2. Clean Button Reset: Clear active classes & styles
-        document.querySelectorAll('.oca-report-grid-card').forEach(b => {
+        document.querySelectorAll('.oca-report-grid-card, #tabReport .oca-subnav-bar .oca-type-toggle-btn').forEach(b => {
           b.classList.remove('active');
           b.style.background = '';
           b.style.color = '';
@@ -38058,12 +38141,12 @@ if (action === 'getDashboardStats') {
           const inp = document.getElementById('inpClassroomSearch');
           if (inp) setTimeout(() => inp.focus(), 150);
         } else {
-          // Default: students (Report 01)
-          const btn = document.getElementById('btnReportSubnavStudents');
-          const view = document.getElementById('subviewReportStudents');
+          // Default: finance (Report 01)
+          const btn = document.getElementById('btnReportSubnavFinance');
+          const view = document.getElementById('subviewReportFinance');
           if (btn) btn.classList.add('active');
           if (view) view.style.display = 'block';
-          if (typeof loadStudentReport === 'function') loadStudentReport(true, false);
+          if (typeof loadFinancialReport === 'function') loadFinancialReport(true, false);
         }
       }
 
@@ -47912,8 +47995,8 @@ isOnlineResume: true,
       let studentsList = [];
       const stTeacherMap = new Map();
       const curYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
-      const yBE = curYT.yearBE || 2569;
-      const tNo = curYT.term || 5;
+      const yBE = Number(curYT && curYT.yearBE) || 2569;
+      const tNo = Number(curYT && curYT.term) || 5;
       const yrPfx = String(yBE).slice(-2);
       const tPrefix = yrPfx + String(tNo);
       const nextTPrefix = (tNo < 5) ? (yrPfx + String(tNo + 1)) : (String(Number(yrPfx) + 1) + '0');
@@ -47926,7 +48009,7 @@ isOnlineResume: true,
             .lt('receipt_no', nextTPrefix + '0000')
             .limit(2000);
           const { data: stData } = await _supabase.from('students')
-            .select('student_id, prefix, full_name, photo_url, current_schedule, current_course')
+            .select('student_id, prefix, full_name, current_schedule, current_course')
             .or(`student_id.gte.${tPrefix}0000,and(year_be.eq.${yBE},term.eq.${tNo})`)
             .limit(2000);
           const lookupNames = new Map();
@@ -47935,7 +48018,7 @@ isOnlineResume: true,
               const sid = String(s.student_id || '').trim();
               if (sid) {
                 const cName = (typeof formatStudentNameWithPrefix === 'function') ? formatStudentNameWithPrefix(s.prefix, s.full_name) : (s.full_name || '');
-                lookupNames.set(sid, { fullName: cName, photo: s.photo_url || '', sched: s.current_schedule || '', course: s.current_course || '' });
+                lookupNames.set(sid, { fullName: cName, sched: s.current_schedule || '', course: s.current_course || '' });
               }
             });
           }
@@ -47954,7 +48037,7 @@ isOnlineResume: true,
                 stTeacherMap.set(sid, {
                   student_id: sid,
                   full_name: disp,
-                  photo_url: lk?.photo || '',
+                  photo_url: '',
                   current_schedule: r.schedule || schedName,
                   current_course: r.item_name || r.item_code || ''
                 });
@@ -47974,7 +48057,7 @@ isOnlineResume: true,
                 stTeacherMap.set(sid, {
                   student_id: sid,
                   full_name: cName || `นักศึกษา (${sid})`,
-                  photo_url: s.photo_url || '',
+                  photo_url: '',
                   current_schedule: s.current_schedule || schedName,
                   current_course: s.current_course || ''
                 });
@@ -47984,6 +48067,16 @@ isOnlineResume: true,
 
           if (stTeacherMap.size > 0) {
             studentsList = Array.from(stTeacherMap.values());
+            const classSids = studentsList.map(st => st.student_id).filter(Boolean).slice(0, 60);
+            if (classSids.length > 0) {
+              try {
+                const { data: photoRows } = await _supabase.from('students').select('student_id, photo_url').in('student_id', classSids);
+                if (Array.isArray(photoRows)) {
+                  const pMap = new Map(photoRows.map(p => [String(p.student_id).trim(), p.photo_url || '']));
+                  studentsList.forEach(st => { if (pMap.get(st.student_id)) st.photo_url = pMap.get(st.student_id); });
+                }
+              } catch (_) {}
+            }
           }
         } catch (e) {
           console.warn('[Teacher Roster DB] query error:', e);
@@ -48502,9 +48595,11 @@ isOnlineResume: true,
         try {
           const { data, error } = await _supabase
             .from('students')
-            .select('student_id, full_name, nickname, phone, emergency_phone, guardian_phone, email, line_id, photo_url, current_schedule, current_course, status, notes')
-            .gte('student_id', '6800000')
-            .neq('status', 'CANCELLED');
+            .select('student_id, prefix, full_name, phone_number, email, line_id, current_schedule, current_course, status, notes')
+            .gte('student_id', '6900000')
+            .neq('status', 'CANCELLED')
+            .order('student_id', { ascending: false })
+            .limit(500);
           if (!error && Array.isArray(data) && data.length > 0) {
             students = data.filter(s => {
               const cs = (s.current_schedule || '').trim();
@@ -48583,7 +48678,7 @@ isOnlineResume: true,
           full_name: s.full_name || '-',
           name_en: s.name_en || '',
           nickname: s.nickname || '',
-          phone: s.phone || '-',
+          phone: s.phone_number || s.phone || '-',
           emergency_phone: s.emergency_phone || s.guardian_phone || '-',
           email: s.email || '-',
           line_id: s.line_id || '-',
@@ -50268,9 +50363,11 @@ isOnlineResume: true,
       }
 
       const ytVal = selYT?.value || document.getElementById('selRosterYearTerm')?.value || '2569_5';
-      const [yearBE, termNo] = ytVal.split('_').map(Number);
-      const yr = String(yearBE || 2569).slice(-2);
-      const tPrefix = yr + String(termNo || 5);
+      const [rawYearBE, rawTermNo] = (ytVal || '2569_5').split('_');
+      const yearBE = Number(rawYearBE) || 2569;
+      const termNo = Number(rawTermNo) || 5;
+      const yr = String(yearBE).slice(-2);
+      const tPrefix = yr + String(termNo);
       const nextTPrefix = (termNo < 5) ? (yr + String(termNo + 1)) : (String(Number(yr) + 1) + '0');
 
       // 1. Query receipts and students from Supabase (Dual-Source strategy)
@@ -50288,7 +50385,7 @@ isOnlineResume: true,
 
           // 1.2 Query students registered for this term
           const { data: stData, error: stErr } = await _supabase.from('students')
-            .select('student_id, prefix, full_name, photo_url, current_course, current_schedule, year_be, term')
+            .select('student_id, prefix, full_name, current_course, current_schedule, year_be, term')
             .or(`student_id.gte.${tPrefix}0000,and(year_be.eq.${yearBE},term.eq.${termNo})`)
             .limit(2000);
 
@@ -50301,7 +50398,7 @@ isOnlineResume: true,
                   : (s.full_name || '');
                 stLookupMap.set(sid, {
                   fullName: cleanName,
-                  photoUrl: s.photo_url || '',
+                  photoUrl: '',
                   course: s.current_course || '',
                   schedule: s.current_schedule || ''
                 });
@@ -50319,7 +50416,7 @@ isOnlineResume: true,
             if (missingIds.length > 0) {
               try {
                 const { data: lookedUp } = await _supabase.from('students')
-                  .select('student_id, prefix, full_name, photo_url')
+                  .select('student_id, prefix, full_name')
                   .in('student_id', missingIds.slice(0, 150));
                 if (Array.isArray(lookedUp)) {
                   lookedUp.forEach(s => {
@@ -50329,7 +50426,7 @@ isOnlineResume: true,
                       : (s.full_name || '');
                     stLookupMap.set(sid, {
                       fullName: cleanName,
-                      photoUrl: s.photo_url || '',
+                      photoUrl: '',
                       course: '',
                       schedule: ''
                     });
@@ -50378,7 +50475,7 @@ isOnlineResume: true,
               studentMap.set(sid, {
                 student_id: sid,
                 full_name: cleanName || `นักศึกษา (${sid})`,
-                photo_url: s.photo_url || '',
+                photo_url: '',
                 course_code: s.current_course || '',
                 course_name: s.current_course || '',
                 schedule: s.current_schedule || '',
