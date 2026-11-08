@@ -7812,7 +7812,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-33';
+      var LATEST_VERSION = 'oca-pwa-v358-34';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -12692,11 +12692,13 @@ body.printing-report #printReportContainer {
                             <th style="padding:10px 12px; width:220px; color:#F8FAFC;">วันเวลาเข้า-ออก</th>
                             <th style="padding:10px 12px; min-width:180px; color:#F8FAFC;">ชื่อครู</th>
                             <th style="padding:10px 12px; width:140px; text-align:center; color:var(--color-gold, #F59E0B);">ประเภท</th>
+                            <th style="padding:10px 12px; width:110px; text-align:center;">ตารางสอน</th>
                             <th style="padding:10px 12px; color:#94A3B8;">หมายเหตุ</th>
+                            <th style="padding:10px 12px; width:110px; text-align:center;">อุปกรณ์ / พิกัด</th>
                           </tr>
                         </thead>
                         <tbody id="tbReportTeacherTimesheet">
-                          <tr><td colspan="5" style="text-align:center; padding:24px; color:#94A3B8;">กำลังโหลดข้อมูลรายงาน...</td></tr>
+                          <tr><td colspan="7" style="text-align:center; padding:24px; color:#94A3B8;">กำลังโหลดข้อมูลรายงาน...</td></tr>
                         </tbody>
                       </table>
                     </div>
@@ -18740,15 +18742,7 @@ body.printing-report #printReportContainer {
         loadFinancialReport(true, isSilent);
       }
 
-      // 4. ถ้ากำลังเปิดดูหรือมีคอนเทนเนอร์ ใบรายชื่อตามคอร์ส (Course Rosters) ให้รีเฟรชเงียบเบื้องหลัง (Flicker-Free)
-
-      const viewRoster = document.getElementById('subviewReportRoster');
-
-      if (viewRoster && viewRoster.style.display !== 'none' && typeof generateCourseRosters === 'function') {
-        generateCourseRosters(true, isSilent);
-      }
-
-      // 5. ถ้ากำลังเปิดดูหรือมีคอนเทนเนอร์ พิมพ์ใบแจ้งห้องเรียน// 5. ถ้ากำลังเปิดดูหรือมีคอนเทนเนอร์ พิมพ์ใบแจ้งห้องเรียน (Classroom View) ให้อัปเดต
+      // 5. ถ้ากำลังเปิดดูหรือมีคอนเทนเนอร์ พิมพ์ใบแจ้งห้องเรียน (Classroom View) ให้อัปเดต
 
       const viewClassroom = document.getElementById('subviewReportClassroom');
 
@@ -24635,7 +24629,7 @@ if (action === 'getDashboardStats') {
         activate('mobNavReport');
         if (typeof refreshReportsModuleRealtime === 'function') refreshReportsModuleRealtime('all', true);
         if (typeof switchReportSubTab === 'function') {
-          const validReportSubTabs = ['classroom', 'teacher', 'checker', 'attendance-tracking', 'teacher-tracker', 'roster', 'termtimetable', 'course-breakdown'];
+          const validReportSubTabs = ['classroom', 'teacher', 'checker', 'attendance-tracking', 'teacher-tracker', 'termtimetable', 'course-breakdown'];
           let targetSub = 'classroom';
           try {
             const savedSub = localStorage.getItem('oca_last_active_report_subtab');
@@ -44215,14 +44209,7 @@ if (action === 'getDashboardStats') {
             _termTimetableInitialized = true;
             if (typeof initTermTimetableDropdowns === 'function') initTermTimetableDropdowns();
           }
-        } else if (subTab === 'roster') {
-          const btn = document.getElementById('btnReportSubnavRoster');
-          const view = document.getElementById('subviewReportRoster');
-          if (btn) btn.classList.add('active');
-          if (view) view.style.display = 'block';
-          const rContainer = document.getElementById('courseRosterContainer');
-          const hasSheets = !!(rContainer && rContainer.querySelector('.oca-course-roster-sheet'));
-          if (typeof generateCourseRosters === 'function') generateCourseRosters(!hasSheets, hasSheets);
+
         } else if (subTab === 'classroom') {
           const btn = document.getElementById('btnReportSubnavClassroom');
           const view = document.getElementById('subviewReportClassroom');
@@ -44983,8 +44970,9 @@ if (action === 'getDashboardStats') {
       const printContainer = document.getElementById('printReportContainer');
       const finArea = document.getElementById('subviewReportFinance');
       if (!printContainer || !finArea) return;
-      const selYear = document.getElementById('selFinanceFilterYear');
-      const filterYearText = (selYear && selYear.value !== 'ALL') ? ('กรองปี พ.ศ. ' + toArabicDigits(selYear.value)) : 'ครอบคลุมทุกปีการศึกษา';
+      const selYear = document.getElementById('selFinanceFilterYearTerm') || document.getElementById('selFinanceFilterYear');
+      const yearVal = (selYear && selYear.value) ? selYear.value : '';
+      const filterYearText = (yearVal && yearVal !== 'ALL') ? ('กรองปี พ.ศ. ' + toArabicDigits(yearVal)) : 'ครอบคลุมทุกปีการศึกษา';
       const now = new Date();
       const dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
       const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
@@ -56472,36 +56460,74 @@ function openPublicRegisterView() {
         }
       } catch (_) {}
 
-      // 2. Fetch authoritative registered teachers from staff_users
+      // 2. Fetch authoritative registered teachers safely (RPC + cache fallback)
       const isTeacherRole = (r) => {
         if (!r) return false;
         const s = String(r).trim().toLowerCase();
         return s === 'teacher' || s === 'ครูสอน' || s === 'ครูผู้สอน' || s === 'ครู' || s === 'academic';
       };
       let teachers = [];
-      if (typeof _supabase !== 'undefined' && _supabase) {
-        try {
-          const { data } = await _supabase.from('staff_users').select('username, full_name, role');
-          if (Array.isArray(data)) teachers = data.filter(u => isTeacherRole(u.role));
-        } catch (_) {}
-      }
-      if (teachers.length === 0 && typeof cachedUsersList !== 'undefined' && Array.isArray(cachedUsersList)) {
-        teachers = cachedUsersList.filter(u => isTeacherRole(u.role));
+
+      // 1. From cachedUsersList (in memory or window)
+      const uSource = (typeof cachedUsersList !== 'undefined' && Array.isArray(cachedUsersList) && cachedUsersList.length > 0)
+        ? cachedUsersList
+        : ((typeof window !== 'undefined' && Array.isArray(window.cachedUsersList) && window.cachedUsersList.length > 0) ? window.cachedUsersList : []);
+      if (uSource.length > 0) {
+        teachers = uSource.filter(u => isTeacherRole(u.role)).map(d => ({
+          username: d.username,
+          full_name: d.full_name || d.fullName || d.username,
+          role: d.role
+        }));
       }
 
-      // Populate teachers in filter dropdown
+      // 2. From Supabase RPC (get_safe_staff_users) to avoid RLS block
+      if (teachers.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data: rpcUsers } = await _supabase.rpc('get_safe_staff_users');
+          if (rpcUsers && Array.isArray(rpcUsers) && rpcUsers.length > 0) {
+            teachers = rpcUsers.filter(u => isTeacherRole(u.role)).map(d => ({
+              username: d.username,
+              full_name: d.full_name || d.fullName || d.username,
+              role: d.role
+            }));
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fallback direct query staff_users
+      if (teachers.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data } = await _supabase.from('staff_users').select('username, full_name, role');
+          if (Array.isArray(data)) {
+            teachers = data.filter(u => isTeacherRole(u.role)).map(d => ({
+              username: d.username,
+              full_name: d.full_name || d.fullName || d.username,
+              role: d.role
+            }));
+          }
+        } catch (_) {}
+      }
+
+      // Populate teachers in filter dropdown (preserving selection)
+      const currentTrackerVal = selTeacher ? selTeacher.value : '';
       if (selTeacher) {
-        selTeacher.innerHTML = '';
-        if (teachers.length === 0) {
-          selTeacher.innerHTML = '<option value="">-- ยังไม่มีการสร้างบัญชีครูผู้สอน (Role: Teacher) --</option>';
-        } else {
-          selTeacher.innerHTML = '<option value="ALL">-- ครูทุกคน (All Teachers) --</option>';
-          teachers.forEach(u => {
-            const opt = document.createElement('option');
-            opt.value = u.username;
-            opt.textContent = `${u.full_name || u.username} (@${u.username})`;
-            selTeacher.appendChild(opt);
-          });
+        const shouldPopulateTracker = selTeacher.options.length <= 1 || (teachers.length > 0 && selTeacher.options.length !== (teachers.length + 1));
+        if (shouldPopulateTracker) {
+          selTeacher.innerHTML = '';
+          if (teachers.length === 0) {
+            selTeacher.innerHTML = '<option value="">-- ยังไม่มีการสร้างบัญชีครูผู้สอน (Role: Teacher) --</option>';
+          } else {
+            selTeacher.innerHTML = '<option value="ALL">-- ครูทุกคน (All Teachers) --</option>';
+            teachers.forEach(u => {
+              const opt = document.createElement('option');
+              opt.value = u.username;
+              opt.textContent = `${u.full_name || u.username} (@${u.username})`;
+              selTeacher.appendChild(opt);
+            });
+          }
+        }
+        if (currentTrackerVal && Array.from(selTeacher.options).some(o => o.value === currentTrackerVal)) {
+          selTeacher.value = currentTrackerVal;
         }
       }
 
@@ -58145,35 +58171,73 @@ function openPublicRegisterView() {
         });
       } catch (_) {}
 
-      // 2. Fetch authoritative registered teachers from staff_users
+      // 2. Fetch authoritative registered teachers safely (RPC + cache fallback)
       const isTeacherRole = (r) => {
         if (!r) return false;
         const s = String(r).trim().toLowerCase();
         return s === 'teacher' || s === 'ครูสอน' || s === 'ครูผู้สอน' || s === 'ครู' || s === 'academic';
       };
       let teachers = [];
-      if (typeof _supabase !== 'undefined' && _supabase) {
-        try {
-          const { data } = await _supabase.from('staff_users').select('username, full_name, role');
-          if (Array.isArray(data)) teachers = data.filter(u => isTeacherRole(u.role));
-        } catch(_) {}
-      }
-      if (teachers.length === 0 && typeof cachedUsersList !== 'undefined' && Array.isArray(cachedUsersList)) {
-        teachers = cachedUsersList.filter(u => isTeacherRole(u.role));
+
+      // 1. From cachedUsersList (in memory or window)
+      const uSource = (typeof cachedUsersList !== 'undefined' && Array.isArray(cachedUsersList) && cachedUsersList.length > 0)
+        ? cachedUsersList
+        : ((typeof window !== 'undefined' && Array.isArray(window.cachedUsersList) && window.cachedUsersList.length > 0) ? window.cachedUsersList : []);
+      if (uSource.length > 0) {
+        teachers = uSource.filter(u => isTeacherRole(u.role)).map(d => ({
+          username: d.username,
+          full_name: d.full_name || d.fullName || d.username,
+          role: d.role
+        }));
       }
 
+      // 2. From Supabase RPC (get_safe_staff_users) to avoid RLS block
+      if (teachers.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data: rpcUsers } = await _supabase.rpc('get_safe_staff_users');
+          if (rpcUsers && Array.isArray(rpcUsers) && rpcUsers.length > 0) {
+            teachers = rpcUsers.filter(u => isTeacherRole(u.role)).map(d => ({
+              username: d.username,
+              full_name: d.full_name || d.fullName || d.username,
+              role: d.role
+            }));
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fallback direct query staff_users
+      if (teachers.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data } = await _supabase.from('staff_users').select('username, full_name, role');
+          if (Array.isArray(data)) {
+            teachers = data.filter(u => isTeacherRole(u.role)).map(d => ({
+              username: d.username,
+              full_name: d.full_name || d.fullName || d.username,
+              role: d.role
+            }));
+          }
+        } catch(_) {}
+      }
+
+      const currentVal = selTeacher ? selTeacher.value : '';
       if (selTeacher) {
-        selTeacher.innerHTML = '';
-        if (teachers.length === 0) {
-          selTeacher.innerHTML = '<option value="">-- ยังไม่มีการสร้างบัญชีครูผู้สอน (Role: Teacher) --</option>';
-        } else {
-          selTeacher.innerHTML = '<option value="ALL">-- ครูทุกคน (All Teachers) --</option>';
-          teachers.forEach(u => {
-            const opt = document.createElement('option');
-            opt.value = u.username;
-            opt.textContent = `${u.full_name || u.username} (@${u.username})`;
-            selTeacher.appendChild(opt);
-          });
+        const shouldPopulate = selTeacher.options.length <= 1 || (teachers.length > 0 && selTeacher.options.length !== (teachers.length + 1));
+        if (shouldPopulate) {
+          selTeacher.innerHTML = '';
+          if (teachers.length === 0) {
+            selTeacher.innerHTML = '<option value="">-- ยังไม่มีการสร้างบัญชีครูผู้สอน (Role: Teacher) --</option>';
+          } else {
+            selTeacher.innerHTML = '<option value="ALL">-- ครูทุกคน (All Teachers) --</option>';
+            teachers.forEach(u => {
+              const opt = document.createElement('option');
+              opt.value = u.username;
+              opt.textContent = `${u.full_name || u.username} (@${u.username})`;
+              selTeacher.appendChild(opt);
+            });
+          }
+        }
+        if (currentVal && Array.from(selTeacher.options).some(o => o.value === currentVal)) {
+          selTeacher.value = currentVal;
         }
       }
 
@@ -59311,7 +59375,7 @@ function openPublicRegisterView() {
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-33';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-34';
 
       // Auto-refresh on SW update with state preservation & toast notice
       let isRefreshing = false;
@@ -59327,7 +59391,7 @@ function openPublicRegisterView() {
           }
         } catch(_) {}
         if (typeof showToast === 'function') {
-          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-33)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
+          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-34)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
         }
         setTimeout(function() {
           window.location.reload();
@@ -59342,7 +59406,7 @@ function openPublicRegisterView() {
             if (w.state === 'installed' && navigator.serviceWorker.controller) w.postMessage({ type: 'SKIP_WAITING' });
           });
         });
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-33):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-34):', reg.scope);
         if (typeof reg.update === 'function') reg.update();
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
