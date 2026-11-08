@@ -7540,7 +7540,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-19';
+      var LATEST_VERSION = 'oca-pwa-v358-20';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -9571,19 +9571,20 @@ body.printing-report #printReportContainer {
                 </div>
               </div>
 
-              <div id="boxSchedulesTableWrap" class="oca-table-scroll-container" style="max-height:480px; overflow-y:auto; overflow-x:auto; border-radius:8px; border:1px solid rgba(245,158,11,0.2); background:rgba(0,0,0,0.2);">
-                <div id="gridSchedulesBento" class="oca-sched-bento-grid"></div>
-                <table class="oca-table oca-live-table" style="display:none;" id="tableSchedules">
+              <div id="boxSchedulesTableWrap" class="oca-table-scroll-container" style="max-height:520px; overflow-y:auto; overflow-x:auto; border-radius:8px; border:1px solid rgba(245,158,11,0.2); background:rgba(0,0,0,0.2);">
+                <div id="gridSchedulesBento" style="display:none;"></div>
+                <table class="oca-table oca-live-table" style="width:100%; border-collapse:collapse;" id="tableSchedules">
                   <thead>
                     <tr style="position:sticky; top:0; z-index:2; background:#042820;">
-                      <th style="width:90px; text-align:left; white-space:nowrap;">รหัสรอบ</th>
-                      <th style="text-align:left; min-width:180px;">รอบวัน & เวลาเรียน</th>
-                      <th style="width:130px; text-align:center; white-space:nowrap;">จัดการ</th>
+                      <th style="width:110px; min-width:90px; text-align:left; white-space:nowrap !important; padding-left:24px !important;">รหัส</th>
+                      <th style="width:180px; min-width:140px; text-align:left; white-space:nowrap !important;">วัน</th>
+                      <th style="width:180px; min-width:140px; text-align:left; white-space:nowrap !important;">เวลา</th>
+                      <th style="text-align:left; min-width:180px; white-space:nowrap !important;">จำนวนคอร์สที่เปิดรับ</th>
+                      <th style="width:140px; min-width:130px; text-align:center; white-space:nowrap !important;">จัดการ</th>
                     </tr>
                   </thead>
-
                   <tbody id="tbodySchedules">
-                    <tr><td colspan="3" style="text-align:center; padding:20px; color:var(--text-muted);">กำลังโหลดรอบเวลาเรียน...</td></tr>
+                    <tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">กำลังโหลดรอบเวลาเรียน...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -30623,10 +30624,11 @@ if (action === 'getDashboardStats') {
 
       if (!scheds || scheds.length === 0) {
         if (bento) {
-          bento.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:30px 15px; color:var(--text-muted);"><i class="fa-solid fa-clock" style="margin-right:6px; color:var(--color-gold);"></i>ยังไม่มีรอบเวลาเรียน กรุณากด "+ เพิ่มรอบเวลา"</div>';
+          bento.style.display = 'none';
+          bento.innerHTML = '';
         }
         if (tbody) {
-          tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:var(--text-muted);">ยังไม่มีรอบเวลาเรียน กรุณากด "+ เพิ่มรอบเวลา"</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:25px; color:var(--text-muted);"><i class="fa-solid fa-clock" style="margin-right:6px; color:var(--color-gold);"></i>ยังไม่มีรอบเวลาเรียน กรุณากด "+ เพิ่มรอบเวลา"</td></tr>';
         }
         if (badge) badge.textContent = '0 รอบ';
         return;
@@ -30635,88 +30637,46 @@ if (action === 'getDashboardStats') {
       if (badge) badge.textContent = toArabicDigits(scheds.length) + ' รอบ';
 
       if (bento) {
-        bento.innerHTML = scheds.map(s => {
-          const rawName = s.name || '';
-          let dayPart = '';
-          let timePart = '';
-          const match = rawName.match(/^(.+?)\s+(\d{1,2}[\.:]\d{2}\s*[-–]\s*\d{1,2}[\.:]\d{2}\s*น\.?)$/i);
-          if (match) {
-            dayPart = match[1].trim();
-            timePart = match[2].trim();
-          }
-
-          const offeredCodes = (typeof getOfferedCourseCodesForSchedule === 'function') ? getOfferedCourseCodesForSchedule(s.id || rawName) : [];
-          const offeredCount = offeredCodes.length;
-          const courseBadgeHtml = offeredCount > 0
-            ? '<span class="oca-schedule-course-badge" style="font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(215,166,0,0.15); color:var(--color-gold); border:1px solid rgba(215,166,0,0.3); display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-book-open"></i> เปิดรับ ' + offeredCount + ' คอร์ส</span>'
-            : '<span class="oca-schedule-course-badge" style="font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(255,255,255,0.06); color:var(--text-muted); border:1px solid rgba(255,255,255,0.1); display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-book-open"></i> ทุกคอร์สที่เปิดสอน</span>';
-          let scheduleTimeHtml = '';
-          if (dayPart && timePart) {
-            scheduleTimeHtml =
-              '<div style="margin: 6px 0; display:flex; flex-direction:column; gap:4px;">' +
-              '  <span class="oca-schedule-time-badge"><i class="fa-solid fa-clock"></i> ' + escapeHtml(timePart) + '</span>' +
-              '  <div>' + courseBadgeHtml + '</div>' +
-              '</div>';
-          } else {
-            scheduleTimeHtml =
-              '<div style="font-weight:600; color:#FFFFFF; margin: 6px 0; word-break:break-word;">' + escapeHtml(rawName) + '</div>' +
-              '<div style="margin-bottom:6px;">' + courseBadgeHtml + '</div>';
-          }
-
-          return (
-            '<div class="oca-sched-bento-card">' +
-            '  <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">' +
-            '    <span class="oca-mono-code-badge">' + escapeHtml(s.id) + '</span>' +
-            (dayPart ? ('    <span class="oca-schedule-day-badge"><i class="fa-solid fa-calendar-day"></i> ' + escapeHtml(dayPart) + '</span>') : '') +
-            '  </div>' +
-            scheduleTimeHtml +
-            '  <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:auto; padding-top:6px;">' +
-            '    <button type="button" class="oca-btn-action-edit" style="white-space:nowrap;" onclick="openScheduleModal(\'' + escapeHtml(s.id) + '\')"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>' +
-            '    <button type="button" class="oca-btn-action-del" style="white-space:nowrap;" onclick="deleteScheduleItem(\'' + escapeHtml(s.id) + '\', \'' + escapeHtml(s.name) + '\')"><i class="fa-solid fa-trash-can"></i> ลบ</button>' +
-            '  </div>' +
-            '</div>'
-          );
-        }).join('');
+        bento.style.display = 'none';
+        bento.innerHTML = '';
       }
 
       if (tbody) {
         tbody.innerHTML = scheds.map(s => {
-          const rawName = s.name || '';
+          const rawName = s.name || s.day_time || '';
           let dayPart = '';
           let timePart = '';
           const match = rawName.match(/^(.+?)\s+(\d{1,2}[\.:]\d{2}\s*[-–]\s*\d{1,2}[\.:]\d{2}\s*น\.?)$/i);
           if (match) {
             dayPart = match[1].trim();
             timePart = match[2].trim();
+          } else {
+            dayPart = rawName;
+            timePart = '';
           }
 
           const offeredCodes = (typeof getOfferedCourseCodesForSchedule === 'function') ? getOfferedCourseCodesForSchedule(s.id || rawName) : [];
           const offeredCount = offeredCodes.length;
           const courseBadgeHtml = offeredCount > 0
-            ? '<span class="oca-schedule-course-badge" style="font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(215,166,0,0.15); color:var(--color-gold); border:1px solid rgba(215,166,0,0.3); display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-book-open"></i> ' + offeredCount + ' คอร์ส</span>'
-            : '<span class="oca-schedule-course-badge" style="font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(255,255,255,0.06); color:var(--text-muted); border:1px solid rgba(255,255,255,0.1); display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-book-open"></i> ทุกคอร์ส</span>';
-          let scheduleContentHtml = '';
-          if (dayPart && timePart) {
-            scheduleContentHtml =
-              '<div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">' +
-              '  <span class="oca-schedule-day-badge"><i class="fa-solid fa-calendar-day"></i> ' + escapeHtml(dayPart) + '</span>' +
-              '  <span class="oca-schedule-time-badge"><i class="fa-solid fa-clock"></i> ' + escapeHtml(timePart) + '</span>' +
-              '  ' + courseBadgeHtml +
-              '</div>';
-          } else {
-            scheduleContentHtml =
-              '<div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">' +
-              '  <div style="font-weight:600; color:#FFFFFF; word-break:break-word;">' + escapeHtml(rawName) + '</div>' +
-              '  ' + courseBadgeHtml +
-              '</div>';
-          }
+            ? '<span class="oca-schedule-course-badge" style="font-size:11.5px; padding:3px 10px; border-radius:10px; background:rgba(215,166,0,0.15); color:var(--color-gold); border:1px solid rgba(215,166,0,0.3); display:inline-flex; align-items:center; gap:5px; font-weight:600;"><i class="fa-solid fa-book-open"></i> เปิดรับ ' + toArabicDigits(offeredCount) + ' คอร์ส</span>'
+            : '<span class="oca-schedule-course-badge" style="font-size:11.5px; padding:3px 10px; border-radius:10px; background:rgba(255,255,255,0.06); color:var(--text-muted); border:1px solid rgba(255,255,255,0.1); display:inline-flex; align-items:center; gap:5px;"><i class="fa-solid fa-book-open"></i> ทุกคอร์สที่เปิดสอน</span>';
+
+          const dayHtml = dayPart
+            ? '<span class="oca-schedule-day-badge"><i class="fa-solid fa-calendar-day"></i> ' + escapeHtml(dayPart) + '</span>'
+            : '<span style="color:var(--text-muted);">-</span>';
+
+          const timeHtml = timePart
+            ? '<span class="oca-schedule-time-badge"><i class="fa-solid fa-clock"></i> ' + escapeHtml(timePart) + '</span>'
+            : '<span style="color:var(--text-muted);">-</span>';
 
           return (
             '<tr>' +
-            '  <td style="white-space:nowrap;"><span class="oca-mono-code-badge">' + escapeHtml(s.id) + '</span></td>' +
-            '  <td>' + scheduleContentHtml + '</td>' +
+            '  <td style="white-space:nowrap; padding-left:24px !important;"><span class="oca-mono-code-badge">' + escapeHtml(s.id) + '</span></td>' +
+            '  <td style="white-space:nowrap;">' + dayHtml + '</td>' +
+            '  <td style="white-space:nowrap;">' + timeHtml + '</td>' +
+            '  <td style="white-space:nowrap;">' + courseBadgeHtml + '</td>' +
             '  <td style="text-align:center; white-space:nowrap;">' +
-            '    <div class="oca-table-actions" style="justify-content:center; flex-wrap:nowrap;">' +
+            '    <div class="oca-table-actions" style="justify-content:center; flex-wrap:nowrap; gap:6px;">' +
             '      <button type="button" class="oca-btn-action-edit" style="white-space:nowrap;" onclick="openScheduleModal(\'' + escapeHtml(s.id) + '\')"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>' +
             '      <button type="button" class="oca-btn-action-del" style="white-space:nowrap;" onclick="deleteScheduleItem(\'' + escapeHtml(s.id) + '\', \'' + escapeHtml(s.name) + '\')"><i class="fa-solid fa-trash-can"></i> ลบ</button>' +
             '    </div>' +
@@ -30726,6 +30686,7 @@ if (action === 'getDashboardStats') {
         }).join('');
       }
     }
+    window.renderSchedulesTable = renderSchedulesTable;
 
     function generateNewCourseCode() {
       let newCode = '';
@@ -56253,7 +56214,7 @@ function openPublicRegisterView() {
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-19';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-20';
 
       // Auto-refresh on SW update with state preservation & toast notice
       let isRefreshing = false;
@@ -56269,7 +56230,7 @@ function openPublicRegisterView() {
           }
         } catch(_) {}
         if (typeof showToast === 'function') {
-          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-19)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
+          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-20)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
         }
         setTimeout(function() {
           window.location.reload();
@@ -56284,7 +56245,7 @@ function openPublicRegisterView() {
             if (w.state === 'installed' && navigator.serviceWorker.controller) w.postMessage({ type: 'SKIP_WAITING' });
           });
         });
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-19):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-20):', reg.scope);
         if (typeof reg.update === 'function') reg.update();
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
