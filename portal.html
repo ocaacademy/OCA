@@ -7595,7 +7595,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-21';
+      var LATEST_VERSION = 'oca-pwa-v358-22';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -8375,7 +8375,7 @@ body.printing-report #printReportContainer {
                   <!-- Year & Term -->
                   <div class="oca-input-group">
                     <label class="oca-label" for="selYear">ปีการศึกษา (พ.ศ.) *</label>
-                    <select id="selYear" class="oca-input" onchange="this.dataset.userModified='true'; calcNextStudentId()" required>
+                    <select id="selYear" class="oca-input" onchange="this.dataset.userModified='true'; calcNextStudentId(); if (typeof onEnrollScheduleChanged === 'function') onEnrollScheduleChanged();" required>
                   <option value="2570" >2570</option>
                   <option value="2569" selected>2569</option>
                   <option value="2568" >2568</option>
@@ -8416,7 +8416,7 @@ body.printing-report #printReportContainer {
 
                   <div class="oca-input-group">
                     <label class="oca-label" for="selTerm">ภาคเรียน *</label>
-                    <select id="selTerm" class="oca-input" onchange="this.dataset.userModified='true'; calcNextStudentId()" required>
+                    <select id="selTerm" class="oca-input" onchange="this.dataset.userModified='true'; calcNextStudentId(); if (typeof onEnrollScheduleChanged === 'function') onEnrollScheduleChanged();" required>
                       <option value="1">ภาคเรียนที่ 1</option>
                       <option value="2">ภาคเรียนที่ 2</option>
                       <option value="3">ภาคเรียนที่ 3</option>
@@ -9148,19 +9148,29 @@ body.printing-report #printReportContainer {
             </div>
           </div>
 
-          <!-- Academic Term Opening Dates Card (กำหนดวันเปิดเรียนประจำภาคเรียน) -->
+          <!-- Academic Term Opening & Closing Dates Card (กำหนดวันเปิด-ปิดเรียนประจำภาคเรียน) -->
           <div class="oca-chart-card" style="margin-bottom:20px; border:1px solid rgba(56,189,248,0.25); background:linear-gradient(135deg, rgba(14,165,233,0.04) 0%, rgba(2,132,199,0.08) 100%);">
             <div class="oca-chart-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-              <span><i class="fa-solid fa-calendar-days" style="color:#38bdf8; margin-right:6px;"></i>กำหนดวันเปิดเรียนประจำภาคเรียน (Academic Term Opening Dates)</span>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span><i class="fa-solid fa-calendar-days" style="color:#38bdf8; margin-right:6px;"></i>กำหนดวันเปิด-ปิดเรียนประจำภาคเรียน (Term Opening & Closing Dates)</span>
+                <span style="font-size:11.5px; color:var(--text-muted);">|</span>
+                <label style="font-size:12px; color:#38bdf8; font-weight:600; display:inline-flex; align-items:center; gap:5px;">
+                  ปีการศึกษา:
+                  <select id="selTermDatesYear" onchange="onTermDatesYearChange(this.value)" class="oca-input" style="height:28px; font-size:12px; padding:2px 8px; width:auto; display:inline-block; color-scheme:dark; border-color:rgba(56,189,248,0.4); background:rgba(0,0,0,0.4); color:#38bdf8; font-weight:700;">
+                    <option value="2568">2568</option>
+                    <option value="2569" selected>2569</option>
+                    <option value="2570">2570</option>
+                    <option value="2571">2571</option>
+                  </select>
+                </label>
+              </div>
               <button type="button" class="oca-btn-gold-submit" style="padding:5px 14px; font-size:12px; background:linear-gradient(135deg, #0284c7 0%, #0369a1 100%); border-color:#38bdf8;" onclick="saveTermOpeningDatesFromUI()">
-                <i class="fa-solid fa-floppy-disk" style="margin-right:4px;"></i> บันทึกวันเปิดเรียน
+                <i class="fa-solid fa-floppy-disk" style="margin-right:4px;"></i> บันทึกวันเปิด-ปิดเรียน
               </button>
             </div>
 
             <div style="font-size:12.5px; color:var(--text-muted); margin-top:4px; margin-bottom:14px;">
-
-              กำหนดวันเปิดเรียนส่วนกลางของแต่ละเทอม (เทอม 1 ถึง เทอม 5) เพื่อให้หน้าออกใบเสร็จดึงมาแสดงให้อัตโนมัติเมื่อเลือกเทอม ไม่ต้องคอยกรอกทีละคอร์ส
-
+              กำหนดวันเริ่มเปิดเรียนและวันปิดเรียนส่วนกลางของแต่ละเทอม (เทอม 1 ถึง เทอม 5) แยกระบุตามปีการศึกษา เพื่อให้ระบบคำนวณภาคเรียนและดึงข้อมูลไปแสดงในระบบอัตโนมัติ
             </div>
 
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:12px;">
@@ -9168,80 +9178,140 @@ body.printing-report #printReportContainer {
               <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                   <span style="font-size:12px; color:#38bdf8; font-weight:700;"><i class="fa-solid fa-calendar-days" style="margin-right:4px;"></i>ภาคเรียนที่ 1 (Term 1)</span>
-                  <span style="font-size:12px; color:var(--text-muted);">เลือกปฏิทิน</span>
+                  <span style="font-size:11px; color:#38bdf8;">🟢 วันเริ่มเปิดเรียน</span>
                 </div>
 
-                <input type="date" id="cfgTermDatePicker_1" onchange="onTermDatePickerChange(1, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:34px; padding:4px 8px; cursor:pointer; accent-color:var(--color-gold);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; background:rgba(0,0,0,0.3); border-radius:6px; padding:4px 8px; border:1px solid rgba(255,255,255,0.05);">
-                  <span style="font-size:12px; color:var(--text-muted);"><i class="fa-solid fa-calendar-check" style="color:#38bdf8; margin-right:4px;"></i>เปิดเรียน:</span>
-                  <strong id="lblTermDateThai_1" style="font-size:12px; color:var(--color-gold);">1 ม.ค. 2569</strong>
+                <input type="date" id="cfgTermDatePicker_1" onchange="onTermDatePickerChange(1, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:32px; padding:4px 8px; cursor:pointer; accent-color:var(--color-gold);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px; background:rgba(0,0,0,0.3); border-radius:6px; padding:3px 8px; border:1px solid rgba(255,255,255,0.05);">
+                  <span style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-calendar-check" style="color:#38bdf8; margin-right:4px;"></i>เปิดเรียน:</span>
+                  <strong id="lblTermDateThai_1" style="font-size:11.5px; color:var(--color-gold);">1 ม.ค. 2569</strong>
                 </div>
 
                 <input type="hidden" id="cfgTermDate_1" value="1 ม.ค. 2569">
+                <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.08);">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <span style="font-size:11px; color:#f87171; font-weight:600;"><i class="fa-solid fa-flag-checkered" style="margin-right:4px;"></i>🔴 วันปิดเรียน</span>
+                    <span style="font-size:11px; color:var(--text-muted);">เลือกปฏิทิน</span>
+                  </div>
+                  <input type="date" id="cfgTermCloseDatePicker_1" onchange="onTermCloseDatePickerChange(1, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:32px; padding:4px 8px; cursor:pointer; accent-color:#f87171;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px; background:rgba(0,0,0,0.3); border-radius:6px; padding:3px 8px; border:1px solid rgba(255,255,255,0.05);">
+                    <span style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-calendar-xmark" style="color:#f87171; margin-right:4px;"></i>ปิดเรียน:</span>
+                    <strong id="lblTermCloseDateThai_1" style="font-size:11.5px; color:#fca5a5;">20 ก.พ. 2569</strong>
+                  </div>
+                  <input type="hidden" id="cfgTermCloseDate_1" value="20 ก.พ. 2569">
+                </div>
               </div>
 
               <!-- ภาคเรียนที่ 2 -->
               <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                   <span style="font-size:12px; color:#38bdf8; font-weight:700;"><i class="fa-solid fa-calendar-days" style="margin-right:4px;"></i>ภาคเรียนที่ 2 (Term 2)</span>
-                  <span style="font-size:12px; color:var(--text-muted);">เลือกปฏิทิน</span>
+                  <span style="font-size:11px; color:#38bdf8;">🟢 วันเริ่มเปิดเรียน</span>
                 </div>
 
-                <input type="date" id="cfgTermDatePicker_2" onchange="onTermDatePickerChange(2, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:34px; padding:4px 8px; cursor:pointer; accent-color:var(--color-gold);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; background:rgba(0,0,0,0.3); border-radius:6px; padding:4px 8px; border:1px solid rgba(255,255,255,0.05);">
-                  <span style="font-size:12px; color:var(--text-muted);"><i class="fa-solid fa-calendar-check" style="color:#38bdf8; margin-right:4px;"></i>เปิดเรียน:</span>
-                  <strong id="lblTermDateThai_2" style="font-size:12px; color:var(--color-gold);">1 มี.ค. 2569</strong>
+                <input type="date" id="cfgTermDatePicker_2" onchange="onTermDatePickerChange(2, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:32px; padding:4px 8px; cursor:pointer; accent-color:var(--color-gold);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px; background:rgba(0,0,0,0.3); border-radius:6px; padding:3px 8px; border:1px solid rgba(255,255,255,0.05);">
+                  <span style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-calendar-check" style="color:#38bdf8; margin-right:4px;"></i>เปิดเรียน:</span>
+                  <strong id="lblTermDateThai_2" style="font-size:11.5px; color:var(--color-gold);">1 มี.ค. 2569</strong>
                 </div>
 
                 <input type="hidden" id="cfgTermDate_2" value="1 มี.ค. 2569">
+                <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.08);">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <span style="font-size:11px; color:#f87171; font-weight:600;"><i class="fa-solid fa-flag-checkered" style="margin-right:4px;"></i>🔴 วันปิดเรียน</span>
+                    <span style="font-size:11px; color:var(--text-muted);">เลือกปฏิทิน</span>
+                  </div>
+                  <input type="date" id="cfgTermCloseDatePicker_2" onchange="onTermCloseDatePickerChange(2, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:32px; padding:4px 8px; cursor:pointer; accent-color:#f87171;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px; background:rgba(0,0,0,0.3); border-radius:6px; padding:3px 8px; border:1px solid rgba(255,255,255,0.05);">
+                    <span style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-calendar-xmark" style="color:#f87171; margin-right:4px;"></i>ปิดเรียน:</span>
+                    <strong id="lblTermCloseDateThai_2" style="font-size:11.5px; color:#fca5a5;">20 เม.ย. 2569</strong>
+                  </div>
+                  <input type="hidden" id="cfgTermCloseDate_2" value="20 เม.ย. 2569">
+                </div>
               </div>
 
               <!-- ภาคเรียนที่ 3 -->
               <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                   <span style="font-size:12px; color:#38bdf8; font-weight:700;"><i class="fa-solid fa-calendar-days" style="margin-right:4px;"></i>ภาคเรียนที่ 3 (Term 3)</span>
-                  <span style="font-size:12px; color:var(--text-muted);">เลือกปฏิทิน</span>
+                  <span style="font-size:11px; color:#38bdf8;">🟢 วันเริ่มเปิดเรียน</span>
                 </div>
 
-                <input type="date" id="cfgTermDatePicker_3" onchange="onTermDatePickerChange(3, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:34px; padding:4px 8px; cursor:pointer; accent-color:var(--color-gold);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; background:rgba(0,0,0,0.3); border-radius:6px; padding:4px 8px; border:1px solid rgba(255,255,255,0.05);">
-                  <span style="font-size:12px; color:var(--text-muted);"><i class="fa-solid fa-calendar-check" style="color:#38bdf8; margin-right:4px;"></i>เปิดเรียน:</span>
-                  <strong id="lblTermDateThai_3" style="font-size:12px; color:var(--color-gold);">1 พ.ค. 2569</strong>
+                <input type="date" id="cfgTermDatePicker_3" onchange="onTermDatePickerChange(3, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:32px; padding:4px 8px; cursor:pointer; accent-color:var(--color-gold);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px; background:rgba(0,0,0,0.3); border-radius:6px; padding:3px 8px; border:1px solid rgba(255,255,255,0.05);">
+                  <span style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-calendar-check" style="color:#38bdf8; margin-right:4px;"></i>เปิดเรียน:</span>
+                  <strong id="lblTermDateThai_3" style="font-size:11.5px; color:var(--color-gold);">1 พ.ค. 2569</strong>
                 </div>
 
                 <input type="hidden" id="cfgTermDate_3" value="1 พ.ค. 2569">
+                <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.08);">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <span style="font-size:11px; color:#f87171; font-weight:600;"><i class="fa-solid fa-flag-checkered" style="margin-right:4px;"></i>🔴 วันปิดเรียน</span>
+                    <span style="font-size:11px; color:var(--text-muted);">เลือกปฏิทิน</span>
+                  </div>
+                  <input type="date" id="cfgTermCloseDatePicker_3" onchange="onTermCloseDatePickerChange(3, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:32px; padding:4px 8px; cursor:pointer; accent-color:#f87171;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px; background:rgba(0,0,0,0.3); border-radius:6px; padding:3px 8px; border:1px solid rgba(255,255,255,0.05);">
+                    <span style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-calendar-xmark" style="color:#f87171; margin-right:4px;"></i>ปิดเรียน:</span>
+                    <strong id="lblTermCloseDateThai_3" style="font-size:11.5px; color:#fca5a5;">20 มิ.ย. 2569</strong>
+                  </div>
+                  <input type="hidden" id="cfgTermCloseDate_3" value="20 มิ.ย. 2569">
+                </div>
               </div>
 
               <!-- ภาคเรียนที่ 4 -->
               <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                   <span style="font-size:12px; color:#38bdf8; font-weight:700;"><i class="fa-solid fa-calendar-days" style="margin-right:4px;"></i>ภาคเรียนที่ 4 (Term 4)</span>
-                  <span style="font-size:12px; color:var(--text-muted);">เลือกปฏิทิน</span>
+                  <span style="font-size:11px; color:#38bdf8;">🟢 วันเริ่มเปิดเรียน</span>
                 </div>
 
-                <input type="date" id="cfgTermDatePicker_4" onchange="onTermDatePickerChange(4, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:34px; padding:4px 8px; cursor:pointer; accent-color:var(--color-gold);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; background:rgba(0,0,0,0.3); border-radius:6px; padding:4px 8px; border:1px solid rgba(255,255,255,0.05);">
-                  <span style="font-size:12px; color:var(--text-muted);"><i class="fa-solid fa-calendar-check" style="color:#38bdf8; margin-right:4px;"></i>เปิดเรียน:</span>
-                  <strong id="lblTermDateThai_4" style="font-size:12px; color:var(--color-gold);">1 ก.ค. 2569</strong>
+                <input type="date" id="cfgTermDatePicker_4" onchange="onTermDatePickerChange(4, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:32px; padding:4px 8px; cursor:pointer; accent-color:var(--color-gold);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px; background:rgba(0,0,0,0.3); border-radius:6px; padding:3px 8px; border:1px solid rgba(255,255,255,0.05);">
+                  <span style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-calendar-check" style="color:#38bdf8; margin-right:4px;"></i>เปิดเรียน:</span>
+                  <strong id="lblTermDateThai_4" style="font-size:11.5px; color:var(--color-gold);">1 ก.ค. 2569</strong>
                 </div>
 
                 <input type="hidden" id="cfgTermDate_4" value="1 ก.ค. 2569">
+                <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.08);">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <span style="font-size:11px; color:#f87171; font-weight:600;"><i class="fa-solid fa-flag-checkered" style="margin-right:4px;"></i>🔴 วันปิดเรียน</span>
+                    <span style="font-size:11px; color:var(--text-muted);">เลือกปฏิทิน</span>
+                  </div>
+                  <input type="date" id="cfgTermCloseDatePicker_4" onchange="onTermCloseDatePickerChange(4, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:32px; padding:4px 8px; cursor:pointer; accent-color:#f87171;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px; background:rgba(0,0,0,0.3); border-radius:6px; padding:3px 8px; border:1px solid rgba(255,255,255,0.05);">
+                    <span style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-calendar-xmark" style="color:#f87171; margin-right:4px;"></i>ปิดเรียน:</span>
+                    <strong id="lblTermCloseDateThai_4" style="font-size:11.5px; color:#fca5a5;">20 ต.ค. 2569</strong>
+                  </div>
+                  <input type="hidden" id="cfgTermCloseDate_4" value="20 ต.ค. 2569">
+                </div>
               </div>
 
               <!-- ภาคเรียนที่ 5 -->
               <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                   <span style="font-size:12px; color:#38bdf8; font-weight:700;"><i class="fa-solid fa-calendar-days" style="margin-right:4px;"></i>ภาคเรียนที่ 5 (Term 5)</span>
-                  <span style="font-size:12px; color:var(--text-muted);">เลือกปฏิทิน</span>
+                  <span style="font-size:11px; color:#38bdf8;">🟢 วันเริ่มเปิดเรียน</span>
                 </div>
 
-                <input type="date" id="cfgTermDatePicker_5" onchange="onTermDatePickerChange(5, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:34px; padding:4px 8px; cursor:pointer; accent-color:var(--color-gold);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; background:rgba(0,0,0,0.3); border-radius:6px; padding:4px 8px; border:1px solid rgba(255,255,255,0.05);">
-                  <span style="font-size:12px; color:var(--text-muted);"><i class="fa-solid fa-calendar-check" style="color:#38bdf8; margin-right:4px;"></i>เปิดเรียน:</span>
-                  <strong id="lblTermDateThai_5" style="font-size:12px; color:var(--color-gold);">1 พ.ย. 2569</strong>
+                <input type="date" id="cfgTermDatePicker_5" onchange="onTermDatePickerChange(5, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:32px; padding:4px 8px; cursor:pointer; accent-color:var(--color-gold);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px; background:rgba(0,0,0,0.3); border-radius:6px; padding:3px 8px; border:1px solid rgba(255,255,255,0.05);">
+                  <span style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-calendar-check" style="color:#38bdf8; margin-right:4px;"></i>เปิดเรียน:</span>
+                  <strong id="lblTermDateThai_5" style="font-size:11.5px; color:var(--color-gold);">1 พ.ย. 2569</strong>
                 </div>
 
                 <input type="hidden" id="cfgTermDate_5" value="1 พ.ย. 2569">
+                <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.08);">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <span style="font-size:11px; color:#f87171; font-weight:600;"><i class="fa-solid fa-flag-checkered" style="margin-right:4px;"></i>🔴 วันปิดเรียน</span>
+                    <span style="font-size:11px; color:var(--text-muted);">เลือกปฏิทิน</span>
+                  </div>
+                  <input type="date" id="cfgTermCloseDatePicker_5" onchange="onTermCloseDatePickerChange(5, this.value)" class="oca-input" style="color-scheme:dark; font-size:12px; height:32px; padding:4px 8px; cursor:pointer; accent-color:#f87171;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px; background:rgba(0,0,0,0.3); border-radius:6px; padding:3px 8px; border:1px solid rgba(255,255,255,0.05);">
+                    <span style="font-size:11.5px; color:var(--text-muted);"><i class="fa-solid fa-calendar-xmark" style="color:#f87171; margin-right:4px;"></i>ปิดเรียน:</span>
+                    <strong id="lblTermCloseDateThai_5" style="font-size:11.5px; color:#fca5a5;">20 ธ.ค. 2569</strong>
+                  </div>
+                  <input type="hidden" id="cfgTermCloseDate_5" value="20 ธ.ค. 2569">
+                </div>
               </div>
             </div>
           </div>
@@ -9605,7 +9675,7 @@ body.printing-report #printReportContainer {
 
             <!-- Schedules List Card -->
             <div class="oca-chart-card">
-              <div class="oca-chart-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+              <div class="oca-chart-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
                 <div style="display:flex; align-items:center; gap:10px;">
                   <div class="oca-mgmt-header-icon">
                     <i class="fa-solid fa-clock"></i>
@@ -9622,6 +9692,39 @@ body.printing-report #printReportContainer {
                 <div style="display:flex; align-items:center; gap:8px;">
                   <button type="button" class="oca-btn-gold-submit" style="padding:6px 14px; font-size:12px; display:inline-flex; align-items:center; gap:5px;" onclick="openScheduleModal()">
                     <i class="fa-solid fa-plus"></i> เพิ่มรอบเวลา
+                  </button>
+                </div>
+              </div>
+
+              <!-- Schedule Course Mapping Term & Year Filter Bar -->
+              <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; background:rgba(2,44,34,0.45); padding:10px 14px; border-radius:10px; border:1px solid rgba(215,166,0,0.3);">
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <span style="font-size:12.5px; font-weight:700; color:var(--color-gold);"><i class="fa-solid fa-layer-group" style="margin-right:5px;"></i>ผังคอร์สประจำเทอม:</span>
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <label style="font-size:12px; color:var(--text-muted);">ปี:</label>
+                    <select id="selScheduleConfigYear" onchange="onScheduleConfigTermYearChange()" class="oca-input" style="height:32px; font-size:12px; padding:4px 8px; width:auto; color-scheme:dark; border-color:rgba(215,166,0,0.4); background:rgba(0,0,0,0.4); color:var(--color-gold); font-weight:700;">
+                      <option value="2568">ปี 2568</option>
+                      <option value="2569" selected>ปี 2569</option>
+                      <option value="2570">ปี 2570</option>
+                      <option value="2571">ปี 2571</option>
+                    </select>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <label style="font-size:12px; color:var(--text-muted);">เทอม:</label>
+                    <select id="selScheduleConfigTerm" onchange="onScheduleConfigTermYearChange()" class="oca-input" style="height:32px; font-size:12px; padding:4px 8px; width:auto; color-scheme:dark; border-color:rgba(215,166,0,0.4); background:rgba(0,0,0,0.4); color:var(--color-gold); font-weight:700;">
+                      <option value="1">เทอมที่ 1</option>
+                      <option value="2">เทอมที่ 2</option>
+                      <option value="3">เทอมที่ 3</option>
+                      <option value="4">เทอมที่ 4</option>
+                      <option value="5" selected>เทอมที่ 5</option>
+                    </select>
+                  </div>
+                  <span id="badgeScheduleConfigPeriod" class="oca-badge-status-active" style="font-size:11.5px; font-weight:600; padding:3px 10px; border-radius:12px; background:rgba(215,166,0,0.18); color:var(--color-gold); border:1px solid rgba(215,166,0,0.4);"><i class="fa-solid fa-calendar-check" style="margin-right:4px;"></i>ผังคอร์ส: ปี 2569 เทอมที่ 5</span>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <button type="button" class="oca-btn-action" onclick="copyScheduleCoursesFromAnotherTerm()" style="background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; font-size:12px; padding:5px 12px; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; gap:5px;" title="คัดลอกผังคอร์สจากปีหรือเทอมอื่นมาใส่ในเทอมนี้">
+                    <i class="fa-solid fa-copy"></i> คัดลอกผังจากเทอมอื่น
                   </button>
                 </div>
               </div>
@@ -15168,6 +15271,31 @@ body.printing-report #printReportContainer {
                       <button type="button" class="oca-btn-action" onclick="toggleAllCourseModalSchedules(false)" style="background:rgba(239,68,68,0.15); border:1px solid #ef4444; color:#f87171; font-size:11px; padding:3px 8px; border-radius:5px; cursor:pointer;">ล้างทั้งหมด</button>
                     </div>
                   </div>
+
+                  <!-- Year and Term Selectors for Course Modal -->
+                  <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.08);">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <label style="font-size:12px; color:var(--color-gold); font-weight:600;">ตั้งค่าสำหรับ:</label>
+                      <select id="selModalCourseYear" onchange="onModalCourseTermYearChange()" class="oca-input" style="height:30px; font-size:12px; padding:2px 8px; width:auto; color-scheme:dark; background:rgba(0,0,0,0.5); border-color:rgba(215,166,0,0.3); color:var(--color-gold);">
+                        <option value="2568">ปี 2568</option>
+                        <option value="2569" selected>ปี 2569</option>
+                        <option value="2570">ปี 2570</option>
+                        <option value="2571">ปี 2571</option>
+                      </select>
+                      <select id="selModalCourseTerm" onchange="onModalCourseTermYearChange()" class="oca-input" style="height:30px; font-size:12px; padding:2px 8px; width:auto; color-scheme:dark; background:rgba(0,0,0,0.5); border-color:rgba(215,166,0,0.3); color:var(--color-gold);">
+                        <option value="1">เทอมที่ 1</option>
+                        <option value="2">เทอมที่ 2</option>
+                        <option value="3">เทอมที่ 3</option>
+                        <option value="4">เทอมที่ 4</option>
+                        <option value="5" selected>เทอมที่ 5</option>
+                      </select>
+                    </div>
+                    <label style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:#cbd5e1; cursor:pointer;">
+                      <input type="checkbox" id="chkApplyCourseSchedulesAllTermsInYear" style="accent-color:var(--color-gold); cursor:pointer;">
+                      <span>ใช้รอบเวลาของคอร์สนี้กับทุกเทอมในปีการศึกษาที่เลือก</span>
+                    </label>
+                  </div>
+
                   <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:8px;">
                     เลือกรอบเวลาที่อนุญาตให้นักศึกษาสมัครคอร์สนี้ (หากไม่เลือกเลย คอร์สนี้จะเปิดให้เลือกได้ในทุกรอบเวลา)
                   </div>
@@ -15266,6 +15394,31 @@ body.printing-report #printReportContainer {
                       เลือกแล้ว 0 คอร์ส
                     </span>
                   </div>
+
+                  <!-- Year and Term Selectors for Schedule Modal -->
+                  <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.08);">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <label style="font-size:12px; color:var(--color-gold); font-weight:600;">ตั้งค่าสำหรับ:</label>
+                      <select id="selModalScheduleYear" onchange="onModalScheduleTermYearChange()" class="oca-input" style="height:30px; font-size:12px; padding:2px 8px; width:auto; color-scheme:dark; background:rgba(0,0,0,0.5); border-color:rgba(215,166,0,0.3); color:var(--color-gold);">
+                        <option value="2568">ปี 2568</option>
+                        <option value="2569" selected>ปี 2569</option>
+                        <option value="2570">ปี 2570</option>
+                        <option value="2571">ปี 2571</option>
+                      </select>
+                      <select id="selModalScheduleTerm" onchange="onModalScheduleTermYearChange()" class="oca-input" style="height:30px; font-size:12px; padding:2px 8px; width:auto; color-scheme:dark; background:rgba(0,0,0,0.5); border-color:rgba(215,166,0,0.3); color:var(--color-gold);">
+                        <option value="1">เทอมที่ 1</option>
+                        <option value="2">เทอมที่ 2</option>
+                        <option value="3">เทอมที่ 3</option>
+                        <option value="4">เทอมที่ 4</option>
+                        <option value="5" selected>เทอมที่ 5</option>
+                      </select>
+                    </div>
+                    <label style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:#cbd5e1; cursor:pointer;">
+                      <input type="checkbox" id="chkApplyScheduleCoursesAllTermsInYear" style="accent-color:var(--color-gold); cursor:pointer;">
+                      <span>ใช้ผังคอร์สของรอบเวลานี้กับทุกเทอมในปีการศึกษาที่เลือก</span>
+                    </label>
+                  </div>
+
                   <div style="font-size:12px; color:var(--text-muted); margin-bottom:10px; line-height:1.4;">
                     ติ๊กเลือกคอร์สเรียนที่จะเปิดรับสมัครในรอบเวลานี้ (หากไม่เลือกคอร์สใดเลย ระบบจะอนุญาตให้เลือกลงทะเบียนได้ทุกคอร์ส)
                   </div>
@@ -15312,6 +15465,56 @@ body.printing-report #printReportContainer {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+
+        <!-- Modal: Copy Schedule Courses from another term -->
+        <div id="modalCopyScheduleCourses" class="oca-custom-modal-backdrop" onclick="if(event.target===this)closeCopyScheduleCoursesModal()" style="display:none; padding:20px; z-index:99996;">
+          <div class="oca-custom-modal-box" style="max-width:480px; width:100%; border-radius:14px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1.5px solid rgba(56,189,248,0.5); background:var(--bg-card);">
+            <div style="padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.35);">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:36px; height:36px; border-radius:8px; background:rgba(56,189,248,0.2); border:1px solid #38bdf8; display:flex; align-items:center; justify-content:center; color:#38bdf8; font-size:16px;">
+                  <i class="fa-solid fa-copy"></i>
+                </div>
+                <div>
+                  <div style="font-size:15px; font-weight:700; color:#38bdf8;">คัดลอกผังคอร์สเรียนประจำเทอม</div>
+                  <div style="font-size:11.5px; color:var(--text-muted);">คัดลอกรายการคอร์สที่เปิดสอนในแต่ละช่วงเวลาจากเทอมอื่น</div>
+                </div>
+              </div>
+              <button type="button" onclick="closeCopyScheduleCoursesModal()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:16px;">✕</button>
+            </div>
+            <div style="padding:20px 22px;">
+              <div style="margin-bottom:14px; padding:10px 12px; border-radius:8px; background:rgba(215,166,0,0.08); border:1px solid rgba(215,166,0,0.25); font-size:12px; color:var(--text-muted);">
+                เทอมปลายทางที่จะถูกแทนที่: <strong id="lblCopyTargetPeriod" style="color:var(--color-gold);">ปี 2569 เทอมที่ 5</strong>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                <div>
+                  <label class="oca-label" for="selCopySourceYear" style="font-size:12px;">คัดลอกจากปีการศึกษา (ต้นทาง)</label>
+                  <select id="selCopySourceYear" class="oca-input" style="height:34px; font-size:12px;">
+                    <option value="2568">ปี 2568</option>
+                    <option value="2569" selected>ปี 2569</option>
+                    <option value="2570">ปี 2570</option>
+                    <option value="2571">ปี 2571</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="oca-label" for="selCopySourceTerm" style="font-size:12px;">คัดลอกจากเทอม (ต้นทาง)</label>
+                  <select id="selCopySourceTerm" class="oca-input" style="height:34px; font-size:12px;">
+                    <option value="1">เทอมที่ 1</option>
+                    <option value="2">เทอมที่ 2</option>
+                    <option value="3">เทอมที่ 3</option>
+                    <option value="4">เทอมที่ 4</option>
+                    <option value="5" selected>เทอมที่ 5</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex; justify-content:flex-end; gap:8px;">
+                <button type="button" class="oca-btn-cancel-custom" onclick="closeCopyScheduleCoursesModal()">ยกเลิก</button>
+                <button type="button" class="oca-btn-gold-submit" onclick="executeCopyScheduleCourses()" style="background:linear-gradient(135deg, #0284c7 0%, #0369a1 100%); border-color:#38bdf8;">
+                  <i class="fa-solid fa-copy" style="margin-right:4px;"></i> ยืนยันการคัดลอก
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -19194,7 +19397,7 @@ body.printing-report #printReportContainer {
 
           if (fees) {
             fees.forEach(f => {
-              if (f.key && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map') {
+              if (f.key && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map') {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
@@ -19235,6 +19438,45 @@ body.printing-report #printReportContainer {
               if (mapSetting && mapSetting.name) {
                 try {
                   return JSON.parse(mapSetting.name);
+                } catch (_) {}
+              }
+              return null;
+            })(),
+
+            scheduleCoursesByTermMap: (() => {
+              const byTermSetting = (fees || []).find(f => f.key === 'schedule_courses_by_term_map');
+              if (byTermSetting && byTermSetting.name) {
+                try {
+                  return JSON.parse(byTermSetting.name);
+                } catch (_) {}
+              }
+              return null;
+            })(),
+
+            termCloseDates: (() => {
+              const closeDates = {
+                "1": "20 ก.พ. 2569",
+                "2": "20 เม.ย. 2569",
+                "3": "20 มิ.ย. 2569",
+                "4": "20 ต.ค. 2569",
+                "5": "20 ธ.ค. 2569"
+              };
+              if (fees) {
+                fees.forEach(f => {
+                  if (f.key && f.key.startsWith('term_close_date_')) {
+                    const tNum = f.key.replace('term_close_date_', '');
+                    if (f.name) closeDates[tNum] = f.name;
+                  }
+                });
+              }
+              return closeDates;
+            })(),
+
+            termDatesByYear: (() => {
+              const byYearSetting = (fees || []).find(f => f.key === 'term_dates_by_year');
+              if (byYearSetting && byYearSetting.name) {
+                try {
+                  return JSON.parse(byYearSetting.name);
                 } catch (_) {}
               }
               return null;
@@ -22302,7 +22544,7 @@ if (action === 'getDashboardStats') {
 
           if (fees) {
             fees.forEach(f => {
-              if (f.key && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map') {
+              if (f.key && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map') {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
@@ -22375,31 +22617,48 @@ if (action === 'getDashboardStats') {
         if (action === 'saveTermOpenDates') {
           try {
             const dates = params.termOpenDates || {};
+            const closeDates = params.termCloseDates || {};
+            const datesByYear = params.termDatesByYear || null;
             const upsertItems = [];
 
             for (let t = 1; t <= 5; t++) {
               const val = dates[t] || dates[String(t)] || '';
-
               if (val) {
                 upsertItems.push({
                   key: `term_open_date_${t}`,
-
                   name: val,
-
                   amount: t,
-
                   mode: 'always',
-
                   updated_at: new Date().toISOString()
                 });
               }
+              const closeVal = closeDates[t] || closeDates[String(t)] || '';
+              if (closeVal) {
+                upsertItems.push({
+                  key: `term_close_date_${t}`,
+                  name: closeVal,
+                  amount: t,
+                  mode: 'always',
+                  updated_at: new Date().toISOString()
+                });
+              }
+            }
+
+            if (datesByYear) {
+              upsertItems.push({
+                key: 'term_dates_by_year',
+                name: JSON.stringify(datesByYear),
+                mode: 'always',
+                amount: 0,
+                updated_at: new Date().toISOString()
+              });
             }
 
             if (upsertItems.length > 0) {
               await _supabase.from('fee_settings').upsert(upsertItems, { onConflict: 'key' });
             }
 
-            return { success: true, message: 'บันทึกวันเปิดเรียนลงฐานข้อมูล Supabase สำเร็จ', termOpenDates: dates };
+            return { success: true, message: 'บันทึกวันเปิด-ปิดเรียนลงฐานข้อมูล Supabase สำเร็จ', termOpenDates: dates, termCloseDates: closeDates, termDatesByYear: datesByYear };
           } catch(e) {
             console.warn('saveTermOpenDates error:', e);
             return { success: false, message: e.message };
@@ -24709,7 +24968,9 @@ if (action === 'getDashboardStats') {
         : [];
 
       // Filter courses if schedule is selected and has mapping
-      const offeredCodes = selectedSched ? getOfferedCourseCodesForSchedule(selectedSched) : [];
+      const termVal = document.getElementById('selTerm')?.value;
+      const yearVal = document.getElementById('selYear')?.value;
+      const offeredCodes = selectedSched ? getOfferedCourseCodesForSchedule(selectedSched, termVal, yearVal) : [];
       let displayCourses = [];
 
       if (offeredCodes && offeredCodes.length > 0) {
@@ -29762,10 +30023,31 @@ if (action === 'getDashboardStats') {
             if (cachedSched) populateOnlineEnrollScheduleInputs(cachedSched);
           }
 
+          if (res.termCloseDates) {
+            cachedTermCloseDates = Object.assign(cachedTermCloseDates, res.termCloseDates);
+            try {
+              localStorage.setItem('oca_term_close_dates_v1', JSON.stringify(cachedTermCloseDates));
+            } catch (_) {}
+          }
+
+          if (res.termDatesByYear) {
+            cachedTermDatesByYear = Object.assign(cachedTermDatesByYear, res.termDatesByYear);
+            try {
+              localStorage.setItem('oca_term_dates_by_year_v1', JSON.stringify(cachedTermDatesByYear));
+            } catch (_) {}
+          }
+
           if (res.termOpenDates) {
-            renderTermOpeningDatesInputs(res.termOpenDates);
+            renderTermOpeningDatesInputs(res.termOpenDates, res.termCloseDates);
             updateReceiptOpenDateByTerm();
             syncAllTermDropdownsWithOpenDates();
+          }
+
+          if (res.scheduleCoursesByTermMap && typeof res.scheduleCoursesByTermMap === 'object') {
+            window._ocaScheduleCoursesByTermMap = Object.assign(window._ocaScheduleCoursesByTermMap || {}, res.scheduleCoursesByTermMap);
+            try {
+              localStorage.setItem('oca_schedule_courses_by_term_v1', JSON.stringify(window._ocaScheduleCoursesByTermMap));
+            } catch (_) {}
           }
 
           if (res.scheduleCoursesMap && typeof res.scheduleCoursesMap === 'object') {
@@ -29822,66 +30104,75 @@ if (action === 'getDashboardStats') {
     }
 
     // =========================================================================
-
-    // ACADEMIC TERM OPENING DATES (ปฏิทินวันเปิดเรียนประจำภาคเรียน)
-
+    // ACADEMIC TERM OPENING & CLOSING DATES (ปฏิทินวันเปิด-ปิดเรียนประจำภาคเรียน)
     // =========================================================================
 
     let cachedTermOpenDates = {
       "1": "1 ม.ค. 2569",
-
       "2": "1 มี.ค. 2569",
-
       "3": "1 พ.ค. 2569",
-
       "4": "1 ก.ค. 2569",
-
       "5": "1 พ.ย. 2569"
     };
+    let cachedTermCloseDates = {
+      "1": "20 ก.พ. 2569",
+      "2": "20 เม.ย. 2569",
+      "3": "20 มิ.ย. 2569",
+      "4": "20 ต.ค. 2569",
+      "5": "20 ธ.ค. 2569"
+    };
+    let cachedTermDatesByYear = {
+      "2569": {
+        open: { "1": "1 ม.ค. 2569", "2": "1 มี.ค. 2569", "3": "1 พ.ค. 2569", "4": "1 ก.ค. 2569", "5": "1 พ.ย. 2569" },
+        close: { "1": "20 ก.พ. 2569", "2": "20 เม.ย. 2569", "3": "20 มิ.ย. 2569", "4": "20 ต.ค. 2569", "5": "20 ธ.ค. 2569" }
+      }
+    };
+
+    try {
+      const storedOpen = localStorage.getItem('oca_term_open_dates');
+      if (storedOpen) cachedTermOpenDates = Object.assign(cachedTermOpenDates, JSON.parse(storedOpen));
+      const storedClose = localStorage.getItem('oca_term_close_dates_v1');
+      if (storedClose) cachedTermCloseDates = Object.assign(cachedTermCloseDates, JSON.parse(storedClose));
+      const storedByYear = localStorage.getItem('oca_term_dates_by_year_v1');
+      if (storedByYear) cachedTermDatesByYear = Object.assign(cachedTermDatesByYear, JSON.parse(storedByYear));
+    } catch (_) {}
+
     const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
     function parseThaiDateToIso(thaiStr) {
       if (!thaiStr) return '';
-
       if (/^\d{4}-\d{2}-\d{2}$/.test(thaiStr)) {
         const parts = thaiStr.split('-');
         let y = parseInt(parts[0], 10);
         if (y > 2400) y -= 543;
         return y + '-' + parts[1] + '-' + parts[2];
       }
-
       const parts = thaiStr.trim().split(/\s+/);
-
       if (parts.length >= 3) {
         const day = parseInt(parts[0], 10);
         const mIdx = THAI_MONTHS_SHORT.indexOf(parts[1]);
         let year = parseInt(parts[2], 10);
         if (year > 2400) year -= 543;
-
         if (!isNaN(day) && mIdx !== -1 && !isNaN(year)) {
           return year + '-' + String(mIdx + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
         }
       }
-
       return '';
     }
 
     function formatIsoToThaiDate(isoStr) {
       if (!isoStr) return '';
       const parts = isoStr.split('-');
-
       if (parts.length === 3) {
         let year = parseInt(parts[0], 10);
         if (year < 2400) year += 543;
         const mIdx = parseInt(parts[1], 10) - 1;
         const day = parseInt(parts[2], 10);
         const months = (typeof THAI_MONTHS_SHORT !== 'undefined' && Array.isArray(THAI_MONTHS_SHORT)) ? THAI_MONTHS_SHORT : ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-
         if (mIdx >= 0 && mIdx < 12) {
           return day + ' ' + months[mIdx] + ' ' + year;
         }
       }
-
       return isoStr;
     }
 
@@ -29889,6 +30180,10 @@ if (action === 'getDashboardStats') {
       if (!isoDateStr) return;
       const thaiDate = formatIsoToThaiDate(isoDateStr);
       cachedTermOpenDates[termNum] = thaiDate;
+      const curYear = (document.getElementById('selTermDatesYear')?.value || '2569').trim();
+      if (!cachedTermDatesByYear[curYear]) cachedTermDatesByYear[curYear] = { open: {}, close: {} };
+      if (!cachedTermDatesByYear[curYear].open) cachedTermDatesByYear[curYear].open = {};
+      cachedTermDatesByYear[curYear].open[termNum] = thaiDate;
       const lbl = document.getElementById('lblTermDateThai_' + termNum);
       const hid = document.getElementById('cfgTermDate_' + termNum);
       if (lbl) lbl.textContent = thaiDate;
@@ -29896,127 +30191,142 @@ if (action === 'getDashboardStats') {
       updateReceiptOpenDateByTerm();
       syncAllTermDropdownsWithOpenDates();
     }
+    window.onTermDatePickerChange = onTermDatePickerChange;
 
-    function renderTermOpeningDatesInputs(dates) {
-      if (!dates || typeof dates !== 'object') return;
-      cachedTermOpenDates = Object.assign(cachedTermOpenDates, dates);
+    function onTermCloseDatePickerChange(termNum, isoDateStr) {
+      if (!isoDateStr) return;
+      const thaiDate = formatIsoToThaiDate(isoDateStr);
+      cachedTermCloseDates[termNum] = thaiDate;
+      const curYear = (document.getElementById('selTermDatesYear')?.value || '2569').trim();
+      if (!cachedTermDatesByYear[curYear]) cachedTermDatesByYear[curYear] = { open: {}, close: {} };
+      if (!cachedTermDatesByYear[curYear].close) cachedTermDatesByYear[curYear].close = {};
+      cachedTermDatesByYear[curYear].close[termNum] = thaiDate;
+      const lbl = document.getElementById('lblTermCloseDateThai_' + termNum);
+      const hid = document.getElementById('cfgTermCloseDate_' + termNum);
+      if (lbl) lbl.textContent = thaiDate;
+      if (hid) hid.value = thaiDate;
+    }
+    window.onTermCloseDatePickerChange = onTermCloseDatePickerChange;
+
+    function onTermDatesYearChange(yearBE) {
+      const y = String(yearBE || '2569').trim();
+      if (!cachedTermDatesByYear[y]) {
+        cachedTermDatesByYear[y] = {
+          open: { "1": `1 ม.ค. ${y}`, "2": `1 มี.ค. ${y}`, "3": `1 พ.ค. ${y}`, "4": `1 ก.ค. ${y}`, "5": `1 พ.ย. ${y}` },
+          close: { "1": `20 ก.พ. ${y}`, "2": `20 เม.ย. ${y}`, "3": `20 มิ.ย. ${y}`, "4": `20 ต.ค. ${y}`, "5": `20 ธ.ค. ${y}` }
+        };
+      }
+      const yearData = cachedTermDatesByYear[y];
+      renderTermOpeningDatesInputs(yearData.open, yearData.close);
+    }
+    window.onTermDatesYearChange = onTermDatesYearChange;
+
+    function renderTermOpeningDatesInputs(dates, closeDates) {
+      if (dates && typeof dates === 'object') {
+        cachedTermOpenDates = Object.assign(cachedTermOpenDates, dates);
+      }
+      if (closeDates && typeof closeDates === 'object') {
+        cachedTermCloseDates = Object.assign(cachedTermCloseDates, closeDates);
+      }
 
       for (let t = 1; t <= 5; t++) {
-        const thaiDate = cachedTermOpenDates[t] || '';
+        const thaiDate = (dates && dates[t]) || cachedTermOpenDates[t] || '';
         const picker = document.getElementById('cfgTermDatePicker_' + t);
         const lbl = document.getElementById('lblTermDateThai_' + t);
         const hid = document.getElementById('cfgTermDate_' + t);
-
-        if (picker && thaiDate) {
-          picker.value = parseThaiDateToIso(thaiDate);
-        }
-
-        if (lbl && thaiDate) {
-          lbl.textContent = thaiDate;
-        }
-
-        if (hid && thaiDate) {
-          hid.value = thaiDate;
-        }
+        if (picker && thaiDate) picker.value = parseThaiDateToIso(thaiDate);
+        if (lbl && thaiDate) lbl.textContent = thaiDate;
+        if (hid && thaiDate) hid.value = thaiDate;
+        const thaiCloseDate = (closeDates && closeDates[t]) || cachedTermCloseDates[t] || '';
+        const closePicker = document.getElementById('cfgTermCloseDatePicker_' + t);
+        const closeLbl = document.getElementById('lblTermCloseDateThai_' + t);
+        const closeHid = document.getElementById('cfgTermCloseDate_' + t);
+        if (closePicker && thaiCloseDate) closePicker.value = parseThaiDateToIso(thaiCloseDate);
+        if (closeLbl && thaiCloseDate) closeLbl.textContent = thaiCloseDate;
+        if (closeHid && thaiCloseDate) closeHid.value = thaiCloseDate;
       }
     }
+    window.renderTermOpeningDatesInputs = renderTermOpeningDatesInputs;
 
     // =========================================================================
-
-    // DYNAMIC ACADEMIC TERM RESOLUTION CONTROLLER (คำนวณภาคเรียนอัตโนมัติตามวันเปิดเรียน)
-
+    // DYNAMIC ACADEMIC TERM RESOLUTION CONTROLLER (คำนวณภาคเรียนอัตโนมัติตามวันเปิด-ปิดเรียน)
     // =========================================================================
 
     window._currentResolvedAcademicTerm = null;
 
-    /**
-
-     * คำนวณหาภาคเรียนและปีการศึกษาปัจจุบันที่เปิดรับสมัคร/ลงทะเบียนตามปฏิทินวันเปิดเรียน
-
-     * @param {Object} [customDates] - อ็อบเจกต์วันเปิดเรียน เช่น { "1": "1 ม.ค. 2569", ... }
-
-     * @returns {{ term: number, yearBE: number, openDateThai: string }}
-
-     */
-
-    function resolveCurrentAcademicTerm(customDates) {
+    function resolveCurrentAcademicTerm(customDates, customCloseDates) {
       const dates = customDates || cachedTermOpenDates || {};
+      const closeDates = customCloseDates || cachedTermCloseDates || {};
       const now = new Date();
       const currentYearAD = now.getFullYear();
       const currentYearBE = currentYearAD + 543;
       const todayMs = now.getTime();
       const termList = [];
       const defaultMonths = { 1: '01-01', 2: '03-01', 3: '05-01', 4: '07-01', 5: '11-01' };
+      const defaultCloseMonths = { 1: '02-20', 2: '04-20', 3: '06-20', 4: '10-20', 5: '12-20' };
 
       for (let t = 1; t <= 5; t++) {
         const thaiDate = dates[t] || dates[String(t)] || '';
         let isoStr = (typeof parseThaiDateToIso === 'function') ? parseThaiDateToIso(thaiDate) : '';
-
-        if (!isoStr) {
-          isoStr = `${currentYearAD}-${defaultMonths[t]}`;
-        }
-
+        if (!isoStr) isoStr = `${currentYearAD}-${defaultMonths[t]}`;
+        const thaiCloseDate = closeDates[t] || closeDates[String(t)] || '';
+        let isoCloseStr = (typeof parseThaiDateToIso === 'function') ? parseThaiDateToIso(thaiCloseDate) : '';
+        if (!isoCloseStr) isoCloseStr = `${currentYearAD}-${defaultCloseMonths[t]}`;
         const openDateObj = new Date(isoStr + 'T00:00:00');
+        const closeDateObj = new Date(isoCloseStr + 'T23:59:59');
 
         termList.push({
           term: t,
-
           openDateObj,
-
           openDateMs: openDateObj.getTime(),
-
-          thaiDate: thaiDate || ((typeof formatIsoToThaiDate === 'function') ? formatIsoToThaiDate(isoStr) : thaiDate)
+          closeDateObj,
+          closeDateMs: closeDateObj.getTime(),
+          thaiDate: thaiDate || ((typeof formatIsoToThaiDate === 'function') ? formatIsoToThaiDate(isoStr) : thaiDate),
+          thaiCloseDate: thaiCloseDate || ((typeof formatIsoToThaiDate === 'function') ? formatIsoToThaiDate(isoCloseStr) : thaiCloseDate)
         });
       }
 
       termList.sort((a, b) => a.openDateMs - b.openDateMs);
-
-      // เผื่อช่วงรับสมัครปลายเทอม (Late Enrollment Window) 20 วันหลังเปิดเทอม
-
       const LATE_WINDOW_MS = 20 * 24 * 60 * 60 * 1000;
 
-      // ก่อนเปิดเทอม 1 + 20 วันแรกของเทอม 1
-
-      if (todayMs < termList[0].openDateMs + LATE_WINDOW_MS) {
-        return { term: termList[0].term, yearBE: currentYearBE, openDateThai: termList[0].thaiDate };
+      // ก่อนเปิดเทอม 1
+      if (todayMs < termList[0].openDateMs) {
+        return { term: termList[0].term, yearBE: currentYearBE, openDateThai: termList[0].thaiDate, closeDateThai: termList[0].thaiCloseDate };
       }
 
-      // ช่วงระหว่างแต่ละเทอม
-
-      for (let i = 0; i < termList.length - 1; i++) {
+      // ช่วงระหว่างแต่ละเทอม (คำนึงถึงวันปิดเรียนจริงของแต่ละเทอม)
+      for (let i = 0; i < termList.length; i++) {
         const currTerm = termList[i];
-        const nextTerm = termList[i + 1];
-
-        if (todayMs >= currTerm.openDateMs + LATE_WINDOW_MS && todayMs < nextTerm.openDateMs + LATE_WINDOW_MS) {
-          return { term: nextTerm.term, yearBE: currentYearBE, openDateThai: nextTerm.thaiDate };
+        const termEffectiveEndMs = Math.max(currTerm.closeDateMs, currTerm.openDateMs + LATE_WINDOW_MS);
+        if (todayMs >= currTerm.openDateMs && todayMs <= termEffectiveEndMs) {
+          return { term: currTerm.term, yearBE: currentYearBE, openDateThai: currTerm.thaiDate, closeDateThai: currTerm.thaiCloseDate };
+        }
+        if (i < termList.length - 1) {
+          const nextTerm = termList[i + 1];
+          if (todayMs > termEffectiveEndMs && todayMs < nextTerm.openDateMs) {
+            return { term: nextTerm.term, yearBE: currentYearBE, openDateThai: nextTerm.thaiDate, closeDateThai: nextTerm.thaiCloseDate };
+          }
         }
       }
 
-      // หลังเทอม 5 เปิดเรียนไปแล้ว 20 วัน -> ส่งต่อไปยังเทอม 1 ของปีถัดไป
-
+      // หลังเทอม 5 ปิดเรียน -> ส่งต่อไปยังเทอม 1 ของปีถัดไป
       const lastTerm = termList[termList.length - 1];
-
-      if (todayMs >= lastTerm.openDateMs + LATE_WINDOW_MS) {
-        return { term: 1, yearBE: currentYearBE + 1, openDateThai: termList[0].thaiDate };
+      const lastEffectiveEndMs = Math.max(lastTerm.closeDateMs, lastTerm.openDateMs + LATE_WINDOW_MS);
+      if (todayMs > lastEffectiveEndMs) {
+        return { term: 1, yearBE: currentYearBE + 1, openDateThai: termList[0].thaiDate, closeDateThai: termList[0].thaiCloseDate };
       }
 
-      return { term: (window._currentResolvedAcademicTerm ? window._currentResolvedAcademicTerm.term : resolveCurrentAcademicTerm(cachedTermOpenDates).term), yearBE: currentYearBE, openDateThai: lastTerm.thaiDate };
+      return { term: (window._currentResolvedAcademicTerm ? window._currentResolvedAcademicTerm.term : 5), yearBE: currentYearBE, openDateThai: lastTerm.thaiDate, closeDateThai: lastTerm.thaiCloseDate };
     }
-
-    /**
-
-     * ซิงค์ตัวเลือกและค่าเริ่มต้นของดรอปดาวน์ภาคเรียนทุกจุดตามปฏิทินวันเปิดเรียน
-
-     */
+    window.resolveCurrentAcademicTerm = resolveCurrentAcademicTerm;
 
     function syncAllTermDropdownsWithOpenDates() {
-      const activeInfo = resolveCurrentAcademicTerm(cachedTermOpenDates);
+      const activeInfo = resolveCurrentAcademicTerm(cachedTermOpenDates, cachedTermCloseDates);
       window._currentResolvedAcademicTerm = activeInfo;
       const activeTermStr = String(activeInfo.term);
       const activeYearStr = String(activeInfo.yearBE);
 
       // 1. ซิงค์หน้าลงทะเบียนนักศึกษาใหม่ (tabEnroll)
-
       const selTerm = document.getElementById('selTerm');
       const selYear = document.getElementById('selYear');
 
@@ -30030,21 +30340,17 @@ if (action === 'getDashboardStats') {
         for (let t = 1; t <= 5; t++) {
           const opt = selTerm.querySelector(`option[value="${t}"]`);
           const openDateText = (cachedTermOpenDates && (cachedTermOpenDates[t] || cachedTermOpenDates[String(t)])) || '';
-
           if (opt) {
             opt.textContent = openDateText ? `ภาคเรียนที่ ${t} (เปิดเรียน ${openDateText})` : `ภาคเรียนที่ ${t}`;
           }
         }
-
         selTerm.value = activeTermStr;
-
         if (typeof calcNextStudentId === 'function') {
           calcNextStudentId();
         }
       }
 
       // 2. ซิงค์หน้าแคชเชียร์และออกใบเสร็จ (tabReceipts)
-
       const selRcptTerm = document.getElementById('selRcptTerm');
       const selRcptYear = document.getElementById('selRcptYear');
 
@@ -30052,12 +30358,10 @@ if (action === 'getDashboardStats') {
         for (let t = 1; t <= 5; t++) {
           const opt = selRcptTerm.querySelector(`option[value="${t}"]`);
           const openDateText = (cachedTermOpenDates && (cachedTermOpenDates[t] || cachedTermOpenDates[String(t)])) || '';
-
           if (opt) {
             opt.textContent = openDateText ? `ภาคเรียนที่ ${t} (เปิดเรียน ${openDateText})` : `ภาคเรียนที่ ${t}`;
           }
         }
-
         if (!selRcptTerm.dataset.userModified) {
           selRcptTerm.value = activeTermStr;
         }
@@ -30074,17 +30378,15 @@ if (action === 'getDashboardStats') {
       }
 
       // 3. ซิงค์หน้าจัดกลุ่มเรียน (tabRoster / selRosterYearTerm)
-
       const selRoster = document.getElementById('selRosterYearTerm');
-
       if (selRoster && !selRoster.dataset.userModified) {
         const rosterVal = `${activeYearStr}-${activeTermStr}`;
-
         if (selRoster.querySelector(`option[value="${rosterVal}"]`)) {
           selRoster.value = rosterVal;
         }
       }
     }
+    window.syncAllTermDropdownsWithOpenDates = syncAllTermDropdownsWithOpenDates;
 
     // Global Cache for Online Enrollment Schedule
 
@@ -30518,30 +30820,57 @@ if (action === 'getDashboardStats') {
     }
 
     function saveTermOpeningDatesFromUI() {
-      const dates = {};
+      const selYear = document.getElementById('selTermDatesYear');
+      const selectedYear = selYear ? selYear.value.trim() : '2569';
+      const openDates = {};
+      const closeDates = {};
 
       for (let t = 1; t <= 5; t++) {
-        const hid = document.getElementById('cfgTermDate_' + t);
-        dates[t] = hid ? hid.value.trim() : (cachedTermOpenDates[t] || '');
+        const hidOpen = document.getElementById('cfgTermDate_' + t);
+        const hidClose = document.getElementById('cfgTermCloseDate_' + t);
+        const pOpen = document.getElementById('cfgTermDatePicker_' + t);
+        const pClose = document.getElementById('cfgTermCloseDatePicker_' + t);
+        const oIso = pOpen && pOpen.value ? pOpen.value : (hidOpen ? parseThaiDateToIso(hidOpen.value) : '');
+        const cIso = pClose && pClose.value ? pClose.value : (hidClose ? parseThaiDateToIso(hidClose.value) : '');
+
+        if (oIso && cIso && cIso < oIso) {
+          showModal('วันที่ไม่ถูกต้อง', `ภาคเรียนที่ ${t}: วันปิดเรียน (${hidClose ? hidClose.value : cIso}) ต้องไม่เกิดขึ้นก่อนวันเริ่มเปิดเรียน (${hidOpen ? hidOpen.value : oIso})`, '⚠️');
+          return;
+        }
+
+        openDates[t] = hidOpen ? hidOpen.value.trim() : (cachedTermOpenDates[t] || '');
+        closeDates[t] = hidClose ? hidClose.value.trim() : (cachedTermCloseDates[t] || '');
       }
 
-      callGasApi('saveTermOpenDates', { termOpenDates: dates }, 'POST')
+      if (!cachedTermDatesByYear[selectedYear]) cachedTermDatesByYear[selectedYear] = { open: {}, close: {} };
+      cachedTermDatesByYear[selectedYear].open = Object.assign({}, openDates);
+      cachedTermDatesByYear[selectedYear].close = Object.assign({}, closeDates);
 
+      try {
+        localStorage.setItem('oca_term_open_dates', JSON.stringify(openDates));
+        localStorage.setItem('oca_term_close_dates_v1', JSON.stringify(closeDates));
+        localStorage.setItem('oca_term_dates_by_year_v1', JSON.stringify(cachedTermDatesByYear));
+      } catch (_) {}
+
+      callGasApi('saveTermOpenDates', { termOpenDates: openDates, termCloseDates: closeDates, termDatesByYear: cachedTermDatesByYear, yearBE: selectedYear }, 'POST')
         .then(res => {
           if (res && res.success) {
-            cachedTermOpenDates = res.termOpenDates || dates;
-            renderTermOpeningDatesInputs(cachedTermOpenDates);
+            cachedTermOpenDates = res.termOpenDates || openDates;
+            cachedTermCloseDates = res.termCloseDates || closeDates;
+            if (res.termDatesByYear) cachedTermDatesByYear = res.termDatesByYear;
+            renderTermOpeningDatesInputs(cachedTermOpenDates, cachedTermCloseDates);
             updateReceiptOpenDateByTerm();
-            showToast('บันทึกสำเร็จ!', 'อัปเดตวันเปิดเรียนประจำภาคเรียนเรียบร้อยแล้ว', '✓');
+            syncAllTermDropdownsWithOpenDates();
+            showToast('บันทึกสำเร็จ!', 'อัปเดตวันเปิด-ปิดเรียนประจำภาคเรียนเรียบร้อยแล้ว', '✓');
           } else {
             showModal('เกิดข้อผิดพลาด', (res && res.message) || 'ไม่สามารถบันทึกวันเปิดเรียนได้', '❌');
           }
         })
-
         .catch(err => {
           showModal('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้: ' + (err.message || ''), '❌');
         });
     }
+    window.saveTermOpeningDatesFromUI = saveTermOpeningDatesFromUI;
 
     function updateReceiptOpenDateByTerm() {
       const selTerm = document.getElementById('selRcptTerm') || document.getElementById('selTerm');
@@ -30716,16 +31045,18 @@ if (action === 'getDashboardStats') {
             timePart = '';
           }
 
-          const offeredCodes = (typeof getOfferedCourseCodesForSchedule === 'function') ? getOfferedCourseCodesForSchedule(s.id || rawName) : [];
+          const curKey = (typeof getScheduleConfigTermKey === 'function') ? getScheduleConfigTermKey() : '2569_5';
+          const curParts = curKey.split('_');
+          const yearVal = curParts[0] || '2569';
+          const termVal = curParts[1] || '5';
+          const offeredCodes = (typeof getOfferedCourseCodesForSchedule === 'function') ? getOfferedCourseCodesForSchedule(s.id || rawName, termVal, yearVal) : [];
           const offeredCount = offeredCodes.length;
           const courseBadgeHtml = offeredCount > 0
             ? '<span class="oca-schedule-course-badge" style="font-size:11.5px; padding:3px 10px; border-radius:10px; background:rgba(215,166,0,0.15); color:var(--color-gold); border:1px solid rgba(215,166,0,0.3); display:inline-flex; align-items:center; gap:5px; font-weight:600;"><i class="fa-solid fa-book-open"></i> เปิดรับ ' + toArabicDigits(offeredCount) + ' คอร์ส</span>'
             : '<span class="oca-schedule-course-badge" style="font-size:11.5px; padding:3px 10px; border-radius:10px; background:rgba(255,255,255,0.06); color:var(--text-muted); border:1px solid rgba(255,255,255,0.1); display:inline-flex; align-items:center; gap:5px;"><i class="fa-solid fa-book-open"></i> ทุกคอร์สที่เปิดสอน</span>';
-
           const dayHtml = dayPart
             ? '<span class="oca-schedule-day-badge"><i class="fa-solid fa-calendar-day"></i> ' + escapeHtml(dayPart) + '</span>'
             : '<span style="color:var(--text-muted);">-</span>';
-
           const timeHtml = timePart
             ? '<span class="oca-schedule-time-badge"><i class="fa-solid fa-clock"></i> ' + escapeHtml(timePart) + '</span>'
             : '<span style="color:var(--text-muted);">-</span>';
@@ -30780,14 +31111,16 @@ if (action === 'getDashboardStats') {
       if (lblPriceFormatted) lblPriceFormatted.textContent = price > 0 ? (price.toLocaleString() + ' บาท') : '0 บาท';
     }
 
-    function renderCourseModalSchedules(targetCourseId) {
+    function renderCourseModalSchedules(targetCourseId, termVal, yearVal) {
       const container = document.getElementById('courseModalSchedulesList');
       if (!container) return;
       const targetCode = String(targetCourseId || '').trim().toUpperCase();
       const allScheds = Array.isArray(cachedSchedulesList) && cachedSchedulesList.length > 0
         ? cachedSchedulesList
         : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES : []);
-      const map = window._ocaScheduleCoursesMap || {};
+      const y = yearVal || document.getElementById('selModalCourseYear')?.value || document.getElementById('selScheduleConfigYear')?.value || '2569';
+      const t = termVal || document.getElementById('selModalCourseTerm')?.value || document.getElementById('selScheduleConfigTerm')?.value || '5';
+      const map = (typeof getScheduleCoursesMapForTerm === 'function') ? getScheduleCoursesMapForTerm(t, y) : (window._ocaScheduleCoursesMap || {});
       let html = '';
       allScheds.forEach(s => {
         const sId = s.id;
@@ -30802,6 +31135,15 @@ if (action === 'getDashboardStats') {
       updateCourseModalSchedBadge();
     }
     window.renderCourseModalSchedules = renderCourseModalSchedules;
+
+    function onModalCourseTermYearChange() {
+      const modal = document.getElementById('modalCourse');
+      const origId = (modal?.dataset?.originalId || window._editingOriginalCourseId || document.getElementById('inpCourseId')?.value || '').trim().toUpperCase();
+      const y = document.getElementById('selModalCourseYear')?.value || '2569';
+      const t = document.getElementById('selModalCourseTerm')?.value || '5';
+      renderCourseModalSchedules(origId, t, y);
+    }
+    window.onModalCourseTermYearChange = onModalCourseTermYearChange;
 
     function onCourseModalSchedCheckChange(chk) {
       if (!chk) return;
@@ -30912,7 +31254,15 @@ if (action === 'getDashboardStats') {
         if (selMat) selMat.value = 'หนังสือและสมุดช่องใหญ่';
       }
 
-      renderCourseModalSchedules(editId || (inpId ? inpId.value : ''));
+      const configCourseYear = document.getElementById('selScheduleConfigYear')?.value || '2569';
+      const configCourseTerm = document.getElementById('selScheduleConfigTerm')?.value || '5';
+      const selModCourseYear = document.getElementById('selModalCourseYear');
+      const selModCourseTerm = document.getElementById('selModalCourseTerm');
+      const chkCourseAll = document.getElementById('chkApplyCourseSchedulesAllTermsInYear');
+      if (selModCourseYear) selModCourseYear.value = configCourseYear;
+      if (selModCourseTerm) selModCourseTerm.value = configCourseTerm;
+      if (chkCourseAll) chkCourseAll.checked = false;
+      renderCourseModalSchedules(editId || (inpId ? inpId.value : ''), configCourseTerm, configCourseYear);
       updateCourseLivePreview();
       modal.style.display = 'flex';
       modal.classList.add('active');
@@ -30958,32 +31308,46 @@ if (action === 'getDashboardStats') {
       const allKnownSchedList = Array.isArray(cachedSchedulesList) && cachedSchedulesList.length > 0
         ? cachedSchedulesList
         : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES : []);
+      const curYear = document.getElementById('selModalCourseYear')?.value || document.getElementById('selScheduleConfigYear')?.value || '2569';
+      const curTerm = document.getElementById('selModalCourseTerm')?.value || document.getElementById('selScheduleConfigTerm')?.value || '5';
+      const applyAllInYear = document.getElementById('chkApplyCourseSchedulesAllTermsInYear')?.checked;
+      if (!window._ocaScheduleCoursesByTermMap) window._ocaScheduleCoursesByTermMap = {};
+      if (!window._ocaScheduleCoursesMap) window._ocaScheduleCoursesMap = {};
+      const targetTerms = applyAllInYear ? [1, 2, 3, 4, 5] : [Number(curTerm)];
+      targetTerms.forEach(tNum => {
+        const termKey = `${curYear}_${tNum}`;
+        if (!window._ocaScheduleCoursesByTermMap[termKey]) {
+          window._ocaScheduleCoursesByTermMap[termKey] = JSON.parse(JSON.stringify(window._ocaScheduleCoursesMap || DEFAULT_SCHEDULE_COURSES_MAP));
+        }
+        const tMap = window._ocaScheduleCoursesByTermMap[termKey];
 
-      if (checkedSchedIds.length > 0) {
-        allKnownSchedList.forEach(s => {
-          const sId = s.id;
-          if (!window._ocaScheduleCoursesMap[sId]) window._ocaScheduleCoursesMap[sId] = [];
-          if (origId && origId !== id) {
-            window._ocaScheduleCoursesMap[sId] = window._ocaScheduleCoursesMap[sId].filter(c => c !== origId);
-          }
-          if (checkedSchedIds.includes(sId)) {
-            if (!window._ocaScheduleCoursesMap[sId].includes(id)) {
-              window._ocaScheduleCoursesMap[sId].push(id);
+        if (checkedSchedIds.length > 0) {
+          allKnownSchedList.forEach(s => {
+            const sId = s.id;
+            if (!tMap[sId]) tMap[sId] = [];
+            if (origId && origId !== id) {
+              tMap[sId] = tMap[sId].filter(c => c !== origId);
             }
-          } else {
-            window._ocaScheduleCoursesMap[sId] = window._ocaScheduleCoursesMap[sId].filter(c => c !== id);
-          }
-        });
-        if (typeof saveScheduleCoursesMapToSupabase === 'function') saveScheduleCoursesMapToSupabase();
-      } else if (origId && origId !== id) {
-        allKnownSchedList.forEach(s => {
-          const sId = s.id;
-          if (Array.isArray(window._ocaScheduleCoursesMap[sId])) {
-            window._ocaScheduleCoursesMap[sId] = window._ocaScheduleCoursesMap[sId].map(c => c === origId ? id : c);
-          }
-        });
-        if (typeof saveScheduleCoursesMapToSupabase === 'function') saveScheduleCoursesMapToSupabase();
-      }
+            if (checkedSchedIds.includes(sId)) {
+              if (!tMap[sId].includes(id)) {
+                tMap[sId].push(id);
+              }
+            } else {
+              tMap[sId] = tMap[sId].filter(c => c !== id);
+            }
+          });
+        } else if (origId && origId !== id) {
+          allKnownSchedList.forEach(s => {
+            const sId = s.id;
+            if (Array.isArray(tMap[sId])) {
+              tMap[sId] = tMap[sId].map(c => c === origId ? id : c);
+            }
+          });
+        }
+      });
+      const activeKey = `${curYear}_${curTerm}`;
+      window._ocaScheduleCoursesMap = window._ocaScheduleCoursesByTermMap[activeKey];
+      if (typeof saveScheduleCoursesMapToSupabase === 'function') saveScheduleCoursesMapToSupabase();
 
       // Immediate optimistic update
       if (Array.isArray(cachedCoursesList)) {
@@ -31186,10 +31550,144 @@ if (action === 'getDashboardStats') {
       window._ocaScheduleCoursesMap = JSON.parse(JSON.stringify(DEFAULT_SCHEDULE_COURSES_MAP));
     }
 
-    function getOfferedCourseCodesForSchedule(scheduleIdOrName) {
+    try {
+      const storedByTerm = localStorage.getItem('oca_schedule_courses_by_term_v1');
+      window._ocaScheduleCoursesByTermMap = storedByTerm ? JSON.parse(storedByTerm) : {};
+    } catch (_) {
+      window._ocaScheduleCoursesByTermMap = {};
+    }
+    if (!window._ocaScheduleCoursesByTermMap['2569_5']) {
+      window._ocaScheduleCoursesByTermMap['2569_5'] = JSON.parse(JSON.stringify(window._ocaScheduleCoursesMap || DEFAULT_SCHEDULE_COURSES_MAP));
+    }
+
+    function getScheduleConfigTermKey(termVal, yearVal) {
+      let y = yearVal;
+      let t = termVal;
+      if (!y) {
+        const selY = document.getElementById('selScheduleConfigYear') || document.getElementById('selYear') || document.getElementById('selRcptYear');
+        y = selY ? selY.value : (window._currentResolvedAcademicTerm ? window._currentResolvedAcademicTerm.yearBE : '2569');
+      }
+      if (!t) {
+        const selT = document.getElementById('selScheduleConfigTerm') || document.getElementById('selTerm') || document.getElementById('selRcptTerm');
+        t = selT ? selT.value : (window._currentResolvedAcademicTerm ? window._currentResolvedAcademicTerm.term : '5');
+      }
+      return `${String(y).trim()}_${String(t).trim()}`;
+    }
+    window.getScheduleConfigTermKey = getScheduleConfigTermKey;
+
+    function getScheduleCoursesMapForTerm(termVal, yearVal) {
+      const key = getScheduleConfigTermKey(termVal, yearVal);
+      if (window._ocaScheduleCoursesByTermMap && window._ocaScheduleCoursesByTermMap[key] && typeof window._ocaScheduleCoursesByTermMap[key] === 'object' && Object.keys(window._ocaScheduleCoursesByTermMap[key]).length > 0) {
+        return window._ocaScheduleCoursesByTermMap[key];
+      }
+      const fallback = window._ocaScheduleCoursesMap || DEFAULT_SCHEDULE_COURSES_MAP;
+      return JSON.parse(JSON.stringify(fallback));
+    }
+    window.getScheduleCoursesMapForTerm = getScheduleCoursesMapForTerm;
+
+    function onScheduleConfigTermYearChange() {
+      const selY = document.getElementById('selScheduleConfigYear');
+      const selT = document.getElementById('selScheduleConfigTerm');
+      const y = selY ? selY.value : '2569';
+      const t = selT ? selT.value : '5';
+      const badge = document.getElementById('badgeScheduleConfigPeriod');
+      if (badge) {
+        badge.innerHTML = `<i class="fa-solid fa-calendar-check" style="margin-right:4px;"></i>ผังคอร์ส: ปี ${y} เทอมที่ ${t}`;
+      }
+      const termMap = getScheduleCoursesMapForTerm(t, y);
+      window._ocaScheduleCoursesMap = termMap;
+      if (typeof renderSchedulesTable === 'function' && Array.isArray(cachedSchedulesList)) {
+        renderSchedulesTable(cachedSchedulesList);
+      }
+    }
+    window.onScheduleConfigTermYearChange = onScheduleConfigTermYearChange;
+
+    function copyScheduleCoursesFromAnotherTerm() {
+      const curY = document.getElementById('selScheduleConfigYear')?.value || '2569';
+      const curT = document.getElementById('selScheduleConfigTerm')?.value || '5';
+      const lblTarget = document.getElementById('lblCopyTargetPeriod');
+      if (lblTarget) {
+        lblTarget.textContent = `ปี ${curY} เทอมที่ ${curT}`;
+      }
+      const modal = document.getElementById('modalCopyScheduleCourses');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+    }
+    window.copyScheduleCoursesFromAnotherTerm = copyScheduleCoursesFromAnotherTerm;
+
+    function closeCopyScheduleCoursesModal() {
+      const modal = document.getElementById('modalCopyScheduleCourses');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    }
+    window.closeCopyScheduleCoursesModal = closeCopyScheduleCoursesModal;
+
+    function executeCopyScheduleCourses() {
+      const srcY = document.getElementById('selCopySourceYear')?.value || '2569';
+      const srcT = document.getElementById('selCopySourceTerm')?.value || '5';
+      const targetY = document.getElementById('selScheduleConfigYear')?.value || '2569';
+      const targetT = document.getElementById('selScheduleConfigTerm')?.value || '5';
+      const srcKey = `${srcY}_${srcT}`;
+      const targetKey = `${targetY}_${targetT}`;
+
+      if (srcKey === targetKey) {
+        showToast('ข้อมูลตรงกัน', 'ปีและเทอมต้นทางตรงกับปลายทาง ไม่จำเป็นต้องคัดลอก', '⚠️');
+        closeCopyScheduleCoursesModal();
+        return;
+      }
+
+      const srcMap = getScheduleCoursesMapForTerm(srcT, srcY);
+      if (!window._ocaScheduleCoursesByTermMap) window._ocaScheduleCoursesByTermMap = {};
+      window._ocaScheduleCoursesByTermMap[targetKey] = JSON.parse(JSON.stringify(srcMap));
+      window._ocaScheduleCoursesMap = window._ocaScheduleCoursesByTermMap[targetKey];
+      saveScheduleCoursesMapToSupabase();
+      closeCopyScheduleCoursesModal();
+      if (typeof renderSchedulesTable === 'function' && Array.isArray(cachedSchedulesList)) {
+        renderSchedulesTable(cachedSchedulesList);
+      }
+      showToast('คัดลอกสำเร็จ!', `คัดลอกผังคอร์สจากปี ${srcY} เทอมที่ ${srcT} มายังปี ${targetY} เทอมที่ ${targetT} เรียบร้อยแล้ว`, '✓');
+    }
+    window.executeCopyScheduleCourses = executeCopyScheduleCourses;
+
+    function getOfferedCourseCodesForSchedule(scheduleIdOrName, termVal, yearVal) {
       if (!scheduleIdOrName) return [];
       const raw = String(scheduleIdOrName).trim();
-      const map = window._ocaScheduleCoursesMap || DEFAULT_SCHEDULE_COURSES_MAP;
+      let y = yearVal;
+      let t = termVal;
+      if (!y || !t) {
+        const enrollTab = document.getElementById('tabEnroll');
+        const isEnrollVisible = enrollTab && enrollTab.classList.contains('active');
+        const rcptTab = document.getElementById('tabReceipts');
+        const isRcptVisible = rcptTab && rcptTab.classList.contains('active');
+        const coursesTab = document.getElementById('tabCourses');
+        const isCoursesVisible = coursesTab && coursesTab.classList.contains('active');
+
+        if (isEnrollVisible) {
+          if (!y) y = document.getElementById('selYear')?.value;
+          if (!t) t = document.getElementById('selTerm')?.value;
+        } else if (isRcptVisible) {
+          if (!y) y = document.getElementById('selRcptYear')?.value;
+          if (!t) t = document.getElementById('selRcptTerm')?.value;
+        } else if (isCoursesVisible) {
+          if (!y) y = document.getElementById('selScheduleConfigYear')?.value;
+          if (!t) t = document.getElementById('selScheduleConfigTerm')?.value;
+        }
+
+        if (!y) {
+          const selY = document.getElementById('selYear') || document.getElementById('selRcptYear') || document.getElementById('selScheduleConfigYear');
+          y = selY ? selY.value : (window._currentResolvedAcademicTerm ? window._currentResolvedAcademicTerm.yearBE : '2569');
+        }
+        if (!t) {
+          const selT = document.getElementById('selTerm') || document.getElementById('selRcptTerm') || document.getElementById('selScheduleConfigTerm');
+          t = selT ? selT.value : (window._currentResolvedAcademicTerm ? window._currentResolvedAcademicTerm.term : '5');
+        }
+      }
+
+      const map = (typeof getScheduleCoursesMapForTerm === 'function')
+        ? getScheduleCoursesMapForTerm(t, y)
+        : (window._ocaScheduleCoursesMap || DEFAULT_SCHEDULE_COURSES_MAP);
       let offered = [];
 
       if (map[raw] && Array.isArray(map[raw]) && map[raw].length > 0) {
@@ -31379,17 +31877,30 @@ if (action === 'getDashboardStats') {
     async function saveScheduleCoursesMapToSupabase() {
       try {
         const jsonStr = JSON.stringify(window._ocaScheduleCoursesMap || {});
+        const byTermJsonStr = JSON.stringify(window._ocaScheduleCoursesByTermMap || {});
         localStorage.setItem('oca_schedule_courses_map', jsonStr);
+        localStorage.setItem('oca_schedule_courses_by_term_v1', byTermJsonStr);
         if (typeof _supabase !== 'undefined' && _supabase) {
-          await _supabase.from('fee_settings').upsert({
-            key: 'schedule_courses_map',
-            name: jsonStr,
-            mode: 'map',
-            amount: 0,
-            start_date: null,
-            end_date: null,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'key' });
+          await _supabase.from('fee_settings').upsert([
+            {
+              key: 'schedule_courses_map',
+              name: jsonStr,
+              mode: 'map',
+              amount: 0,
+              start_date: null,
+              end_date: null,
+              updated_at: new Date().toISOString()
+            },
+            {
+              key: 'schedule_courses_by_term_map',
+              name: byTermJsonStr,
+              mode: 'map',
+              amount: 0,
+              start_date: null,
+              end_date: null,
+              updated_at: new Date().toISOString()
+            }
+          ], { onConflict: 'key' });
         }
       } catch (err) {
         console.warn('[ScheduleCoursesMap] Supabase save error:', err);
@@ -31407,6 +31918,14 @@ if (action === 'getDashboardStats') {
       const inpId = document.getElementById('inpScheduleId');
       const inpName = document.getElementById('inpScheduleName');
       if (!modal) return;
+      const configYear = document.getElementById('selScheduleConfigYear')?.value || '2569';
+      const configTerm = document.getElementById('selScheduleConfigTerm')?.value || '5';
+      const selModYear = document.getElementById('selModalScheduleYear');
+      const selModTerm = document.getElementById('selModalScheduleTerm');
+      const chkAll = document.getElementById('chkApplyScheduleCoursesAllTermsInYear');
+      if (selModYear) selModYear.value = configYear;
+      if (selModTerm) selModTerm.value = configTerm;
+      if (chkAll) chkAll.checked = false;
 
       if (editId) {
         const item = (cachedSchedulesList || []).find(s => s.id === editId);
@@ -31425,7 +31944,7 @@ if (action === 'getDashboardStats') {
           }
 
           if (inpName) inpName.value = item.name || '';
-          const assigned = getOfferedCourseCodesForSchedule(item.id || item.name);
+          const assigned = getOfferedCourseCodesForSchedule(item.id || item.name, configTerm, configYear);
           window._modalScheduleSelectedCoursesSet = new Set(assigned);
         }
       } else {
@@ -31463,6 +31982,19 @@ if (action === 'getDashboardStats') {
     }
     window.openScheduleModal = openScheduleModal;
 
+    function onModalScheduleTermYearChange() {
+      const inpId = document.getElementById('inpScheduleId');
+      const inpName = document.getElementById('inpScheduleName');
+      const id = (inpId?.value || '').trim();
+      const name = (inpName?.value || '').trim();
+      const y = document.getElementById('selModalScheduleYear')?.value || '2569';
+      const t = document.getElementById('selModalScheduleTerm')?.value || '5';
+      const assigned = getOfferedCourseCodesForSchedule(id || name, t, y);
+      window._modalScheduleSelectedCoursesSet = new Set(assigned);
+      renderScheduleCourseCheckboxes();
+    }
+    window.onModalScheduleTermYearChange = onModalScheduleTermYearChange;
+
     function closeScheduleModal() {
       const modal = document.getElementById('modalSchedule');
       if (modal) {
@@ -31491,12 +32023,24 @@ if (action === 'getDashboardStats') {
       const btnSubmit = document.getElementById('btnSubmitSchedule');
       if (btnSubmit) btnSubmit.disabled = true;
       const selectedCoursesArray = Array.from(window._modalScheduleSelectedCoursesSet);
+      const curYear = document.getElementById('selModalScheduleYear')?.value || document.getElementById('selScheduleConfigYear')?.value || '2569';
+      const curTerm = document.getElementById('selModalScheduleTerm')?.value || document.getElementById('selScheduleConfigTerm')?.value || '5';
+      const applyAllInYear = document.getElementById('chkApplyScheduleCoursesAllTermsInYear')?.checked;
+      if (!window._ocaScheduleCoursesByTermMap) window._ocaScheduleCoursesByTermMap = {};
       if (!window._ocaScheduleCoursesMap) window._ocaScheduleCoursesMap = {};
-
-      if (origId && origId !== id) {
-        delete window._ocaScheduleCoursesMap[origId];
-      }
-      window._ocaScheduleCoursesMap[id] = selectedCoursesArray;
+      const targetTerms = applyAllInYear ? [1, 2, 3, 4, 5] : [Number(curTerm)];
+      targetTerms.forEach(tNum => {
+        const termKey = `${curYear}_${tNum}`;
+        if (!window._ocaScheduleCoursesByTermMap[termKey]) {
+          window._ocaScheduleCoursesByTermMap[termKey] = JSON.parse(JSON.stringify(window._ocaScheduleCoursesMap || DEFAULT_SCHEDULE_COURSES_MAP));
+        }
+        if (origId && origId !== id) {
+          delete window._ocaScheduleCoursesByTermMap[termKey][origId];
+        }
+        window._ocaScheduleCoursesByTermMap[termKey][id] = [...selectedCoursesArray];
+      });
+      const activeKey = `${curYear}_${curTerm}`;
+      window._ocaScheduleCoursesMap = window._ocaScheduleCoursesByTermMap[activeKey];
       saveScheduleCoursesMapToSupabase();
 
       // Immediate optimistic update
@@ -31513,6 +32057,12 @@ if (action === 'getDashboardStats') {
         }
       }
 
+      const selConfigYear = document.getElementById('selScheduleConfigYear');
+      const selConfigTerm = document.getElementById('selScheduleConfigTerm');
+      if (selConfigYear) selConfigYear.value = curYear;
+      if (selConfigTerm) selConfigTerm.value = curTerm;
+      const badge = document.getElementById('badgeScheduleConfigPeriod');
+      if (badge) badge.innerHTML = `<i class="fa-solid fa-calendar-check" style="margin-right:4px;"></i>ผังคอร์ส: ปี ${curYear} เทอมที่ ${curTerm}`;
       if (typeof renderSchedulesTable === 'function') renderSchedulesTable(cachedSchedulesList);
       if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
       if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
@@ -49143,7 +49693,10 @@ function openPublicRegisterView() {
       let coursesList = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
         ? cachedCoursesList
         : [];
-      const offeredCodes = (typeof getOfferedCourseCodesForSchedule === 'function') ? getOfferedCourseCodesForSchedule(selectedSched) : [];
+      const actTerm = (typeof resolveCurrentAcademicTerm === 'function') ? resolveCurrentAcademicTerm() : null;
+      const termVal = actTerm ? actTerm.term : 5;
+      const yearVal = actTerm ? actTerm.yearBE : 2569;
+      const offeredCodes = (typeof getOfferedCourseCodesForSchedule === 'function') ? getOfferedCourseCodesForSchedule(selectedSched, termVal, yearVal) : [];
       let displayCourses = [];
 
       if (offeredCodes && offeredCodes.length > 0) {
@@ -56289,7 +56842,7 @@ function openPublicRegisterView() {
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-21';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-22';
 
       // Auto-refresh on SW update with state preservation & toast notice
       let isRefreshing = false;
@@ -56305,7 +56858,7 @@ function openPublicRegisterView() {
           }
         } catch(_) {}
         if (typeof showToast === 'function') {
-          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-21)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
+          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-22)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
         }
         setTimeout(function() {
           window.location.reload();
@@ -56320,7 +56873,7 @@ function openPublicRegisterView() {
             if (w.state === 'installed' && navigator.serviceWorker.controller) w.postMessage({ type: 'SKIP_WAITING' });
           });
         });
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-21):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-22):', reg.scope);
         if (typeof reg.update === 'function') reg.update();
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
