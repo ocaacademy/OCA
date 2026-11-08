@@ -7489,7 +7489,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-17';
+      var LATEST_VERSION = 'oca-pwa-v358-18';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -14788,8 +14788,8 @@ body.printing-report #printReportContainer {
                     </button>
                   </div>
 
-                  <input type="text" id="inpCourseId" class="oca-input" placeholder="เช่น CHN-101" required oninput="updateCourseLivePreview()" style="font-family:monospace; font-weight:600; letter-spacing:0.5px;">
-                  <span style="font-size:12px; color:var(--text-muted); margin-top:3px; display:block;">ใช้เป็นรหัสอ้างอิงหลักในระบบ (เมื่อบันทึกแล้วจะไม่สามารถแก้ไขรหัสได้)</span>
+                  <input type="text" id="inpCourseId" class="oca-input" placeholder="เช่น ER001, YA001, C1001 (หรือกดสุ่มรหัส)" required oninput="updateCourseLivePreview()" style="font-family:monospace; font-weight:600; letter-spacing:0.5px;">
+                  <span id="helpCourseIdNote" style="font-size:12px; color:var(--text-muted); margin-top:3px; display:block;">สามารถระบุหรือแก้ไขรหัสคอร์สได้อย่างอิสระ (เช่น ER001, C1001)</span>
                 </div>
 
                 <!-- Course Name -->
@@ -14835,6 +14835,27 @@ body.printing-report #printReportContainer {
                   <span style="font-size:12px; color:var(--text-muted); margin-top:3px; display:block; line-height:1.4;">
                     <i class="fa-solid fa-circle-info" style="color:var(--color-gold); margin-right:4px;"></i><strong>หมายเหตุ:</strong> ระบบจะเลือกอุปกรณ์ให้อัตโนมัติเมื่อเลือกคอร์สนี้ในหน้าออกใบเสร็จ (สมุดช่องใหญ่ = ฝึกคัดลายมือ / สมุดช่องเล็ก = จดบันทึกทั่วไป)
                   </span>
+                </div>
+
+                <!-- Offered Schedules Selector -->
+                <div class="oca-input-group" style="margin-bottom:16px; background:rgba(215,166,0,0.04); border:1px solid rgba(215,166,0,0.22); border-radius:10px; padding:12px 14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
+                    <label class="oca-label" style="margin-bottom:0; display:flex; align-items:center; gap:6px;">
+                      <i class="fa-solid fa-clock" style="color:var(--color-gold);"></i>
+                      <span>รอบเวลาที่เปิดสอนคอร์สนี้ (Offered Schedules)</span>
+                      <span id="badgeCourseModalSchedCount" style="font-size:11px; padding:1px 6px; border-radius:10px; background:rgba(215,166,0,0.2); color:var(--color-gold); font-weight:600;">ทุกรอบเวลา</span>
+                    </label>
+                    <div style="display:flex; gap:6px;">
+                      <button type="button" class="oca-btn-action" onclick="toggleAllCourseModalSchedules(true)" style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#34d399; font-size:11px; padding:3px 8px; border-radius:5px; cursor:pointer;">เลือกทั้งหมด</button>
+                      <button type="button" class="oca-btn-action" onclick="toggleAllCourseModalSchedules(false)" style="background:rgba(239,68,68,0.15); border:1px solid #ef4444; color:#f87171; font-size:11px; padding:3px 8px; border-radius:5px; cursor:pointer;">ล้างทั้งหมด</button>
+                    </div>
+                  </div>
+                  <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:8px;">
+                    เลือกรอบเวลาที่อนุญาตให้นักศึกษาสมัครคอร์สนี้ (หากไม่เลือกเลย คอร์สนี้จะเปิดให้เลือกได้ในทุกรอบเวลา)
+                  </div>
+                  <div id="courseModalSchedulesList" class="oca-custom-scrollbar" style="max-height:150px; overflow-y:auto !important; overflow-x:hidden; display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:6px; padding:8px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:8px; box-sizing:border-box;">
+                    <!-- Populated dynamically by renderCourseModalSchedules() -->
+                  </div>
                 </div>
 
                 <!-- Live Preview Card -->
@@ -21704,43 +21725,66 @@ if (action === 'getDashboardStats') {
         // --- 15. COURSES, SCHEDULES & FEES MANAGEMENT ---
 
         if (action === 'saveCourse') {
-          const courseId = params.id || params.courseId || `C-${Date.now()}`;
-          const courseCode = params.code || params.id || params.courseId || courseId;
+          const courseId = String(params.id || params.courseId || `C-${Date.now()}`).trim().toUpperCase();
+          const courseCode = String(params.code || courseId).trim().toUpperCase();
+          const originalId = String(params.originalId || '').trim().toUpperCase();
+
+          // Check if there is an existing row with code === courseCode but different id to avoid courses_code_key collision
+          try {
+            const { data: existingRows } = await _supabase
+              .from('courses')
+              .select('id, code, is_active')
+              .or(`id.eq.${courseId},code.eq.${courseCode}`);
+            if (Array.isArray(existingRows) && existingRows.length > 0) {
+              for (const row of existingRows) {
+                if (row.code === courseCode && row.id !== courseId) {
+                  await _supabase.from('courses').update({ code: `${row.code}_OLD_${Date.now()}`, is_active: false }).eq('id', row.id);
+                }
+              }
+            }
+          } catch (_) {}
+
+          // If renaming from originalId to courseId
+          if (originalId && originalId !== courseId) {
+            try {
+              if (window._ocaScheduleCoursesMap && typeof window._ocaScheduleCoursesMap === 'object') {
+                Object.keys(window._ocaScheduleCoursesMap).forEach(sched => {
+                  const arr = window._ocaScheduleCoursesMap[sched];
+                  if (Array.isArray(arr) && arr.includes(originalId)) {
+                    window._ocaScheduleCoursesMap[sched] = arr.map(c => c === originalId ? courseId : c);
+                  }
+                });
+                if (typeof saveScheduleCoursesMapToSupabase === 'function') saveScheduleCoursesMapToSupabase();
+              }
+              await _supabase.from('courses').update({ is_active: false }).eq('id', originalId);
+              await _supabase.from('courses').delete().eq('id', originalId);
+              if (Array.isArray(cachedCoursesList)) {
+                cachedCoursesList = cachedCoursesList.filter(c => c.id !== originalId && c.code !== originalId);
+              }
+            } catch (_) {}
+          }
+
           const { error } = await _supabase.from('courses').upsert([{
             id: courseId,
-
             code: courseCode,
-
             name: params.name || params.courseName || 'หลักสูตรทั่วไป',
-
             price: Number(params.price) || 0,
-
             linked_book: params.materialType || params.linked_book || 'หนังสือและสมุดช่องใหญ่',
-
             is_active: true
-          }]);
+          }], { onConflict: 'id' });
 
           try {
             const actor = getAuditActor();
-
             await _supabase.from('security_audit_logs').insert([{
               action: 'COURSE_SAVED',
-
               username: actor.username,
-
               full_name: actor.fullName,
-
               role: actor.role,
-
               device_id: actor.deviceId,
-
               device_info: actor.deviceInfo,
-
-              details: `บันทึก/แก้ไขคอร์สเรียน: ${params.name || courseCode} (ราคา ฿${Number(params.price || 0).toLocaleString()})`,
-
+              details: `บันทึก/แก้ไขคอร์สเรียน: ${params.name || courseCode} (รหัส: ${courseId}, ราคา ฿${Number(params.price || 0).toLocaleString()})`,
               records: 1,
-
-              status: 'SUCCESS'
+              status: error ? 'FAILED' : 'SUCCESS'
             }]);
           } catch (_) {}
 
@@ -21758,30 +21802,28 @@ if (action === 'getDashboardStats') {
         }
 
         if (action === 'saveSchedule') {
-          const schedId = params.id || params.scheduleId || `S-${Date.now()}`;
+          const schedId = String(params.id || params.scheduleId || `S-${Date.now()}`).trim().toUpperCase();
           const schedName = params.name || params.scheduleName || 'ตารางเรียนทั่วไป';
+          const origId = String(params.originalId || '').trim().toUpperCase();
           const { error } = await _supabase.from('schedules').upsert([{
             id: schedId,
-
             name: schedName,
-
             day_time: params.day_time || params.timeSlot || schedName,
-
             learning_mode: params.learningMode || 'Hybrid',
-
             is_active: true
-          }]);
+          }], { onConflict: 'id' });
 
           if (error) {
             console.error('[Supabase saveSchedule error]', error);
             return { success: false, message: error.message };
           }
 
-          if (params.originalId && params.originalId !== schedId) {
+          if (origId && origId !== schedId) {
             try {
-              await _supabase.from('schedules').delete().eq('id', params.originalId);
+              await _supabase.from('schedules').update({ is_active: false }).eq('id', origId);
+              await _supabase.from('schedules').delete().eq('id', origId);
               if (Array.isArray(cachedSchedulesList)) {
-                cachedSchedulesList = cachedSchedulesList.filter(s => s.id !== params.originalId);
+                cachedSchedulesList = cachedSchedulesList.filter(s => s.id !== origId);
               }
             } catch (delErr) {
               console.warn('[Supabase delete old schedule error]', delErr);
@@ -29106,7 +29148,7 @@ if (action === 'getDashboardStats') {
 
           if (Array.isArray(res.schedules) && res.schedules.length > 0) {
             cachedSchedulesList = res.schedules;
-          } else {
+          } else if (!cachedSchedulesList || cachedSchedulesList.length === 0) {
             cachedSchedulesList = OFFICIAL_DEFAULT_SCHEDULES.map(s => ({ ...s }));
           }
 
@@ -30185,7 +30227,81 @@ if (action === 'getDashboardStats') {
       if (lblPriceFormatted) lblPriceFormatted.textContent = price > 0 ? (price.toLocaleString() + ' บาท') : '0 บาท';
     }
 
+    function renderCourseModalSchedules(targetCourseId) {
+      const container = document.getElementById('courseModalSchedulesList');
+      if (!container) return;
+      const targetCode = String(targetCourseId || '').trim().toUpperCase();
+      const allScheds = Array.isArray(cachedSchedulesList) && cachedSchedulesList.length > 0
+        ? cachedSchedulesList
+        : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES : []);
+      const map = window._ocaScheduleCoursesMap || {};
+      let html = '';
+      allScheds.forEach(s => {
+        const sId = s.id;
+        const mappedArr = Array.isArray(map[sId]) ? map[sId] : [];
+        const isChecked = targetCode ? (mappedArr.includes(targetCode) || mappedArr.some(c => String(c).toUpperCase() === targetCode)) : true;
+        html += '<label style="display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; background:' + (isChecked ? 'rgba(215,166,0,0.12)' : 'rgba(255,255,255,0.03)') + '; border:1px solid ' + (isChecked ? 'rgba(215,166,0,0.35)' : 'rgba(255,255,255,0.06)') + '; cursor:pointer; font-size:12px; transition:all 0.15s ease;">' +
+          '  <input type="checkbox" class="chk-course-modal-sched" value="' + escapeHtml(sId) + '" ' + (isChecked ? 'checked' : '') + ' onchange="onCourseModalSchedCheckChange(this)" style="cursor:pointer; accent-color:var(--color-gold); width:15px; height:15px;">' +
+          '  <span style="font-family:monospace; font-weight:' + (isChecked ? '700' : '500') + '; color:' + (isChecked ? 'var(--color-gold)' : '#cbd5e1') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(s.name) + '">[' + escapeHtml(sId) + '] ' + escapeHtml(s.name) + '</span>' +
+          '</label>';
+      });
+      container.innerHTML = html;
+      updateCourseModalSchedBadge();
+    }
+    window.renderCourseModalSchedules = renderCourseModalSchedules;
+
+    function onCourseModalSchedCheckChange(chk) {
+      if (!chk) return;
+      const label = chk.closest('label');
+      const span = label ? label.querySelector('span') : null;
+      if (chk.checked) {
+        if (label) {
+          label.style.background = 'rgba(215,166,0,0.12)';
+          label.style.borderColor = 'rgba(215,166,0,0.35)';
+        }
+        if (span) {
+          span.style.color = 'var(--color-gold)';
+          span.style.fontWeight = '700';
+        }
+      } else {
+        if (label) {
+          label.style.background = 'rgba(255,255,255,0.03)';
+          label.style.borderColor = 'rgba(255,255,255,0.06)';
+        }
+        if (span) {
+          span.style.color = '#cbd5e1';
+          span.style.fontWeight = '500';
+        }
+      }
+      updateCourseModalSchedBadge();
+    }
+    window.onCourseModalSchedCheckChange = onCourseModalSchedCheckChange;
+
+    function toggleAllCourseModalSchedules(checkAll) {
+      const boxes = document.querySelectorAll('#courseModalSchedulesList .chk-course-modal-sched');
+      boxes.forEach(cb => {
+        cb.checked = checkAll;
+        onCourseModalSchedCheckChange(cb);
+      });
+      updateCourseModalSchedBadge();
+    }
+    window.toggleAllCourseModalSchedules = toggleAllCourseModalSchedules;
+
+    function updateCourseModalSchedBadge() {
+      const badge = document.getElementById('badgeCourseModalSchedCount');
+      if (!badge) return;
+      const total = document.querySelectorAll('#courseModalSchedulesList .chk-course-modal-sched').length;
+      const checked = document.querySelectorAll('#courseModalSchedulesList .chk-course-modal-sched:checked').length;
+      if (checked === 0 || checked === total) {
+        badge.textContent = 'ทุกรอบเวลา';
+      } else {
+        badge.textContent = 'เปิดสอน ' + checked + '/' + total + ' รอบเวลา';
+      }
+    }
+    window.updateCourseModalSchedBadge = updateCourseModalSchedBadge;
+
     function openCourseModal(editId = null) {
+      window._editingOriginalCourseId = editId || null;
       const modal = document.getElementById('modalCourse');
       const title = document.getElementById('modalCourseTitle');
       const subtitle = document.getElementById('modalCourseSubtitle');
@@ -30196,68 +30312,86 @@ if (action === 'getDashboardStats') {
       const inpName = document.getElementById('inpCourseName');
       const inpPrice = document.getElementById('inpCoursePrice');
       const inpDesc = document.getElementById('inpCourseDesc');
-            const selMat = document.getElementById('selCourseMaterialType');
+      const selMat = document.getElementById('selCourseMaterialType');
       if (!modal) return;
+      modal.dataset.originalId = editId || '';
+
+      if (inpId) {
+        inpId.readOnly = false;
+        inpId.style.background = '';
+        inpId.style.color = '';
+        inpId.classList.remove('bg-slate-800', 'text-slate-500', 'cursor-not-allowed');
+      }
+      if (btnGen) btnGen.style.display = 'inline-flex';
 
       if (editId) {
-        const item = cachedCoursesList.find(c => c.id === editId);
+        const item = (cachedCoursesList || []).find(c => c.id === editId || c.code === editId);
 
         if (item) {
           if (title) title.textContent = 'แก้ไขข้อมูลคอร์สเรียน';
-          if (subtitle) subtitle.textContent = 'แก้ไขรายละเอียดและราคาค่าเล่าเรียน [รหัส: ' + item.id + ']';
+          if (subtitle) subtitle.textContent = 'แก้ไขรายละเอียดและราคาค่าเล่าเรียน [รหัส: ' + (item.code || item.id) + ']';
           if (badge) badge.innerHTML = '<i class="fa-solid fa-pen-to-square" style="margin-right:4px;"></i>โหมด: แก้ไขคอร์สเรียนเดิม';
-          if (btnGen) btnGen.style.display = 'none';
           if (btnSubmitText) btnSubmitText.textContent = 'บันทึกการแก้ไขคอร์ส';
 
           if (inpId) {
-            inpId.value = item.id;
-            inpId.readOnly = true;
-            inpId.style.background = 'rgba(0,0,0,0.25)';
-            inpId.style.color = 'var(--color-gold)';
+            inpId.value = item.code || item.id;
           }
 
           if (inpName) inpName.value = item.name || '';
           if (inpPrice) inpPrice.value = item.price !== undefined ? item.price : 0;
           if (inpDesc) inpDesc.value = item.desc || '';
-                    if (selMat) selMat.value = item.materialType || 'หนังสือและสมุดช่องใหญ่';
+          if (selMat) selMat.value = item.materialType || item.linked_book || 'หนังสือและสมุดช่องใหญ่';
         }
       } else {
         if (title) title.textContent = 'เพิ่มคอร์สเรียนใหม่';
         if (subtitle) subtitle.textContent = 'กำหนดรหัสคอร์ส ชื่อหลักสูตร และราคาค่าเรียน';
         if (badge) badge.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles" style="margin-right:4px;"></i>โหมด: สร้างคอร์สใหม่';
-        if (btnGen) btnGen.style.display = 'inline-flex';
         if (btnSubmitText) btnSubmitText.textContent = 'บันทึกคอร์สเรียน';
 
         if (inpId) {
-          inpId.readOnly = false;
-          inpId.style.background = '';
-          inpId.style.color = '';
-          generateNewCourseCode();
+          inpId.value = '';
+          inpId.placeholder = 'เช่น ER001, YA001, C1001 (หรือกดสุ่มรหัส)';
         }
 
         if (inpName) inpName.value = '';
         if (inpPrice) inpPrice.value = '';
         if (inpDesc) inpDesc.value = '';
-                if (selMat) selMat.value = 'หนังสือและสมุดช่องใหญ่';
+        if (selMat) selMat.value = 'หนังสือและสมุดช่องใหญ่';
       }
 
+      renderCourseModalSchedules(editId || (inpId ? inpId.value : ''));
       updateCourseLivePreview();
+      modal.style.display = 'flex';
       modal.classList.add('active');
+      if (!editId && inpId) {
+        setTimeout(() => inpId.focus(), 60);
+      }
     }
+    window.openCourseModal = openCourseModal;
 
     function closeCourseModal() {
       const modal = document.getElementById('modalCourse');
-      if (modal) modal.classList.remove('active');
+      if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = '';
+      }
     }
+    window.closeCourseModal = closeCourseModal;
 
     function submitCourseForm(e) {
       if (e) e.preventDefault();
-      const id = (document.getElementById('inpCourseId')?.value || '').trim();
+      const modal = document.getElementById('modalCourse');
+      const id = (document.getElementById('inpCourseId')?.value || '').trim().toUpperCase();
       const name = (document.getElementById('inpCourseName')?.value || '').trim();
       const price = Number(document.getElementById('inpCoursePrice')?.value) || 0;
       const desc = (document.getElementById('inpCourseDesc')?.value || '').trim();
       const materialType = (document.getElementById('selCourseMaterialType')?.value || 'หนังสือและสมุดช่องใหญ่').trim();
+      const origId = (modal?.dataset?.originalId || window._editingOriginalCourseId || '').trim().toUpperCase();
 
+      if (!id) {
+        toast('กรุณาระบุข้อมูล', 'กรุณาระบุรหัสคอร์สเรียน เช่น ER001', '⚠️');
+        return;
+      }
       if (!name) {
         toast('กรุณาระบุข้อมูล', 'กรุณาระบุชื่อคอร์สเรียน', '⚠️');
         return;
@@ -30265,9 +30399,67 @@ if (action === 'getDashboardStats') {
 
       const btnSubmit = document.getElementById('btnSubmitCourse');
       if (btnSubmit) btnSubmit.disabled = true;
+      const checkedSchedBoxes = Array.from(document.querySelectorAll('#courseModalSchedulesList .chk-course-modal-sched:checked'));
+      const checkedSchedIds = checkedSchedBoxes.map(cb => cb.value);
+      if (!window._ocaScheduleCoursesMap) window._ocaScheduleCoursesMap = {};
+      const allKnownSchedList = Array.isArray(cachedSchedulesList) && cachedSchedulesList.length > 0
+        ? cachedSchedulesList
+        : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES : []);
 
-      callGasApi('saveCourse', { id, code: id, name, price, desc, materialType })
+      if (checkedSchedIds.length > 0) {
+        allKnownSchedList.forEach(s => {
+          const sId = s.id;
+          if (!window._ocaScheduleCoursesMap[sId]) window._ocaScheduleCoursesMap[sId] = [];
+          if (origId && origId !== id) {
+            window._ocaScheduleCoursesMap[sId] = window._ocaScheduleCoursesMap[sId].filter(c => c !== origId);
+          }
+          if (checkedSchedIds.includes(sId)) {
+            if (!window._ocaScheduleCoursesMap[sId].includes(id)) {
+              window._ocaScheduleCoursesMap[sId].push(id);
+            }
+          } else {
+            window._ocaScheduleCoursesMap[sId] = window._ocaScheduleCoursesMap[sId].filter(c => c !== id);
+          }
+        });
+        if (typeof saveScheduleCoursesMapToSupabase === 'function') saveScheduleCoursesMapToSupabase();
+      } else if (origId && origId !== id) {
+        allKnownSchedList.forEach(s => {
+          const sId = s.id;
+          if (Array.isArray(window._ocaScheduleCoursesMap[sId])) {
+            window._ocaScheduleCoursesMap[sId] = window._ocaScheduleCoursesMap[sId].map(c => c === origId ? id : c);
+          }
+        });
+        if (typeof saveScheduleCoursesMapToSupabase === 'function') saveScheduleCoursesMapToSupabase();
+      }
 
+      // Immediate optimistic update
+      if (Array.isArray(cachedCoursesList)) {
+        if (origId && origId !== id) {
+          cachedCoursesList = cachedCoursesList.filter(c => c.id !== origId && c.code !== origId);
+        }
+        const existingIdx = cachedCoursesList.findIndex(c => c.id === id || c.code === id);
+        const courseObj = {
+          id,
+          code: id,
+          name,
+          price,
+          desc,
+          materialType,
+          linked_book: materialType,
+          is_active: true
+        };
+        if (existingIdx >= 0) {
+          cachedCoursesList[existingIdx] = courseObj;
+        } else {
+          cachedCoursesList.push(courseObj);
+        }
+      }
+
+      if (typeof renderCoursesTable === 'function') renderCoursesTable(cachedCoursesList);
+      if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
+      if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
+
+      callGasApi('saveCourse', { id, code: id, originalId: origId, name, price, desc, materialType })
         .then(res => {
           if (btnSubmit) btnSubmit.disabled = false;
 
@@ -30275,16 +30467,18 @@ if (action === 'getDashboardStats') {
             closeCourseModal();
             toast('สำเร็จ', 'บันทึกคอร์ส ' + name + ' เรียบร้อย', '✓');
             loadCoursesManager();
+            if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
+            if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
           } else {
             showModal('ข้อผิดพลาด', (res && res.message) || 'ไม่สามารถบันทึกคอร์สเรียนได้', '❌');
           }
         })
-
         .catch(err => {
           if (btnSubmit) btnSubmit.disabled = false;
           showModal('ข้อผิดพลาด', 'ไม่สามารถบันทึกคอร์สเรียนได้: ' + (err.message || ''), '❌');
         });
     }
+    window.submitCourseForm = submitCourseForm;
 
     function deleteCourseItem(id, name) {
       showConfirmModal({
@@ -30443,47 +30637,56 @@ if (action === 'getDashboardStats') {
       if (!scheduleIdOrName) return [];
       const raw = String(scheduleIdOrName).trim();
       const map = window._ocaScheduleCoursesMap || DEFAULT_SCHEDULE_COURSES_MAP;
+      let offered = [];
 
       if (map[raw] && Array.isArray(map[raw]) && map[raw].length > 0) {
-        return map[raw];
+        offered = [...map[raw]];
+      } else {
+        const idMatch = raw.match(/\b(SCH-\d+)\b/i);
+        if (idMatch && map[idMatch[1].toUpperCase()] && map[idMatch[1].toUpperCase()].length > 0) {
+          offered = [...map[idMatch[1].toUpperCase()]];
+        } else {
+          const low = raw.toLowerCase();
+          if ((low.includes('จันทร์') || low.includes('พุธ')) && (low.includes('18.30') || low.includes('18:30'))) {
+            offered = [...(map['SCH-01'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-01'] || [])];
+          } else if ((low.includes('อังคาร') || low.includes('พฤหัส')) && (low.includes('09.30') || low.includes('9.30') || low.includes('09:30'))) {
+            offered = [...(map['SCH-02'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-02'] || [])];
+          } else if ((low.includes('อังคาร') || low.includes('พฤหัส')) && (low.includes('13.30') || low.includes('13:30'))) {
+            offered = [...(map['SCH-03'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-03'] || [])];
+          } else if ((low.includes('อังคาร') || low.includes('พฤหัส')) && (low.includes('18.30') || low.includes('18:30'))) {
+            offered = [...(map['SCH-04'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-04'] || [])];
+          } else if (low.includes('เสาร์') && low.includes('อาทิตย์') && (low.includes('09.30') || low.includes('9.30') || low.includes('09:30'))) {
+            offered = [...(map['SCH-05'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-05'] || [])];
+          } else if (low.includes('เสาร์') && !low.includes('อาทิตย์') && (low.includes('09.00') || low.includes('9.00') || low.includes('09:00') || low.includes('08.00') || low.includes('8.00'))) {
+            offered = [...(map['SCH-15'] || map['SCH-08'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-15'] || [])];
+          } else if (low.includes('อาทิตย์') && !low.includes('เสาร์') && (low.includes('09.00') || low.includes('9.00') || low.includes('09:00') || low.includes('08.00') || low.includes('8.00'))) {
+            offered = [...(map['SCH-16'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-16'] || [])];
+          } else if (low.includes('เสาร์') && (low.includes('13.00') || low.includes('13:00') || low.includes('17.30') || low.includes('18.00') || low.includes('18:00'))) {
+            offered = [...(map['SCH-06'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-06'] || [])];
+          } else if (low.includes('อาทิตย์') && (low.includes('13.00') || low.includes('13:00') || low.includes('17.30') || low.includes('18.00') || low.includes('18:00'))) {
+            offered = [...(map['SCH-07'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-07'] || [])];
+          } else if (map[raw] && Array.isArray(map[raw])) {
+            offered = [...map[raw]];
+          }
+        }
       }
 
-      const idMatch = raw.match(/\b(SCH-\d+)\b/i);
-      if (idMatch && map[idMatch[1].toUpperCase()] && map[idMatch[1].toUpperCase()].length > 0) {
-        return map[idMatch[1].toUpperCase()];
+      // If cachedCoursesList has courses that are not listed in ANY schedule in map, automatically allow them across all schedules
+      if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0) {
+        const allMappedCodes = new Set();
+        Object.values(map).forEach(arr => {
+          if (Array.isArray(arr)) arr.forEach(c => allMappedCodes.add(String(c).trim().toUpperCase()));
+        });
+        const unmapped = cachedCoursesList
+          .filter(c => c && c.is_active !== false && !allMappedCodes.has(String(c.id || c.code || '').trim().toUpperCase()))
+          .map(c => c.id || c.code);
+        if (unmapped.length > 0) {
+          const combined = new Set([...offered, ...unmapped]);
+          return Array.from(combined);
+        }
       }
 
-      const low = raw.toLowerCase();
-      if ((low.includes('จันทร์') || low.includes('พุธ')) && (low.includes('18.30') || low.includes('18:30'))) {
-        return map['SCH-01'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-01'];
-      }
-      if ((low.includes('อังคาร') || low.includes('พฤหัส')) && (low.includes('09.30') || low.includes('9.30') || low.includes('09:30'))) {
-        return map['SCH-02'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-02'];
-      }
-      if ((low.includes('อังคาร') || low.includes('พฤหัส')) && (low.includes('13.30') || low.includes('13:30'))) {
-        return map['SCH-03'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-03'];
-      }
-      if ((low.includes('อังคาร') || low.includes('พฤหัส')) && (low.includes('18.30') || low.includes('18:30'))) {
-        return map['SCH-04'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-04'];
-      }
-      if (low.includes('เสาร์') && low.includes('อาทิตย์') && (low.includes('09.30') || low.includes('9.30') || low.includes('09:30'))) {
-        return map['SCH-05'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-05'];
-      }
-      if (low.includes('เสาร์') && !low.includes('อาทิตย์') && (low.includes('09.00') || low.includes('9.00') || low.includes('09:00') || low.includes('08.00') || low.includes('8.00'))) {
-        return map['SCH-15'] || map['SCH-08'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-15'];
-      }
-      if (low.includes('อาทิตย์') && !low.includes('เสาร์') && (low.includes('09.00') || low.includes('9.00') || low.includes('09:00') || low.includes('08.00') || low.includes('8.00'))) {
-        return map['SCH-16'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-16'];
-      }
-      if (low.includes('เสาร์') && (low.includes('13.00') || low.includes('13:00') || low.includes('17.30') || low.includes('18.00') || low.includes('18:00'))) {
-        return map['SCH-06'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-06'];
-      }
-      if (low.includes('อาทิตย์') && (low.includes('13.00') || low.includes('13:00') || low.includes('17.30') || low.includes('18.00') || low.includes('18:00'))) {
-        return map['SCH-07'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-07'];
-      }
-
-      if (map[raw] && Array.isArray(map[raw])) return map[raw];
-      return [];
+      return offered;
     }
     window.getOfferedCourseCodesForSchedule = getOfferedCourseCodesForSchedule;
 
@@ -30653,7 +30856,7 @@ if (action === 'getDashboardStats') {
       if (!modal) return;
 
       if (editId) {
-        const item = cachedSchedulesList.find(s => s.id === editId);
+        const item = (cachedSchedulesList || []).find(s => s.id === editId);
 
         if (item) {
           if (title) title.textContent = 'แก้ไขรอบเวลาเรียน';
@@ -30682,8 +30885,16 @@ if (action === 'getDashboardStats') {
           inpId.readOnly = false;
           inpId.style.background = '';
           inpId.style.color = '';
-          const count = (cachedSchedulesList || []).length + 1;
-          inpId.value = 'SCH-' + String(count).padStart(2, '0');
+          let maxNum = 25;
+          const allKnown = [...(cachedSchedulesList || []), ...(typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES : [])];
+          allKnown.forEach(s => {
+            const m = String(s.id || '').match(/SCH-(\d+)/i);
+            if (m) {
+              const num = parseInt(m[1], 10);
+              if (!isNaN(num) && num > maxNum) maxNum = num;
+            }
+          });
+          inpId.value = 'SCH-' + String(maxNum + 1).padStart(2, '0');
         }
 
         if (inpName) inpName.value = '';
@@ -30694,19 +30905,25 @@ if (action === 'getDashboardStats') {
       if (inpFilter) inpFilter.value = '';
       renderScheduleCourseCheckboxes();
       updateScheduleLivePreview();
+      modal.style.display = 'flex';
       modal.classList.add('active');
     }
+    window.openScheduleModal = openScheduleModal;
 
     function closeScheduleModal() {
       const modal = document.getElementById('modalSchedule');
-      if (modal) modal.classList.remove('active');
+      if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = '';
+      }
     }
+    window.closeScheduleModal = closeScheduleModal;
 
     function submitScheduleForm(e) {
       if (e) e.preventDefault();
-      const id = (document.getElementById('inpScheduleId')?.value || '').trim();
+      const id = (document.getElementById('inpScheduleId')?.value || '').trim().toUpperCase();
       const name = (document.getElementById('inpScheduleName')?.value || '').trim();
-      const origId = window._editingOriginalScheduleId || '';
+      const origId = (window._editingOriginalScheduleId || '').trim().toUpperCase();
 
       if (!id) {
         toast('กรุณาระบุข้อมูล', 'กรุณาระบุรหัสรอบเวลาเรียน', '⚠️');
@@ -30729,6 +30946,24 @@ if (action === 'getDashboardStats') {
       window._ocaScheduleCoursesMap[id] = selectedCoursesArray;
       saveScheduleCoursesMapToSupabase();
 
+      // Immediate optimistic update
+      if (Array.isArray(cachedSchedulesList)) {
+        if (origId && origId !== id) {
+          cachedSchedulesList = cachedSchedulesList.filter(s => s.id !== origId);
+        }
+        const existingIdx = cachedSchedulesList.findIndex(s => s.id === id);
+        const schedObj = { id, name, day_time: name, learning_mode: 'Hybrid', is_active: true };
+        if (existingIdx >= 0) {
+          cachedSchedulesList[existingIdx] = schedObj;
+        } else {
+          cachedSchedulesList.push(schedObj);
+        }
+      }
+
+      if (typeof renderSchedulesTable === 'function') renderSchedulesTable(cachedSchedulesList);
+      if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
+      if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
+
       callGasApi('saveSchedule', { id, originalId: origId, name, day_time: name, learningMode: 'Hybrid' })
         .then(res => {
           if (btnSubmit) btnSubmit.disabled = false;
@@ -30748,6 +30983,7 @@ if (action === 'getDashboardStats') {
           showModal('ข้อผิดพลาด', 'ไม่สามารถบันทึกรอบเวลาเรียนได้: ' + (err.message || ''), '❌');
         });
     }
+    window.submitScheduleForm = submitScheduleForm;
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -54958,7 +55194,7 @@ function openPublicRegisterView() {
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-17';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-18';
 
       // Auto-refresh on SW update with state preservation & toast notice
       let isRefreshing = false;
@@ -54974,7 +55210,7 @@ function openPublicRegisterView() {
           }
         } catch(_) {}
         if (typeof showToast === 'function') {
-          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-17)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
+          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-18)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
         }
         setTimeout(function() {
           window.location.reload();
@@ -54989,7 +55225,7 @@ function openPublicRegisterView() {
             if (w.state === 'installed' && navigator.serviceWorker.controller) w.postMessage({ type: 'SKIP_WAITING' });
           });
         });
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-17):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-18):', reg.scope);
         if (typeof reg.update === 'function') reg.update();
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
