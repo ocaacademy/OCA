@@ -2404,9 +2404,13 @@
         border-radius: 50%;
       }
 
-      #oca-app-root .oca-user-profile { padding: 4px; gap: 4px; }
+      #oca-app-root .oca-user-profile { display: flex; align-items: center; gap: 5px; padding: 3px 6px 3px 3px; max-width: 130px; min-width: 0; }
 
-      #oca-app-root .oca-user-info { display: none; }
+      #oca-app-root .oca-user-info { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+      #oca-app-root .oca-user-name { display: block; font-size: 11px; max-width: 85px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+      #oca-app-root .oca-user-role { display: none; }
 
       #oca-app-root .oca-content-canvas { padding: 12px 8px; }
 
@@ -5160,11 +5164,31 @@ body.printing-report #printReportContainer {
       }
 
       #oca-app-root .oca-user-profile {
-        padding: 2px !important;
-        gap: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 5px !important;
+        padding: 3px 6px 3px 3px !important;
+        max-width: 130px !important;
+        min-width: 0 !important;
       }
 
       #oca-app-root .oca-user-info {
+        display: flex !important;
+        flex-direction: column !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+      }
+
+      #oca-app-root .oca-user-name {
+        display: block !important;
+        font-size: 11px !important;
+        max-width: 85px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+
+      #oca-app-root .oca-user-role {
         display: none !important;
       }
 
@@ -6468,7 +6492,29 @@ body.printing-report #printReportContainer {
       #oca-app-root .oca-topbar-title-en {
         display: none !important;
       }
+      #oca-app-root .oca-user-profile {
+        display: flex !important;
+        align-items: center !important;
+        gap: 5px !important;
+        padding: 3px 6px 3px 3px !important;
+        max-width: 130px !important;
+        min-width: 0 !important;
+      }
       #oca-app-root .oca-user-info {
+        display: flex !important;
+        flex-direction: column !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+      }
+      #oca-app-root .oca-user-name {
+        display: block !important;
+        font-size: 11px !important;
+        max-width: 85px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+      #oca-app-root .oca-user-role {
         display: none !important;
       }
       #oca-app-root .oca-btn-logout span {
@@ -6679,11 +6725,20 @@ body.printing-report #printReportContainer {
     #oca-app-root .oca-topbar-title-en {
       display: none !important;
     }
+    #oca-app-root .oca-user-profile {
+      display: flex !important;
+      align-items: center !important;
+      gap: 5px !important;
+      padding: 3px 6px 3px 3px !important;
+      max-width: 130px !important;
+      min-width: 0 !important;
+    }
     #oca-app-root .oca-user-info {
       display: flex !important;
       flex-direction: column !important;
       justify-content: center !important;
       min-width: 0 !important;
+      overflow: hidden !important;
     }
     #oca-app-root .oca-user-name {
       display: block !important;
@@ -6693,7 +6748,7 @@ body.printing-report #printReportContainer {
       white-space: nowrap !important;
       overflow: hidden !important;
       text-overflow: ellipsis !important;
-      max-width: 95px !important;
+      max-width: 85px !important;
     }
     #oca-app-root .oca-user-role {
       display: none !important;
@@ -7540,7 +7595,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-20';
+      var LATEST_VERSION = 'oca-pwa-v358-21';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -25908,6 +25963,8 @@ if (action === 'getDashboardStats') {
     // =========================================================================
 
     function applyReceiptPreset(type) {
+      window._rcptDiscountNormalUserEdited = false;
+      window._rcptDiscountNormalCustomVal = undefined;
       document.getElementById('btnPresetNewStudent')?.classList.remove('active');
       document.getElementById('btnPresetRenewal')?.classList.remove('active');
       document.getElementById('btnPresetBookOnly')?.classList.remove('active');
@@ -29134,7 +29191,11 @@ if (action === 'getDashboardStats') {
           const chkEl = document.getElementById(feeChkMap[k]);
           if (inpEl && chkEl) {
             const st = getFeeItemStatus(item);
-            inpEl.value = (chkEl.checked && st.active) ? rawAmount : 0;
+            if (k === 'discountNormal' && window._rcptDiscountNormalUserEdited) {
+              inpEl.value = (chkEl.checked && st.active) ? (window._rcptDiscountNormalCustomVal != null ? window._rcptDiscountNormalCustomVal : inpEl.value) : 0;
+            } else {
+              inpEl.value = (chkEl.checked && st.active) ? rawAmount : 0;
+            }
             if (tileMap[k]) {
               document.getElementById(tileMap[k])?.classList.toggle('active', !!chkEl.checked);
             }
@@ -33522,6 +33583,8 @@ if (action === 'getDashboardStats') {
      */
 
     function selectReceiptStudent(studentId) {
+      window._rcptDiscountNormalUserEdited = false;
+      window._rcptDiscountNormalCustomVal = undefined;
       const dropdown = document.getElementById('listRcptSearchResults');
       if (dropdown) dropdown.style.display = 'none';
 
@@ -34351,11 +34414,13 @@ if (action === 'getDashboardStats') {
     function onCustomDiscountNormalInput(val) {
       const chk = document.getElementById('chkRcptApplyDiscountNormal');
       const num = Math.max(0, Number(val) || 0);
+      window._rcptDiscountNormalUserEdited = true;
+      window._rcptDiscountNormalCustomVal = num;
       if (chk) chk.checked = (num > 0);
       const tile = document.getElementById('tileRcptDiscountNormal');
       if (tile) {
-        if (num > 0) tile.classList.add('selected');
-        else tile.classList.remove('selected');
+        tile.classList.toggle('active', num > 0);
+        tile.classList.toggle('selected', num > 0);
       }
       if (typeof calcReceiptTotals === 'function') calcReceiptTotals();
     }
@@ -34504,6 +34569,9 @@ if (action === 'getDashboardStats') {
               inp.value = 0;
             }
           } else {
+            if (feeType === 'discountNormal' && window._rcptDiscountNormalUserEdited) {
+              amt = Number(window._rcptDiscountNormalCustomVal != null ? window._rcptDiscountNormalCustomVal : inp.value) || 0;
+            }
             inp.value = amt;
 
             if (feeType === 'discountOther') {
@@ -34557,8 +34625,11 @@ if (action === 'getDashboardStats') {
       if (feeType === 'discountNormal') {
         const chk = document.getElementById('chkRcptApplyDiscountNormal');
         const val = Number(document.getElementById('inpRcptDiscountNormal')?.value) || 0;
+        window._rcptDiscountNormalUserEdited = true;
+        window._rcptDiscountNormalCustomVal = val;
         if (chk) chk.checked = val > 0;
         document.getElementById('boxDiscountNormal')?.classList.toggle('active', val > 0);
+        document.getElementById('tileRcptDiscountNormal')?.classList.toggle('active', val > 0);
       } else if (feeType === 'discountOther') {
         const chk = document.getElementById('chkRcptApplyDiscountOther');
         const val = Number(document.getElementById('inpRcptDiscountOther')?.value) || 0;
@@ -35000,6 +35071,8 @@ if (action === 'getDashboardStats') {
      */
 
     function resetReceiptFormAfterSuccess(issuedReceiptNo) {
+      window._rcptDiscountNormalUserEdited = false;
+      window._rcptDiscountNormalCustomVal = undefined;
       const boxSlipBanner = document.getElementById('boxReceiptAttachedSlipBanner');
       if (boxSlipBanner) boxSlipBanner.style.display = 'none';
       // 1. เคลียร์ข้อมูลการค้นหานักศึกษาและสถานะเดิม
@@ -35552,6 +35625,8 @@ if (action === 'getDashboardStats') {
     }
 
     function resetReceiptForm() {
+      window._rcptDiscountNormalUserEdited = false;
+      window._rcptDiscountNormalCustomVal = undefined;
       if (typeof onPaymentMethodCheckboxChanged === 'function') {
         onPaymentMethodCheckboxChanged('โอนเงิน');
       }
@@ -56214,7 +56289,7 @@ function openPublicRegisterView() {
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-20';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-21';
 
       // Auto-refresh on SW update with state preservation & toast notice
       let isRefreshing = false;
@@ -56230,7 +56305,7 @@ function openPublicRegisterView() {
           }
         } catch(_) {}
         if (typeof showToast === 'function') {
-          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-20)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
+          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-21)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
         }
         setTimeout(function() {
           window.location.reload();
@@ -56245,7 +56320,7 @@ function openPublicRegisterView() {
             if (w.state === 'installed' && navigator.serviceWorker.controller) w.postMessage({ type: 'SKIP_WAITING' });
           });
         });
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-20):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-21):', reg.scope);
         if (typeof reg.update === 'function') reg.update();
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
