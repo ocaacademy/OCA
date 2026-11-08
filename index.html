@@ -7489,7 +7489,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-16';
+      var LATEST_VERSION = 'oca-pwa-v358-17';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -7518,16 +7518,15 @@ body.printing-report #printReportContainer {
     window.__ocaWaitingForInstallPrompt = false;
 
     window.addEventListener('beforeinstallprompt', function (ev) {
-      ev.preventDefault();
-      window.__ocaDeferredPrompt = ev;
-
       if (window.__ocaWaitingForInstallPrompt) {
+        ev.preventDefault();
         window.__ocaWaitingForInstallPrompt = false;
 
         if (typeof triggerPwaInstall === 'function') {
           triggerPwaInstall();
         }
       }
+      window.__ocaDeferredPrompt = ev;
     });
 
     window.addEventListener('appinstalled', function () {
@@ -8490,15 +8489,15 @@ body.printing-report #printReportContainer {
                   </div>
                   <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-bottom:12px;">
                     <div>
-                      <label for="selEnrollCourse" class="oca-label" style="font-size:12.5px; margin-bottom:4px;">หลักสูตรที่ลงทะเบียนเรียน *</label>
-                      <select id="selEnrollCourse" class="oca-input" required onchange="updateEnrollCourseFeeDisplay()">
-                        <option value="">-- กำลังโหลดรายชื่อหลักสูตร --</option>
+                      <label for="selEnrollSchedule" class="oca-label" style="font-size:12.5px; margin-bottom:4px;">1. รอบเวลาเรียน *</label>
+                      <select id="selEnrollSchedule" class="oca-input" required onchange="onEnrollScheduleChanged()">
+                        <option value="">-- กำลังโหลดรอบเวลาเรียน --</option>
                       </select>
                     </div>
                     <div>
-                      <label for="selEnrollSchedule" class="oca-label" style="font-size:12.5px; margin-bottom:4px;">รอบเวลาเรียน *</label>
-                      <select id="selEnrollSchedule" class="oca-input" required>
-                        <option value="">-- กำลังโหลดรอบเวลาเรียน --</option>
+                      <label for="selEnrollCourse" class="oca-label" style="font-size:12.5px; margin-bottom:4px;">2. หลักสูตรที่ลงทะเบียนเรียน *</label>
+                      <select id="selEnrollCourse" class="oca-input" required onchange="updateEnrollCourseFeeDisplay()">
+                        <option value="">-- กรุณาเลือกรอบเวลาเรียนก่อน --</option>
                       </select>
                     </div>
                   </div>
@@ -8531,15 +8530,16 @@ body.printing-report #printReportContainer {
                   </div>
                   <!-- 2-Column Responsive Layout -->
                   <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:14px;">
+                    <!-- Hidden File Inputs placed outside DropZone to avoid event bubbling / activation conflicts -->
+                    <input type="file" id="fileEnrollSlipInput" accept="image/*" class="hidden" onchange="handleEnrollSlipUpload(this)" onclick="event.stopPropagation()" style="display:none;">
+                    <input type="file" id="fileEnrollSlipCameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleEnrollSlipUpload(this)" onclick="event.stopPropagation()" style="display:none;">
                     <!-- Left: Dropzone -->
                     <div id="boxEnrollSlipDropZone"
                          ondragover="handleEnrollSlipDragOver(event)"
                          ondragleave="handleEnrollSlipDragLeave(event)"
                          ondrop="handleEnrollSlipDrop(event)"
-                         onclick="triggerEnrollSlipFileInput()"
+                         onclick="triggerEnrollSlipFileInput(event)"
                          style="background:rgba(15,23,42,0.6); border:2px dashed #475569; border-radius:10px; padding:18px 14px; text-align:center; cursor:pointer; transition:all 0.2s ease; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:165px;">
-                      <input type="file" id="fileEnrollSlipInput" accept="image/*" class="hidden" onchange="handleEnrollSlipUpload(this)" style="display:none;">
-                      <input type="file" id="fileEnrollSlipCameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleEnrollSlipUpload(this)" style="display:none;">
                       <div style="width:44px; height:44px; border-radius:50%; background:rgba(56,189,248,0.12); display:flex; align-items:center; justify-content:center; margin-bottom:8px; color:#38BDF8; font-size:20px;">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
                       </div>
@@ -9236,6 +9236,18 @@ body.printing-report #printReportContainer {
           <!-- General Fees & Discounts Card Container -->
           <div id="containerCoursesFeeCard">
             <!-- General Fees & Discounts Card (การตั้งค่าอัตราค่าธรรมเนียมและส่วนลดทั่วไป) -->
+            <style>
+              #cardGeneralFeeSettings input[type="date"] {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                min-height: 36px !important;
+                font-size: 13px !important;
+                padding: 5px 10px !important;
+                box-sizing: border-box !important;
+                cursor: pointer;
+              }
+            </style>
             <div id="cardGeneralFeeSettings" class="oca-chart-card" style="margin-bottom:20px;">
             <div class="oca-chart-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
               <span><i class="fa-solid fa-sliders" style="color:var(--color-gold); margin-right:6px;"></i>ตั้งค่าอัตราค่าธรรมเนียมและส่วนลดทั่วไป (General Fees & Discounts)</span>
@@ -9251,7 +9263,7 @@ body.printing-report #printReportContainer {
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px;">
               <!-- [ANCHOR: GENERAL_FEE_SETTINGS] ตั้งค่าอัตราค่าธรรมเนียมและส่วนลดทั่วไป 5 รายการ -->
               <!-- 1. ค่าเล่าเรียน -->
-              <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;">
+              <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px; min-width:0; overflow:hidden;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
                   <span style="font-weight:600; font-size:13px; color:var(--color-gold);"><i class="fa-solid fa-graduation-cap" style="margin-right:5px;"></i>1. ค่าเล่าเรียน</span>
                   <span id="badgeFeeStatus_tuitionFee" style="font-size:12px; padding:2px 8px; border-radius:12px; font-weight:500;"><i class="fa-solid fa-infinity" style="margin-right:3px;"></i> ใช้ตลอดไป</span>
@@ -9270,20 +9282,20 @@ body.printing-report #printReportContainer {
                     <i class="fa-solid fa-circle-info" style="color:var(--color-gold); margin-right:3px;"></i><strong>หมายเหตุ:</strong> เลือก "ใช้ตลอดไป" เพื่อใช้อัตราค่าเล่าเรียนนี้เป็นค่าเริ่มต้น
                   </div>
                 </div>
-                <div id="boxDateRange_tuitionFee" style="display:none; grid-template-columns:1fr 1fr; gap:8px; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px dashed rgba(255,255,255,0.1);">
+                <div id="boxDateRange_tuitionFee" style="display:none; grid-template-columns:1fr; gap:8px; width:100%; min-width:0; box-sizing:border-box; overflow:hidden; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px dashed rgba(255,255,255,0.1);">
                   <div>
                     <label class="oca-label" style="font-size:12px;" for="cfgStart_tuitionFee">เริ่มวันที่</label>
-                    <input type="date" id="cfgStart_tuitionFee" class="oca-input" style="font-size:12px; padding:4px 6px;" onchange="updateFeeSettingStatusPreview('tuitionFee')">
+                    <input type="date" id="cfgStart_tuitionFee" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('tuitionFee')">
                   </div>
                   <div>
                     <label class="oca-label" style="font-size:12px;" for="cfgEnd_tuitionFee">ถึงวันที่</label>
-                    <input type="date" id="cfgEnd_tuitionFee" class="oca-input" style="font-size:12px; padding:4px 6px;" onchange="updateFeeSettingStatusPreview('tuitionFee')">
+                    <input type="date" id="cfgEnd_tuitionFee" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('tuitionFee')">
                   </div>
                 </div>
               </div>
 
               <!-- 2. ค่าลงทะเบียน -->
-              <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;">
+              <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px; min-width:0; overflow:hidden;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
                   <span style="font-weight:600; font-size:13px; color:var(--color-gold);"><i class="fa-solid fa-file-pen" style="margin-right:5px;"></i>2. ค่าลงทะเบียน</span>
                   <span id="badgeFeeStatus_regFee" style="font-size:12px; padding:2px 8px; border-radius:12px; font-weight:500;"><i class="fa-solid fa-infinity" style="margin-right:3px;"></i> ใช้ตลอดไป</span>
@@ -9302,20 +9314,20 @@ body.printing-report #printReportContainer {
                     <i class="fa-solid fa-circle-info" style="color:var(--color-gold); margin-right:3px;"></i><strong>หมายเหตุ:</strong> เลือก "ใช้ตลอดไป" เพื่อให้ค่าธรรมเนียมนี้มีผลใช้งานถาวรโดยอัตโนมัติ
                   </div>
                 </div>
-                <div id="boxDateRange_regFee" style="display:none; grid-template-columns:1fr 1fr; gap:8px; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px dashed rgba(255,255,255,0.1);">
+                <div id="boxDateRange_regFee" style="display:none; grid-template-columns:1fr; gap:8px; width:100%; min-width:0; box-sizing:border-box; overflow:hidden; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px dashed rgba(255,255,255,0.1);">
                   <div>
                     <label class="oca-label" style="font-size:12px;" for="cfgStart_regFee">เริ่มวันที่</label>
-                    <input type="date" id="cfgStart_regFee" class="oca-input" style="font-size:12px; padding:4px 6px;" onchange="updateFeeSettingStatusPreview('regFee')">
+                    <input type="date" id="cfgStart_regFee" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('regFee')">
                   </div>
                   <div>
                     <label class="oca-label" style="font-size:12px;" for="cfgEnd_regFee">ถึงวันที่</label>
-                    <input type="date" id="cfgEnd_regFee" class="oca-input" style="font-size:12px; padding:4px 6px;" onchange="updateFeeSettingStatusPreview('regFee')">
+                    <input type="date" id="cfgEnd_regFee" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('regFee')">
                   </div>
                 </div>
               </div>
 
               <!-- 3. ค่าลงทะเบียนอื่นๆ -->
-              <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;">
+              <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px; min-width:0; overflow:hidden;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
                   <span style="font-weight:600; font-size:13px; color:var(--color-gold);"><i class="fa-solid fa-folder-plus" style="margin-right:5px;"></i>3. ค่าลงทะเบียนอื่นๆ</span>
                   <span id="badgeFeeStatus_otherRegFee" style="font-size:12px; padding:2px 8px; border-radius:12px; font-weight:500;"><i class="fa-solid fa-infinity" style="margin-right:3px;"></i> ใช้ตลอดไป</span>
@@ -9334,20 +9346,20 @@ body.printing-report #printReportContainer {
                     <i class="fa-solid fa-circle-info" style="color:var(--color-gold); margin-right:3px;"></i><strong>หมายเหตุ:</strong> เลือก "ใช้ตลอดไป" เพื่อให้ค่าธรรมเนียมนี้มีผลใช้งานถาวรโดยอัตโนมัติ
                   </div>
                 </div>
-                <div id="boxDateRange_otherRegFee" style="display:none; grid-template-columns:1fr 1fr; gap:8px; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px dashed rgba(255,255,255,0.1);">
+                <div id="boxDateRange_otherRegFee" style="display:none; grid-template-columns:1fr; gap:8px; width:100%; min-width:0; box-sizing:border-box; overflow:hidden; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px dashed rgba(255,255,255,0.1);">
                   <div>
                     <label class="oca-label" style="font-size:12px;" for="cfgStart_otherRegFee">เริ่มวันที่</label>
-                    <input type="date" id="cfgStart_otherRegFee" class="oca-input" style="font-size:12px; padding:4px 6px;" onchange="updateFeeSettingStatusPreview('otherRegFee')">
+                    <input type="date" id="cfgStart_otherRegFee" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('otherRegFee')">
                   </div>
                   <div>
                     <label class="oca-label" style="font-size:12px;" for="cfgEnd_otherRegFee">ถึงวันที่</label>
-                    <input type="date" id="cfgEnd_otherRegFee" class="oca-input" style="font-size:12px; padding:4px 6px;" onchange="updateFeeSettingStatusPreview('otherRegFee')">
+                    <input type="date" id="cfgEnd_otherRegFee" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('otherRegFee')">
                   </div>
                 </div>
               </div>
 
               <!-- 4. ส่วนลดปกติ -->
-              <div style="background:rgba(16,185,129,0.04); border:1px solid rgba(16,185,129,0.2); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;">
+              <div style="background:rgba(16,185,129,0.04); border:1px solid rgba(16,185,129,0.2); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px; min-width:0; overflow:hidden;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
                   <span style="font-weight:600; font-size:13px; color:#34d399;"><i class="fa-solid fa-tag" style="margin-right:5px;"></i>4. ส่วนลดปกติ</span>
                   <span id="badgeFeeStatus_discountNormal" style="font-size:12px; padding:2px 8px; border-radius:12px; font-weight:500;"><i class="fa-solid fa-infinity" style="margin-right:3px;"></i> ใช้ตลอดไป</span>
@@ -9366,20 +9378,20 @@ body.printing-report #printReportContainer {
                     <i class="fa-solid fa-circle-info" style="color:#34d399; margin-right:3px;"></i><strong>หมายเหตุ:</strong> เลือก "ใช้ตลอดไป" เพื่อให้ส่วนลดนี้มีผลใช้งานถาวรโดยอัตโนมัติ
                   </div>
                 </div>
-                <div id="boxDateRange_discountNormal" style="display:none; grid-template-columns:1fr 1fr; gap:8px; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px dashed rgba(16,185,129,0.2);">
+                <div id="boxDateRange_discountNormal" style="display:none; grid-template-columns:1fr; gap:8px; width:100%; min-width:0; box-sizing:border-box; overflow:hidden; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px dashed rgba(16,185,129,0.2);">
                   <div>
                     <label class="oca-label" style="font-size:12px;" for="cfgStart_discountNormal">เริ่มวันที่</label>
-                    <input type="date" id="cfgStart_discountNormal" class="oca-input" style="font-size:12px; padding:4px 6px;" onchange="updateFeeSettingStatusPreview('discountNormal')">
+                    <input type="date" id="cfgStart_discountNormal" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('discountNormal')">
                   </div>
                   <div>
                     <label class="oca-label" style="font-size:12px;" for="cfgEnd_discountNormal">ถึงวันที่</label>
-                    <input type="date" id="cfgEnd_discountNormal" class="oca-input" style="font-size:12px; padding:4px 6px;" onchange="updateFeeSettingStatusPreview('discountNormal')">
+                    <input type="date" id="cfgEnd_discountNormal" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('discountNormal')">
                   </div>
                 </div>
               </div>
 
               <!-- 5. ส่วนลดอื่นๆ -->
-              <div style="background:rgba(16,185,129,0.04); border:1px solid rgba(16,185,129,0.2); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;">
+              <div style="background:rgba(16,185,129,0.04); border:1px solid rgba(16,185,129,0.2); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px; min-width:0; overflow:hidden;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
                   <span style="font-weight:600; font-size:13px; color:#34d399;"><i class="fa-solid fa-gift" style="margin-right:5px;"></i>5. ส่วนลดอื่นๆ</span>
                   <span id="badgeFeeStatus_discountOther" style="font-size:12px; padding:2px 8px; border-radius:12px; font-weight:500;"><i class="fa-solid fa-infinity" style="margin-right:3px;"></i> ใช้ตลอดไป</span>
@@ -9398,14 +9410,14 @@ body.printing-report #printReportContainer {
                     <i class="fa-solid fa-circle-info" style="color:#34d399; margin-right:3px;"></i><strong>หมายเหตุ:</strong> เลือก "ใช้ตลอดไป" เพื่อให้ส่วนลดนี้มีผลใช้งานถาวรโดยอัตโนมัติ
                   </div>
                 </div>
-                <div id="boxDateRange_discountOther" style="display:none; grid-template-columns:1fr 1fr; gap:8px; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px dashed rgba(16,185,129,0.2);">
+                <div id="boxDateRange_discountOther" style="display:none; grid-template-columns:1fr; gap:8px; width:100%; min-width:0; box-sizing:border-box; overflow:hidden; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px dashed rgba(16,185,129,0.2);">
                   <div>
                     <label class="oca-label" style="font-size:12px;" for="cfgStart_discountOther">เริ่มวันที่</label>
-                    <input type="date" id="cfgStart_discountOther" class="oca-input" style="font-size:12px; padding:4px 6px;" onchange="updateFeeSettingStatusPreview('discountOther')">
+                    <input type="date" id="cfgStart_discountOther" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('discountOther')">
                   </div>
                   <div>
                     <label class="oca-label" style="font-size:12px;" for="cfgEnd_discountOther">ถึงวันที่</label>
-                    <input type="date" id="cfgEnd_discountOther" class="oca-input" style="font-size:12px; padding:4px 6px;" onchange="updateFeeSettingStatusPreview('discountOther')">
+                    <input type="date" id="cfgEnd_discountOther" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('discountOther')">
                   </div>
                 </div>
               </div>
@@ -14904,6 +14916,41 @@ body.printing-report #printReportContainer {
                   <input type="text" id="inpScheduleName" class="oca-input" placeholder="เช่น เสาร์ - อาทิตย์ รอบเช้า (09:00 - 12:00)" required oninput="updateScheduleLivePreview()">
                 </div>
 
+                <!-- Schedule Course Mapping Section -->
+                <div class="oca-input-group" style="margin-bottom:16px; background:rgba(215,166,0,0.04); border:1px solid rgba(215,166,0,0.22); border-radius:10px; padding:12px 14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+                    <div style="font-size:13px; font-weight:700; color:var(--color-gold); display:flex; align-items:center; gap:6px;">
+                      <i class="fa-solid fa-book-open"></i>
+                      <span>กำหนดคอร์สที่เปิดรับสมัครในรอบเวลานี้ (Offered Courses)</span>
+                    </div>
+                    <span id="badgeScheduleSelectedCourseCount" style="font-size:11.5px; font-weight:600; padding:2px 8px; border-radius:10px; background:rgba(215,166,0,0.18); color:var(--color-gold); border:1px solid rgba(215,166,0,0.35);">
+                      เลือกแล้ว 0 คอร์ส
+                    </span>
+                  </div>
+                  <div style="font-size:12px; color:var(--text-muted); margin-bottom:10px; line-height:1.4;">
+                    ติ๊กเลือกคอร์สเรียนที่จะเปิดรับสมัครในรอบเวลานี้ (หากไม่เลือกคอร์สใดเลย ระบบจะอนุญาตให้เลือกลงทะเบียนได้ทุกคอร์ส)
+                  </div>
+
+                  <!-- Quick Filter & Search Bar -->
+                  <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                    <input type="text" id="inpScheduleCourseFilter" class="oca-input" style="flex:1; min-width:180px; font-size:12.5px; padding:6px 10px;" placeholder="🔍 ค้นหารหัสหรือชื่อคอร์ส เช่น C1001, O1001, CE101..." oninput="renderScheduleCourseCheckboxes()">
+                    <button type="button" class="oca-btn-action" onclick="applyDefaultTerm695CoursesToModal()" title="เลือกคอร์สตามตารางเรียนเทอม 5/69 อัตโนมัติ" style="background:rgba(215,166,0,0.15); border:1px solid var(--color-gold); color:var(--color-gold); font-size:11.5px; padding:5px 10px; border-radius:6px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i> ตาราง 5/69
+                    </button>
+                    <button type="button" class="oca-btn-action" onclick="toggleAllVisibleScheduleCourses(true)" style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#34d399; font-size:11.5px; padding:5px 10px; border-radius:6px; cursor:pointer; white-space:nowrap;">
+                      เลือกทั้งหมด
+                    </button>
+                    <button type="button" class="oca-btn-action" onclick="toggleAllVisibleScheduleCourses(false)" style="background:rgba(239,68,68,0.15); border:1px solid #ef4444; color:#f87171; font-size:11.5px; padding:5px 10px; border-radius:6px; cursor:pointer; white-space:nowrap;">
+                      ล้างทั้งหมด
+                    </button>
+                  </div>
+
+                  <!-- Scrollable Courses Checkbox Container -->
+                  <div id="boxScheduleCoursesChecklist" class="oca-custom-scrollbar" style="max-height:220px; overflow-y:auto !important; overflow-x:hidden; display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:6px; padding:8px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:8px; box-sizing:border-box;">
+                    <!-- Checkboxes rendered dynamically by renderScheduleCourseCheckboxes() -->
+                  </div>
+                </div>
+
                 <!-- Live Preview Card -->
                 <div style="background:rgba(0,0,0,0.28); border:1px dashed rgba(215,166,0,0.3); border-radius:10px; padding:12px 14px;">
                   <div style="font-size:12px; font-weight:700; color:var(--color-gold); text-transform:uppercase; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
@@ -16831,19 +16878,19 @@ body.printing-report #printReportContainer {
                   <span id="lblSec3Heading">ข้อมูลการสมัครเรียน (Course & Schedule)</span>
                 </div>
                 <div style="margin-bottom:12px;">
-                  <label id="lblPubCourse" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
-                    หลักสูตรที่ต้องการสมัคร <span style="color:#DC2626;">*</span>
+                  <label id="lblPubSchedule" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
+                    1. รอบเวลาเรียนที่สะดวก <span style="color:#DC2626;">*</span>
                   </label>
-                  <select id="selPubCourse" class="oca-reg-input" required onchange="savePublicRegisterDraft(); if(typeof updateCourseFeeDisplay==='function') updateCourseFeeDisplay();">
-                    <option value="">-- กรุณาเลือกหลักสูตรที่ต้องการสมัคร --</option>
+                  <select id="selPubSchedule" class="oca-reg-input" required onchange="onPublicScheduleChanged(); savePublicRegisterDraft();">
+                    <option value="">-- กรุณาเลือกรอบเวลาเรียน --</option>
                   </select>
                 </div>
                 <div style="margin-bottom:12px;">
-                  <label id="lblPubSchedule" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
-                    รอบเวลาเรียนที่สะดวก <span style="color:#DC2626;">*</span>
+                  <label id="lblPubCourse" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
+                    2. หลักสูตรที่ต้องการสมัคร <span style="color:#DC2626;">*</span>
                   </label>
-                  <select id="selPubSchedule" class="oca-reg-input" required onchange="savePublicRegisterDraft()">
-                    <option value="">-- กรุณาเลือกรอบเวลาเรียน --</option>
+                  <select id="selPubCourse" class="oca-reg-input" required onchange="savePublicRegisterDraft(); if(typeof updateCourseFeeDisplay==='function') updateCourseFeeDisplay();">
+                    <option value="">-- กรุณาเลือกรอบเวลาเรียนก่อน (Please select schedule first) --</option>
                   </select>
                 </div>
                 <div>
@@ -18760,7 +18807,7 @@ body.printing-report #printReportContainer {
 
           if (fees) {
             fees.forEach(f => {
-              if (f.key && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee') {
+              if (f.key && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map') {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
@@ -18795,6 +18842,16 @@ body.printing-report #printReportContainer {
             schedules: schedules || [],
 
             feeSettings: fullFeeSettings,
+
+            scheduleCoursesMap: (() => {
+              const mapSetting = (fees || []).find(f => f.key === 'schedule_courses_map');
+              if (mapSetting && mapSetting.name) {
+                try {
+                  return JSON.parse(mapSetting.name);
+                } catch (_) {}
+              }
+              return null;
+            })(),
 
             onlineEnrollSchedule: (() => {
               const schedSetting = (fees || []).find(f => f.key === 'online_enroll_schedule');
@@ -21720,6 +21777,17 @@ if (action === 'getDashboardStats') {
             return { success: false, message: error.message };
           }
 
+          if (params.originalId && params.originalId !== schedId) {
+            try {
+              await _supabase.from('schedules').delete().eq('id', params.originalId);
+              if (Array.isArray(cachedSchedulesList)) {
+                cachedSchedulesList = cachedSchedulesList.filter(s => s.id !== params.originalId);
+              }
+            } catch (delErr) {
+              console.warn('[Supabase delete old schedule error]', delErr);
+            }
+          }
+
           return { success: true };
         }
 
@@ -21729,8 +21797,10 @@ if (action === 'getDashboardStats') {
         }
 
         if (action === 'saveFeeSettings') {
-          const feeKeys = ['regFee', 'cardFee', 'otherRegFee', 'transferFee', 'discountNormal', 'discountOther'];
+          const feeKeys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'discountNormal', 'discountOther'];
           const feeNames = {
+            tuitionFee: 'ค่าเล่าเรียนทั่วไป',
+
             regFee: 'ค่าลงทะเบียนแรกเข้า',
 
             cardFee: 'ค่าบัตรนักศึกษา Smart Card',
@@ -21805,7 +21875,7 @@ if (action === 'getDashboardStats') {
 
           if (fees) {
             fees.forEach(f => {
-              if (f.key && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee') {
+              if (f.key && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map') {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
@@ -24199,6 +24269,62 @@ if (action === 'getDashboardStats') {
     /**
      * Enhanced Offline Enrollment: Realtime Course & Schedule Populator
      */
+    function onEnrollScheduleChanged(preserveCourseId = '') {
+      const selSchedule = document.getElementById('selEnrollSchedule');
+      const selCourse = document.getElementById('selEnrollCourse');
+      if (!selCourse) return;
+      const selectedSched = selSchedule ? selSchedule.value : '';
+      const currentVal = preserveCourseId || selCourse.value;
+      const safeEscape = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      let coursesList = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
+        ? cachedCoursesList
+        : [];
+
+      // Filter courses if schedule is selected and has mapping
+      const offeredCodes = selectedSched ? getOfferedCourseCodesForSchedule(selectedSched) : [];
+      let displayCourses = [];
+
+      if (offeredCodes && offeredCodes.length > 0) {
+        offeredCodes.forEach(code => {
+          const found = coursesList.find(c => c.id === code || c.code === code);
+          if (found) {
+            displayCourses.push(found);
+          } else {
+            const timetableLabel = (typeof COURSE_TIMETABLE_LABELS_695 !== 'undefined' && COURSE_TIMETABLE_LABELS_695[code]) || code;
+            displayCourses.push({
+              id: code,
+              code: code,
+              name: timetableLabel,
+              price: 2200
+            });
+          }
+        });
+      } else {
+        displayCourses = coursesList;
+      }
+
+      let htmlCourse = `<option value="">-- เลือกหลักสูตรที่ต้องการลงทะเบียนเรียน (${displayCourses.length} คอร์ส) --</option>`;
+      displayCourses.forEach(c => {
+        const priceVal = c.price ? Number(c.price) : 2200;
+        const label = (typeof getTimetableCourseDisplayLabel === 'function') ? getTimetableCourseDisplayLabel(c) : ((c.code ? `${c.code} - ${c.name}` : (c.name || c.id)) + ` [฿${priceVal.toLocaleString('th-TH')}]`);
+        const val = c.name || c.code || c.id;
+        htmlCourse += `<option value="${safeEscape(val)}" data-price="${priceVal}" data-course-id="${safeEscape(c.id || c.code)}">${safeEscape(label)}</option>`;
+      });
+      selCourse.innerHTML = htmlCourse;
+
+      if (currentVal) {
+        for (let opt of selCourse.options) {
+          if (opt.value === currentVal || opt.dataset.courseId === currentVal) {
+            selCourse.value = opt.value;
+            break;
+          }
+        }
+      }
+
+      updateEnrollCourseFeeDisplay();
+    }
+    window.onEnrollScheduleChanged = onEnrollScheduleChanged;
+
     async function populateEnrollCoursesAndSchedules() {
       const selCourse = document.getElementById('selEnrollCourse');
       const selSchedule = document.getElementById('selEnrollSchedule');
@@ -24206,59 +24332,7 @@ if (action === 'getDashboardStats') {
       const currentCourseVal = selCourse ? selCourse.value : '';
       const currentScheduleVal = selSchedule ? selSchedule.value : '';
 
-      // 1. Fetch courses
-      if (selCourse) {
-        let coursesList = [];
-        if (typeof _supabase !== 'undefined' && _supabase) {
-          try {
-            const { data, error } = await _supabase
-              .from('courses')
-              .select('id, code, name, price, is_active')
-              .eq('is_active', true)
-              .order('id');
-            if (!error && Array.isArray(data) && data.length > 0) {
-              coursesList = data;
-              cachedCoursesList = data;
-            }
-          } catch (err) {
-            console.warn('[Enrollment] Courses fetch fallback:', err);
-          }
-        }
-        if (!coursesList || coursesList.length === 0) {
-          coursesList = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
-            ? cachedCoursesList
-            : [
-                { id: 'C-01', code: 'CHN-B1', name: 'ภาษาจีนขั้นพื้นฐาน 1 (Beginner Chinese 1)', price: 4000 },
-                { id: 'C-02', code: 'CHN-B2', name: 'ภาษาจีนขั้นพื้นฐาน 2 (Beginner Chinese 2)', price: 4000 },
-                { id: 'C-03', code: 'CHN-I1', name: 'ภาษาจีนระดับกลาง 1 (Intermediate Chinese 1)', price: 4500 },
-                { id: 'C-04', code: 'CHN-I2', name: 'ภาษาจีนระดับกลาง 2 (Intermediate Chinese 2)', price: 4500 },
-                { id: 'C-05', code: 'CHN-ADV', name: 'ภาษาจีนระดับสูง (Advanced Chinese)', price: 5000 },
-                { id: 'C-06', code: 'CHN-BIZ', name: 'ภาษาจีนเพื่อการพาณิชย์/ธุรกิจ (Business Chinese)', price: 5500 },
-                { id: 'C-07', code: 'CHN-HSK', name: 'ภาษาจีนติวสอบ HSK (HSK Preparation)', price: 4500 }
-              ];
-        }
-
-        const safeEscape = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        let htmlCourse = `<option value="">-- เลือกหลักสูตรที่ต้องการลงทะเบียนเรียน --</option>`;
-        coursesList.forEach(c => {
-          const priceVal = c.price ? Number(c.price) : 4000;
-          const priceStr = ` [฿${priceVal.toLocaleString('th-TH')}]`;
-          const label = (c.code ? `${c.code} - ${c.name}` : (c.name || c.id)) + priceStr;
-          const val = c.name || c.code || c.id;
-          htmlCourse += `<option value="${safeEscape(val)}" data-price="${priceVal}">${safeEscape(label)}</option>`;
-        });
-        selCourse.innerHTML = htmlCourse;
-        if (currentCourseVal) {
-          for (let opt of selCourse.options) {
-            if (opt.value === currentCourseVal) {
-              selCourse.value = currentCourseVal;
-              break;
-            }
-          }
-        }
-      }
-
-      // 2. Fetch schedules (Preserve 8 master schedules SCH-01 to SCH-08)
+      // 1. Fetch schedules first (Preserve 8 master schedules SCH-01 to SCH-08)
       if (selSchedule) {
         let schedulesList = [];
         if (typeof _supabase !== 'undefined' && _supabase) {
@@ -24270,6 +24344,7 @@ if (action === 'getDashboardStats') {
               .order('id');
             if (!error && Array.isArray(data) && data.length > 0) {
               schedulesList = data;
+              cachedSchedulesList = data;
             }
           } catch (err) {
             console.warn('[Enrollment] Schedules fetch fallback:', err);
@@ -24308,7 +24383,41 @@ if (action === 'getDashboardStats') {
         }
       }
 
-      updateEnrollCourseFeeDisplay();
+      // 2. Fetch courses second
+      if (selCourse) {
+        let coursesList = [];
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          try {
+            const { data, error } = await _supabase
+              .from('courses')
+              .select('id, code, name, price, is_active')
+              .eq('is_active', true)
+              .order('id');
+            if (!error && Array.isArray(data) && data.length > 0) {
+              coursesList = data;
+              cachedCoursesList = data;
+            }
+          } catch (err) {
+            console.warn('[Enrollment] Courses fetch fallback:', err);
+          }
+        }
+        if (!coursesList || coursesList.length === 0) {
+          coursesList = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
+            ? cachedCoursesList
+            : [
+                { id: 'C-01', code: 'CHN-B1', name: 'ภาษาจีนขั้นพื้นฐาน 1 (Beginner Chinese 1)', price: 4000 },
+                { id: 'C-02', code: 'CHN-B2', name: 'ภาษาจีนขั้นพื้นฐาน 2 (Beginner Chinese 2)', price: 4000 },
+                { id: 'C-03', code: 'CHN-I1', name: 'ภาษาจีนระดับกลาง 1 (Intermediate Chinese 1)', price: 4500 },
+                { id: 'C-04', code: 'CHN-I2', name: 'ภาษาจีนระดับกลาง 2 (Intermediate Chinese 2)', price: 4500 },
+                { id: 'C-05', code: 'CHN-ADV', name: 'ภาษาจีนระดับสูง (Advanced Chinese)', price: 5000 },
+                { id: 'C-06', code: 'CHN-BIZ', name: 'ภาษาจีนเพื่อการพาณิชย์/ธุรกิจ (Business Chinese)', price: 5500 },
+                { id: 'C-07', code: 'CHN-HSK', name: 'ภาษาจีนติวสอบ HSK (HSK Preparation)', price: 4500 }
+              ];
+        }
+      }
+
+      // 3. Populate course dropdown according to selected schedule
+      onEnrollScheduleChanged(currentCourseVal);
     }
     window.populateEnrollCoursesAndSchedules = populateEnrollCoursesAndSchedules;
 
@@ -25152,7 +25261,9 @@ if (action === 'getDashboardStats') {
     window._enrollVerifiedSlipMeta = null;
     window._pendingEnrollSlipHandover = null;
 
-    function triggerEnrollSlipFileInput() {
+    function triggerEnrollSlipFileInput(event) {
+      if (event && event.isTrusted === false) return;
+      if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
       const inp = document.getElementById('fileEnrollSlipInput');
       if (inp) inp.click();
     }
@@ -28461,7 +28572,7 @@ if (action === 'getDashboardStats') {
 
       if (!start && !end) {
         return {
-          active: true,
+          active: false,
 
           mode: 'period',
 
@@ -28516,6 +28627,23 @@ if (action === 'getDashboardStats') {
       };
     }
 
+    function onFeeDateInputChange(key) {
+      const mode = document.getElementById(`cfgMode_${key}`)?.value || 'always';
+      const inpStart = document.getElementById(`cfgStart_${key}`);
+      const inpEnd = document.getElementById(`cfgEnd_${key}`);
+      const startDate = inpStart?.value || '';
+      let endDate = inpEnd?.value || '';
+
+      if (startDate && endDate && endDate < startDate) {
+        toast('ตรวจสอบวันที่', 'วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น ระบบได้ปรับวันสิ้นสุดให้เท่ากับวันเริ่มต้นแล้ว', 'warning');
+        if (inpEnd) inpEnd.value = startDate;
+        endDate = startDate;
+      }
+
+      updateFeeSettingStatusPreview(key);
+    }
+    window.onFeeDateInputChange = onFeeDateInputChange;
+
     function onFeeModeChange(key) {
       const selMode = document.getElementById(`cfgMode_${key}`);
       const box = document.getElementById(`boxDateRange_${key}`);
@@ -28527,7 +28655,7 @@ if (action === 'getDashboardStats') {
         box.style.display = 'none';
       }
 
-      updateFeeSettingStatusPreview(key);
+      onFeeDateInputChange(key);
     }
 
     function updateFeeSettingStatusPreview(key) {
@@ -28686,6 +28814,8 @@ if (action === 'getDashboardStats') {
       const rawItems = fees.items || {};
       const keys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'discountNormal', 'discountOther'];
       const inputMap = {
+        tuitionFee: 'cfgGeneralTuitionFee',
+
         regFee: 'cfgGeneralRegFee',
 
         cardFee: 'cfgGeneralCardFee',
@@ -28699,6 +28829,8 @@ if (action === 'getDashboardStats') {
         discountOther: 'cfgGeneralDiscountOther'
       };
       const defaultAmounts = {
+        tuitionFee: 0,
+
         regFee: 0,
 
         cardFee: 0,
@@ -28787,6 +28919,8 @@ if (action === 'getDashboardStats') {
         function clearGeneralFeeInputs() {
       const keys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'discountNormal', 'discountOther'];
       const inputMap = {
+        tuitionFee: 'cfgGeneralTuitionFee',
+
         regFee: 'cfgGeneralRegFee',
 
         cardFee: 'cfgGeneralCardFee',
@@ -28820,17 +28954,29 @@ if (action === 'getDashboardStats') {
 
     function saveGeneralFeeSettings() {
       if (isSavingFeeSettings) return;
-      isSavingFeeSettings = true;
       const btn = document.querySelector('button[onclick="saveGeneralFeeSettings()"]');
       const origBtnHtml = btn ? btn.innerHTML : '';
 
+      // Validate date ranges before proceeding
+      const keys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'discountNormal', 'discountOther'];
+      for (const k of keys) {
+        const mode = document.getElementById(`cfgMode_${k}`)?.value || 'always';
+        const start = document.getElementById(`cfgStart_${k}`)?.value || '';
+        const end = document.getElementById(`cfgEnd_${k}`)?.value || '';
+        if (mode === 'period' && start && end && end < start) {
+          showModal('ข้อผิดพลาดในการตั้งช่วงเวลา', 'วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น กรุณาตรวจสอบช่วงเวลาที่ระบุ', '⚠️');
+          return;
+        }
+      }
+
+      isSavingFeeSettings = true;
       if (btn) {
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
       }
-
-      const keys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'discountNormal', 'discountOther'];
       const inputMap = {
+        tuitionFee: 'cfgGeneralTuitionFee',
+
         regFee: 'cfgGeneralRegFee',
 
         cardFee: 'cfgGeneralCardFee',
@@ -28844,6 +28990,8 @@ if (action === 'getDashboardStats') {
         discountOther: 'cfgGeneralDiscountOther'
       };
       const defaultAmounts = {
+        tuitionFee: 0,
+
         regFee: 0,
 
         cardFee: 0,
@@ -28983,6 +29131,13 @@ if (action === 'getDashboardStats') {
             renderTermOpeningDatesInputs(res.termOpenDates);
             updateReceiptOpenDateByTerm();
             syncAllTermDropdownsWithOpenDates();
+          }
+
+          if (res.scheduleCoursesMap && typeof res.scheduleCoursesMap === 'object') {
+            window._ocaScheduleCoursesMap = res.scheduleCoursesMap;
+            try {
+              localStorage.setItem('oca_schedule_courses_map', JSON.stringify(window._ocaScheduleCoursesMap));
+            } catch (_) {}
           }
 
           populateEnrollmentDropdowns(cachedCoursesList, cachedSchedulesList);
@@ -29917,14 +30072,22 @@ if (action === 'getDashboardStats') {
             timePart = match[2].trim();
           }
 
+          const offeredCodes = (typeof getOfferedCourseCodesForSchedule === 'function') ? getOfferedCourseCodesForSchedule(s.id || rawName) : [];
+          const offeredCount = offeredCodes.length;
+          const courseBadgeHtml = offeredCount > 0
+            ? '<span class="oca-schedule-course-badge" style="font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(215,166,0,0.15); color:var(--color-gold); border:1px solid rgba(215,166,0,0.3); display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-book-open"></i> เปิดรับ ' + offeredCount + ' คอร์ส</span>'
+            : '<span class="oca-schedule-course-badge" style="font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(255,255,255,0.06); color:var(--text-muted); border:1px solid rgba(255,255,255,0.1); display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-book-open"></i> ทุกคอร์สที่เปิดสอน</span>';
           let scheduleTimeHtml = '';
           if (dayPart && timePart) {
             scheduleTimeHtml =
-              '<div style="margin: 6px 0;">' +
+              '<div style="margin: 6px 0; display:flex; flex-direction:column; gap:4px;">' +
               '  <span class="oca-schedule-time-badge"><i class="fa-solid fa-clock"></i> ' + escapeHtml(timePart) + '</span>' +
+              '  <div>' + courseBadgeHtml + '</div>' +
               '</div>';
           } else {
-            scheduleTimeHtml = '<div style="font-weight:600; color:#FFFFFF; margin: 6px 0; word-break:break-word;">' + escapeHtml(rawName) + '</div>';
+            scheduleTimeHtml =
+              '<div style="font-weight:600; color:#FFFFFF; margin: 6px 0; word-break:break-word;">' + escapeHtml(rawName) + '</div>' +
+              '<div style="margin-bottom:6px;">' + courseBadgeHtml + '</div>';
           }
 
           return (
@@ -29954,15 +30117,25 @@ if (action === 'getDashboardStats') {
             timePart = match[2].trim();
           }
 
+          const offeredCodes = (typeof getOfferedCourseCodesForSchedule === 'function') ? getOfferedCourseCodesForSchedule(s.id || rawName) : [];
+          const offeredCount = offeredCodes.length;
+          const courseBadgeHtml = offeredCount > 0
+            ? '<span class="oca-schedule-course-badge" style="font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(215,166,0,0.15); color:var(--color-gold); border:1px solid rgba(215,166,0,0.3); display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-book-open"></i> ' + offeredCount + ' คอร์ส</span>'
+            : '<span class="oca-schedule-course-badge" style="font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(255,255,255,0.06); color:var(--text-muted); border:1px solid rgba(255,255,255,0.1); display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-book-open"></i> ทุกคอร์ส</span>';
           let scheduleContentHtml = '';
           if (dayPart && timePart) {
             scheduleContentHtml =
               '<div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">' +
               '  <span class="oca-schedule-day-badge"><i class="fa-solid fa-calendar-day"></i> ' + escapeHtml(dayPart) + '</span>' +
               '  <span class="oca-schedule-time-badge"><i class="fa-solid fa-clock"></i> ' + escapeHtml(timePart) + '</span>' +
+              '  ' + courseBadgeHtml +
               '</div>';
           } else {
-            scheduleContentHtml = '<div style="font-weight:600; color:#FFFFFF; word-break:break-word;">' + escapeHtml(rawName) + '</div>';
+            scheduleContentHtml =
+              '<div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">' +
+              '  <div style="font-weight:600; color:#FFFFFF; word-break:break-word;">' + escapeHtml(rawName) + '</div>' +
+              '  ' + courseBadgeHtml +
+              '</div>';
           }
 
           return (
@@ -30166,7 +30339,310 @@ if (action === 'getDashboardStats') {
       if (prevName) prevName.textContent = name;
     }
 
+    // [ANCHOR: SCHEDULE_COURSES_MAP_MATRIX] Pre-Seed Term 5/69 Schedule-to-Course Matrix & Timetable Labels
+    const COURSE_TIMETABLE_LABELS_695 = {
+      C1001: 'C1001 (ต้น1) onsite',
+      C1002: 'C1002 (ต้น2) onsite',
+      C1003: 'C1003 (ต้น3) onsite',
+      C1004: 'C1004 (ต้น4) onsite',
+      C1005: 'C1005 (ต้น5) onsite',
+      C2001: 'C2001 (กลาง1) onsite',
+      C2002: 'C2002 (กลาง2) onsite',
+      C2003: 'C2003 (กลาง3) onsite',
+      C2004: 'C2004 (กลาง4) onsite',
+      C2005: 'C2005 (กลาง5) onsite',
+      C2006: 'C2006 (กลาง6) onsite',
+      C2007: 'C2007 (กลาง7) onsite',
+      C2008: 'C2008 (กลาง8)',
+      C2009: 'C2009 (กลาง9)',
+      C2010: 'C2010 (กลาง10)',
+      C3001: 'C3001 (สูง1)',
+      C3002: 'C3002 (สูง2)',
+      C3003: 'C3003 (สูง3)',
+      C3004: 'C3004 (สูง4)',
+      C3007: 'C3007 (สูง7)',
+      C3008: 'C3008 (สูง8)',
+      C3010: 'C3010 (สูง10)',
+      C4000: 'C4000 (ระดับสูงพิเศษ แปลไทย/จีน)',
+      O4000: 'O4000 (อ.ปักกิ่ง) online',
+      O1001: 'O1001 (ต้น1) online',
+      O1002: 'O1002 (ต้น2) online',
+      O1003: 'O1003 (ต้น3) online',
+      O1004: 'O1004 (ต้น4) online',
+      O1005: 'O1005 (ต้น5) online',
+      O2005: 'O2005 (กลาง5) online',
+      OC102: 'OC102 (ต้น2) online+onsite',
+      OC103: 'OC103 (ต้น3) online+onsite',
+      OC104: 'OC104 (ต้น4) online+onsite',
+      OC105: 'OC105 (ต้น5) online+onsite',
+      OC201: 'OC201 (กลาง1) online+onsite',
+      OC202: 'OC202 (กลาง2) online+onsite',
+      OC203: 'OC203 (กลาง3) online+onsite',
+      OC204: 'OC204 (กลาง4) online+onsite',
+      OC205: 'OC205 (กลาง5) online+onsite',
+      OC206: 'OC206 (กลาง6) online+onsite',
+      OC207: 'OC207 (กลาง7) online+onsite',
+      S1001: 'S1001 (สนทนา1) onsite',
+      S1002: 'S1002 (สนทนา2) onsite',
+      S1003: 'S1003 (สนทนา3) onsite',
+      S1004: 'S1004 (สนทนา4) onsite',
+      S1005: 'S1005 (สนทนา5)',
+      OS101: 'OS101 (สนทนา1) online',
+      OS102: 'OS102 (สนทนา2) online',
+      SS102: 'SS102 (สนทนา2) online',
+      OS103: 'OS103 (สนทนา3) online',
+      OS104: 'OS104 (สนทนา4) online+onsite',
+      S3101: 'S3101 (การค้าต้น1)',
+      S3104: 'S3104 (การค้าต้น4)',
+      S4102: 'S4102 (การแปลกลาง2)',
+      CE101: 'CE101 (ต้น1) onsite',
+      OE101: 'OE101 (ต้น1) online',
+      CE102: 'CE102 (ต้น2) onsite',
+      OE102: 'OE102 (ต้น2) online',
+      CE103: 'CE103 (ต้น3)',
+      CE104: 'CE104 (ต้น4)',
+      CE105: 'CE105 (ต้น5)',
+      CE121: 'CE121 (กลาง1)',
+      CE122: 'CE122 (กลาง2)',
+      CE123: 'CE123 (กลาง3)',
+      CE124: 'CE124 (กลาง4)',
+      CE226: 'CE226 (กลาง6)',
+      CE126: 'CE126 (กลาง6)',
+      CE201: 'CE201 (ต้น1) onsite',
+      OE201: 'OE201 (ต้น1) online',
+      CE202: 'CE202 (ต้น2)',
+      CE203: 'CE203 (ต้น3)',
+      CE204: 'CE204 (ต้น4)',
+      CE205: 'CE205 (ต้น5)',
+      CE221: 'CE221 (กลาง1)',
+      CE222: 'CE222 (กลาง2)'
+    };
+    window.COURSE_TIMETABLE_LABELS_695 = COURSE_TIMETABLE_LABELS_695;
+    const DEFAULT_SCHEDULE_COURSES_MAP = {
+      'SCH-01': ['C1001','C1002','C1003','C1004','C1005','C2002','C2003','C2004','C2006','C3001','C3002','O1001','O1002','O1003','O1004','O1005','O2005','OC105','OC201','S1002','S1004','OS102','SS102','OS104','S3101'],
+      'SCH-02': ['C1001','C1002','C1003','C1004','C1005','O1001','O1002','O1003','O1004','O1005','C4000'],
+      'SCH-03': ['C1001','C1002','C1003','C1004','O1001','O1002','O1004'],
+      'SCH-04': ['C1001','C1002','C1003','C1004','C1005','C2001','C2002','C2003','C2004','C2007','C3003','C4000','O4000','O1001','O1002','O1003','O1004','O1005','OC104','OC105','OC201','S1001','S1003','S1005','OS101','OS103','S3104'],
+      'SCH-05': ['C3003','C3007','S4102'],
+      'SCH-06': ['C1001','C1002','C1003','C1004','C1005','C2001','C2002','C2003','C2004','C2005','C2006','C2007','C2008','C2009','C2010','C3001','C3004','C3007','C3010','C4000','O4000','O1001','O1002','O1003','O1004','O1005','OC102','OC103','OC104','OC105','OC201','OC202','OC203','OC204','OC205','OC207'],
+      'SCH-07': ['C1001','C1002','C1003','C1004','C1005','C2001','C2002','C2003','C2004','C2005','C2006','C2007','C2008','C3003','C3008','C4000','O1001','O1002','O1003','O1004','O1005','OC102','OC103','OC104','OC105','OC201','OC202','OC203','OC204','OC205','OC206','OC207'],
+      'SCH-08': ['CE101','OE101','CE102','OE102','CE103','CE104','CE105','CE121','CE122','CE123','CE124','CE226'],
+      'SCH-15': ['CE101','OE101','CE102','OE102','CE103','CE104','CE105','CE121','CE122','CE123','CE124','CE226'],
+      'SCH-16': ['CE201','OE201','CE202','CE203','CE204','CE205','CE221','CE222','CE126']
+    };
+    window.DEFAULT_SCHEDULE_COURSES_MAP = DEFAULT_SCHEDULE_COURSES_MAP;
+
+    try {
+      const storedMap = localStorage.getItem('oca_schedule_courses_map');
+      window._ocaScheduleCoursesMap = storedMap ? JSON.parse(storedMap) : JSON.parse(JSON.stringify(DEFAULT_SCHEDULE_COURSES_MAP));
+    } catch (_) {
+      window._ocaScheduleCoursesMap = JSON.parse(JSON.stringify(DEFAULT_SCHEDULE_COURSES_MAP));
+    }
+
+    function getOfferedCourseCodesForSchedule(scheduleIdOrName) {
+      if (!scheduleIdOrName) return [];
+      const raw = String(scheduleIdOrName).trim();
+      const map = window._ocaScheduleCoursesMap || DEFAULT_SCHEDULE_COURSES_MAP;
+
+      if (map[raw] && Array.isArray(map[raw]) && map[raw].length > 0) {
+        return map[raw];
+      }
+
+      const idMatch = raw.match(/\b(SCH-\d+)\b/i);
+      if (idMatch && map[idMatch[1].toUpperCase()] && map[idMatch[1].toUpperCase()].length > 0) {
+        return map[idMatch[1].toUpperCase()];
+      }
+
+      const low = raw.toLowerCase();
+      if ((low.includes('จันทร์') || low.includes('พุธ')) && (low.includes('18.30') || low.includes('18:30'))) {
+        return map['SCH-01'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-01'];
+      }
+      if ((low.includes('อังคาร') || low.includes('พฤหัส')) && (low.includes('09.30') || low.includes('9.30') || low.includes('09:30'))) {
+        return map['SCH-02'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-02'];
+      }
+      if ((low.includes('อังคาร') || low.includes('พฤหัส')) && (low.includes('13.30') || low.includes('13:30'))) {
+        return map['SCH-03'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-03'];
+      }
+      if ((low.includes('อังคาร') || low.includes('พฤหัส')) && (low.includes('18.30') || low.includes('18:30'))) {
+        return map['SCH-04'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-04'];
+      }
+      if (low.includes('เสาร์') && low.includes('อาทิตย์') && (low.includes('09.30') || low.includes('9.30') || low.includes('09:30'))) {
+        return map['SCH-05'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-05'];
+      }
+      if (low.includes('เสาร์') && !low.includes('อาทิตย์') && (low.includes('09.00') || low.includes('9.00') || low.includes('09:00') || low.includes('08.00') || low.includes('8.00'))) {
+        return map['SCH-15'] || map['SCH-08'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-15'];
+      }
+      if (low.includes('อาทิตย์') && !low.includes('เสาร์') && (low.includes('09.00') || low.includes('9.00') || low.includes('09:00') || low.includes('08.00') || low.includes('8.00'))) {
+        return map['SCH-16'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-16'];
+      }
+      if (low.includes('เสาร์') && (low.includes('13.00') || low.includes('13:00') || low.includes('17.30') || low.includes('18.00') || low.includes('18:00'))) {
+        return map['SCH-06'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-06'];
+      }
+      if (low.includes('อาทิตย์') && (low.includes('13.00') || low.includes('13:00') || low.includes('17.30') || low.includes('18.00') || low.includes('18:00'))) {
+        return map['SCH-07'] || DEFAULT_SCHEDULE_COURSES_MAP['SCH-07'];
+      }
+
+      if (map[raw] && Array.isArray(map[raw])) return map[raw];
+      return [];
+    }
+    window.getOfferedCourseCodesForSchedule = getOfferedCourseCodesForSchedule;
+
+    function getTimetableCourseDisplayLabel(courseObj) {
+      if (!courseObj) return '';
+      const cId = courseObj.id || courseObj.code || '';
+      const cCode = courseObj.code || courseObj.id || '';
+      const priceVal = courseObj.price ? Number(courseObj.price) : 2200;
+      const priceStr = ` (฿${priceVal.toLocaleString('th-TH')})`;
+      const timetableTag = (typeof COURSE_TIMETABLE_LABELS_695 !== 'undefined') ? (COURSE_TIMETABLE_LABELS_695[cId] || COURSE_TIMETABLE_LABELS_695[cCode] || '') : '';
+      if (timetableTag) {
+        return `${timetableTag} — ${courseObj.name || cId}${priceStr}`;
+      }
+      return (courseObj.code ? `${courseObj.code} - ${courseObj.name}` : (courseObj.name || cId)) + priceStr;
+    }
+    window.getTimetableCourseDisplayLabel = getTimetableCourseDisplayLabel;
+    window._modalScheduleSelectedCoursesSet = new Set();
+    window._editingOriginalScheduleId = null;
+
+    function renderScheduleCourseCheckboxes() {
+      const container = document.getElementById('boxScheduleCoursesChecklist');
+      const badgeCount = document.getElementById('badgeScheduleSelectedCourseCount');
+      if (!container) return;
+      const filterText = (document.getElementById('inpScheduleCourseFilter')?.value || '').trim().toLowerCase();
+      const allCourses = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
+        ? cachedCoursesList
+        : [];
+      let courseItems = [...allCourses];
+      if (courseItems.length === 0) {
+        courseItems = Object.keys(COURSE_TIMETABLE_LABELS_695).map(code => ({
+          id: code,
+          code: code,
+          name: COURSE_TIMETABLE_LABELS_695[code] || code,
+          price: 2200
+        }));
+      }
+
+      if (badgeCount) {
+        badgeCount.textContent = `เลือกแล้ว ${window._modalScheduleSelectedCoursesSet.size} คอร์ส`;
+      }
+
+      const filtered = courseItems.filter(c => {
+        if (!filterText) return true;
+        const id = (c.id || '').toLowerCase();
+        const code = (c.code || '').toLowerCase();
+        const name = (c.name || '').toLowerCase();
+        const tag = ((COURSE_TIMETABLE_LABELS_695[c.id] || COURSE_TIMETABLE_LABELS_695[c.code] || '')).toLowerCase();
+        return id.includes(filterText) || code.includes(filterText) || name.includes(filterText) || tag.includes(filterText);
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:16px; color:var(--text-muted); font-size:12px;">ไม่พบคอร์สที่ค้นหา</div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(c => {
+        const cKey = c.id || c.code;
+        const isChecked = window._modalScheduleSelectedCoursesSet.has(cKey) || window._modalScheduleSelectedCoursesSet.has(c.code);
+        const tag = COURSE_TIMETABLE_LABELS_695[c.id] || COURSE_TIMETABLE_LABELS_695[c.code] || (c.code ? `${c.code} - ${c.name}` : (c.name || c.id));
+        return (
+          '<label style="display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; background:' + (isChecked ? 'rgba(215,166,0,0.14)' : 'rgba(255,255,255,0.03)') + '; border:1px solid ' + (isChecked ? 'rgba(215,166,0,0.35)' : 'rgba(255,255,255,0.06)') + '; cursor:pointer; font-size:12px; transition:all 0.15s ease;">' +
+          '  <input type="checkbox" value="' + escapeHtml(cKey) + '" ' + (isChecked ? 'checked' : '') + ' onchange="onModalScheduleCourseCheckChange(this)" style="cursor:pointer; accent-color:var(--color-gold); width:15px; height:15px;">' +
+          '  <span style="font-family:monospace; font-weight:' + (isChecked ? '700' : '500') + '; color:' + (isChecked ? 'var(--color-gold)' : '#F1F5F9') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(tag) + '">' +
+          '    ' + escapeHtml(tag) +
+          '  </span>' +
+          '</label>'
+        );
+      }).join('');
+    }
+    window.renderScheduleCourseCheckboxes = renderScheduleCourseCheckboxes;
+
+    function onModalScheduleCourseCheckChange(chk) {
+      if (!chk) return;
+      if (chk.checked) {
+        window._modalScheduleSelectedCoursesSet.add(chk.value);
+      } else {
+        window._modalScheduleSelectedCoursesSet.delete(chk.value);
+      }
+      const label = chk.closest('label');
+      if (label) {
+        label.style.background = chk.checked ? 'rgba(215,166,0,0.14)' : 'rgba(255,255,255,0.03)';
+        label.style.borderColor = chk.checked ? 'rgba(215,166,0,0.35)' : 'rgba(255,255,255,0.06)';
+        const span = label.querySelector('span');
+        if (span) {
+          span.style.color = chk.checked ? 'var(--color-gold)' : '#F1F5F9';
+          span.style.fontWeight = chk.checked ? '700' : '500';
+        }
+      }
+      const badgeCount = document.getElementById('badgeScheduleSelectedCourseCount');
+      if (badgeCount) {
+        badgeCount.textContent = `เลือกแล้ว ${window._modalScheduleSelectedCoursesSet.size} คอร์ส`;
+      }
+    }
+    window.onModalScheduleCourseCheckChange = onModalScheduleCourseCheckChange;
+
+    function toggleAllVisibleScheduleCourses(select) {
+      const container = document.getElementById('boxScheduleCoursesChecklist');
+      if (!container) return;
+      const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(chk => {
+        chk.checked = select;
+        if (select) {
+          window._modalScheduleSelectedCoursesSet.add(chk.value);
+        } else {
+          window._modalScheduleSelectedCoursesSet.delete(chk.value);
+        }
+        const label = chk.closest('label');
+        if (label) {
+          label.style.background = select ? 'rgba(215,166,0,0.14)' : 'rgba(255,255,255,0.03)';
+          label.style.borderColor = select ? 'rgba(215,166,0,0.35)' : 'rgba(255,255,255,0.06)';
+          const span = label.querySelector('span');
+          if (span) {
+            span.style.color = select ? 'var(--color-gold)' : '#F1F5F9';
+            span.style.fontWeight = select ? '700' : '500';
+          }
+        }
+      });
+      const badgeCount = document.getElementById('badgeScheduleSelectedCourseCount');
+      if (badgeCount) {
+        badgeCount.textContent = `เลือกแล้ว ${window._modalScheduleSelectedCoursesSet.size} คอร์ส`;
+      }
+    }
+    window.toggleAllVisibleScheduleCourses = toggleAllVisibleScheduleCourses;
+
+    function applyDefaultTerm695CoursesToModal() {
+      const inpId = document.getElementById('inpScheduleId');
+      const inpName = document.getElementById('inpScheduleName');
+      const id = (inpId?.value || '').trim();
+      const name = (inpName?.value || '').trim();
+      const defaultCourses = getOfferedCourseCodesForSchedule(id || name);
+      window._modalScheduleSelectedCoursesSet = new Set(defaultCourses);
+      renderScheduleCourseCheckboxes();
+      toast('เลือกคอร์สอัตโนมัติ', `เลือกตามตารางเรียน 5/69 สำเร็จ (${defaultCourses.length} คอร์ส)`, '✓');
+    }
+    window.applyDefaultTerm695CoursesToModal = applyDefaultTerm695CoursesToModal;
+
+    async function saveScheduleCoursesMapToSupabase() {
+      try {
+        const jsonStr = JSON.stringify(window._ocaScheduleCoursesMap || {});
+        localStorage.setItem('oca_schedule_courses_map', jsonStr);
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          await _supabase.from('fee_settings').upsert({
+            key: 'schedule_courses_map',
+            name: jsonStr,
+            mode: 'map',
+            amount: 0,
+            start_date: null,
+            end_date: null,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
+      } catch (err) {
+        console.warn('[ScheduleCoursesMap] Supabase save error:', err);
+      }
+    }
+    window.saveScheduleCoursesMapToSupabase = saveScheduleCoursesMapToSupabase;
+
     function openScheduleModal(editId = null) {
+      window._editingOriginalScheduleId = editId || null;
       const modal = document.getElementById('modalSchedule');
       const title = document.getElementById('modalScheduleTitle');
       const subtitle = document.getElementById('modalScheduleSubtitle');
@@ -30187,12 +30663,14 @@ if (action === 'getDashboardStats') {
 
           if (inpId) {
             inpId.value = item.id;
-            inpId.readOnly = true;
-            inpId.style.background = 'rgba(0,0,0,0.25)';
-            inpId.style.color = 'var(--color-gold)';
+            inpId.readOnly = false;
+            inpId.style.background = '';
+            inpId.style.color = '';
           }
 
           if (inpName) inpName.value = item.name || '';
+          const assigned = getOfferedCourseCodesForSchedule(item.id || item.name);
+          window._modalScheduleSelectedCoursesSet = new Set(assigned);
         }
       } else {
         if (title) title.textContent = 'เพิ่มรอบเวลาเรียนใหม่';
@@ -30209,8 +30687,12 @@ if (action === 'getDashboardStats') {
         }
 
         if (inpName) inpName.value = '';
+        window._modalScheduleSelectedCoursesSet = new Set();
       }
 
+      const inpFilter = document.getElementById('inpScheduleCourseFilter');
+      if (inpFilter) inpFilter.value = '';
+      renderScheduleCourseCheckboxes();
       updateScheduleLivePreview();
       modal.classList.add('active');
     }
@@ -30224,6 +30706,12 @@ if (action === 'getDashboardStats') {
       if (e) e.preventDefault();
       const id = (document.getElementById('inpScheduleId')?.value || '').trim();
       const name = (document.getElementById('inpScheduleName')?.value || '').trim();
+      const origId = window._editingOriginalScheduleId || '';
+
+      if (!id) {
+        toast('กรุณาระบุข้อมูล', 'กรุณาระบุรหัสรอบเวลาเรียน', '⚠️');
+        return;
+      }
 
       if (!name) {
         toast('กรุณาระบุข้อมูล', 'กรุณาระบุรอบเวลาเรียน', '⚠️');
@@ -30232,9 +30720,16 @@ if (action === 'getDashboardStats') {
 
       const btnSubmit = document.getElementById('btnSubmitSchedule');
       if (btnSubmit) btnSubmit.disabled = true;
+      const selectedCoursesArray = Array.from(window._modalScheduleSelectedCoursesSet);
+      if (!window._ocaScheduleCoursesMap) window._ocaScheduleCoursesMap = {};
 
-      callGasApi('saveSchedule', { id, name, day_time: name, learningMode: 'Hybrid' })
+      if (origId && origId !== id) {
+        delete window._ocaScheduleCoursesMap[origId];
+      }
+      window._ocaScheduleCoursesMap[id] = selectedCoursesArray;
+      saveScheduleCoursesMapToSupabase();
 
+      callGasApi('saveSchedule', { id, originalId: origId, name, day_time: name, learningMode: 'Hybrid' })
         .then(res => {
           if (btnSubmit) btnSubmit.disabled = false;
 
@@ -30242,18 +30737,17 @@ if (action === 'getDashboardStats') {
             closeScheduleModal();
             toast('สำเร็จ', 'บันทึกรอบเวลา ' + name + ' เรียบร้อย', '✓');
             loadCoursesManager();
+            if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
+            if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
           } else {
             showModal('ข้อผิดพลาด', (res && res.message) || 'ไม่สามารถบันทึกรอบเวลาเรียนได้', '❌');
           }
         })
-
         .catch(err => {
           if (btnSubmit) btnSubmit.disabled = false;
           showModal('ข้อผิดพลาด', 'ไม่สามารถบันทึกรอบเวลาเรียนได้: ' + (err.message || ''), '❌');
         });
     }
-
-    // Modal ESC Key Listener
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -47300,6 +47794,73 @@ function openPublicRegisterView() {
      * Dynamically pulls active courses & master schedules from Supabase
      * Preserves existing applicant selection seamlessly across websocket broadcasts
      */
+    function onPublicScheduleChanged(preserveCourseVal = '') {
+      const selSchedule = document.getElementById('selPubSchedule');
+      const selCourse = document.getElementById('selPubCourse');
+      if (!selCourse) return;
+      const selectedSched = selSchedule ? selSchedule.value : '';
+      const currentVal = preserveCourseVal || selCourse.value;
+      const dict = (typeof OCA_REG_I18N !== 'undefined' && OCA_REG_I18N[currentRegLanguage]) || {};
+      const safeEscape = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+      if (!selectedSched) {
+        selCourse.innerHTML = `<option value="">${safeEscape(dict.courseSelectScheduleFirst || '-- กรุณาเลือกรอบเวลาเรียนก่อน (Please select schedule first) --')}</option>`;
+        if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
+        return;
+      }
+
+      let coursesList = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
+        ? cachedCoursesList
+        : [];
+      const offeredCodes = (typeof getOfferedCourseCodesForSchedule === 'function') ? getOfferedCourseCodesForSchedule(selectedSched) : [];
+      let displayCourses = [];
+
+      if (offeredCodes && offeredCodes.length > 0) {
+        offeredCodes.forEach(code => {
+          const found = coursesList.find(c => c.id === code || c.code === code);
+          if (found) {
+            displayCourses.push(found);
+          } else {
+            const timetableLabel = (typeof COURSE_TIMETABLE_LABELS_695 !== 'undefined' && COURSE_TIMETABLE_LABELS_695[code]) || code;
+            displayCourses.push({
+              id: code,
+              code: code,
+              name: timetableLabel,
+              price: 2200
+            });
+          }
+        });
+      } else {
+        displayCourses = coursesList;
+      }
+
+      let placeholder = dict.courseSelect || `-- กรุณาเลือกหลักสูตรที่ต้องการสมัคร (${displayCourses.length} คอร์ส) --`;
+      let htmlCourse = `<option value="">${safeEscape(placeholder)}</option>`;
+
+      displayCourses.forEach(c => {
+        let label = (typeof getTimetableCourseDisplayLabel === 'function') ? getTimetableCourseDisplayLabel(c) : (c.code ? `${c.code} - ${c.name}` : (c.name || c.id));
+        if (currentRegLanguage === 'zh' && c.id && typeof OCA_COURSE_ZH !== 'undefined' && OCA_COURSE_ZH[c.id]) {
+          label = `${c.id} - ${OCA_COURSE_ZH[c.id]}`;
+        }
+        const val = c.name || c.code || c.id;
+        const priceVal = c.price ? Number(c.price) : 2200;
+        htmlCourse += `<option value="${safeEscape(val)}" data-price="${priceVal}" data-course-id="${safeEscape(c.id || c.code)}">${safeEscape(label)}</option>`;
+      });
+      selCourse.innerHTML = htmlCourse;
+
+      if (currentVal) {
+        for (let opt of selCourse.options) {
+          if (opt.value === currentVal || opt.dataset.courseId === currentVal) {
+            selCourse.value = opt.value;
+            break;
+          }
+        }
+      }
+
+      if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
+    }
+    window.onPublicScheduleChanged = onPublicScheduleChanged;
+
     async function populatePublicEnrollDropdowns() {
       const selCourse = document.getElementById('selPubCourse');
       const selSchedule = document.getElementById('selPubSchedule');
@@ -47310,60 +47871,7 @@ function openPublicRegisterView() {
         ? OCA_REG_I18N[currentRegLanguage]
         : { courseSelect: '-- กรุณาเลือกหลักสูตรที่ต้องการสมัคร --', scheduleSelect: '-- กรุณาเลือกรอบเวลาเรียน --' };
 
-      // 1. Fetch active courses
-      if (selCourse) {
-        let coursesList = [];
-        if (typeof _supabase !== 'undefined' && _supabase) {
-          try {
-            const { data, error } = await _supabase
-              .from('courses')
-              .select('id, code, name, is_active')
-              .eq('is_active', true)
-              .order('id');
-            if (!error && Array.isArray(data) && data.length > 0) {
-              coursesList = data;
-            }
-          } catch (err) {
-            console.warn('[Realtime Enrollment] Courses fetch fallback:', err);
-          }
-        }
-        if (!coursesList || coursesList.length === 0) {
-          coursesList = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
-            ? cachedCoursesList
-            : [
-                { id: 'C-01', code: 'CHN-B1', name: 'ภาษาจีนระดับต้น 1 (Beginner Chinese 1)' },
-                { id: 'C-02', code: 'CHN-B2', name: 'ภาษาจีนระดับต้น 2 (Beginner Chinese 2)' },
-                { id: 'C-03', code: 'CHN-I1', name: 'ภาษาจีนระดับกลาง 1 (Intermediate Chinese 1)' },
-                { id: 'C-04', code: 'CHN-I2', name: 'ภาษาจีนระดับกลาง 2 (Intermediate Chinese 2)' },
-                { id: 'C-05', code: 'CHN-ADV', name: 'ภาษาจีนระดับสูง (Advanced Chinese)' },
-                { id: 'C-06', code: 'CHN-BIZ', name: 'ภาษาจีนเพื่อการสื่อสารธุรกิจ (Business Chinese)' },
-                { id: 'C-07', code: 'CHN-HSK', name: 'ติวสอบวัดระดับ HSK (HSK Preparation)' }
-              ];
-        }
-
-        const safeEscape = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        let htmlCourse = `<option value="">${safeEscape(dict.courseSelect || '-- กรุณาเลือกหลักสูตรที่ต้องการสมัคร --')}</option>`;
-        coursesList.forEach(c => {
-          let cName = c.name || c.id;
-          if (currentRegLanguage === 'zh' && c.id && typeof OCA_COURSE_ZH !== 'undefined' && OCA_COURSE_ZH[c.id]) {
-            cName = OCA_COURSE_ZH[c.id];
-          }
-          const label = c.code ? `${c.code} - ${cName}` : cName;
-          const val = c.name || c.code || c.id;
-          htmlCourse += `<option value="${safeEscape(val)}">${safeEscape(label)}</option>`;
-        });
-        selCourse.innerHTML = htmlCourse;
-        if (currentCourseVal) {
-          for (let opt of selCourse.options) {
-            if (opt.value === currentCourseVal) {
-              selCourse.value = currentCourseVal;
-              break;
-            }
-          }
-        }
-      }
-
-      // 2. Fetch active schedules (Preserve 8 master schedules SCH-01 to SCH-08)
+      // 1. Fetch active schedules first (Preserve 8 master schedules SCH-01 to SCH-08)
       if (selSchedule) {
         let schedulesList = [];
         if (typeof _supabase !== 'undefined' && _supabase) {
@@ -47375,6 +47883,7 @@ function openPublicRegisterView() {
               .order('id');
             if (!error && Array.isArray(data) && data.length > 0) {
               schedulesList = data;
+              cachedSchedulesList = data;
             }
           } catch (err) {
             console.warn('[Realtime Enrollment] Schedules fetch fallback:', err);
@@ -47417,7 +47926,52 @@ function openPublicRegisterView() {
           }
         }
       }
+
+      // 2. Fetch active courses second
+      if (selCourse) {
+        let coursesList = [];
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          try {
+            const { data, error } = await _supabase
+              .from('courses')
+              .select('id, code, name, price, is_active')
+              .eq('is_active', true)
+              .order('id');
+            if (!error && Array.isArray(data) && data.length > 0) {
+              coursesList = data;
+              cachedCoursesList = data;
+            }
+          } catch (err) {
+            console.warn('[Realtime Enrollment] Courses fetch fallback:', err);
+          }
+        }
+        if (!coursesList || coursesList.length === 0) {
+          coursesList = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
+            ? cachedCoursesList
+            : [
+                { id: 'C-01', code: 'CHN-B1', name: 'ภาษาจีนระดับต้น 1 (Beginner Chinese 1)' },
+                { id: 'C-02', code: 'CHN-B2', name: 'ภาษาจีนระดับต้น 2 (Beginner Chinese 2)' },
+                { id: 'C-03', code: 'CHN-I1', name: 'ภาษาจีนระดับกลาง 1 (Intermediate Chinese 1)' },
+                { id: 'C-04', code: 'CHN-I2', name: 'ภาษาจีนระดับกลาง 2 (Intermediate Chinese 2)' },
+                { id: 'C-05', code: 'CHN-ADV', name: 'ภาษาจีนระดับสูง (Advanced Chinese)' },
+                { id: 'C-06', code: 'CHN-BIZ', name: 'ภาษาจีนเพื่อการสื่อสารธุรกิจ (Business Chinese)' },
+                { id: 'C-07', code: 'CHN-HSK', name: 'ติวสอบวัดระดับ HSK (HSK Preparation)' }
+              ];
+        }
+      }
+
+      // 3. Populate courses according to selected schedule
+      if (selSchedule && selSchedule.value) {
+        onPublicScheduleChanged(currentCourseVal);
+      } else {
+        if (selCourse) {
+          const safeEscape = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          selCourse.innerHTML = `<option value="">${safeEscape(dict.courseSelectScheduleFirst || '-- กรุณาเลือกรอบเวลาเรียนก่อน (Please select schedule first) --')}</option>`;
+        }
+        if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
+      }
     }
+    window.populatePublicEnrollDropdowns = populatePublicEnrollDropdowns;
 
     async function submitPublicRegister() {
       if (typeof getOnlineEnrollScheduleStatus === 'function') {
@@ -54404,7 +54958,7 @@ function openPublicRegisterView() {
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-16';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-17';
 
       // Auto-refresh on SW update with state preservation & toast notice
       let isRefreshing = false;
@@ -54420,7 +54974,7 @@ function openPublicRegisterView() {
           }
         } catch(_) {}
         if (typeof showToast === 'function') {
-          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-16)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
+          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-17)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
         }
         setTimeout(function() {
           window.location.reload();
@@ -54435,7 +54989,7 @@ function openPublicRegisterView() {
             if (w.state === 'installed' && navigator.serviceWorker.controller) w.postMessage({ type: 'SKIP_WAITING' });
           });
         });
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-16):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-17):', reg.scope);
         if (typeof reg.update === 'function') reg.update();
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
