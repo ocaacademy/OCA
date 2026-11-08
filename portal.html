@@ -7715,7 +7715,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-27';
+      var LATEST_VERSION = 'oca-pwa-v358-28';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -15547,8 +15547,8 @@ body.printing-report #printReportContainer {
                   <!-- Quick Filter & Search Bar -->
                   <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
                     <input type="text" id="inpScheduleCourseFilter" class="oca-input" style="flex:1; min-width:180px; font-size:12.5px; padding:6px 10px;" placeholder="🔍 ค้นหารหัสหรือชื่อคอร์ส เช่น C1001, O1001, CE101..." oninput="renderScheduleCourseCheckboxes()">
-                    <button type="button" class="oca-btn-action" onclick="applyDefaultTerm695CoursesToModal()" title="เลือกคอร์สตามตารางเรียนเทอม 5/69 อัตโนมัติ" style="background:rgba(215,166,0,0.15); border:1px solid var(--color-gold); color:var(--color-gold); font-size:11.5px; padding:5px 10px; border-radius:6px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">
-                      <i class="fa-solid fa-wand-magic-sparkles"></i> ตาราง 5/69
+                    <button type="button" id="btnApplyDefaultTermScheduleCourses" class="oca-btn-action" onclick="applyDefaultTerm695CoursesToModal()" title="เลือกคอร์สตามตารางเรียนเทอม 5/69 อัตโนมัติ" style="background:rgba(215,166,0,0.15); border:1px solid var(--color-gold); color:var(--color-gold); font-size:11.5px; padding:5px 10px; border-radius:6px; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i> <span id="lblBtnScheduleModalTermYear">ตาราง 5/69</span>
                     </button>
                     <button type="button" class="oca-btn-action" onclick="toggleAllVisibleScheduleCourses(true)" style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#34d399; font-size:11.5px; padding:5px 10px; border-radius:6px; cursor:pointer; white-space:nowrap;">
                       เลือกทั้งหมด
@@ -32235,15 +32235,29 @@ if (action === 'getDashboardStats') {
     }
     window.toggleAllVisibleScheduleCourses = toggleAllVisibleScheduleCourses;
 
+    function updateScheduleModalTermButtonLabel() {
+      const y = document.getElementById('selModalScheduleYear')?.value || '2569';
+      const t = document.getElementById('selModalScheduleTerm')?.value || '5';
+      const shortY = String(y).slice(-2);
+      const lbl = document.getElementById('lblBtnScheduleModalTermYear');
+      if (lbl) lbl.textContent = `ตาราง ${t}/${shortY}`;
+      const btn = document.getElementById('btnApplyDefaultTermScheduleCourses');
+      if (btn) btn.title = `เลือกคอร์สตามตารางเรียนเทอม ${t}/${shortY} อัตโนมัติ`;
+    }
+    window.updateScheduleModalTermButtonLabel = updateScheduleModalTermButtonLabel;
+
     function applyDefaultTerm695CoursesToModal() {
       const inpId = document.getElementById('inpScheduleId');
       const inpName = document.getElementById('inpScheduleName');
       const id = (inpId?.value || '').trim();
       const name = (inpName?.value || '').trim();
-      const defaultCourses = getOfferedCourseCodesForSchedule(id || name);
+      const y = document.getElementById('selModalScheduleYear')?.value || '2569';
+      const t = document.getElementById('selModalScheduleTerm')?.value || '5';
+      const shortY = String(y).slice(-2);
+      const defaultCourses = getOfferedCourseCodesForSchedule(id || name, t, y);
       window._modalScheduleSelectedCoursesSet = new Set(defaultCourses);
       renderScheduleCourseCheckboxes();
-      toast('เลือกคอร์สอัตโนมัติ', `เลือกตามตารางเรียน 5/69 สำเร็จ (${defaultCourses.length} คอร์ส)`, '✓');
+      toast('เลือกคอร์สอัตโนมัติ', `เลือกตามตารางเรียน ${t}/${shortY} สำเร็จ (${defaultCourses.length} คอร์ส)`, '✓');
     }
     window.applyDefaultTerm695CoursesToModal = applyDefaultTerm695CoursesToModal;
 
@@ -32299,6 +32313,7 @@ if (action === 'getDashboardStats') {
       if (selModYear) selModYear.value = configYear;
       if (selModTerm) selModTerm.value = configTerm;
       if (chkAll) chkAll.checked = false;
+      updateScheduleModalTermButtonLabel();
 
       if (editId) {
         const item = (cachedSchedulesList || []).find(s => s.id === editId);
@@ -32356,6 +32371,7 @@ if (action === 'getDashboardStats') {
     window.openScheduleModal = openScheduleModal;
 
     function onModalScheduleTermYearChange() {
+      updateScheduleModalTermButtonLabel();
       const inpId = document.getElementById('inpScheduleId');
       const inpName = document.getElementById('inpScheduleName');
       const id = (inpId?.value || '').trim();
@@ -57304,7 +57320,7 @@ function openPublicRegisterView() {
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-27';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-28';
 
       // Auto-refresh on SW update with state preservation & toast notice
       let isRefreshing = false;
@@ -57320,7 +57336,7 @@ function openPublicRegisterView() {
           }
         } catch(_) {}
         if (typeof showToast === 'function') {
-          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-27)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
+          showToast('ระบบอัปเดตเวอร์ชันใหม่แล้ว (oca-pwa-v358-28)', 'กำลังรีโหลดเพื่อใช้งานฟีเจอร์ล่าสุด...', '✓', 1200);
         }
         setTimeout(function() {
           window.location.reload();
@@ -57335,7 +57351,7 @@ function openPublicRegisterView() {
             if (w.state === 'installed' && navigator.serviceWorker.controller) w.postMessage({ type: 'SKIP_WAITING' });
           });
         });
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-27):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-28):', reg.scope);
         if (typeof reg.update === 'function') reg.update();
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
