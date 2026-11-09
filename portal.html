@@ -11080,54 +11080,128 @@ body.printing-report #printReportContainer {
                 </div>
               </div>
 
-              <!-- 4. ส่วนลดปกติ (แยกเด็ก / ผู้ใหญ่) -->
-              <div style="background:rgba(16,185,129,0.04); border:1px solid rgba(16,185,129,0.2); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px; min-width:0; overflow:hidden;">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-                  <span style="font-weight:600; font-size:13px; color:#34d399;"><i class="fa-solid fa-tag" style="margin-right:5px;"></i>4. ส่วนลดปกติ (แยกเด็ก / ผู้ใหญ่)</span>
+              <!-- 4. ส่วนลดปกติ (แยกเด็ก / ผู้ใหญ่) & ตารางจัดหมวดหมู่คอร์สแบบกลุ่ม -->
+              <div id="cardFeeDiscountNormalMatrix" style="background:rgba(16,185,129,0.04); border:1px solid rgba(16,185,129,0.2); border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:14px; min-width:0; overflow:hidden; grid-column:1 / -1;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <span style="font-weight:700; font-size:14px; color:#34d399;"><i class="fa-solid fa-tags" style="margin-right:6px;"></i>4. ส่วนลดปกติ (แยกเด็ก / ผู้ใหญ่) & ตารางจัดหมวดหมู่คอร์สแบบกลุ่ม</span>
                   <span id="badgeFeeStatus_discountNormal" style="font-size:12px; padding:2px 8px; border-radius:12px; font-weight:500;"><i class="fa-solid fa-infinity" style="margin-right:3px;"></i> ใช้ตลอดไป</span>
                 </div>
 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                  <div class="oca-input-group">
-                    <label class="oca-label" for="cfgGeneralDiscountKids" style="display:flex; align-items:center; gap:4px;">
-                      <span>👶</span> <span>ส่วนลดคอร์สเด็ก (฿)</span>
-                    </label>
+                <!-- Zone 1: Master Rate Inputs -->
+                <div style="background:rgba(0,0,0,0.18); border:1px solid rgba(16,185,129,0.15); border-radius:8px; padding:12px 14px;">
+                  <div style="font-size:12px; font-weight:700; color:#a7f3d0; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-coins"></i> อัตราส่วนลดกลาง (Master Rates)
+                  </div>
+                  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                    <div class="oca-input-group">
+                      <label class="oca-label" for="cfgGeneralDiscountKids" style="display:flex; align-items:center; gap:4px;">
+                        <span>👶</span> <span>ส่วนลดคอร์สเด็ก (฿)</span>
+                      </label>
+                      <input type="number" id="cfgGeneralDiscountKids" class="oca-input" value="100" min="0" placeholder="เช่น 100" style="color:#34d399; font-weight:700;" oninput="updateFeeSettingStatusPreview('discountNormal'); if(typeof updateFeeMatrixRateBadges==='function') updateFeeMatrixRateBadges();" title="มีผลกับหลักสูตรเยาวชนและประถม (CE, E, OE)">
+                      <span style="font-size:11px; color:var(--text-muted); margin-top:2px;">(CE, E, OE)</span>
+                    </div>
 
-                    <input type="number" id="cfgGeneralDiscountKids" class="oca-input" value="0" min="0" placeholder="เช่น 200" style="color:#34d399; font-weight:700;" oninput="updateFeeSettingStatusPreview('discountNormal')" title="มีผลกับหลักสูตรเยาวชนและประถม (CE, E, OE)">
-                    <span style="font-size:11px; color:var(--text-muted); margin-top:2px;">(CE, E, OE)</span>
+                    <div class="oca-input-group">
+                      <label class="oca-label" for="cfgGeneralDiscountNormal" style="display:flex; align-items:center; gap:4px;">
+                        <span>🧑</span> <span>ส่วนลดคอร์สผู้ใหญ่ (฿)</span>
+                      </label>
+                      <input type="number" id="cfgGeneralDiscountNormal" class="oca-input" value="200" min="0" placeholder="เช่น 200" style="color:#34d399; font-weight:700;" oninput="updateFeeSettingStatusPreview('discountNormal'); if(typeof updateFeeMatrixRateBadges==='function') updateFeeMatrixRateBadges();" title="มีผลกับหลักสูตรขั้นต้น, ขั้นกลาง, ขั้นสูง, สนทนา, HSK (C, S, SS)">
+                      <span style="font-size:11px; color:var(--text-muted); margin-top:2px;">(C, S, SS, HSK)</span>
+                    </div>
+
+                    <div class="oca-input-group">
+                      <label class="oca-label" for="cfgMode_discountNormal"><i class="fa-solid fa-infinity" style="color:#34d399; margin-right:4px;"></i>เงื่อนไขการใช้งาน</label>
+                      <select id="cfgMode_discountNormal" class="oca-input" onchange="onFeeModeChange('discountNormal')">
+                        <option value="always">✓ ใช้ตลอดไป (ไม่มีวันหมดอายุ)</option>
+                        <option value="period">⏱ ตั้งช่วงเวลา (กำหนดวันที่เริ่มต้น - สิ้นสุด)</option>
+                      </select>
+                      <div style="font-size:11.5px; color:var(--text-muted); margin-top:3px; line-height:1.4;">
+                        <i class="fa-solid fa-circle-info" style="color:#34d399; margin-right:3px;"></i>เลือก "ใช้ตลอดไป" เพื่อใช้ส่วนลดนี้ถาวร
+                      </div>
+                    </div>
                   </div>
 
-                  <div class="oca-input-group">
-                    <label class="oca-label" for="cfgGeneralDiscountNormal" style="display:flex; align-items:center; gap:4px;">
-                      <span>🧑</span> <span>ส่วนลดคอร์สผู้ใหญ่ (฿)</span>
-                    </label>
+                  <div id="boxDateRange_discountNormal" style="display:none; grid-template-columns:1fr 1fr; gap:8px; width:100%; min-width:0; box-sizing:border-box; overflow:hidden; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px dashed rgba(16,185,129,0.2); margin-top:8px;">
+                    <div>
+                      <label class="oca-label" style="font-size:12px;" for="cfgStart_discountNormal">เริ่มวันที่</label>
+                      <input type="date" id="cfgStart_discountNormal" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('discountNormal')">
+                    </div>
 
-                    <input type="number" id="cfgGeneralDiscountNormal" class="oca-input" value="0" min="0" placeholder="เช่น 240" style="color:#34d399; font-weight:700;" oninput="updateFeeSettingStatusPreview('discountNormal')" title="มีผลกับหลักสูตรขั้นต้น, ขั้นกลาง, ขั้นสูง, สนทนา, HSK (C, S, SS)">
-                    <span style="font-size:11px; color:var(--text-muted); margin-top:2px;">(C, S, SS, HSK)</span>
+                    <div>
+                      <label class="oca-label" style="font-size:12px;" for="cfgEnd_discountNormal">ถึงวันที่</label>
+                      <input type="date" id="cfgEnd_discountNormal" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('discountNormal')">
+                    </div>
                   </div>
                 </div>
 
-                <div class="oca-input-group">
-                  <label class="oca-label" for="cfgMode_discountNormal"><i class="fa-solid fa-infinity" style="color:#34d399; margin-right:4px;"></i>เงื่อนไขการใช้งาน</label>
-                  <select id="cfgMode_discountNormal" class="oca-input" onchange="onFeeModeChange('discountNormal')">
-                    <option value="always">✓ ใช้ตลอดไป (ไม่มีวันหมดอายุ)</option>
-                    <option value="period">⏱ ตั้งช่วงเวลา (กำหนดวันที่เริ่มต้น - สิ้นสุด)</option>
-                  </select>
+                <!-- Zone 2: Batch Matrix UI -->
+                <div style="background:rgba(0,0,0,0.25); border:1px solid rgba(16,185,129,0.25); border-radius:8px; padding:14px; display:flex; flex-direction:column; gap:12px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div>
+                      <div style="font-size:13.5px; font-weight:700; color:#6ee7b7; display:flex; align-items:center; gap:6px;">
+                        <i class="fa-solid fa-table-cells"></i> ตารางจัดหมวดหมู่ส่วนลดคอร์สเรียนแบบกลุ่ม (Course Discount Batch Matrix)
+                      </div>
+                      <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                        ติ๊กเลือกหมวดหมู่ส่วนลดให้แต่ละคอร์ส เพื่อใช้อัตราเงินกลางด้านบน (เด็ก ฿<span id="lblFeeMatrixKidsRate" style="color:#34d399; font-weight:700;">100</span> / ผู้ใหญ่ ฿<span id="lblFeeMatrixAdultRate" style="color:#34d399; font-weight:700;">200</span>) หักส่วนลดอัตโนมัติในเมนูออกใบเสร็จ
+                      </div>
+                    </div>
 
-                  <div style="font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.4;">
-                    <i class="fa-solid fa-circle-info" style="color:#34d399; margin-right:3px;"></i><strong>หมายเหตุ:</strong> เลือก "ใช้ตลอดไป" เพื่อให้ส่วนลดนี้มีผลใช้งานถาวรโดยอัตโนมัติ
+                    <div style="min-width:200px; max-width:260px; width:100%;">
+                      <input type="text" id="inpFeeMatrixSearch" class="oca-input" placeholder="🔍 ค้นหารหัส / ชื่อคอร์ส..." style="height:32px; font-size:12px; padding:0 10px;" oninput="onFeeMatrixSearchInput(this.value)">
+                    </div>
                   </div>
-                </div>
 
-                <div id="boxDateRange_discountNormal" style="display:none; grid-template-columns:1fr; gap:8px; width:100%; min-width:0; box-sizing:border-box; overflow:hidden; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px dashed rgba(16,185,129,0.2);">
-                  <div>
-                    <label class="oca-label" style="font-size:12px;" for="cfgStart_discountNormal">เริ่มวันที่</label>
-                    <input type="date" id="cfgStart_discountNormal" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('discountNormal')">
+                  <!-- Quick Action Buttons -->
+                  <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+                    <button type="button" class="oca-btn-cancel-custom" style="padding:5px 12px; font-size:12px; display:inline-flex; align-items:center; gap:6px; background:rgba(16,185,129,0.15); border-color:rgba(16,185,129,0.4); color:#6ee7b7;" onclick="autoAssignDiscountsByPrefix()" title="จัดกลุ่มตาม Prefix: CE, E, OE เป็นเด็ก / อื่นๆ เป็นผู้ใหญ่">
+                      <i class="fa-solid fa-bolt" style="color:#fde047;"></i> ⚡ จัดกลุ่มด่วนตาม Prefix (CE, E, OE = เด็ก / C, S = ผู้ใหญ่)
+                    </button>
+                    <button type="button" class="oca-btn-cancel-custom" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:5px;" onclick="setAllCourseAudience('kids')" title="เลือกหมวดหมู่เด็กทั้งหมด">
+                      <span>👶</span> เลือกเด็กทั้งหมด
+                    </button>
+                    <button type="button" class="oca-btn-cancel-custom" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:5px;" onclick="setAllCourseAudience('adult')" title="เลือกหมวดหมู่ผู้ใหญ่ทั้งหมด">
+                      <span>🧑</span> เลือกผู้ใหญ่ทั้งหมด
+                    </button>
+                    <button type="button" class="oca-btn-cancel-custom" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:5px;" onclick="resetCourseDiscountMatrix()" title="คืนค่าเดิมก่อนแก้ไข">
+                      <i class="fa-solid fa-rotate-left"></i> คืนค่าเดิม
+                    </button>
                   </div>
 
-                  <div>
-                    <label class="oca-label" style="font-size:12px;" for="cfgEnd_discountNormal">ถึงวันที่</label>
-                    <input type="date" id="cfgEnd_discountNormal" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('discountNormal')">
+                  <!-- Table Scroll Container strictly adhering to contract -->
+                  <div class="oca-table-scroll-container oca-custom-scrollbar" style="max-height:380px; overflow-y:auto !important; overflow-x:auto !important; border:1px solid rgba(255,255,255,0.08); border-radius:6px; background:rgba(0,0,0,0.2);">
+                    <table id="tableFeeCourseDiscountMatrix" class="oca-table" style="width:100%; border-collapse:collapse; font-size:12.5px; text-align:left;">
+                      <thead style="position:sticky; top:0; z-index:2; background:#0d1d18;">
+                        <tr style="border-bottom:1px solid rgba(16,185,129,0.25);">
+                          <th style="padding:9px 12px; width:110px; white-space:nowrap; position:sticky; top:0; background:#0d1d18; color:#a7f3d0;">รหัสคอร์ส</th>
+                          <th style="padding:9px 12px; min-width:240px; position:sticky; top:0; background:#0d1d18; color:#a7f3d0;">ชื่อคอร์สและระดับ</th>
+                          <th style="padding:9px 12px; width:150px; text-align:center; white-space:nowrap; position:sticky; top:0; background:#0d1d18; color:#34d399;">
+                            👶 คอร์สเด็ก (฿<span id="lblColKidsRate">100</span>)
+                          </th>
+                          <th style="padding:9px 12px; width:150px; text-align:center; white-space:nowrap; position:sticky; top:0; background:#0d1d18; color:#38bdf8;">
+                            🧑 คอร์สผู้ใหญ่ (฿<span id="lblColAdultRate">200</span>)
+                          </th>
+                          <th style="padding:9px 12px; width:140px; text-align:center; white-space:nowrap; position:sticky; top:0; background:#0d1d18; color:#fde047;">ส่วนลดที่จะได้รับ</th>
+                        </tr>
+                      </thead>
+                      <tbody id="tbodyFeeCourseDiscountMatrix">
+                        <tr>
+                          <td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted);">
+                            <i class="fa-solid fa-spinner fa-spin" style="margin-right:6px; color:#34d399;"></i> กำลังโหลดรายการคอร์สเรียน...
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <!-- Footer Summary & Atomic Save Button -->
+                  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.08);">
+                    <div id="lblFeeMatrixSummary" style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:8px;">
+                      <span>กำลังคำนวณจำนวนคอร์ส...</span>
+                    </div>
+
+                    <button type="button" class="oca-btn-gold-submit" id="btnSaveFeeCourseDiscountMatrix" onclick="saveFeeCourseDiscountMatrix()" style="padding:7px 18px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px;">
+                      <i class="fa-solid fa-floppy-disk"></i> บันทึกการจับคู่ส่วนลดคอร์สทั้งหมด
+                    </button>
                   </div>
                 </div>
               </div>
@@ -21078,7 +21152,8 @@ body.printing-report #printReportContainer {
       } else if (tabId === 'tabDashboard') {
         if (typeof loadDashData === 'function') loadDashData();
       } else if (tabId === 'tabCourses') {
-        if (typeof loadCoursesManager === 'function') loadCoursesManager(true);
+        if (typeof loadCoursesManager === 'function') loadCoursesManager(false);
+        if (typeof renderFeeCourseDiscountMatrix === 'function') renderFeeCourseDiscountMatrix();
       } else if (tabId === 'tabTextbooks') {
         if (typeof loadTextbooksData === 'function') loadTextbooksData();
         if (typeof loadTextbookClaimLogs === 'function') loadTextbookClaimLogs();
@@ -34456,6 +34531,13 @@ if (action === 'getDashboardStats') {
       if (typeof calcReceiptTotals === 'function') {
         try { calcReceiptTotals(); } catch(_) {}
       }
+
+      if (typeof updateFeeMatrixRateBadges === 'function') {
+        updateFeeMatrixRateBadges();
+      }
+      if (typeof renderFeeCourseDiscountMatrix === 'function') {
+        renderFeeCourseDiscountMatrix();
+      }
     }
 
         function clearGeneralFeeInputs() {
@@ -34672,6 +34754,387 @@ if (action === 'getDashboardStats') {
           }, 800);
         });
     }
+
+    // =========================================================================
+    // COURSE DISCOUNT BATCH ASSIGNMENT MATRIX (FEE SETTINGS CARD 4)
+    // =========================================================================
+
+    window._feeMatrixDraft = {};
+
+    function updateFeeMatrixRateBadges() {
+      const inpKids = document.getElementById('cfgGeneralDiscountKids');
+      const inpAdult = document.getElementById('cfgGeneralDiscountNormal');
+      const kidsRate = (inpKids && !isNaN(Number(inpKids.value)) && Number(inpKids.value) >= 0) ? Number(inpKids.value) : 100;
+      const adultRate = (inpAdult && !isNaN(Number(inpAdult.value)) && Number(inpAdult.value) >= 0) ? Number(inpAdult.value) : 200;
+
+      const elKids1 = document.getElementById('lblFeeMatrixKidsRate');
+      const elAdult1 = document.getElementById('lblFeeMatrixAdultRate');
+      const elKids2 = document.getElementById('lblColKidsRate');
+      const elAdult2 = document.getElementById('lblColAdultRate');
+
+      if (elKids1) elKids1.textContent = toArabicDigits(kidsRate);
+      if (elAdult1) elAdult1.textContent = toArabicDigits(adultRate);
+      if (elKids2) elKids2.textContent = toArabicDigits(kidsRate);
+      if (elAdult2) elAdult2.textContent = toArabicDigits(adultRate);
+
+      if (Array.isArray(cachedCoursesList)) {
+        cachedCoursesList.forEach(c => {
+          updateFeeMatrixRowDiscountDisplay(c.id || c.code);
+        });
+      }
+    }
+    window.updateFeeMatrixRateBadges = updateFeeMatrixRateBadges;
+
+    function updateFeeMatrixRowDiscountDisplay(cId) {
+      const cell = document.getElementById(`cellFeeMatrixDisc_${cId}`);
+      if (!cell) return;
+
+      const chkKids = document.getElementById(`chkFeeAudience_kids_${cId}`);
+      const chkAdult = document.getElementById(`chkFeeAudience_adult_${cId}`);
+      const course = Array.isArray(cachedCoursesList) ? cachedCoursesList.find(c => (c.id === cId || c.code === cId)) : null;
+
+      const customDisc = (course && course.custom_discount_normal !== undefined && course.custom_discount_normal !== null && course.custom_discount_normal !== '')
+        ? Number(course.custom_discount_normal)
+        : null;
+
+      const inpKids = document.getElementById('cfgGeneralDiscountKids');
+      const inpAdult = document.getElementById('cfgGeneralDiscountNormal');
+      const kidsRate = (inpKids && !isNaN(Number(inpKids.value)) && Number(inpKids.value) >= 0) ? Number(inpKids.value) : 100;
+      const adultRate = (inpAdult && !isNaN(Number(inpAdult.value)) && Number(inpAdult.value) >= 0) ? Number(inpAdult.value) : 200;
+
+      if (customDisc !== null) {
+        cell.innerHTML = `<span style="color:#fde047; font-weight:700;">฿${toArabicDigits(customDisc.toLocaleString('en-US'))}</span> <span style="font-size:10.5px; color:#cbd5e1;">(กำหนดเอง)</span>`;
+      } else if (chkKids && chkKids.checked) {
+        cell.innerHTML = `<span style="color:#34d399; font-weight:700;">฿${toArabicDigits(kidsRate.toLocaleString('en-US'))}</span>`;
+      } else if (chkAdult && chkAdult.checked) {
+        cell.innerHTML = `<span style="color:#38bdf8; font-weight:700;">฿${toArabicDigits(adultRate.toLocaleString('en-US'))}</span>`;
+      } else {
+        cell.innerHTML = `<span style="color:var(--text-muted); font-size:11.5px;">- ไม่มีส่วนลด -</span>`;
+      }
+    }
+
+    function updateFeeCourseMatrixSummary() {
+      const lbl = document.getElementById('lblFeeMatrixSummary');
+      if (!lbl) return;
+
+      const courses = Array.isArray(cachedCoursesList) ? cachedCoursesList : [];
+      let total = courses.length;
+      let kidsCount = 0;
+      let adultCount = 0;
+      let noneCount = 0;
+
+      courses.forEach(c => {
+        const cId = c.id || c.code;
+        const chkKids = document.getElementById(`chkFeeAudience_kids_${cId}`);
+        const chkAdult = document.getElementById(`chkFeeAudience_adult_${cId}`);
+        if (chkKids && chkKids.checked) {
+          kidsCount++;
+        } else if (chkAdult && chkAdult.checked) {
+          adultCount++;
+        } else {
+          noneCount++;
+        }
+      });
+
+      lbl.innerHTML = `
+        <span>รวมทั้งหมด: <strong style="color:#ffffff;">${toArabicDigits(total)}</strong> คอร์ส</span>
+        <span style="color:rgba(255,255,255,0.2);">|</span>
+        <span style="color:#34d399;">👶 เด็ก: <strong>${toArabicDigits(kidsCount)}</strong></span>
+        <span style="color:rgba(255,255,255,0.2);">|</span>
+        <span style="color:#38bdf8;">🧑 ผู้ใหญ่: <strong>${toArabicDigits(adultCount)}</strong></span>
+        ${noneCount > 0 ? `<span style="color:rgba(255,255,255,0.2);">|</span><span style="color:var(--text-muted);">⚪ ไม่กำหนด: <strong>${toArabicDigits(noneCount)}</strong></span>` : ''}
+      `;
+    }
+
+    function toggleFeeCourseAudience(cId, audience) {
+      const chkKids = document.getElementById(`chkFeeAudience_kids_${cId}`);
+      const chkAdult = document.getElementById(`chkFeeAudience_adult_${cId}`);
+      if (!chkKids || !chkAdult) return;
+
+      if (audience === 'kids') {
+        if (chkKids.checked) {
+          chkAdult.checked = false;
+          window._feeMatrixDraft[cId] = 'kids';
+        } else {
+          window._feeMatrixDraft[cId] = null;
+        }
+      } else if (audience === 'adult') {
+        if (chkAdult.checked) {
+          chkKids.checked = false;
+          window._feeMatrixDraft[cId] = 'adult';
+        } else {
+          window._feeMatrixDraft[cId] = null;
+        }
+      }
+
+      updateFeeMatrixRowDiscountDisplay(cId);
+      updateFeeCourseMatrixSummary();
+    }
+    window.toggleFeeCourseAudience = toggleFeeCourseAudience;
+
+    function renderFeeCourseDiscountMatrix(searchQuery = '') {
+      const tbody = document.getElementById('tbodyFeeCourseDiscountMatrix');
+      if (!tbody) return;
+
+      updateFeeMatrixRateBadges();
+
+      const courses = Array.isArray(cachedCoursesList) ? cachedCoursesList : [];
+      if (courses.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin" style="margin-right:6px; color:#34d399;"></i> กำลังโหลดรายการคอร์สเรียน...</td></tr>';
+        return;
+      }
+
+      const q = (searchQuery || '').trim().toLowerCase();
+      const filtered = courses.filter(c => {
+        if (!q) return true;
+        const code = (c.code || c.id || '').toLowerCase();
+        const name = (c.name || '').toLowerCase();
+        const lvl = (c.level || '').toLowerCase();
+        return code.includes(q) || name.includes(q) || lvl.includes(q);
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px;"></i>ไม่พบคอร์สเรียนที่ตรงกับ "${escapeHtml(searchQuery)}"</td></tr>`;
+        updateFeeCourseMatrixSummary();
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(c => {
+        const cId = c.id || c.code;
+        const cCode = c.code || c.id || '';
+        const cName = c.name || '';
+        const cLevel = c.level || (typeof detectCourseLevel === 'function' ? detectCourseLevel(c) : 'คอร์สขั้นต้น');
+
+        let targetAud = window._feeMatrixDraft[cId];
+        if (targetAud === undefined) {
+          if (c.target_audience) {
+            targetAud = c.target_audience;
+          } else if (c.targetAudience) {
+            targetAud = c.targetAudience;
+          } else if (typeof isKidsCourse === 'function' && isKidsCourse(c)) {
+            targetAud = 'kids';
+          } else {
+            targetAud = 'adult';
+          }
+        }
+
+        const isKids = targetAud === 'kids';
+        const isAdult = targetAud === 'adult';
+
+        const customDisc = (c.custom_discount_normal !== undefined && c.custom_discount_normal !== null && c.custom_discount_normal !== '')
+          ? Number(c.custom_discount_normal)
+          : null;
+
+        const customBadge = customDisc !== null
+          ? `<span style="font-size:10px; background:rgba(234,179,8,0.18); border:1px solid rgba(234,179,8,0.4); color:#fde047; padding:1px 6px; border-radius:4px;"><i class="fa-solid fa-star" style="margin-right:3px;"></i>ส่วนลดกำหนดเอง ฿${toArabicDigits(customDisc)}</span>`
+          : '';
+
+        return `
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.04); transition:background 0.15s ease;" id="rowFeeMatrix_${cId}">
+            <td style="padding:8px 12px; font-weight:700; color:#38bdf8; font-family:monospace; font-size:13px;">${escapeHtml(cCode)}</td>
+            <td style="padding:8px 12px;">
+              <div style="font-weight:600; color:#ffffff; font-size:13px;">${escapeHtml(cName)}</div>
+              <div style="display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap;">
+                <span style="font-size:11px; color:var(--text-muted);">${escapeHtml(cLevel)}</span>
+                ${customBadge}
+              </div>
+            </td>
+            <td style="padding:8px 12px; text-align:center;">
+              <label style="display:inline-flex; align-items:center; justify-content:center; cursor:pointer; width:100%; height:100%;">
+                <input type="checkbox" id="chkFeeAudience_kids_${cId}" class="oca-matrix-chk" data-cid="${cId}" data-aud="kids" ${isKids ? 'checked' : ''} onchange="toggleFeeCourseAudience('${cId}', 'kids')" style="width:18px; height:18px; cursor:pointer; accent-color:#10b981;">
+              </label>
+            </td>
+            <td style="padding:8px 12px; text-align:center;">
+              <label style="display:inline-flex; align-items:center; justify-content:center; cursor:pointer; width:100%; height:100%;">
+                <input type="checkbox" id="chkFeeAudience_adult_${cId}" class="oca-matrix-chk" data-cid="${cId}" data-aud="adult" ${isAdult ? 'checked' : ''} onchange="toggleFeeCourseAudience('${cId}', 'adult')" style="width:18px; height:18px; cursor:pointer; accent-color:#0284c7;">
+              </label>
+            </td>
+            <td style="padding:8px 12px; text-align:center; font-weight:600;" id="cellFeeMatrixDisc_${cId}">
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      filtered.forEach(c => {
+        updateFeeMatrixRowDiscountDisplay(c.id || c.code);
+      });
+
+      updateFeeCourseMatrixSummary();
+    }
+    window.renderFeeCourseDiscountMatrix = renderFeeCourseDiscountMatrix;
+
+    function onFeeMatrixSearchInput(val) {
+      renderFeeCourseDiscountMatrix(val);
+    }
+    window.onFeeMatrixSearchInput = onFeeMatrixSearchInput;
+
+    function autoAssignDiscountsByPrefix() {
+      const courses = Array.isArray(cachedCoursesList) ? cachedCoursesList : [];
+      if (courses.length === 0) {
+        toast('ไม่พบคอร์สเรียน', 'ไม่มีข้อมูลคอร์สเรียนในระบบ', 'warning');
+        return;
+      }
+
+      let kidsCount = 0;
+      let adultCount = 0;
+
+      courses.forEach(c => {
+        const cId = c.id || c.code;
+        const code = ((c.code || c.id || '') + '').trim().toUpperCase();
+        const isKidsPrefix = code.startsWith('CE') || code.startsWith('OE') || /^E\d|^E-|^E\b/i.test(code) || code.startsWith('E');
+        const aud = isKidsPrefix ? 'kids' : 'adult';
+
+        window._feeMatrixDraft[cId] = aud;
+
+        const chkKids = document.getElementById(`chkFeeAudience_kids_${cId}`);
+        const chkAdult = document.getElementById(`chkFeeAudience_adult_${cId}`);
+        if (chkKids) chkKids.checked = isKidsPrefix;
+        if (chkAdult) chkAdult.checked = !isKidsPrefix;
+
+        if (isKidsPrefix) kidsCount++;
+        else adultCount++;
+
+        updateFeeMatrixRowDiscountDisplay(cId);
+      });
+
+      updateFeeCourseMatrixSummary();
+      toast('จัดกลุ่มด่วนสำเร็จ', `จัดกลุ่มตาม Prefix (CE, E, OE = เด็ก ${toArabicDigits(kidsCount)} คอร์ส / C, S = ผู้ใหญ่ ${toArabicDigits(adultCount)} คอร์ส) แล้ว กรุณากด "บันทึก"`, '✓');
+    }
+    window.autoAssignDiscountsByPrefix = autoAssignDiscountsByPrefix;
+
+    function setAllCourseAudience(aud) {
+      const courses = Array.isArray(cachedCoursesList) ? cachedCoursesList : [];
+      if (courses.length === 0) return;
+
+      courses.forEach(c => {
+        const cId = c.id || c.code;
+        window._feeMatrixDraft[cId] = aud;
+
+        const chkKids = document.getElementById(`chkFeeAudience_kids_${cId}`);
+        const chkAdult = document.getElementById(`chkFeeAudience_adult_${cId}`);
+        if (chkKids) chkKids.checked = (aud === 'kids');
+        if (chkAdult) chkAdult.checked = (aud === 'adult');
+
+        updateFeeMatrixRowDiscountDisplay(cId);
+      });
+
+      updateFeeCourseMatrixSummary();
+      toast('เลือกทั้งหมดเรียบร้อย', aud === 'kids' ? 'เลือกหมวดหมู่เด็กทุกคอร์สแล้ว' : 'เลือกหมวดหมู่ผู้ใหญ่ทุกคอร์สแล้ว', 'info');
+    }
+    window.setAllCourseAudience = setAllCourseAudience;
+
+    function resetCourseDiscountMatrix() {
+      window._feeMatrixDraft = {};
+      renderFeeCourseDiscountMatrix(document.getElementById('inpFeeMatrixSearch')?.value || '');
+      toast('คืนค่าเดิมเรียบร้อย', 'ย้อนกลับไปใช้ค่าก่อนแก้ไขเรียบร้อยแล้ว', 'info');
+    }
+    window.resetCourseDiscountMatrix = resetCourseDiscountMatrix;
+
+    let isSavingFeeCourseMatrix = false;
+
+    async function saveFeeCourseDiscountMatrix() {
+      if (isSavingFeeCourseMatrix) return;
+      const btn = document.getElementById('btnSaveFeeCourseDiscountMatrix');
+      const origHtml = btn ? btn.innerHTML : '';
+
+      const courses = Array.isArray(cachedCoursesList) ? cachedCoursesList : [];
+      if (courses.length === 0) {
+        showModal('ไม่พบข้อมูล', 'ไม่มีรายการคอร์สเรียนให้บันทึก', '⚠️');
+        return;
+      }
+
+      const updates = [];
+      courses.forEach(c => {
+        const cId = c.id || c.code;
+        let selectedAud = window._feeMatrixDraft[cId];
+
+        if (selectedAud === undefined) {
+          const chkKids = document.getElementById(`chkFeeAudience_kids_${cId}`);
+          const chkAdult = document.getElementById(`chkFeeAudience_adult_${cId}`);
+          if (chkKids && chkKids.checked) selectedAud = 'kids';
+          else if (chkAdult && chkAdult.checked) selectedAud = 'adult';
+          else selectedAud = null;
+        }
+
+        if (selectedAud && selectedAud !== c.target_audience) {
+          updates.push({ id: c.id, code: c.code, target_audience: selectedAud });
+        }
+      });
+
+      if (updates.length === 0) {
+        toast('ข้อมูลเป็นปัจจุบันอยู่แล้ว', 'ไม่มีรายการจับคู่ส่วนลดคอร์สที่เปลี่ยนแปลง', 'info');
+        return;
+      }
+
+      isSavingFeeCourseMatrix = true;
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+      }
+
+      try {
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          const updatePromises = updates.map(u => 
+            _supabase.from('courses')
+              .update({
+                target_audience: u.target_audience,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', u.id)
+          );
+
+          const results = await Promise.all(updatePromises);
+          const firstErr = results.find(r => r && r.error);
+          if (firstErr && firstErr.error) {
+            throw new Error(firstErr.error.message || 'บันทึกข้อมูลคอร์สเรียนไม่สำเร็จ');
+          }
+
+          try {
+            const actor = (typeof getAuditActor === 'function') ? getAuditActor() : { username: 'staff', fullName: 'Staff' };
+            await _supabase.from('security_audit_logs').insert([{
+              action: 'COURSE_DISCOUNTS_BATCH_UPDATED',
+              username: actor.username,
+              full_name: actor.fullName,
+              details: `บันทึกการจับคู่ส่วนลดคอร์สเรียน (เด็ก/ผู้ใหญ่) จำนวน ${updates.length} คอร์ส`,
+              created_at: new Date().toISOString()
+            }]);
+          } catch (_) {}
+        }
+
+        updates.forEach(u => {
+          const found = cachedCoursesList.find(c => c.id === u.id || c.code === u.code);
+          if (found) {
+            found.target_audience = u.target_audience;
+            found.targetAudience = u.target_audience;
+            found.is_kids = (u.target_audience === 'kids');
+          }
+        });
+
+        window._feeMatrixDraft = {};
+
+        if (typeof renderCoursesTable === 'function') {
+          renderCoursesTable(cachedCoursesList);
+        }
+
+        renderFeeCourseDiscountMatrix(document.getElementById('inpFeeMatrixSearch')?.value || '');
+
+        showModal(
+          'บันทึกสำเร็จ',
+          `บันทึกการจับคู่ส่วนลดคอร์สเรียนสำเร็จจำนวน <strong>${toArabicDigits(updates.length)}</strong> คอร์ส<br><span style="font-size:12px; color:var(--text-muted); margin-top:4px; display:inline-block;">ระบบออกใบเสร็จและคำนวณส่วนลดจะดึงหมวดหมู่ใหม่นี้ไปใช้งานโดยอัตโนมัติ</span>`,
+          '✓'
+        );
+      } catch (err) {
+        console.error('saveFeeCourseDiscountMatrix error:', err);
+        showModal('ข้อผิดพลาด', 'ไม่สามารถบันทึกการจับคู่ส่วนลดคอร์สได้: ' + (err.message || ''), '❌');
+      } finally {
+        isSavingFeeCourseMatrix = false;
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = origHtml || '<i class="fa-solid fa-floppy-disk"></i> บันทึกการจับคู่ส่วนลดคอร์สทั้งหมด';
+        }
+      }
+    }
+    window.saveFeeCourseDiscountMatrix = saveFeeCourseDiscountMatrix;
 
     // =========================================================================
 
@@ -35013,6 +35476,9 @@ if (action === 'getDashboardStats') {
             if (typeof initCourseCategoryIcons === 'function') initCourseCategoryIcons();
             renderCoursesTable(cachedCoursesList);
             renderSchedulesTable(cachedSchedulesList);
+            if (typeof renderFeeCourseDiscountMatrix === 'function') {
+              renderFeeCourseDiscountMatrix();
+            }
           }
         })
 
