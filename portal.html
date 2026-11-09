@@ -8741,7 +8741,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-39';
+      var LATEST_VERSION = 'oca-pwa-v358-40';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -22012,7 +22012,7 @@ body.printing-report #printReportContainer {
                 }
               }
 
-              if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1') {
+              if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1' && f.key !== 'classroom_master_list') {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
@@ -22058,6 +22058,20 @@ body.printing-report #printReportContainer {
             feeSettings: fullFeeSettings,
 
             staffAvatars: staffAvatars,
+
+            classrooms: (() => {
+              const clSetting = (fees || []).find(f => f.key === 'classroom_master_list');
+              if (clSetting) {
+                const rawJson = (clSetting.name && clSetting.name.startsWith('[')) ? clSetting.name : (clSetting.mode && clSetting.mode.startsWith('[') ? clSetting.mode : '');
+                if (rawJson) {
+                  try {
+                    const parsed = JSON.parse(rawJson);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                  } catch (_) {}
+                }
+              }
+              return null;
+            })(),
 
             scheduleCoursesMap: (() => {
               const mapSetting = (fees || []).find(f => f.key === 'schedule_courses_map');
@@ -25673,6 +25687,28 @@ if (action === 'getDashboardStats') {
             return { success: true };
           }
 
+          if (params.key === 'classroom_master_list') {
+            const rawVal = params.name || (params.mode && params.mode !== 'always' ? params.mode : '') || (Array.isArray(params.classrooms) ? JSON.stringify(params.classrooms) : '[]');
+            const jsonStr = (typeof rawVal === 'string') ? rawVal : JSON.stringify(rawVal);
+            const count = (Array.isArray(params.classrooms) ? params.classrooms.length : (params.value || 0));
+            const { error: upsertErr } = await _supabase.from('fee_settings').upsert([{
+              key: 'classroom_master_list',
+              name: jsonStr,
+              mode: 'always',
+              amount: Number(count) || 0,
+              start_date: null,
+              end_date: null,
+              updated_at: new Date().toISOString()
+            }], { onConflict: 'key' });
+
+            if (upsertErr) {
+              console.error('[Supabase saveFeeSettings: classroom_master_list error]', upsertErr);
+              throw new Error(upsertErr.message || 'บันทึกรายการห้องเรียนลงฐานข้อมูลไม่สำเร็จ');
+            }
+
+            return { success: true };
+          }
+
           const feeKeys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'discountNormal', 'discountKids', 'discountOther'];
           const feeNames = {
             tuitionFee: 'ค่าเล่าเรียนทั่วไป',
@@ -25760,7 +25796,7 @@ if (action === 'getDashboardStats') {
 
           if (fees) {
             fees.forEach(f => {
-              if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1') {
+              if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1' && f.key !== 'classroom_master_list') {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
@@ -31627,19 +31663,21 @@ if (action === 'getDashboardStats') {
       const elClassroomSub = document.getElementById('srClassroomSubInfo');
       const elClassroomInst = document.getElementById('srClassroomInstructor');
 
+      const rawCourse = s.course || s.current_course || '';
+      const rawSched = s.schedule || s.current_schedule || '';
+      const yt = (s.yearBE || s.year || '2569') + '_' + (s.term || '5');
+      const cfg = typeof getSavedCourseClassroomConfig === 'function' ? getSavedCourseClassroomConfig(yt, rawCourse, rawSched) : null;
+
       if (elClassroomInst) {
-        const cVal = s.course || s.current_course || '';
-        const sVal = s.schedule || s.current_schedule || '';
-        const yt = (s.yearBE || s.year || '2569') + '_' + (s.term || '5');
-        const cfg = typeof getSavedCourseClassroomConfig === 'function' ? getSavedCourseClassroomConfig(yt, cVal, sVal) : null;
         elClassroomInst.textContent = 'อาจารย์ผู้สอน: ' + ((cfg && cfg.instructor) ? cfg.instructor : (s.instructor || 'อาจารย์ประจำกลุ่มเรียน'));
       }
 
-      const rawRoom = (s.room || s.classroom || '').toString().trim();
+      let rawRoom = (s.room || s.classroom || (cfg && cfg.room) || '').toString().trim();
+      if (rawRoom === '-') rawRoom = '';
 
       if (elClassroom) {
-        elClassroom.textContent = rawRoom ? ('ห้อง ' + toArabicDigits(rawRoom)) : '(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)';
-        elClassroom.style.color = rawRoom ? 'var(--color-gold)' : '#38bdf8';
+        elClassroom.textContent = rawRoom ? ('ห้อง ' + toArabicDigits(rawRoom)) : '(ไม่มีห้องเรียนในเทอมปัจจุบัน - ดูประวัติในแท็บประวัติการศึกษา)';
+        elClassroom.style.color = rawRoom ? 'var(--color-gold)' : '#9ca3af';
       }
 
       if (elClassroomSub) {
@@ -31750,44 +31788,6 @@ if (action === 'getDashboardStats') {
 
       if (typeof loadSrStudentReceipts === 'function' && s.studentId) {
         loadSrStudentReceipts(s.studentId);
-      }
-
-      if (s && s.studentId) {
-        loadStudentAcademicShard(s.studentId).then(historyList => {
-          if (!historyList || historyList.length === 0) return;
-          const sorted = [...historyList].sort((a, b) => b.semesterId.localeCompare(a.semesterId));
-          const latest = sorted[0];
-
-          if (latest) {
-            if (latest.room && (!s.room || s.room === '-' || s.room === '')) {
-              s.room = latest.room;
-
-              if (elClassroom) {
-                elClassroom.textContent = 'ห้อง ' + toArabicDigits(latest.room);
-                elClassroom.style.color = 'var(--color-gold)';
-              }
-            }
-
-            if (latest.lecturerName) {
-              s.instructor = latest.lecturerName;
-
-              if (elClassroomInst) {
-                elClassroomInst.textContent = 'อาจารย์ผู้สอน: อ.' + latest.lecturerName + (latest.section ? (' (กลุ่ม ' + latest.section + ')') : '');
-              }
-            }
-
-            if (elClassroomSub) {
-              const cName = latest.courseNo + ' ' + (latest.courseTitle !== latest.courseNo ? latest.courseTitle : '');
-              const sTime = (latest.dayLabel || '') + (latest.timeRange ? (' ' + latest.timeRange) : '');
-              elClassroomSub.textContent = 'คอร์ส: ' + cName + (sTime ? (' | รอบเวลา: ' + sTime) : '');
-            }
-
-            if (latest.dayLabel && (!s.schedule || s.schedule === '-' || s.schedule === '')) {
-              s.schedule = latest.dayLabel + (latest.timeRange ? (' (' + latest.timeRange + ')') : '') + (latest.section ? (' · กลุ่ม ' + latest.section) : '');
-              if (elSchedule) elSchedule.textContent = s.schedule;
-            }
-          }
-        }).catch(err => console.warn('[displayStudentDetailCard] Academic history enrich error:', err));
       }
 
       card.style.display = 'block';
@@ -34496,12 +34496,24 @@ if (action === 'getDashboardStats') {
           if (stored) rooms = JSON.parse(stored);
         } catch (_) {}
 
+        if ((!rooms || rooms.length === 0) && typeof _supabase !== 'undefined' && _supabase) {
+          try {
+            const { data: clRow } = await _supabase.from('fee_settings').select('*').eq('key', 'classroom_master_list').limit(1).maybeSingle();
+            if (clRow) {
+              const rawJson = (clRow.name && clRow.name.startsWith('[')) ? clRow.name : (clRow.mode && clRow.mode.startsWith('[') ? clRow.mode : '');
+              if (rawJson) rooms = JSON.parse(rawJson);
+            }
+          } catch (_) {}
+        }
+
         if ((!rooms || rooms.length === 0) && typeof callGasApi === 'function') {
           try {
             const res = await callGasApi('getFeeSettings', {}, 'GET');
 
             if (res && res.settings && res.settings.classroom_master_list) {
-              rooms = JSON.parse(res.settings.classroom_master_list.mode || '[]');
+              const item = res.settings.classroom_master_list;
+              const jsonStr = (item.name && item.name.startsWith('[')) ? item.name : (item.mode && item.mode.startsWith('[') ? item.mode : '[]');
+              rooms = JSON.parse(jsonStr);
             }
           } catch (_) {}
         }
@@ -34612,7 +34624,9 @@ if (action === 'getDashboardStats') {
         callGasApi('saveFeeSettings', {
           key: 'classroom_master_list',
 
-          mode: JSON.stringify(cachedClassroomsList),
+          name: JSON.stringify(cachedClassroomsList),
+
+          mode: 'always',
 
           value: cachedClassroomsList.length
         }, 'POST').catch(() => {});
@@ -34637,7 +34651,9 @@ if (action === 'getDashboardStats') {
         callGasApi('saveFeeSettings', {
           key: 'classroom_master_list',
 
-          mode: JSON.stringify(cachedClassroomsList),
+          name: JSON.stringify(cachedClassroomsList),
+
+          mode: 'always',
 
           value: cachedClassroomsList.length
         }, 'POST').catch(() => {});
@@ -34670,6 +34686,16 @@ if (action === 'getDashboardStats') {
             cachedSchedulesList = res.schedules;
           } else if (!cachedSchedulesList || cachedSchedulesList.length === 0) {
             cachedSchedulesList = OFFICIAL_DEFAULT_SCHEDULES.map(s => ({ ...s }));
+          }
+
+          if (Array.isArray(res.classrooms) && res.classrooms.length > 0) {
+            cachedClassroomsList = res.classrooms;
+            window.cachedClassroomsList = res.classrooms;
+            try {
+              localStorage.setItem('oca_classroom_master_list', JSON.stringify(res.classrooms));
+            } catch (_) {}
+            if (typeof renderClassroomsTable === 'function') renderClassroomsTable();
+            if (typeof updateClassroomDatalists === 'function') updateClassroomDatalists();
           }
 
           if (res.feeSettings) {
@@ -36433,22 +36459,6 @@ if (action === 'getDashboardStats') {
             }
           }
         } catch (_) {}
-      }
-
-      if (typeof DEFAULT_TERM_695_CLASS_MAP !== 'undefined' && DEFAULT_TERM_695_CLASS_MAP) {
-        Object.values(DEFAULT_TERM_695_CLASS_MAP).forEach(arr => {
-          if (Array.isArray(arr)) {
-            arr.forEach(g => {
-              if (g && g.room) {
-                const rm = String(g.room).trim();
-
-                if (rm && !roomsMap.has(rm)) {
-                  roomsMap.set(rm, 'ห้อง ' + rm);
-                }
-              }
-            });
-          }
-        });
       }
 
       if (roomsMap.size === 0) {
@@ -56183,6 +56193,16 @@ function openForgotPasswordModal() {
 
             populateGeneralFeeInputs(globalFeePresets);
           }
+
+          if (res && Array.isArray(res.classrooms) && res.classrooms.length > 0) {
+            cachedClassroomsList = res.classrooms;
+            window.cachedClassroomsList = res.classrooms;
+            try {
+              localStorage.setItem('oca_classroom_master_list', JSON.stringify(res.classrooms));
+            } catch (_) {}
+            if (typeof renderClassroomsTable === 'function') renderClassroomsTable();
+            if (typeof updateClassroomDatalists === 'function') updateClassroomDatalists();
+          }
         }).catch(() => {});
       }
 
@@ -67480,7 +67500,7 @@ function openPublicRegisterView() {
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-39';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-40';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
@@ -67488,7 +67508,7 @@ function openPublicRegisterView() {
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-39):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-40):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
