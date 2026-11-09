@@ -22204,7 +22204,19 @@ body.printing-report #printReportContainer {
         }
 
         if (action === 'getCoursesAndSchedules' || action === 'syncOfficialCourses') {
-          const { data: courses } = await _supabase.from('courses').select('*').eq('is_active', true).order('id', { ascending: true });
+          let courses = null;
+          try {
+            const resC = await _supabase.from('courses').select('*').eq('is_active', true).neq('is_legacy_archive', true).order('id', { ascending: true });
+            if (resC.error && (resC.error.code === '42703' || String(resC.error.message || '').includes('is_legacy_archive'))) {
+              const resFb = await _supabase.from('courses').select('*').eq('is_active', true).order('id', { ascending: true });
+              courses = resFb.data;
+            } else {
+              courses = resC.data;
+            }
+          } catch (_) {
+            const resFb = await _supabase.from('courses').select('*').eq('is_active', true).order('id', { ascending: true });
+            courses = resFb.data;
+          }
           const { data: schedules } = await _supabase.from('schedules').select('*').eq('is_active', true).order('id', { ascending: true });
           const { data: fees } = await _supabase.from('fee_settings').select('*');
           const mappedCourses = (courses || []).map(c => {
@@ -29035,18 +29047,6 @@ if (action === 'getDashboardStats') {
 
           if (found) {
             displayCourses.push(found);
-          } else {
-            const timetableLabel = (typeof COURSE_TIMETABLE_LABELS_695 !== 'undefined' && COURSE_TIMETABLE_LABELS_695[code]) || code;
-
-            displayCourses.push({
-              id: code,
-
-              code: code,
-
-              name: timetableLabel,
-
-              price: 2200
-            });
           }
         });
       } else {
@@ -29161,7 +29161,7 @@ if (action === 'getDashboardStats') {
 
         if (typeof _supabase !== 'undefined' && _supabase) {
           try {
-            const { data, error } = await _supabase
+            let resC = await _supabase
 
               .from('courses')
 
@@ -29169,37 +29169,37 @@ if (action === 'getDashboardStats') {
 
               .eq('is_active', true)
 
+              .neq('is_legacy_archive', true)
+
               .order('id');
 
-            if (!error && Array.isArray(data) && data.length > 0) {
-              coursesList = data;
-              cachedCoursesList = data;
+            if (resC.error && (resC.error.code === '42703' || String(resC.error.message || '').includes('is_legacy_archive'))) {
+              resC = await _supabase
+
+                .from('courses')
+
+                .select('id, code, name, price, is_active')
+
+                .eq('is_active', true)
+
+                .order('id');
+            }
+
+            if (!resC.error && Array.isArray(resC.data)) {
+              coursesList = resC.data;
+              cachedCoursesList = resC.data;
             }
           } catch (err) {
             console.warn('[Enrollment] Courses fetch fallback:', err);
           }
         }
 
-        if (!coursesList || coursesList.length === 0) {
-          coursesList = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
+        if (!coursesList) {
+          coursesList = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList))
 
             ? cachedCoursesList
 
-            : [
-                { id: 'C-01', code: 'CHN-B1', name: 'ภาษาจีนขั้นพื้นฐาน 1 (Beginner Chinese 1)', price: 4000 },
-
-                { id: 'C-02', code: 'CHN-B2', name: 'ภาษาจีนขั้นพื้นฐาน 2 (Beginner Chinese 2)', price: 4000 },
-
-                { id: 'C-03', code: 'CHN-I1', name: 'ภาษาจีนระดับกลาง 1 (Intermediate Chinese 1)', price: 4500 },
-
-                { id: 'C-04', code: 'CHN-I2', name: 'ภาษาจีนระดับกลาง 2 (Intermediate Chinese 2)', price: 4500 },
-
-                { id: 'C-05', code: 'CHN-ADV', name: 'ภาษาจีนระดับสูง (Advanced Chinese)', price: 5000 },
-
-                { id: 'C-06', code: 'CHN-BIZ', name: 'ภาษาจีนเพื่อการพาณิชย์/ธุรกิจ (Business Chinese)', price: 5500 },
-
-                { id: 'C-07', code: 'CHN-HSK', name: 'ภาษาจีนติวสอบ HSK (HSK Preparation)', price: 4500 }
-              ];
+            : [];
         }
       }
 
@@ -36242,7 +36242,7 @@ if (action === 'getDashboardStats') {
           tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px 15px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px; color:var(--color-gold);"></i>ไม่พบคอร์สเรียนที่ตรงกับคำค้นหา "<span style="color:#FAF0D7;">' + escapeHtml(searchQuery) + '</span>"</td></tr>';
           if (badge) badge.textContent = '0 / ' + toArabicDigits(totalCount) + ' คอร์ส';
         } else {
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted);">ยังไม่มีคอร์สเรียนในระบบ กรุณากด "+ เพิ่มคอร์สใหม่"</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:36px; color:var(--text-muted);"><i class="fa-solid fa-graduation-cap" style="font-size:24px; color:var(--color-gold); margin-bottom:10px; display:block;"></i>ยังไม่มีคอร์สเรียนในระบบ (พร้อมสร้างใหม่ตามระบบใหม่)<br><span style="font-size:12px; color:var(--text-muted);">กรุณากดปุ่ม <b>"+ เพิ่มคอร์สใหม่"</b> เพื่อเริ่มต้นสร้างหลักสูตรของสถาบัน</span></td></tr>';
           if (badge) badge.textContent = '0 คอร์ส';
         }
 
@@ -37571,29 +37571,31 @@ if (action === 'getDashboardStats') {
     };
     window.COURSE_TIMETABLE_LABELS_695 = COURSE_TIMETABLE_LABELS_695;
     const DEFAULT_SCHEDULE_COURSES_MAP = {
-      'SCH-01': ['C1001','C1002','C1003','C1004','C1005','C2002','C2003','C2004','C2006','C3001','C3002','O1001','O1002','O1003','O1004','O1005','O2005','OC105','OC201','S1002','S1004','OS102','SS102','OS104','S3101'],
+      'SCH-01': [],
 
-      'SCH-02': ['C1001','C1002','C1003','C1004','C1005','O1001','O1002','O1003','O1004','O1005','C4000'],
+      'SCH-02': [],
 
-      'SCH-03': ['C1001','C1002','C1003','C1004','O1001','O1002','O1004'],
+      'SCH-03': [],
 
-      'SCH-04': ['C1001','C1002','C1003','C1004','C1005','C2001','C2002','C2003','C2004','C2007','C3003','C4000','O4000','O1001','O1002','O1003','O1004','O1005','OC104','OC105','OC201','S1001','S1003','S1005','OS101','OS103','S3104'],
+      'SCH-04': [],
 
-      'SCH-05': ['C3003','C3007','S4102'],
+      'SCH-05': [],
 
-      'SCH-06': ['C1001','C1002','C1003','C1004','C1005','C2001','C2002','C2003','C2004','C2005','C2006','C2007','C2008','C2009','C2010','C3001','C3004','C3007','C3010','C4000','O4000','O1001','O1002','O1003','O1004','O1005','OC102','OC103','OC104','OC105','OC201','OC202','OC203','OC204','OC205','OC207'],
+      'SCH-06': [],
 
-      'SCH-07': ['C1001','C1002','C1003','C1004','C1005','C2001','C2002','C2003','C2004','C2005','C2006','C2007','C2008','C3003','C3008','C4000','O1001','O1002','O1003','O1004','O1005','OC102','OC103','OC104','OC105','OC201','OC202','OC203','OC204','OC205','OC206','OC207'],
+      'SCH-07': [],
 
-      'SCH-08': ['CE101','OE101','CE102','OE102','CE103','CE104','CE105','CE121','CE122','CE123','CE124','CE226'],
-
-      'SCH-15': ['CE101','OE101','CE102','OE102','CE103','CE104','CE105','CE121','CE122','CE123','CE124','CE226'],
-
-      'SCH-16': ['CE201','OE201','CE202','CE203','CE204','CE205','CE221','CE222','CE126']
+      'SCH-08': []
     };
     window.DEFAULT_SCHEDULE_COURSES_MAP = DEFAULT_SCHEDULE_COURSES_MAP;
 
     try {
+      if (localStorage.getItem('oca_clean_slate_courses_v2') !== 'true') {
+        localStorage.removeItem('oca_schedule_courses_map');
+        localStorage.removeItem('oca_schedule_courses_by_term_v1');
+        localStorage.removeItem('oca_course_group_instructor_map_v1');
+        localStorage.setItem('oca_clean_slate_courses_v2', 'true');
+      }
       const storedMap = localStorage.getItem('oca_schedule_courses_map');
       window._ocaScheduleCoursesMap = storedMap ? JSON.parse(storedMap) : JSON.parse(JSON.stringify(DEFAULT_SCHEDULE_COURSES_MAP));
     } catch (_) {
@@ -37619,79 +37621,7 @@ if (action === 'getDashboardStats') {
 
     const COURSE_GROUP_INSTRUCTOR_STORAGE_KEY = 'oca_course_group_instructor_map_v1';
     const COURSE_GROUP_INSTRUCTOR_DB_KEY = 'course_group_instructor_by_term_v1';
-    const DEFAULT_TERM_695_CLASS_MAP = {
-      'C1001': [
-        { section: 'A', lecturerName: 'ธนพล Zhang Jinhui', room: '407', remark: 'ปกติ' },
-
-        { section: 'G', lecturerName: 'ภูวเมศฐ์ Liu Jianyi', room: '405', remark: 'ปกติ' }
-      ],
-
-      'C1002': [
-        { section: 'A', lecturerName: 'ประสงค์ Cai Shengfeng', room: '402', remark: 'ปกติ' },
-
-        { section: 'G', lecturerName: 'วิไลวรรณ Luo Ping', room: '306', remark: 'ปกติ' }
-      ],
-
-      'C1003': [{ section: 'A', lecturerName: 'ณัฐมน Zhou Keqing', room: '406', remark: 'ปกติ' }],
-
-      'C1004': [{ section: 'A', lecturerName: 'มานิตย์ Zhou Hanxiang', room: '401', remark: 'ปกติ' }],
-
-      'C1005': [{ section: 'A', lecturerName: 'นีลนารา LinLin', room: '311', remark: 'ปกติ' }],
-
-      'C2002': [{ section: 'D', lecturerName: 'ณัฐณิชา Fang Yushan', room: '304', remark: 'ปกติ' }],
-
-      'C2003': [{ section: 'A', lecturerName: 'ณัฐพล Yu Zhirong', room: '408', remark: 'ปกติ' }],
-
-      'C2004': [{ section: 'A', lecturerName: 'ชุนผิง Sun Ping', room: '309', remark: 'ปกติ' }],
-
-      'C2006': [{ section: 'A', lecturerName: 'เซี่ยวจิ้ง Xiaojing', room: '303', remark: 'ปกติ' }],
-
-      'C3001': [{ section: 'A', lecturerName: 'เยว่เฉิน Yue Chen', room: '302', remark: 'ปกติ' }],
-
-      'O1001': [
-        { section: 'A', lecturerName: 'ช่วงชัย Zhou Hanlin', room: '111', remark: 'คลาสรวมพิเศษ' },
-
-        { section: 'H', lecturerName: 'ศุภชัย Su Hanzhe', room: '111', remark: 'คลาสรวมพิเศษ' }
-      ],
-
-      'O1002': [
-        { section: 'A', lecturerName: 'เหลียงเย่ติง Yeting', room: '111', remark: 'คลาสรวมพิเศษ' },
-
-        { section: 'G', lecturerName: 'โยษิตา Guiyun', room: '111', remark: 'คลาสรวมพิเศษ' }
-      ],
-
-      'O1003': [{ section: 'A', lecturerName: 'สุพรรษา Chen Meimiao', room: '111', remark: 'คลาสรวมพิเศษ' }],
-
-      'O1004': [
-        { section: 'A', lecturerName: 'เถียนเฟิง Tian Feng', room: '111', remark: 'คลาสรวมพิเศษ' },
-
-        { section: 'H', lecturerName: 'วิภารักษ์ Guo Huimei', room: '111', remark: 'คลาสรวมพิเศษ' }
-      ],
-
-      'O1005': [{ section: 'A', lecturerName: 'สิริญญ์กัญ Bai Xue', room: '111', remark: 'คลาสรวมพิเศษ' }],
-
-      'O2005': [{ section: 'A', lecturerName: 'ตั้งเฮ่อฮี่ Tang Heyi', room: '111', remark: 'คลาสรวมพิเศษ' }],
-
-      'OC105': [{ section: 'A', lecturerName: 'นีลนารา LinLin', room: '311', remark: 'ปกติ' }],
-
-      'OC201': [{ section: 'E', lecturerName: 'พิมพ์ปภัสร Linglong', room: '403', remark: 'ปกติ' }],
-
-      'OS104': [
-        { section: 'B', lecturerName: 'ทิพย์อาภา Qiu Yunxia', room: '312', remark: 'ปกติ' },
-
-        { section: 'C', lecturerName: 'เต็งเว่ยหยุ่น Weiyun', room: '305', remark: 'ปกติ' }
-      ],
-
-      'S1002': [{ section: 'B', lecturerName: 'หวังปิ้ง Wang Bing', room: '301', remark: 'ปกติ' }],
-
-      'S1004': [{ section: 'A', lecturerName: 'เต็งเว่ยหยุ่น Weiyun', room: '305', remark: 'ปกติ' }],
-
-      'SS102': [
-        { section: 'A', lecturerName: 'วัลลภา Lin Xuejiao', room: '111', remark: 'วิชาเลือกพิเศษ' },
-
-        { section: 'B', lecturerName: 'พ.ภัทรพิชญ์ Lili', room: '111', remark: 'วิชาเลือกพิเศษ' }
-      ]
-    };
+    const DEFAULT_TERM_695_CLASS_MAP = {};
     window.DEFAULT_TERM_695_CLASS_MAP = DEFAULT_TERM_695_CLASS_MAP;
 
     try {
@@ -39112,17 +39042,7 @@ if (action === 'getDashboardStats') {
         : [];
       let courseItems = [...allCourses];
 
-      if (courseItems.length === 0) {
-        courseItems = Object.keys(COURSE_TIMETABLE_LABELS_695).map(code => ({
-          id: code,
-
-          code: code,
-
-          name: COURSE_TIMETABLE_LABELS_695[code] || code,
-
-          price: 2200
-        }));
-      }
+      // Clean Slate: No phantom legacy courses synthesis when courses table is empty
 
       if (badgeCount) {
         badgeCount.textContent = `เลือกแล้ว ${window._modalScheduleSelectedCoursesSet.size} คอร์ส`;
@@ -59282,18 +59202,6 @@ function openPublicRegisterView() {
 
           if (found) {
             displayCourses.push(found);
-          } else {
-            const timetableLabel = (typeof COURSE_TIMETABLE_LABELS_695 !== 'undefined' && COURSE_TIMETABLE_LABELS_695[code]) || code;
-
-            displayCourses.push({
-              id: code,
-
-              code: code,
-
-              name: timetableLabel,
-
-              price: 2200
-            });
           }
         });
       } else {
