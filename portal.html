@@ -8830,7 +8830,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-44';
+      var LATEST_VERSION = 'oca-pwa-v358-45';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -8915,20 +8915,8 @@ body.printing-report #printReportContainer {
         <button class="oca-sidebar-close-btn" onclick="toggleSidebar(false)" title="Close Menu"><i class="fa-solid fa-xmark"></i></button>
       </a>
 
-      <!-- Mobile Profile Card in Sidebar Drawer -->
-      <div class="oca-sidebar-profile-card" id="sidebarUserProfileCard" onclick="switchNav('settings'); toggleSidebar(false);" title="จัดการบัญชีและการตั้งค่าระบบ" style="display:flex; align-items:center; gap:12px; margin:10px 14px 14px 14px; padding:10px 14px; border-radius:14px; background:linear-gradient(135deg, rgba(215,166,0,0.12), rgba(2,44,34,0.4)); border:1px solid rgba(215,166,0,0.3); cursor:pointer;">
-        <div class="oca-user-avatar" id="sidebarUserAvatar" style="width:38px; height:38px; min-width:38px; min-height:38px; border-radius:50%; border:1.5px solid var(--color-gold); background:var(--color-emerald); display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0;">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        </div>
-
-        <div style="display:flex; flex-direction:column; min-width:0; overflow:hidden;">
-          <span id="sidebarUserName" style="font-weight:700; color:#ffffff; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">ผู้ดูแลระบบ</span>
-          <span id="sidebarUserRole" style="font-size:11.5px; color:var(--color-gold); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Administrator</span>
-        </div>
-
-        <i class="fa-solid fa-chevron-right" style="margin-left:auto; font-size:11px; color:var(--color-gold); opacity:0.8;"></i>
-      </div>
-
+      <!-- Mobile Profile Card in Sidebar Drawer (Hidden per UI deduplication spec, retained for headless sync compatibility) -->
+      <div id="sidebarUserProfileCard" style="display:none !important;" aria-hidden="true"><div id="sidebarUserAvatar" style="display:none;"></div><span id="sidebarUserName" style="display:none;"></span><span id="sidebarUserRole" style="display:none;"></span></div>
       <ul class="oca-sidebar-menu">
         <li>
           <button class="oca-menu-item-btn active" id="btnNavDash" onclick="switchNav('dashboard')">
@@ -13190,9 +13178,7 @@ body.printing-report #printReportContainer {
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:0 4px;">
                 <span style="font-size:12px; color:var(--text-muted); font-weight:600;">
                   <i class="fa-solid fa-chart-line" style="margin-right:6px; color:var(--color-gold);"></i>
-
                   <span id="txtFinanceChartLineTitle">แผนภูมิเปรียบเทียบยอดเงินสุทธิแต่ละปีการศึกษา (หน่วย: บาท)</span>
-
                 </span>
 
                 <span style="font-size:11px; color:#10b981; background:rgba(16,185,129,0.15); padding:2px 8px; border-radius:12px; border:1px solid rgba(16,185,129,0.3);">
@@ -20048,7 +20034,7 @@ body.printing-report #printReportContainer {
         </div>
 
         <!-- Footer -->
-        <div style="text-align:center; padding:16px; font-size:12.5px; color:#047857; font-weight:600;">
+        <div id="lblPublicRegFooterContact" style="text-align:center; padding:16px; font-size:12.5px; color:#047857; font-weight:600;">
 
           東方文化書院 · ORIENTAL CULTURE ACADEMY · สอบถามเพิ่มเติม เบอร์โทรศัพท์ : 02-216-2826, 02-216-2827, 02-216-2828 · LINE: @ocaacademy
 
@@ -31697,7 +31683,7 @@ if (action === 'getDashboardStats') {
       return `${s[0]}-${s.slice(1, 5)}-xxxxx-${s.slice(10, 12)}-${s[12]}`;
     }
 
-    function renderSearchStudentsTable(students) {
+    function renderSearchStudentsTable(students = (cachedSearchStudentsData || [])) {
       const tbody = document.getElementById('tbodySearchStudents');
       if (!tbody) return;
 
@@ -36388,53 +36374,111 @@ if (action === 'getDashboardStats') {
 
     function renderPublicRegisterClosedScreen(schedStatus) {
       const box = document.getElementById('boxPublicRegisterClosedScreen');
-      if (!box) return;
+      if (!box || !schedStatus) return;
+      const lang = window.currentRegLanguage || 'th';
       const isUpcoming = schedStatus.status === 'UPCOMING';
       const iconClass = isUpcoming ? 'fa-solid fa-hourglass-half' : 'fa-solid fa-lock';
       const iconColor = isUpcoming ? '#F59E0B' : '#EF4444';
       const iconBg = isUpcoming ? 'rgba(245, 158, 11, 0.12)' : 'rgba(239, 68, 68, 0.12)';
       const iconBorder = isUpcoming ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)';
-      const headline = isUpcoming
+      const formatLocalizedDateTime = (dtStr) => {
+        if (!dtStr) return '-';
+        if (lang === 'zh' && typeof formatZhDateTime === 'function') return formatZhDateTime(dtStr);
+        if (lang === 'en' && typeof formatEnDateTime === 'function') return formatEnDateTime(dtStr);
+        return (typeof formatThaiDateTime === 'function') ? formatThaiDateTime(dtStr) : dtStr;
+      };
+      const i18nTexts = {
+        th: {
+          headlineUpcoming: 'ระบบรับสมัครเรียนออนไลน์ยังไม่เปิดรับสมัคร',
+          headlineClosed: 'ปิดรับสมัครเรียนออนไลน์แล้ว',
+          subheadUpcoming: (dt) => `จะเปิดรับสมัครอย่างเป็นทางการในวันที่ ${dt}`,
+          subheadClosed: 'หมดเขตรอบรับสมัครเรียนออนไลน์ประจำภาคเรียนนี้แล้ว',
+          announcementTitle: 'ประกาศจากสถาบัน:',
+          countdownPrefix: 'นับถอยหลัง:',
+          scheduleTitle: 'กำหนดการรับสมัครเรียน:',
+          scheduleStart: 'เริ่มต้น:',
+          scheduleEnd: 'สิ้นสุด:',
+          asAnnounced: 'ตามประกาศ',
+          contactTitle: 'ติดต่อสอบถาม / สำรองที่นั่งโดยตรง',
+          contactAcademy: '東方文化書院 (ORIENTAL CULTURE ACADEMY)',
+          contactTel: 'เบอร์โทรศัพท์: 02-216-2826, 02-216-2827, 02-216-2828',
+          contactLine: 'LINE Official: @ocaacademy'
+        },
+        zh: {
+          headlineUpcoming: '在线入学申请系统暂未开放',
+          headlineClosed: '在线入学申请系统已截止',
+          subheadUpcoming: (dt) => `系统将于 ${dt} 正式开放申请`,
+          subheadClosed: '本学期在线入学申请已截止受理',
+          announcementTitle: '学院官方公告:',
+          countdownPrefix: '倒计时:',
+          scheduleTitle: '招生申请时间表:',
+          scheduleStart: '开始时间:',
+          scheduleEnd: '截止时间:',
+          asAnnounced: '以官方公告为准',
+          contactTitle: '直接咨询 / 预留名额',
+          contactAcademy: '東方文化書院 (ORIENTAL CULTURE ACADEMY)',
+          contactTel: '咨询电话: 02-216-2826, 02-216-2827, 02-216-2828',
+          contactLine: 'LINE 官方账号: @ocaacademy'
+        },
+        en: {
+          headlineUpcoming: 'Online Admission System Not Yet Open',
+          headlineClosed: 'Online Admission System is Closed',
+          subheadUpcoming: (dt) => `Official registration begins on ${dt}`,
+          subheadClosed: 'Online admission for this semester has concluded',
+          announcementTitle: 'Official Announcement:',
+          countdownPrefix: 'Countdown:',
+          scheduleTitle: 'Admission Schedule:',
+          scheduleStart: 'Start Date:',
+          scheduleEnd: 'End Date:',
+          asAnnounced: 'As announced',
+          contactTitle: 'Direct Inquiries & Seat Reservation',
+          contactAcademy: '東方文化書院 (ORIENTAL CULTURE ACADEMY)',
+          contactTel: 'Contact Tel: 02-216-2826, 02-216-2827, 02-216-2828',
+          contactLine: 'LINE Official: @ocaacademy'
+        }
+      };
+      const t = i18nTexts[lang] || i18nTexts.th;
+      const formattedStartDate = schedStatus.startDate ? formatLocalizedDateTime(schedStatus.startDate) : t.asAnnounced;
+      const formattedEndDate = schedStatus.endDate ? formatLocalizedDateTime(schedStatus.endDate) : t.asAnnounced;
+      const headline = isUpcoming ? t.headlineUpcoming : t.headlineClosed;
+      const subhead = isUpcoming ? t.subheadUpcoming(formattedStartDate) : t.subheadClosed;
+      let countdown = schedStatus.countdownText || '';
+      if (schedStatus.startDate) {
+        const now = Date.now() + (window._ocaServerTimeOffsetMs || 0);
+        const start = new Date(schedStatus.startDate).getTime();
+        if (start > now) {
+          const diffMs = start - now;
+          const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+          const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          if (lang === 'zh') {
+            countdown = diffDays > 0 ? `剩余 ${diffDays} 天 ${diffHours} 小时` : `剩余 ${diffHours} 小时`;
+          } else if (lang === 'en') {
+            countdown = diffDays > 0 ? `${diffDays} days ${diffHours} hours remaining` : `${diffHours} hours remaining`;
+          } else {
+            countdown = diffDays > 0 ? `อีก ${diffDays} วัน ${diffHours} ชั่วโมง` : `อีก ${diffHours} ชั่วโมง`;
+          }
+        }
+      }
 
-        ? 'ระบบรับสมัครเรียนออนไลน์ยังไม่เปิดรับสมัคร'
-
-        : 'ปิดรับสมัครเรียนออนไลน์แล้ว';
-      const subhead = isUpcoming
-
-        ? `จะเปิดรับสมัครอย่างเป็นทางการในวันที่ ${formatThaiDateTime(schedStatus.startDate)}`
-
-        : `หมดเขตรอบรับสมัครเรียนออนไลน์ประจำภาคเรียนนี้แล้ว`;
       const noticeHtml = schedStatus.noticeMsg
-
         ? `<div style="background:#FEF3C7; border:1.5px solid #F59E0B; border-radius:12px; padding:14px 18px; color:#92400E; font-size:13.5px; font-weight:600; line-height:1.6; max-width:540px; margin:0 auto 20px;">
-
-             📢 <strong>ประกาศจากสถาบัน:</strong> ${escapeHtml(schedStatus.noticeMsg)}
-
+             📢 <strong>${t.announcementTitle}</strong> ${escapeHtml(schedStatus.noticeMsg)}
            </div>`
-
         : '';
-      const countdownHtml = (isUpcoming && schedStatus.countdownText)
-
+      const countdownHtml = (isUpcoming && countdown)
         ? `<div style="display:inline-flex; align-items:center; gap:8px; background:#EFF6FF; border:1.5px solid #3B82F6; color:#1D4ED8; font-size:14px; font-weight:800; padding:8px 20px; border-radius:24px; margin-bottom:20px;">
-
-             ⏳ นับถอยหลัง: ${schedStatus.countdownText}
-
+             ⏳ ${t.countdownPrefix} ${countdown}
            </div>`
-
         : '';
       const scheduleDetailsHtml = (schedStatus.startDate || schedStatus.endDate)
-
         ? `<div style="background:#F9FAFB; border:1px solid #E5E7EB; border-radius:12px; padding:12px 18px; max-width:480px; margin:0 auto 24px; font-size:13px; color:#4B5563; line-height:1.7;">
-
-             <div>📅 <strong>กำหนดการรับสมัครเรียน:</strong></div>
-             <div>• เริ่มต้น: ${schedStatus.startDate ? formatThaiDateTime(schedStatus.startDate) : 'ตามประกาศ'}</div>
-             <div>• สิ้นสุด: ${schedStatus.endDate ? formatThaiDateTime(schedStatus.endDate) : 'ตามประกาศ'}</div>
+             <div>📅 <strong>${t.scheduleTitle}</strong></div>
+             <div>• ${t.scheduleStart} ${formattedStartDate}</div>
+             <div>• ${t.scheduleEnd} ${formattedEndDate}</div>
            </div>`
-
         : '';
 
       box.innerHTML = `
-
         <div style="max-width:600px; margin:0 auto; padding:20px 10px;">
           <div style="width:72px; height:72px; border-radius:50%; background:${iconBg}; border:2px solid ${iconBorder}; color:${iconColor}; display:flex; align-items:center; justify-content:center; font-size:32px; margin:0 auto 18px; box-shadow:0 8px 20px rgba(0,0,0,0.06);">
             <i class="${iconClass}"></i>
@@ -36452,17 +36496,16 @@ if (action === 'getDashboardStats') {
           <!-- Institutional Contact Card -->
           <div style="background:#ECFDF5; border:1.5px solid #10B981; border-radius:14px; padding:16px 20px; max-width:480px; margin:0 auto 24px; text-align:left;">
             <div style="font-size:13.5px; font-weight:700; color:#065F46; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-              <i class="fa-solid fa-headset"></i> ติดต่อสอบถาม / สำรองที่นั่งโดยตรง
+              <i class="fa-solid fa-headset"></i> ${t.contactTitle}
             </div>
 
             <div style="font-size:13px; color:#047857; line-height:1.7;">
-              <div>🏫 <strong>東方文化書院 (ORIENTAL CULTURE ACADEMY)</strong></div>
-              <div>📞 เบอร์โทรศัพท์: 02-216-2826, 02-216-2827, 02-216-2828</div>
-              <div>💬 LINE Official: @ocaacademy</div>
+              <div>🏫 <strong>${t.contactAcademy}</strong></div>
+              <div>📞 ${t.contactTel}</div>
+              <div>💬 ${t.contactLine}</div>
             </div>
           </div>
         </div>
-
       `;
     }
 
@@ -44954,7 +44997,6 @@ if (action === 'getDashboardStats') {
       const defaultSub = (curL === 'zh') ? '需要操作确认' : (curL === 'en' ? 'Confirmation Required' : 'Confirmation Required');
       const defaultConfirm = (curL === 'zh') ? '确定' : (curL === 'en' ? 'Confirm' : 'ตกลง');
       const defaultCancel = (curL === 'zh') ? '取消' : (curL === 'en' ? 'Cancel' : 'ยกเลิก');
-
       const title = opts.title || defaultTitle;
       const message = opts.message || '';
       const icon = opts.icon || 'fa-triangle-exclamation';
@@ -51510,7 +51552,6 @@ if (action === 'getDashboardStats') {
               gradientFill.addColorStop(0, 'rgba(16, 185, 129, 0.32)');
               gradientFill.addColorStop(0.8, 'rgba(16, 185, 129, 0.04)');
               gradientFill.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
-
               const curLang = window._currentSystemLang || 'th';
               const netLabel = (curLang === 'zh') ? '净总收入 (泰铢)' : (curLang === 'en' ? 'Net Revenue (THB)' : 'ยอดเงินสุทธิ (บาท)');
               const avgLabel = (curLang === 'zh') ? ('年均总收入 (฿' + toArabicDigits(Math.round(avgRev).toLocaleString()) + ')') : (curLang === 'en' ? ('Avg. Annual Revenue (฿' + toArabicDigits(Math.round(avgRev).toLocaleString()) + ')') : ('ยอดเฉลี่ยต่อปี (฿' + toArabicDigits(Math.round(avgRev).toLocaleString()) + ')'));
@@ -58575,7 +58616,9 @@ function openForgotPasswordModal() {
 
       closedUpcomingSub: 'จะเปิดรับสมัครอย่างเป็นทางการในวันที่ ',
 
-      closedEndedSub: 'หมดเขตรอบรับสมัครเรียนออนไลน์ประจำภาคเรียนนี้แล้ว'
+      closedEndedSub: 'หมดเขตรอบรับสมัครเรียนออนไลน์ประจำภาคเรียนนี้แล้ว',
+
+      footerContact: '東方文化書院 · ORIENTAL CULTURE ACADEMY · สอบถามเพิ่มเติม เบอร์โทรศัพท์ : 02-216-2826, 02-216-2827, 02-216-2828 · LINE: @ocaacademy'
     },
 
     en: {
@@ -58851,7 +58894,9 @@ function openForgotPasswordModal() {
 
       closedUpcomingSub: 'Official admission will open on ',
 
-      closedEndedSub: 'The online admission period for this semester has concluded.'
+      closedEndedSub: 'The online admission period for this semester has concluded.',
+
+      footerContact: '東方文化書院 · ORIENTAL CULTURE ACADEMY · Contact Tel: 02-216-2826, 02-216-2827, 02-216-2828 · LINE: @ocaacademy'
     },
 
     zh: {
@@ -59127,7 +59172,9 @@ function openForgotPasswordModal() {
 
       closedUpcomingSub: '将于此日期正式开放报名: ',
 
-      closedEndedSub: '本学期在线入学申请已全部截止。'
+      closedEndedSub: '本学期在线入学申请已全部截止。',
+
+      footerContact: '東方文化書院 · ORIENTAL CULTURE ACADEMY · 咨询电话: 02-216-2826, 02-216-2827, 02-216-2828 · LINE 官方账号: @ocaacademy'
     }
   };
 
@@ -59359,11 +59406,20 @@ function openForgotPasswordModal() {
 
     // Closed screen if currently rendered
 
+    const activeSchedStatus = (typeof getOnlineEnrollScheduleStatus === 'function')
+      ? getOnlineEnrollScheduleStatus()
+      : (window.CACHED_ONLINE_ENROLL_SCHEDULE ? {
+          status: (new Date() < new Date(window.CACHED_ONLINE_ENROLL_SCHEDULE.startDate)) ? 'UPCOMING' : 'CLOSED',
+          startDate: window.CACHED_ONLINE_ENROLL_SCHEDULE.startDate,
+          endDate: window.CACHED_ONLINE_ENROLL_SCHEDULE.endDate,
+          noticeMsg: window.CACHED_ONLINE_ENROLL_SCHEDULE.noticeMsg
+        } : null);
     const closedScreen = document.getElementById('boxPublicRegisterClosedScreen');
-
-    if (closedScreen && closedScreen.style.display !== 'none' && schedStatus) {
-      renderPublicRegisterClosedScreen(schedStatus);
+    if (closedScreen && closedScreen.style.display !== 'none' && activeSchedStatus) {
+      renderPublicRegisterClosedScreen(activeSchedStatus);
     }
+
+    setTxt('lblPublicRegFooterContact', dict.footerContact);
   }
 
     let isPubRegAutoSaveInited = false;
@@ -61609,7 +61665,14 @@ function openPublicRegisterView() {
         }
 
         showToast('ดรอปเรียนเรียบร้อย', `${studentName || studentId} เปลี่ยนสถานะเป็น DROPPED`, 'success');
-        if (typeof renderSearchStudentsTable === 'function') renderSearchStudentsTable();
+        if (typeof filterAndRenderSearchStudents === 'function') {
+          filterAndRenderSearchStudents();
+        } else if (typeof renderSearchStudentsTable === 'function') {
+          renderSearchStudentsTable(cachedSearchStudentsData);
+        }
+        if (typeof loadAllStudentsStatus === 'function') {
+          loadAllStudentsStatus('silent');
+        }
         if (typeof onRosterFilterChanged === 'function') onRosterFilterChanged();
 
         if (typeof loadDashData === 'function') { try { loadDashData(); } catch(_) {} }
@@ -61655,7 +61718,14 @@ function openPublicRegisterView() {
         }
 
         showToast('คืนสภาพนักศึกษาเรียบร้อย', `${studentName || studentId} กลับเป็น ACTIVE`, 'success');
-        if (typeof renderSearchStudentsTable === 'function') renderSearchStudentsTable();
+        if (typeof filterAndRenderSearchStudents === 'function') {
+          filterAndRenderSearchStudents();
+        } else if (typeof renderSearchStudentsTable === 'function') {
+          renderSearchStudentsTable(cachedSearchStudentsData);
+        }
+        if (typeof loadAllStudentsStatus === 'function') {
+          loadAllStudentsStatus('silent');
+        }
         if (typeof onRosterFilterChanged === 'function') onRosterFilterChanged();
 
         if (typeof loadDashData === 'function') { try { loadDashData(); } catch(_) {} }
@@ -62468,7 +62538,7 @@ function openPublicRegisterView() {
 
         closeQuickEditRoomModal();
         showToast('เปลี่ยนห้องเรียนสำเร็จ', 'รหัส ' + sid + ' เป็นห้อง ' + newRoom, '✅');
-        if (typeof renderSearchStudentsTable === 'function') renderSearchStudentsTable();
+        if (typeof filterAndRenderSearchStudents === 'function') filterAndRenderSearchStudents();
 
         if (typeof loadDashData === 'function') { try { loadDashData(); } catch(_) {} }
 
@@ -63100,7 +63170,6 @@ function openPublicRegisterView() {
       }
     };
     let _currentSystemLang = 'th';
-
     const OCA_GLOBAL_I18N = {
       th: {
         financialHubTitle: 'ศูนย์การเงิน (Financial Hub)',
@@ -63215,7 +63284,6 @@ function openPublicRegisterView() {
       }
     };
     window.OCA_GLOBAL_I18N = OCA_GLOBAL_I18N;
-
     const OCA_MANUAL_I18N = {
       th: {
         modalTitle: 'คู่มือการใช้งานระบบ & สถาปัตยกรรมความปลอดภัย',
@@ -63254,14 +63322,12 @@ function openPublicRegisterView() {
         const el = document.getElementById(id);
         if (el && text !== undefined) el.textContent = text;
       };
-
       setText('txtManualModalHeaderTitle', mDict.modalTitle);
       setText('txtManualModalHeaderSub', mDict.modalSub);
       setText('txtManualPrintBtn', mDict.printBtn);
       setText('txtManualTabMenusText', mDict.tabMenus);
       setText('txtManualTabSecurityText', mDict.tabSecurity);
       setText('txtManualTabRealtimeText', mDict.tabRealtime);
-
       const inpSearch = document.getElementById('inpManualSearch');
       if (inpSearch && mDict.searchPlaceholder) {
         inpSearch.placeholder = mDict.searchPlaceholder;
@@ -63286,7 +63352,6 @@ function openPublicRegisterView() {
       });
       const activeTopBtn = document.getElementById(`topbarBtnLang${lang.toUpperCase()}`);
       if (activeTopBtn) activeTopBtn.classList.add('active');
-
       const dict = SYSTEM_TOPBAR_I18N[lang];
       if (dict) {
         const txtWelcome = document.getElementById('txtTopbarWelcome');
@@ -69590,7 +69655,7 @@ function openPublicRegisterView() {
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-44';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-45';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
@@ -69598,7 +69663,7 @@ function openPublicRegisterView() {
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-44):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-45):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
