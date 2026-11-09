@@ -8878,7 +8878,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-50';
+      var LATEST_VERSION = 'oca-pwa-v358-51';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -34070,10 +34070,11 @@ if (action === 'getDashboardStats') {
             elAllYears.textContent = toArabicDigits(Number(s.totalAllStudents || s.totalStudents || 0).toLocaleString('en-US'));
           }
 
+          const lang = window._currentSystemLang || 'th';
+          const yearPrefix = (lang === 'zh') ? '学年 ' : (lang === 'en' ? 'Year ' : 'ปี ');
           const elYearBadge = document.getElementById('dashKpiYearBadge');
-
           if (elYearBadge && s.targetYearBE) {
-            elYearBadge.textContent = 'ปี ' + toArabicDigits(s.targetYearBE);
+            elYearBadge.textContent = yearPrefix + toArabicDigits(s.targetYearBE);
           }
 
           const elChartYear = document.getElementById('dashChartYear');
@@ -34244,7 +34245,8 @@ if (action === 'getDashboardStats') {
 
             if (listEl) {
               const entries = Object.entries(s.coursesDistribution);
-              if (summaryEl) summaryEl.textContent = toArabicDigits(entries.length) + ' หลักสูตร';
+              const courseSuffix = (lang === 'zh') ? ' 门课程' : (lang === 'en' ? ' courses' : ' หลักสูตร');
+              if (summaryEl) summaryEl.textContent = toArabicDigits(entries.length) + courseSuffix;
 
               if (entries.length === 0) {
                 listEl.innerHTML = '<div style="text-align:center; padding:24px 0; color:var(--text-muted); font-size:13px;">ยังไม่มีข้อมูลการลงทะเบียนในหลักสูตร</div>';
@@ -35852,17 +35854,18 @@ if (action === 'getDashboardStats') {
       } catch (_) {}
 
       if (typeof _supabase !== 'undefined' && _supabase) {
-        _supabase.from('fee_settings').upsert({
-          key: 'classroom_master_list',
-
-          name: JSON.stringify(cachedClassroomsList),
-
-          mode: 'always',
-
-          amount: cachedClassroomsList.length,
-
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'key' }).catch(err => console.warn('Supabase classroom sync error:', err));
+        try {
+          const safeRoomSummary = (cachedClassroomsList || []).map(r => r.roomNo).join(', ').slice(0, 200);
+          await _supabase.from('fee_settings').upsert({
+            key: 'classroom_master_list',
+            name: safeRoomSummary,
+            mode: 'always',
+            amount: (cachedClassroomsList || []).length,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        } catch (errFs) {
+          console.warn('[Classroom] Supabase secondary sync notice:', errFs);
+        }
       }
 
       if (typeof callGasApi === 'function') {
@@ -35893,17 +35896,18 @@ if (action === 'getDashboardStats') {
       } catch (_) {}
 
       if (typeof _supabase !== 'undefined' && _supabase) {
-        _supabase.from('fee_settings').upsert({
-          key: 'classroom_master_list',
-
-          name: JSON.stringify(cachedClassroomsList),
-
-          mode: 'always',
-
-          amount: cachedClassroomsList.length,
-
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'key' }).catch(err => console.warn('Supabase classroom sync error:', err));
+        try {
+          const safeRoomSummary = (cachedClassroomsList || []).map(r => r.roomNo).join(', ').slice(0, 200);
+          await _supabase.from('fee_settings').upsert({
+            key: 'classroom_master_list',
+            name: safeRoomSummary,
+            mode: 'always',
+            amount: (cachedClassroomsList || []).length,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        } catch (errFs) {
+          console.warn('[Classroom] Supabase secondary sync notice:', errFs);
+        }
       }
 
       if (typeof callGasApi === 'function') {
@@ -55506,7 +55510,7 @@ if (action === 'getDashboardStats') {
 
      */
 
-    function logoutStaff() {
+    async function logoutStaff() {
       const user = getSavedCurrentUser();
       const username = user ? user.username : 'GUEST';
       const deviceId = getOrCreateDeviceId();
@@ -55520,7 +55524,7 @@ if (action === 'getDashboardStats') {
       if (user && user.username && typeof _supabase !== 'undefined' && _supabase) {
         try {
           const u = user.username.toLowerCase().trim();
-          _supabase.from('fee_settings').delete().eq('key', 'session:' + u).catch(() => {});
+          await _supabase.from('fee_settings').delete().eq('key', 'session:' + u);
         } catch (_) {}
       }
 
@@ -55551,6 +55555,8 @@ if (action === 'getDashboardStats') {
       document.documentElement.classList.remove('portal-active');
       showToast('ออกจากระบบเรียบร้อย', 'ข้อมูลเซสชันถูกล้างเพื่อความปลอดภัยแล้ว', '🔒');
     }
+
+    window.logoutStaff = logoutStaff;
 
     /**
 
@@ -64131,7 +64137,7 @@ function openPublicRegisterView() {
           textbooks: '教材库存 (TEXTBOOKS)'
         },
         dashboard: {
-          calligraphy: '书院数据总览',
+          calligraphy: '东方文化书院 (数据总览)',
           title: '书院数据总览 (Executive Dashboard)',
           desc: '按学年、学期及授课模式汇总学员在读与注册数据',
           supabaseLive: 'Supabase 云端实时',
@@ -64681,6 +64687,12 @@ function openPublicRegisterView() {
                 el.textContent = isPeak ? (tName + sDict.dashboard.peakSuffix) : tName;
               }
             });
+          }
+
+          const elYearBadge = document.getElementById('dashKpiYearBadge');
+          if (elYearBadge && typeof currentDashboardYear !== 'undefined' && currentDashboardYear) {
+            const yearPrefix = (lang === 'zh') ? '学年 ' : (lang === 'en' ? 'Year ' : 'ปี ');
+            elYearBadge.textContent = yearPrefix + (typeof toArabicDigits === 'function' ? toArabicDigits(currentDashboardYear) : currentDashboardYear);
           }
         }
       }
@@ -71015,7 +71027,7 @@ function openPublicRegisterView() {
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-50';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-51';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -71024,7 +71036,7 @@ function openPublicRegisterView() {
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-50):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-51):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
