@@ -8862,7 +8862,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-47';
+      var LATEST_VERSION = 'oca-pwa-v358-48';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -36404,10 +36404,11 @@ if (action === 'getDashboardStats') {
 
      */
 
-    function renderPublicRegisterClosedScreen(schedStatus) {
+    function renderPublicRegisterClosedScreen(schedStatus, optLang) {
       const box = document.getElementById('boxPublicRegisterClosedScreen');
       if (!box || !schedStatus) return;
-      const lang = window.currentRegLanguage || 'th';
+      if (schedStatus.isOpen && schedStatus.status === 'OPEN') return;
+      const lang = optLang || window.currentRegLanguage || (typeof currentRegLanguage !== 'undefined' ? currentRegLanguage : 'th') || 'th';
       const isUpcoming = schedStatus.status === 'UPCOMING';
       const iconClass = isUpcoming ? 'fa-solid fa-hourglass-half' : 'fa-solid fa-lock';
       const iconColor = isUpcoming ? '#F59E0B' : '#EF4444';
@@ -36539,7 +36540,9 @@ if (action === 'getDashboardStats') {
           </div>
         </div>
       `;
+      window.renderPublicRegisterClosedScreen = renderPublicRegisterClosedScreen;
     }
+    window.renderPublicRegisterClosedScreen = renderPublicRegisterClosedScreen;
 
     function saveTermOpeningDatesFromUI() {
       const selYear = document.getElementById('selTermDatesYear');
@@ -59214,6 +59217,7 @@ function openForgotPasswordModal() {
 
   function setRegisterLanguage(lang) {
     currentRegLanguage = ['en', 'zh'].includes(lang) ? lang : 'th';
+    window.currentRegLanguage = currentRegLanguage;
 
     try {
       localStorage.setItem('oca_reg_language', currentRegLanguage);
@@ -59235,7 +59239,12 @@ function openForgotPasswordModal() {
       const activeTopBtn = document.getElementById(`topbarBtnLang${lang.toUpperCase()}`);
       if (activeTopBtn) activeTopBtn.classList.add('active');
       try { localStorage.setItem('oca_system_lang', lang); } catch(_) {}
-      const topDict = SYSTEM_TOPBAR_I18N[lang];
+      let topDict = null;
+      try {
+        topDict = (typeof SYSTEM_TOPBAR_I18N !== 'undefined' && SYSTEM_TOPBAR_I18N) ? SYSTEM_TOPBAR_I18N[lang] : (typeof window !== 'undefined' && window.SYSTEM_TOPBAR_I18N ? window.SYSTEM_TOPBAR_I18N[lang] : null);
+      } catch (_) {
+        topDict = (typeof window !== 'undefined' && window.SYSTEM_TOPBAR_I18N) ? window.SYSTEM_TOPBAR_I18N[lang] : null;
+      }
       if (topDict) {
         const txtWelcome = document.getElementById('txtTopbarWelcome');
         if (txtWelcome) txtWelcome.textContent = topDict.welcomeBtn;
@@ -59449,8 +59458,12 @@ function openForgotPasswordModal() {
           noticeMsg: window.CACHED_ONLINE_ENROLL_SCHEDULE.noticeMsg
         } : null);
     const closedScreen = document.getElementById('boxPublicRegisterClosedScreen');
-    if (closedScreen && closedScreen.style.display !== 'none' && activeSchedStatus) {
-      renderPublicRegisterClosedScreen(activeSchedStatus);
+    if (closedScreen && activeSchedStatus) {
+      if (typeof window.renderPublicRegisterClosedScreen === 'function') {
+        window.renderPublicRegisterClosedScreen(activeSchedStatus, currentRegLanguage);
+      } else if (typeof renderPublicRegisterClosedScreen === 'function') {
+        renderPublicRegisterClosedScreen(activeSchedStatus, currentRegLanguage);
+      }
     }
 
     setTxt('lblPublicRegFooterContact', dict.footerContact);
@@ -63203,6 +63216,7 @@ function openPublicRegisterView() {
         userRoleDefault: 'Administrator'
       }
     };
+    window.SYSTEM_TOPBAR_I18N = SYSTEM_TOPBAR_I18N;
     let _currentSystemLang = 'th';
     const OCA_GLOBAL_I18N = {
       th: {
@@ -69689,7 +69703,7 @@ function openPublicRegisterView() {
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-47';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-48';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
@@ -69697,7 +69711,7 @@ function openPublicRegisterView() {
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-47):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-48):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
