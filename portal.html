@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-66';
+      var LATEST_VERSION = 'oca-pwa-v358-67';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -28952,7 +28952,7 @@ if (action === 'getDashboardStats') {
         if (typeof initAcademicYearSelect === 'function') initAcademicYearSelect();
         calcNextStudentId();
         if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
-        if (typeof initProvinceDropdown === 'function') initProvinceDropdown();
+        if (typeof loadThaiAddressData === 'function') loadThaiAddressData(); else if (typeof initProvinceDropdown === 'function') initProvinceDropdown();
         if (typeof loadCoursesManager === 'function') loadCoursesManager(true);
         if (typeof initGoogleFormModule === 'function') initGoogleFormModule();
         if (typeof resetEnrollCameraAndPhotoState === 'function') resetEnrollCameraAndPhotoState();
@@ -30626,10 +30626,11 @@ if (action === 'getDashboardStats') {
       if (!pSel) return;
       const currentVal = pSel.value;
       pSel.innerHTML = '<option value="">-- เลือกจังหวัด --</option>';
-      const list = (thaiAddressDB.provinces && thaiAddressDB.provinces.length > 0)
-
-        ? thaiAddressDB.provinces.map(p => p.name)
-
+      const db = (thaiAddressDB && thaiAddressDB.provinces && thaiAddressDB.provinces.length > 0)
+        ? thaiAddressDB
+        : (((typeof pubThaiAddressDB !== 'undefined' && pubThaiAddressDB) || window.pubThaiAddressDB) || {});
+      const list = (db.provinces && db.provinces.length > 0)
+        ? db.provinces.map(p => typeof p === 'string' ? p : p.name)
         : THAI_PROVINCES_LIST;
       list.sort((a, b) => a.localeCompare(b, 'th'));
 
@@ -30643,25 +30644,54 @@ if (action === 'getDashboardStats') {
     }
 
     async function loadThaiAddressData() {
-      initProvinceDropdown();
-
+      if (thaiAddressDB && thaiAddressDB.provinces && thaiAddressDB.provinces.length > 0 && thaiAddressDB.districtsByProv && Object.keys(thaiAddressDB.districtsByProv).length > 0) {
+        initProvinceDropdown();
+        return thaiAddressDB;
+      }
+      const pubDB = (typeof pubThaiAddressDB !== 'undefined' && pubThaiAddressDB) || window.pubThaiAddressDB;
+      if (pubDB && pubDB.provinces && pubDB.provinces.length > 0 && pubDB.districtsByProv && Object.keys(pubDB.districtsByProv).length > 0) {
+        thaiAddressDB = pubDB;
+        initProvinceDropdown();
+        return thaiAddressDB;
+      }
       try {
         const cached = localStorage.getItem('oca_thai_address_cache_v2');
-
         if (cached) {
-          thaiAddressDB = JSON.parse(cached);
-          initProvinceDropdown();
-          return;
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.provinces && parsed.districtsByProv && Object.keys(parsed.districtsByProv).length > 0) {
+            thaiAddressDB = parsed;
+            pubThaiAddressDB = parsed;
+            window.pubThaiAddressDB = parsed;
+            initProvinceDropdown();
+            return thaiAddressDB;
+          }
         }
       } catch (e) {}
+
+      try {
+        const res = await fetch('./assets/data/thai_address_compact.json');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.provinces && data.districtsByProv) {
+            thaiAddressDB = data;
+            pubThaiAddressDB = data;
+            window.pubThaiAddressDB = data;
+            try {
+              localStorage.setItem('oca_thai_address_cache_v2', JSON.stringify(data));
+            } catch (_) {}
+            initProvinceDropdown();
+            return thaiAddressDB;
+          }
+        }
+      } catch (fetchErr) {
+        console.warn('Local thai_address_compact fetch note:', fetchErr);
+      }
 
       try {
         const CDN_BASE = 'https://cdn.jsdelivr.net/gh/kongvut/thai-province-data@master/api/latest/';
         const [pRes, dRes, sRes] = await Promise.all([
           fetch(CDN_BASE + 'province.json'),
-
           fetch(CDN_BASE + 'district.json'),
-
           fetch(CDN_BASE + 'sub_district.json')
         ]);
         const provinces = await pRes.json();
@@ -30673,56 +30703,67 @@ if (action === 'getDashboardStats') {
           return { id: p.id, name: p.name.th };
         });
         const distByProv = {};
-
         districts.forEach(d => {
           const pName = provMap[d.province_id];
-
           if (pName) {
             if (!distByProv[pName]) distByProv[pName] = [];
             distByProv[pName].push({ id: d.id, name: d.name.th });
           }
         });
         const subByDist = {};
-
         subdistricts.forEach(s => {
           if (!subByDist[s.district_id]) subByDist[s.district_id] = [];
-
           subByDist[s.district_id].push({
             name: s.name.th,
-
             zipCode: String(s.zip_code || '').trim()
           });
         });
-
         thaiAddressDB = {
           provinces: provList,
-
           districtsByProv: distByProv,
-
           subdistrictsByDist: subByDist
         };
-
+        pubThaiAddressDB = thaiAddressDB;
+        window.pubThaiAddressDB = thaiAddressDB;
         try {
           localStorage.setItem('oca_thai_address_cache_v2', JSON.stringify(thaiAddressDB));
         } catch (e) {}
-
         initProvinceDropdown();
+        return thaiAddressDB;
       } catch (err) {
-        console.warn('Load Thai address data note:', err);
+        console.warn('Load Thai address data CDN note:', err);
       }
     }
+
+    window.loadThaiAddressData = loadThaiAddressData;
+    window.thaiAddressDB = thaiAddressDB;
 
     function onProvinceChanged() {
       const pSel = document.getElementById('addrProvince');
       const dSel = document.getElementById('addrDistrict');
       const sSel = document.getElementById('addrSubdistrict');
       const zInp = document.getElementById('addrZipcode');
+      if (!pSel || !dSel) return;
       const selectedProv = pSel.value;
       dSel.innerHTML = '<option value="">-- เลือกอำเภอ / เขต --</option>';
-      sSel.innerHTML = '<option value="">-- เลือกตำบล / แขวง --</option>';
-      zInp.value = '';
+      if (sSel) sSel.innerHTML = '<option value="">-- เลือกตำบล / แขวง --</option>';
+      if (zInp) zInp.value = '';
       if (!selectedProv) return;
-      const districts = (thaiAddressDB.districtsByProv && thaiAddressDB.districtsByProv[selectedProv]) || [];
+
+      const db = (thaiAddressDB && thaiAddressDB.districtsByProv && Object.keys(thaiAddressDB.districtsByProv).length > 0)
+        ? thaiAddressDB
+        : ((typeof pubThaiAddressDB !== 'undefined' && pubThaiAddressDB) || window.pubThaiAddressDB || {});
+
+      if (!db.districtsByProv || Object.keys(db.districtsByProv).length === 0) {
+        if (typeof loadThaiAddressData === 'function') {
+          loadThaiAddressData().then(() => {
+            if (pSel && pSel.value === selectedProv) onProvinceChanged();
+          });
+        }
+        return;
+      }
+
+      const districts = (db.districtsByProv && db.districtsByProv[selectedProv]) || [];
       districts.sort((a, b) => a.name.localeCompare(b.name, 'th'));
 
       districts.forEach(d => {
@@ -30739,22 +30780,28 @@ if (action === 'getDashboardStats') {
       const sSel = document.getElementById('addrSubdistrict');
       const zInp = document.getElementById('addrZipcode');
       const pSel = document.getElementById('addrProvince');
+      if (!dSel || !sSel) return;
       const selectedDist = dSel.value;
       const selectedOption = dSel.options[dSel.selectedIndex];
       sSel.innerHTML = '<option value="">-- เลือกตำบล / แขวง --</option>';
-      zInp.value = '';
+      if (zInp) zInp.value = '';
       if (!selectedDist || !selectedOption) return;
       const distId = selectedOption.getAttribute('data-id');
       if (!distId) return;
-      const subdistricts = (thaiAddressDB.subdistrictsByDist && thaiAddressDB.subdistrictsByDist[distId]) || [];
+
+      const db = (thaiAddressDB && thaiAddressDB.subdistrictsByDist && Object.keys(thaiAddressDB.subdistrictsByDist).length > 0)
+        ? thaiAddressDB
+        : ((typeof pubThaiAddressDB !== 'undefined' && pubThaiAddressDB) || window.pubThaiAddressDB || {});
+
+      const subdistricts = (db.subdistrictsByDist && db.subdistrictsByDist[distId]) || [];
       subdistricts.sort((a, b) => a.name.localeCompare(b.name, 'th'));
-      const isBkk = (pSel.value === 'กรุงเทพมหานคร');
+      const isBkk = (pSel && pSel.value === 'กรุงเทพมหานคร');
 
       subdistricts.forEach(s => {
         const opt = document.createElement('option');
         opt.value = s.name;
         opt.textContent = (isBkk ? 'แขวง' : 'ตำบล') + s.name;
-        opt.setAttribute('data-zip', s.zipCode);
+        opt.setAttribute('data-zip', s.zipCode || '');
         sSel.appendChild(opt);
       });
     }
@@ -30762,12 +30809,17 @@ if (action === 'getDashboardStats') {
     function onSubdistrictChanged() {
       const sSel = document.getElementById('addrSubdistrict');
       const zInp = document.getElementById('addrZipcode');
+      if (!sSel || !zInp) return;
       const selectedOption = sSel.options[sSel.selectedIndex];
 
       if (selectedOption && selectedOption.getAttribute('data-zip')) {
         zInp.value = selectedOption.getAttribute('data-zip');
       }
     }
+
+    window.onProvinceChanged = onProvinceChanged;
+    window.onDistrictChanged = onDistrictChanged;
+    window.onSubdistrictChanged = onSubdistrictChanged;
 
     // =========================================================================
 
@@ -60654,6 +60706,7 @@ function openForgotPasswordModal() {
       if (typeof renderSidebarCourseCategories === 'function') renderSidebarCourseCategories();
       checkInitialRoute();
       syncAllTermDropdownsWithOpenDates();
+      if (typeof loadThaiAddressData === 'function') loadThaiAddressData();
 
       // Single-Device Session Listeners & Staff Auth Boot (Skipped on Public Registration Route)
       if (typeof isPublicRegistrationRoute !== 'function' || !isPublicRegistrationRoute()) {
@@ -76808,7 +76861,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-66';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-67';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -76817,7 +76870,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-66):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-67):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
