@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-68';
+      var LATEST_VERSION = 'oca-pwa-v358-69';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -22652,20 +22652,39 @@ body.printing-report #printReportContainer {
 
         // Official Continuous Dot-Matrix Paper Receipt HTML Template (100% Identical to System Layout)
 
-        const htmlReceipt = `
-
-<div style="background:#f1f5f9; padding:24px 8px; font-family:'Noto Sans Thai', 'Prompt', Tahoma, Arial, sans-serif;">
-  <table align="center" border="0" cellpadding="0" cellspacing="0" style="max-width:640px; width:100%; margin:0 auto; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:4px; box-shadow:0 4px 16px rgba(0,0,0,0.06); border-collapse:collapse; overflow:hidden;">
+        const htmlReceipt = `<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light only">
+<title>ใบเสร็จรับเงิน OCA</title>
+<style>
+:root { color-scheme: light only; supported-color-schemes: light only; }
+body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Thai', 'Prompt', Tahoma, Arial, sans-serif; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+.oca-paper-sheet { background-color:#ffffff !important; color:#0f172a !important; }
+@media (prefers-color-scheme: dark) {
+  body { background-color:#e2e8f0 !important; }
+  .oca-paper-sheet { background-color:#ffffff !important; color:#0f172a !important; }
+  .oca-paper-sheet td { color:#0f172a !important; }
+  .oca-paper-sheet div { color:#0f172a !important; }
+}
+[data-ogsc] .oca-paper-sheet { background-color:#ffffff !important; color:#0f172a !important; }
+[data-ogsc] body { background-color:#e2e8f0 !important; }
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Thai', 'Prompt', Tahoma, Arial, sans-serif;">
+<div style="width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; padding:16px 8px; background-color:#e2e8f0;">
+  <table class="oca-paper-sheet" align="center" border="0" cellpadding="0" cellspacing="0" style="width:620px; min-width:620px; max-width:620px; margin:0 auto; background-color:#ffffff; border:1.5px solid #cbd5e1; border-radius:4px; box-shadow:0 4px 16px rgba(0,0,0,0.08); border-collapse:collapse; color:#0f172a;">
     <tr>
       <!-- Left Tractor Margin (Continuous Paper Holes) -->
-      <td style="width:22px; background:#f8fafc; border-right:1px dashed #cbd5e1; text-align:center; vertical-align:top; padding:12px 0; color:#94a3b8; font-size:11px; line-height:24px; user-select:none;">
-
+      <td style="width:22px; min-width:22px; max-width:22px; background-color:#f8fafc; border-right:1px dashed #cbd5e1; text-align:center; vertical-align:top; padding:12px 0; color:#94a3b8; font-size:11px; line-height:24px; user-select:none;">
         ○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○
-
       </td>
 
       <!-- Main Dot-Matrix Receipt Body -->
-      <td style="padding:22px 20px; vertical-align:top; background:#ffffff;">
+      <td style="padding:22px 20px; vertical-align:top; background-color:#ffffff;">
         <!-- Header: Centered Academy Branding & Seal -->
         <div style="text-align:center; margin-bottom:12px;">
           <img src="https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-kJVDLKednw7P" alt="OCA Seal" style="height:58px; width:auto; display:block; margin:0 auto 6px auto;" />
@@ -22853,14 +22872,14 @@ body.printing-report #printReportContainer {
       </td>
 
       <!-- Right Tractor Margin (Continuous Paper Holes) -->
-      <td style="width:22px; background:#f8fafc; border-left:1px dashed #cbd5e1; text-align:center; vertical-align:top; padding:12px 0; color:#94a3b8; font-size:11px; line-height:24px; user-select:none;">
-
+      <td style="width:22px; min-width:22px; max-width:22px; background-color:#f8fafc; border-left:1px dashed #cbd5e1; text-align:center; vertical-align:top; padding:12px 0; color:#94a3b8; font-size:11px; line-height:24px; user-select:none;">
         ○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○<br>○
-
       </td>
     </tr>
   </table>
-</div>`;
+</div>
+</body>
+</html>`;
 
         // Direct Brevo API Call
 
@@ -24920,6 +24939,25 @@ if (action === 'getDashboardStats') {
         // --- 8. SAVE RECEIPT / RENEWAL ---
 
         if (action === 'saveReceipt' || action === 'renewStudentCourseAndReceipt' || action === 'transferStudentCourseAndReceipt') {
+          // Idempotency Guard: prevent duplicate receipt and duplicate email generation within 120s
+          params.student_id = params.student_id || params.studentId || params.buyerId;
+          params.year_be = params.year_be || params.yearBE;
+          if (params.student_id && params.term && params.year_be) {
+            const twoMinutesAgo = new Date(Date.now() - 120000).toISOString();
+            const { data: recentDup } = await _supabase.from('receipts')
+              .select('*')
+              .eq('student_id', params.student_id)
+              .eq('term', cleanTermNumber(params.term, ''))
+              .eq('year_be', String(params.year_be).trim())
+              .gte('created_at', twoMinutesAgo)
+              .order('created_at', { ascending: false })
+              .limit(1);
+            if (recentDup && recentDup.length > 0) {
+              console.warn('[Idempotency Guard] Duplicate receipt generation blocked. Reusing existing receipt:', recentDup[0].receipt_no);
+              return { success: true, receipt: recentDup[0], receiptNo: recentDup[0].receipt_no, studentId: recentDup[0].student_id, duplicatePrevented: true };
+            }
+          }
+
           const rcYear = Number(params.yearBE) || 2569;
           const rcTerm = Number(params.term) || 5;
           const cleanRcTerm = String(Number(rcTerm) || 1).replace(/\D/g, '') || '1';
@@ -46266,7 +46304,10 @@ if (action === 'getDashboardStats') {
     }
 
     async function saveReceiptForm() {
-      const buyerName = document.getElementById('txtRcptBuyerName')?.value.trim();
+      if (window._isSavingReceipt) return;
+      window._isSavingReceipt = true;
+      try {
+        const buyerName = document.getElementById('txtRcptBuyerName')?.value.trim();
 
       if (!buyerName) {
         showToast('กรุณาระบุชื่อผู้เรียน/ผู้ชำระเงิน', '', '⚠️');
@@ -46574,8 +46615,7 @@ if (action === 'getDashboardStats') {
       const btnSave = document.getElementById('btnSaveReceiptForm');
       setButtonLoading(btnSave, true, isCourseTransfer ? 'กำลังบันทึกย้ายคอร์ส...' : (isCourseRenewal ? 'กำลังบันทึกต่อคอร์ส...' : 'กำลังออกใบเสร็จ...'));
 
-      callGasApi(apiAction, payload, 'POST')
-
+      await callGasApi(apiAction, payload, 'POST')
         .then(res => {
           setButtonLoading(btnSave, false);
 
@@ -46681,6 +46721,9 @@ if (action === 'getDashboardStats') {
           setButtonLoading(btnSave, false);
           showToast('บันทึกไม่สำเร็จ', err.message || '', '❌');
         });
+      } finally {
+        window._isSavingReceipt = false;
+      }
     }
 
     /**
@@ -76780,6 +76823,23 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     async function approvePendingSlip(studentId) {
       if (!studentId) return;
 
+      // In-Flight Memory Set Lock to prevent duplicate concurrent approval & email dispatch
+      window._approvingSlips = window._approvingSlips || new Set();
+      if (window._approvingSlips.has(studentId)) {
+        console.warn('[Approval Guard] Approval already in progress for student:', studentId);
+        return;
+      }
+      window._approvingSlips.add(studentId);
+
+      // Immediately disable the approve button to prevent rapid double-clicks
+      const approveBtn = document.querySelector(`button[data-sid="${studentId}"]`) || (typeof event !== 'undefined' && event && event.target ? event.target.closest('button') : null);
+      if (approveBtn) {
+        approveBtn.disabled = true;
+        approveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังอนุมัติและออกใบเสร็จ...';
+        approveBtn.style.opacity = '0.6';
+        approveBtn.style.pointerEvents = 'none';
+      }
+
       try {
         const { data: fRow } = await _supabase
 
@@ -76901,6 +76961,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       } catch (err) {
         console.error('approvePendingSlip error:', err);
         if (typeof showToast === 'function') showToast('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถอนุมัติได้', '❌', 4000);
+      } finally {
+        if (window._approvingSlips) {
+          window._approvingSlips.delete(studentId);
+        }
       }
     }
 
@@ -77101,7 +77165,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-68';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-69';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -77110,7 +77174,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-68):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-69):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
