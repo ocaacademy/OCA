@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-67';
+      var LATEST_VERSION = 'oca-pwa-v358-68';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -29717,7 +29717,141 @@ if (action === 'getDashboardStats') {
       return _modnetSessionPromise;
     }
 
+    function isolatePrimarySubjectAlpha(alphaArr, w, h) {
+      if (!alphaArr || !w || !h || w <= 0 || h <= 0) return alphaArr;
+      const N = w * h;
+      const FG_THRESH = 0.35;
+      const compLabels = new Int32Array(N);
+      const queue = new Int32Array(N);
+      const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
+      const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
+
+      let cId = 0;
+      const components = [];
+      const anchorYMin = Math.floor(h * 0.70);
+      const anchorXMin = Math.floor(w * 0.18);
+      const anchorXMax = Math.floor(w * 0.82);
+
+      for (let i = 0; i < N; i++) {
+        if (alphaArr[i] < FG_THRESH || compLabels[i] > 0) continue;
+        cId++;
+        let head = 0;
+        let tail = 0;
+        queue[tail++] = i;
+        compLabels[i] = cId;
+
+        let count = 0;
+        let bottomAnchorHits = 0;
+        let minY = h, maxY = 0;
+        let minX = w, maxX = 0;
+
+        while (head < tail) {
+          const cur = queue[head++];
+          count++;
+          const cx = cur % w;
+          const cy = Math.floor(cur / w);
+
+          if (cy < minY) minY = cy;
+          if (cy > maxY) maxY = cy;
+          if (cx < minX) minX = cx;
+          if (cx > maxX) maxX = cx;
+
+          if (cy >= anchorYMin && cx >= anchorXMin && cx <= anchorXMax) {
+            bottomAnchorHits++;
+          }
+
+          for (let k = 0; k < 8; k++) {
+            const nx = cx + dx[k];
+            const ny = cy + dy[k];
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+              const nIdx = ny * w + nx;
+              if (alphaArr[nIdx] >= FG_THRESH && compLabels[nIdx] === 0) {
+                compLabels[nIdx] = cId;
+                queue[tail++] = nIdx;
+              }
+            }
+          }
+        }
+
+        const score = bottomAnchorHits * 10 + count;
+        components.push({
+          id: cId,
+          count,
+          bottomAnchorHits,
+          score,
+          minY,
+          maxY,
+          minX,
+          maxX
+        });
+      }
+
+      if (components.length <= 1) {
+        return alphaArr;
+      }
+
+      components.sort((a, b) => b.score - a.score);
+      const best = components[0];
+      const isPrimary = new Uint8Array(N);
+
+      for (const c of components) {
+        const isPrimaryComp = (c.id === best.id) || (c.bottomAnchorHits > 50 && c.maxY >= h - 10);
+        if (isPrimaryComp) {
+          for (let i = 0; i < N; i++) {
+            if (compLabels[i] === c.id) {
+              isPrimary[i] = 1;
+            }
+          }
+        }
+      }
+
+      const R = 5;
+      const tempMask = new Uint8Array(N);
+
+      for (let y = 0; y < h; y++) {
+        const rowOffset = y * w;
+        let lastOne = -999;
+        for (let x = 0; x < w; x++) {
+          if (isPrimary[rowOffset + x] === 1) lastOne = x;
+          if (x - lastOne <= R) tempMask[rowOffset + x] = 1;
+        }
+        lastOne = 999999;
+        for (let x = w - 1; x >= 0; x--) {
+          if (isPrimary[rowOffset + x] === 1) lastOne = x;
+          if (lastOne - x <= R) tempMask[rowOffset + x] = 1;
+        }
+      }
+
+      const dilated = new Uint8Array(N);
+
+      for (let x = 0; x < w; x++) {
+        let lastOne = -999;
+        for (let y = 0; y < h; y++) {
+          const idx = y * w + x;
+          if (tempMask[idx] === 1) lastOne = y;
+          if (y - lastOne <= R) dilated[idx] = 1;
+        }
+        lastOne = 999999;
+        for (let y = h - 1; y >= 0; y--) {
+          const idx = y * w + x;
+          if (tempMask[idx] === 1) lastOne = y;
+          if (lastOne - y <= R) dilated[idx] = 1;
+        }
+      }
+
+      for (let i = 0; i < N; i++) {
+        if (dilated[i] === 0) {
+          alphaArr[i] = 0;
+        }
+      }
+
+      return alphaArr;
+    }
+
+    window.isolatePrimarySubjectAlpha = isolatePrimarySubjectAlpha;
+
     function applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels) {
+      isolatePrimarySubjectAlpha(alphaArr, w, h);
       const N = w * h;
       const aWork = new Float32Array(N);
 
@@ -76065,13 +76199,14 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     function parseAndValidateThaiBankSlipQr(qrRaw) {
       if (!qrRaw || typeof qrRaw !== 'string') return null;
       const raw = qrRaw.trim();
+      const isItmx = raw.startsWith('00') && (raw.includes('0006000001') || raw.slice(4, 16) === '000600000101');
       const isEmvCo = raw.startsWith('000201') || raw.startsWith('000202');
 
-      if (!isEmvCo && !raw.includes('000201')) {
+      if (!isItmx && !isEmvCo && !raw.includes('000201')) {
         return null;
       }
 
-      let transRef = '';
+      const outerTags = {};
       let idx = 0;
       const len = raw.length;
 
@@ -76080,14 +76215,88 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const valLen = parseInt(raw.slice(idx + 2, idx + 4), 10);
         if (isNaN(valLen) || idx + 4 + valLen > len) break;
         const val = raw.slice(idx + 4, idx + 4 + valLen);
+        outerTags[tag] = val;
+        idx += 4 + valLen;
+      }
 
-        if (tag === '62' || tag === '29' || tag === '30' || tag === '51') {
-          if (val.length >= 8 && !transRef) {
-            transRef = val.replace(/[^A-Za-z0-9_-]/g, '');
+      if (isItmx) {
+        let bankCode = '';
+        let transRef = '';
+        const tag00Val = outerTags['00'] || '';
+
+        if (tag00Val) {
+          let subIdx = 0;
+          const subLen = tag00Val.length;
+          while (subIdx + 4 <= subLen) {
+            const subTag = tag00Val.slice(subIdx, subIdx + 2);
+            const subValLen = parseInt(tag00Val.slice(subIdx + 2, subIdx + 4), 10);
+            if (isNaN(subValLen) || subIdx + 4 + subValLen > subLen) break;
+            const subVal = tag00Val.slice(subIdx + 4, subIdx + 4 + subValLen);
+            if (subTag === '01') {
+              bankCode = subVal;
+            } else if (subTag === '02') {
+              transRef = subVal;
+            }
+            subIdx += 4 + subValLen;
           }
         }
 
-        idx += 4 + valLen;
+        if (!transRef) {
+          const match = tag00Val.match(/02(\d{2})([A-Za-z0-9_-]+)/);
+          if (match) {
+            const vLen = parseInt(match[1], 10);
+            transRef = match[2].slice(0, vLen);
+          }
+        }
+
+        if (!bankCode) {
+          const matchB = tag00Val.match(/01(\d{2})(\d+)/);
+          if (matchB) {
+            const bLen = parseInt(matchB[1], 10);
+            bankCode = matchB[2].slice(0, bLen);
+          }
+        }
+
+        if (!transRef) {
+          transRef = 'TX_' + raw.slice(-28).replace(/[^A-Za-z0-9]/g, '');
+        }
+
+        return {
+          valid: true,
+          standard: 'ITMX_MINI_QR',
+          bankCode: bankCode,
+          transRef: transRef,
+          qrRaw: raw,
+          raw: raw
+        };
+      }
+
+      let transRef = '';
+
+      if (outerTags['62']) {
+        const t62 = outerTags['62'];
+        let sIdx = 0;
+        while (sIdx + 4 <= t62.length) {
+          const sTag = t62.slice(sIdx, sIdx + 2);
+          const sLen = parseInt(t62.slice(sIdx + 2, sIdx + 4), 10);
+          if (isNaN(sLen) || sIdx + 4 + sLen > t62.length) break;
+          const sVal = t62.slice(sIdx + 4, sIdx + 4 + sLen);
+          if (sTag === '05' || sTag === '01' || sTag === '07') {
+            if (sVal.length >= 6 && !transRef) {
+              transRef = sVal.replace(/[^A-Za-z0-9_-]/g, '');
+            }
+          }
+          sIdx += 4 + sLen;
+        }
+        if (!transRef && t62.length >= 6) {
+          transRef = t62.replace(/[^A-Za-z0-9_-]/g, '');
+        }
+      }
+
+      for (const tag of ['29', '30', '51']) {
+        if (!transRef && outerTags[tag] && outerTags[tag].length >= 8) {
+          transRef = outerTags[tag].replace(/[^A-Za-z0-9_-]/g, '');
+        }
       }
 
       if (!transRef || transRef.length < 6) {
@@ -76096,10 +76305,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
       return {
         valid: true,
-
+        standard: 'EMVCO',
+        bankCode: outerTags['30'] ? outerTags['30'].slice(0, 3) : '',
+        transRef: transRef,
         qrRaw: raw,
-
-        transRef: transRef
+        raw: raw
       };
     }
 
@@ -76119,36 +76329,65 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const w = img.naturalWidth || img.width;
         const h = img.naturalHeight || img.height;
         if (!w || !h) return null;
+
+        // Pass 0: Hardware accelerated Native BarcodeDetector if available
+        if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+          try {
+            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+            const barcodes = await detector.detect(img);
+            if (barcodes && barcodes.length > 0) {
+              for (const bc of barcodes) {
+                const parsed = parseAndValidateThaiBankSlipQr(bc.rawValue);
+                if (parsed) return parsed;
+              }
+            }
+          } catch (bcErr) {
+            console.warn('[scanSlipQrFromDataUri] BarcodeDetector error:', bcErr);
+          }
+        }
+
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         ctx.drawImage(img, 0, 0);
 
-        // Pass 1: Full image
-
+        // Pass 1: Full image canvas scan
         let imgData = ctx.getImageData(0, 0, w, h);
         let code = jsQR(imgData.data, w, h, { inversionAttempts: 'attemptBoth' });
 
-        if (code && code.data && parseAndValidateThaiBankSlipQr(code.data)) {
-          return parseAndValidateThaiBankSlipQr(code.data);
+        if (code && code.data) {
+          const parsed = parseAndValidateThaiBankSlipQr(code.data);
+          if (parsed) return parsed;
         }
 
-        // Pass 2: Bottom-right quadrant (common for Thai bank slips)
+        // Pass 2: Top-Right Quadrant (common for Krungthai / BBL slips)
+        const trX = Math.floor(w * 0.45);
+        const trY = 0;
+        const trW = Math.ceil(w * 0.55);
+        const trH = Math.ceil(h * 0.40);
+        imgData = ctx.getImageData(trX, trY, trW, trH);
+        code = jsQR(imgData.data, trW, trH, { inversionAttempts: 'attemptBoth' });
 
-        const qW = Math.round(w * 0.6);
-        const qH = Math.round(h * 0.6);
-        const qX = w - qW;
-        const qY = h - qH;
-        imgData = ctx.getImageData(qX, qY, qW, qH);
-        code = jsQR(imgData.data, qW, qH, { inversionAttempts: 'attemptBoth' });
-
-        if (code && code.data && parseAndValidateThaiBankSlipQr(code.data)) {
-          return parseAndValidateThaiBankSlipQr(code.data);
+        if (code && code.data) {
+          const parsed = parseAndValidateThaiBankSlipQr(code.data);
+          if (parsed) return parsed;
         }
 
-        // Pass 3: High-contrast binarized scan on bottom-half
+        // Pass 3: Bottom-Right Quadrant (common for KBank / SCB / TTb slips)
+        const brX = Math.floor(w * 0.40);
+        const brY = Math.floor(h * 0.40);
+        const brW = Math.ceil(w * 0.60);
+        const brH = Math.ceil(h * 0.60);
+        imgData = ctx.getImageData(brX, brY, brW, brH);
+        code = jsQR(imgData.data, brW, brH, { inversionAttempts: 'attemptBoth' });
 
+        if (code && code.data) {
+          const parsed = parseAndValidateThaiBankSlipQr(code.data);
+          if (parsed) return parsed;
+        }
+
+        // Pass 4: High-contrast binarized scan on bottom-half
         const bH = Math.round(h * 0.7);
         const bY = h - bH;
         imgData = ctx.getImageData(0, bY, w, bH);
@@ -76161,8 +76400,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
         code = jsQR(imgData.data, w, bH, { inversionAttempts: 'attemptBoth' });
 
-        if (code && code.data && parseAndValidateThaiBankSlipQr(code.data)) {
-          return parseAndValidateThaiBankSlipQr(code.data);
+        if (code && code.data) {
+          const parsed = parseAndValidateThaiBankSlipQr(code.data);
+          if (parsed) return parsed;
         }
       } catch (err) {
         console.warn('[scanSlipQrFromDataUri] Error:', err);
@@ -76861,7 +77101,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-67';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-68';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -76870,7 +77110,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-67):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-68):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
