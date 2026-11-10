@@ -8878,7 +8878,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-61';
+      var LATEST_VERSION = 'oca-pwa-v358-62';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -19805,24 +19805,46 @@ body.printing-report #printReportContainer {
                   </h3>
                 </div>
 
-                <!-- Avatar Photo Upload -->
-                <div style="display:flex; align-items:flex-start; gap:16px; margin-bottom:18px; background:#F8FAFC; border:1px dashed #CBD5E1; border-radius:12px; padding:14px 18px;">
-                  <!-- Compact 3:4 Portrait Preview Card -->
-                  <div style="width:78px; height:104px; border-radius:8px; border:2px solid #10B981; overflow:hidden; background:#E2E8F0; display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; position:relative; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-                    <img id="imgPubPhotoPreview" src="" alt="Photo" style="width:100%; height:100%; object-fit:cover; display:none;">
-                    <div id="icoPubPhotoPlaceholder" style="text-align:center; color:#64748B;">
-                      <i class="fa-solid fa-camera" style="font-size:22px; color:#94A3B8;"></i>
+                <!-- Avatar Photo Upload & Live WebRTC Camera -->
+                <div style="display:flex; align-items:flex-start; gap:16px; margin-bottom:18px; background:#F8FAFC; border:1px dashed #CBD5E1; border-radius:12px; padding:14px 18px; flex-wrap:wrap;">
+                  <!-- Compact 3:4 Portrait Preview & Viewfinder Box -->
+                  <div id="boxOnlineRegCamViewfinder" style="width:110px; height:146px; border-radius:10px; border:2.5px solid #10B981; overflow:hidden; background:#0F172A; display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; position:relative; box-shadow:0 4px 12px rgba(0,0,0,0.12);">
+                    <video id="videoOnlineRegCamera" autoplay playsinline muted style="display:none; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); -webkit-transform:scaleX(-1);"></video>
+                    <canvas id="canvasOnlineRegSnapshot" style="display:none;"></canvas>
+                    <img id="imgPubPhotoPreview" src="" alt="Photo Preview" style="width:100%; height:100%; object-fit:cover; display:none;">
+                    <div id="icoPubPhotoPlaceholder" style="text-align:center; color:#94A3B8; padding:8px;">
+                      <i class="fa-solid fa-camera" style="font-size:26px; color:#94A3B8;"></i>
                       <div style="font-size:10px; font-weight:700; color:#94A3B8; margin-top:4px;">สัดส่วน 3:4</div>
                     </div>
                   </div>
 
-                  <div style="flex:1; min-width:0;">
+                  <div style="flex:1; min-width:220px;">
                     <div id="lblPhotoUploadTitle" style="font-size:13.5px; font-weight:700; color:#0F172A;">รูปถ่ายประจำตัวผู้สมัคร (Photo)</div>
-                    <div id="lblPhotoUploadHint" style="font-size:12px; color:#64748B; margin-top:2px;">รองรับไฟล์รูปภาพ JPG, PNG ขนาดไม่เกิน 5MB (ระบบ AI จัดภาพครึ่งตัวบนอัตโนมัติ)</div>
-                    <label style="display:inline-flex; align-items:center; gap:6px; margin-top:8px; cursor:pointer; background:#047857; color:#FFFFFF; font-size:12px; font-weight:700; padding:6px 16px; border-radius:6px; box-shadow:0 2px 6px rgba(4,120,87,0.2);">
-                      <i class="fa-solid fa-upload"></i> <span id="lblBtnChoosePhoto">เลือกรูปถ่าย / ถ่ายภาพ</span>
-                      <input type="file" accept="image/*" onchange="handlePubPhotoFile(this)" style="display:none;">
-                    </label>
+                    <div id="lblPhotoUploadHint" style="font-size:12px; color:#64748B; margin-top:2px;">ถ่ายภาพสดผ่านกล้อง หรือเลือกไฟล์รูปภาพ JPG, PNG (ระบบ AI จัดภาพครึ่งตัวบนอัตโนมัติ)</div>
+
+                    <!-- Camera & File Action Buttons -->
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                      <button type="button" id="btnToggleOnlineRegCam" onclick="toggleOnlineRegCamera()" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:#047857; color:#FFFFFF; font-size:12px; font-weight:700; padding:7px 14px; border-radius:6px; border:none; box-shadow:0 2px 6px rgba(4,120,87,0.25);">
+                        <i class="fa-solid fa-camera"></i> <span id="lblBtnToggleOnlineRegCam">เปิดกล้องถ่ายรูป</span>
+                      </button>
+
+                      <button type="button" id="btnSnapOnlineRegPhoto" onclick="captureOnlineRegPhoto()" style="display:none; align-items:center; gap:6px; cursor:pointer; background:#D97706; color:#FFFFFF; font-size:12px; font-weight:700; padding:7px 14px; border-radius:6px; border:none; box-shadow:0 2px 6px rgba(217,119,6,0.25);">
+                        <i class="fa-solid fa-circle-dot"></i> <span id="lblBtnSnapOnlineRegPhoto">กดถ่ายภาพ</span>
+                      </button>
+
+                      <button type="button" id="btnFlipOnlineRegCam" onclick="switchOnlineRegCameraFacing()" style="display:none; align-items:center; gap:6px; cursor:pointer; background:#334155; color:#FFFFFF; font-size:12px; font-weight:700; padding:7px 12px; border-radius:6px; border:none;" title="สลับกล้องหน้า/หลัง">
+                        <i class="fa-solid fa-camera-rotate"></i> <span id="lblBtnFlipOnlineRegCam">สลับกล้อง</span>
+                      </button>
+
+                      <label id="lblBtnOnlineUploadWrapper" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:#F1F5F9; color:#334155; font-size:12px; font-weight:700; padding:7px 14px; border-radius:6px; border:1px solid #CBD5E1;">
+                        <i class="fa-solid fa-upload"></i> <span id="lblBtnChoosePhoto">เลือกรูปถ่าย / ถ่ายภาพ</span>
+                        <input type="file" id="filePubDirectPhoto" accept="image/*" onchange="handlePubPhotoFile(this)" style="display:none;">
+                      </label>
+
+                      <button type="button" id="btnRetakeOnlinePhoto" onclick="retakeOnlineRegPhoto()" style="display:none; align-items:center; gap:6px; cursor:pointer; background:#E2E8F0; color:#475569; font-size:12px; font-weight:700; padding:7px 12px; border-radius:6px; border:none;">
+                        <i class="fa-solid fa-rotate-left"></i> <span id="lblBtnRetakeOnlinePhoto">ถ่ายใหม่</span>
+                      </button>
+                    </div>
 
                     <!-- AI Studio Background Notification (Compact Inline Badge) -->
                     <div id="panelPhotoBgOptions" style="display:none; margin-top:8px;">
@@ -19839,7 +19861,6 @@ body.printing-report #printReportContainer {
                     <!-- Hidden legacy element for JS compatibility -->
                     <div id="boxPubPhotoRealSystemPreview" style="display:none !important;">
                       <img id="imgPubPhotoRealSystem" src="" alt="Actual Processed Photo" style="display:none;" />
-
                     </div>
                   </div>
                 </div>
@@ -26150,9 +26171,9 @@ if (action === 'getDashboardStats') {
         // --- 15. COURSES, SCHEDULES & FEES MANAGEMENT ---
 
         if (action === 'saveCourse') {
-          const courseId = String(params.id || params.courseId || `C-${Date.now()}`).trim().toUpperCase();
-          const courseCode = String(params.code || courseId).trim().toUpperCase();
-          const originalId = String(params.originalId || '').trim().toUpperCase();
+          const courseId = String(params.id || params.courseId || `C-${Date.now()}`).replace(/[()]/g, '').trim().toUpperCase();
+          const courseCode = String(params.code || courseId).replace(/[()]/g, '').trim().toUpperCase();
+          const originalId = String(params.originalId || '').replace(/[()]/g, '').trim().toUpperCase();
 
           // Check if there is an existing row with code === courseCode but different id to avoid courses_code_key collision
 
@@ -31107,71 +31128,30 @@ if (action === 'getDashboardStats') {
               }
             }
 
-            // ตรวจสอบตัวเลือก One-Stop Flow
-
-            const chkAuto = document.getElementById('chkAutoOpenReceiptAfterEnroll');
-
-            if (chkAuto && chkAuto.checked) {
-              window._pendingEnrollCorporateReceipt = {
-                studentId: savedStudentId,
-
-                fullName: fullName,
-
-                prefix: prefix,
-
-                isCorporate: isCorporate,
-
-                companyName: companyName,
-
-                companyBranch: companyBranch,
-
-                companyTaxId: companyTaxId,
-
-                companyAddress: companyAddress,
-
-                course: course,
-
-                schedule: schedule,
-
-                courseFee: calculatedCourseFee
-              };
-              clearEnrollSlipUpload();
-              document.getElementById('enrollForm').reset();
-              if (typeof initAcademicYearSelect === 'function') initAcademicYearSelect();
-              resetEnrollCameraAndPhotoState();
-              showToast('ลงทะเบียนสำเร็จ!', 'รหัส ' + savedStudentId + ' — กำลังนำทางไปหน้าออกใบเสร็จรับเงินทันที...', '✓');
-              openReceiptForStudent(savedStudentId, false);
-              return;
-            }
-
-            showModal(
-              'ลงทะเบียนนักศึกษาสำเร็จ!',
-
-              'ระบบได้บันทึกรหัสนักศึกษา ' + savedStudentId + ' ประจำปี พ.ศ. ' + yearBE + ' (เทอม ' + term + ') เรียบร้อยแล้ว',
-
-              '✓'
-            );
-
-            // แสดงการ์ดนำทางไปยังหน้าใบเสร็จ
-
-            const successCard = document.getElementById('enrollSuccessCard');
-            const lblSuccessId = document.getElementById('lblSuccessStudentId');
-            const btnGoReceipt = document.getElementById('btnGoToReceipt');
-            if (lblSuccessId) lblSuccessId.textContent = savedStudentId;
-
-            if (btnGoReceipt) {
-              btnGoReceipt.onclick = () => openReceiptForStudent(savedStudentId);
-            }
-
-            if (successCard) {
-              successCard.style.display = 'block';
-              successCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
+            // Handover to Receipts for payment and official single-point email dispatch
+            window._pendingEnrollReceiptHandover = {
+              studentId: savedStudentId,
+              fullName: fullName,
+              prefix: prefix,
+              email: email,
+              phone: phone,
+              course: course,
+              schedule: schedule,
+              courseFee: calculatedCourseFee,
+              isCorporate: isCorporate,
+              companyName: companyName,
+              companyBranch: companyBranch,
+              companyTaxId: companyTaxId,
+              companyAddress: companyAddress
+            };
+            window._pendingEnrollCorporateReceipt = window._pendingEnrollReceiptHandover;
 
             clearEnrollSlipUpload();
-            document.getElementById('enrollForm').reset();
+            const enrollFormEl = document.getElementById('enrollForm');
+            if (enrollFormEl) enrollFormEl.reset();
             if (typeof initAcademicYearSelect === 'function') initAcademicYearSelect();
-
+            resetEnrollCameraAndPhotoState();
+            calcNextStudentId();
             try { loadDashData(); } catch(_) {}
 
             const houseNoEl = document.getElementById('addrHouseNo'); if (houseNoEl) houseNoEl.value = '';
@@ -31186,9 +31166,10 @@ if (action === 'getDashboardStats') {
             const zInp = document.getElementById('addrZipcode');
             if (zInp) zInp.value = '';
             initProvinceDropdown();
-            resetEnrollCameraAndPhotoState();
-            calcNextStudentId();
-            loadDashData();
+
+            showToast('ลงทะเบียนสำเร็จ!', 'รหัส ' + savedStudentId + ' — เข้าสู่หน้าออกใบเสร็จเพื่อชำระเงินและส่งอีเมลทางการ', '✓');
+            openReceiptForStudent(savedStudentId, false);
+            return;
           } else {
             showModal('เกิดข้อผิดพลาด', (res && res.message) || 'ไม่สามารถบันทึกข้อมูลได้', '❌');
           }
@@ -40642,20 +40623,29 @@ if (action === 'getDashboardStats') {
 
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
+          const yr = String(y).slice(-2);
+          const tNum = parseInt(t, 10) || 5;
+          const tPrefix = yr + String(tNum);
+          const nextTPrefix = (tNum < 5) ? (yr + String(tNum + 1)) : (String(Number(yr) + 1) + '0');
+          const cleanC = String(c || '').replace(/[()]/g, '').trim();
+
           let q = _supabase.from('receipts')
-
             .select('id, student_id, buyer_name, receipt_no, item_code, item_name, schedule, room, year_be, term')
-
+            .gte('receipt_no', tPrefix + '0000')
+            .lt('receipt_no', nextTPrefix + '0000')
             .eq('year_be', y)
-
             .eq('term', t)
-
             .order('student_id', { ascending: true })
-
             .limit(1000);
 
-          if (c) {
-            q = q.or(`item_code.eq.${c},item_code.eq.${c.toLowerCase()},item_code.eq.${c.toUpperCase()}`);
+          if (cleanC) {
+            const cUpper = cleanC.toUpperCase();
+            const cLower = cleanC.toLowerCase();
+            if (cUpper === cLower) {
+              q = q.eq('item_code', cleanC);
+            } else {
+              q = q.or('item_code.eq.' + cUpper + ',item_code.eq.' + cLower);
+            }
           }
 
           const { data, error } = await q;
@@ -40876,17 +40866,13 @@ if (action === 'getDashboardStats') {
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
           const { data, error } = await _supabase.from('receipts')
-
             .select('*')
-
+            .gte('receipt_no', '6950000')
+            .lt('receipt_no', '7000000')
             .eq('year_be', 2569)
-
             .eq('term', '5')
-
             .or(`student_id.eq.${q},buyer_name.ilike.%${q}%`)
-
             .order('created_at', { ascending: false })
-
             .limit(1);
 
           if (!error && Array.isArray(data) && data.length > 0) {
@@ -44094,14 +44080,16 @@ if (action === 'getDashboardStats') {
           const txtAddr = document.getElementById('txtRcptAddress');
           if (txtAddr) txtAddr.value = student.profile.address || '';
 
-          // Enhanced Corporate Sponsorship Auto-Prefill into Receipt
+          // Enhanced Enrollment Handover (Auto-Prefill Course, Schedule, Corporate into Receipt)
+          const enrollHandover = (window._pendingEnrollReceiptHandover && String(window._pendingEnrollReceiptHandover.studentId) === String(student.profile.studentId))
+            ? window._pendingEnrollReceiptHandover
+            : ((window._pendingEnrollCorporateReceipt && String(window._pendingEnrollCorporateReceipt.studentId) === String(student.profile.studentId)) ? window._pendingEnrollCorporateReceipt : null);
 
-          const corpPending = (window._pendingEnrollCorporateReceipt && window._pendingEnrollCorporateReceipt.studentId === student.profile.studentId) ? window._pendingEnrollCorporateReceipt : null;
-          const isCorpStudent = !!(corpPending?.companyName || student.profile.companyName || student.profile.isCorporate);
-          const cName = corpPending?.companyName || student.profile.companyName || '';
-          const cBranch = corpPending?.companyBranch || student.profile.companyBranch || '';
-          const cTax = corpPending?.companyTaxId || student.profile.companyTaxId || '';
-          const cAddr = corpPending?.companyAddress || student.profile.companyAddress || '';
+          const isCorpStudent = !!(enrollHandover?.companyName || student.profile.companyName || student.profile.isCorporate);
+          const cName = enrollHandover?.companyName || student.profile.companyName || '';
+          const cBranch = enrollHandover?.companyBranch || student.profile.companyBranch || '';
+          const cTax = enrollHandover?.companyTaxId || student.profile.companyTaxId || '';
+          const cAddr = enrollHandover?.companyAddress || student.profile.companyAddress || '';
 
           if (isCorpStudent && cName) {
             const effBuyerName = cName + (cBranch ? ' (' + cBranch + ')' : ' (สำนักงานใหญ่)');
@@ -44109,18 +44097,16 @@ if (action === 'getDashboardStats') {
             if (txtBuyerId) txtBuyerId.value = cTax || student.profile.studentId;
             if (txtAddr && cAddr) txtAddr.value = cAddr;
             const txtRef = document.getElementById('txtRcptPaymentRef');
-
             if (txtRef) {
               txtRef.value = '[นักศึกษา: ' + student.profile.studentId + ' ' + formatStudentNameWithPrefix(student.profile.prefix, student.profile.fullName || '') + ']';
             }
           }
 
-          if (corpPending && corpPending.course) {
+          if (enrollHandover && enrollHandover.course) {
             const selRcptCourse = document.getElementById('selRcptCourse');
-
             if (selRcptCourse) {
               for (let opt of selRcptCourse.options) {
-                if (opt.value === corpPending.course || opt.text.includes(corpPending.course)) {
+                if (opt.value === enrollHandover.course || opt.text.includes(enrollHandover.course)) {
                   selRcptCourse.value = opt.value;
                   break;
                 }
@@ -44128,13 +44114,26 @@ if (action === 'getDashboardStats') {
             }
           }
 
-          if (corpPending && corpPending.courseFee) {
+          if (enrollHandover && enrollHandover.schedule) {
+            const selRcptSchedule = document.getElementById('selRcptSchedule');
+            if (selRcptSchedule) {
+              for (let opt of selRcptSchedule.options) {
+                if (opt.value === enrollHandover.schedule || opt.text.includes(enrollHandover.schedule) || enrollHandover.schedule.includes(opt.value)) {
+                  selRcptSchedule.value = opt.value;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (enrollHandover && enrollHandover.courseFee) {
             const txtBase = document.getElementById('txtRcptBaseAmount');
-            if (txtBase) txtBase.value = corpPending.courseFee;
+            if (txtBase) txtBase.value = enrollHandover.courseFee;
             if (typeof window.calcReceiptTotals === 'function') window.calcReceiptTotals();
           }
 
-          if (corpPending) window._pendingEnrollCorporateReceipt = null;
+          if (window._pendingEnrollReceiptHandover) window._pendingEnrollReceiptHandover = null;
+          if (window._pendingEnrollCorporateReceipt) window._pendingEnrollCorporateReceipt = null;
 
           // Check if there is an attached slip handover from offline enrollment
 
@@ -60740,9 +60739,12 @@ function openForgotPasswordModal() {
       photoTitle: 'รูปถ่ายประจำตัวผู้สมัคร (Photo)',
 
       photoHint: 'รองรับไฟล์รูปภาพ JPG, PNG ขนาดไม่เกิน 5MB',
-
       choosePhoto: 'เลือกรูปถ่าย / ถ่ายภาพ',
-
+      toggleCam: 'เปิดกล้องถ่ายรูป',
+      closeCam: 'ปิดกล้อง',
+      snapPhoto: 'กดถ่ายภาพ',
+      flipCam: 'สลับกล้อง',
+      retakePhoto: 'ถ่ายใหม่',
       photoAiProcessing: 'กำลังปรับพื้นหลังเป็นสีแดงเลือดหมูด้วย AI...',
 
       photoAiSuccess: 'ปรับพื้นหลังเป็นสีแดงเลือดหมูทางการเรียบร้อย (AI Maroon Background)',
@@ -61018,9 +61020,12 @@ function openForgotPasswordModal() {
       photoTitle: 'Applicant Photo (Photo)',
 
       photoHint: 'Supports JPG, PNG formats up to 5MB',
-
       choosePhoto: 'Choose / Capture Photo',
-
+      toggleCam: 'Open Camera',
+      closeCam: 'Close Camera',
+      snapPhoto: 'Take Photo',
+      flipCam: 'Switch Camera',
+      retakePhoto: 'Retake',
       photoAiProcessing: 'Processing AI Maroon Background...',
 
       photoAiSuccess: 'Processed with Official AI Maroon Background',
@@ -61296,9 +61301,12 @@ function openForgotPasswordModal() {
       photoTitle: '申请人证件照片 ',
 
       photoHint: '支持 JPG、PNG 格式，文件大小不超过 5MB',
-
       choosePhoto: '选择 / 拍摄照片',
-
+      toggleCam: '开启摄像头',
+      closeCam: '关闭摄像头',
+      snapPhoto: '拍照',
+      flipCam: '翻转镜头',
+      retakePhoto: '重新拍摄',
       photoAiProcessing: 'AI 正在将背景替换为官方深红底色...',
 
       photoAiSuccess: '已完成官方标准深红背景转换',
@@ -61614,6 +61622,10 @@ function openForgotPasswordModal() {
     setTxt('lblPhotoUploadTitle', dict.photoTitle);
     setTxt('lblPhotoUploadHint', dict.photoHint);
     setTxt('lblBtnChoosePhoto', dict.choosePhoto);
+    setTxt('lblBtnToggleOnlineRegCam', dict.toggleCam);
+    setTxt('lblBtnSnapOnlineRegPhoto', dict.snapPhoto);
+    setTxt('lblBtnFlipOnlineRegCam', dict.flipCam);
+    setTxt('lblBtnRetakeOnlinePhoto', dict.retakePhoto);
     setTxt('lblPhotoAiProcessingText', dict.photoAiProcessing);
     setTxt('lblPhotoAiSuccessText', dict.photoAiSuccess);
     setTxt('lblPubPhotoRealTitle', dict.photoRealTitle);
@@ -62509,13 +62521,17 @@ function openPublicRegisterView() {
     }
 
     function resetPublicRegisterForm() {
+      if (typeof stopOnlineRegCamera === 'function') stopOnlineRegCamera();
       const form = document.getElementById('formPublicRegister');
       if (form) form.reset();
       pubStudentPhotoDataUri = '';
+      _rawOriginalPhotoDataUri = '';
       const img = document.getElementById('imgPubPhotoPreview');
       const ico = document.getElementById('icoPubPhotoPlaceholder');
+      const btnRetake = document.getElementById('btnRetakeOnlinePhoto');
       if (img) img.style.display = 'none';
       if (ico) ico.style.display = 'block';
+      if (btnRetake) btnRetake.style.display = 'none';
       const realBox = document.getElementById('boxPubPhotoRealSystemPreview');
       const realImg = document.getElementById('imgPubPhotoRealSystem');
       const bgPanel = document.getElementById('panelPhotoBgOptions');
@@ -63069,9 +63085,7 @@ function openPublicRegisterView() {
             const sid = res.studentId || '-';
 
               // 1. Upload Slip to Supabase File Storage (Bucket: student-photos/slips/)
-
               let uploadedSlipUrl = '';
-
               if (pubPaymentSlipDataUri && typeof window.uploadPaymentSlipToStorage === 'function') {
                 try {
                   uploadedSlipUrl = await window.uploadPaymentSlipToStorage(pubPaymentSlipDataUri, sid);
@@ -63080,8 +63094,18 @@ function openPublicRegisterView() {
                 }
               }
 
-              // 2. Resolve expected tuition fee from selected course (reflecting Kids vs Adult normal discount)
+              // 1.5. Upload Student Photo to Supabase File Storage (Bucket: student-photos)
+              let uploadedPhotoUrl = '';
+              if (pubStudentPhotoDataUri && typeof uploadStudentPhotoToStorage === 'function') {
+                try {
+                  uploadedPhotoUrl = await uploadStudentPhotoToStorage(pubStudentPhotoDataUri, 'online_' + sid);
+                } catch (photoErr) {
+                  console.warn('[OnlineReg] Photo storage upload error:', photoErr);
+                }
+              }
+              if (typeof stopOnlineRegCamera === 'function') stopOnlineRegCamera();
 
+              // 2. Resolve expected tuition fee from selected course (reflecting Kids vs Adult normal discount)
               let expectedFee = 4000;
               let regCourseObj = null;
 
@@ -63091,21 +63115,18 @@ function openPublicRegisterView() {
               }
 
               const regDisc = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(regCourseObj || selCourse) : null;
-
               if (regDisc && regDisc.active && regDisc.amount > 0) {
                 expectedFee = Math.max(0, expectedFee - regDisc.amount);
               }
 
               // 3. 5-Layer Anti-Fraud: Save Pending Verification & Record Anti-Replay Locks
-
               try {
                 if (typeof _supabase !== 'undefined' && _supabase) {
+                  const studentUpd = { status: 'PENDING_PAYMENT_VERIFICATION' };
+                  if (uploadedPhotoUrl) studentUpd.photo_url = uploadedPhotoUrl;
                   await _supabase
-
                     .from('students')
-
-                    .update({ status: 'PENDING_PAYMENT_VERIFICATION' })
-
+                    .update(studentUpd)
                     .eq('student_id', sid);
                   const pendingRecord = {
                     studentId: sid,
@@ -75183,11 +75204,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const reader = new FileReader();
 
       reader.onload = async function(e) {
+        if (typeof stopOnlineRegCamera === 'function') stopOnlineRegCamera();
         _rawOriginalPhotoDataUri = e.target.result;
         pubStudentPhotoDataUri = e.target.result;
         const img = document.getElementById('imgPubPhotoPreview');
         const ico = document.getElementById('icoPubPhotoPlaceholder');
         const bgPanel = document.getElementById('panelPhotoBgOptions');
+        const btnRetake = document.getElementById('btnRetakeOnlinePhoto');
 
         if (img) {
           img.src = _rawOriginalPhotoDataUri;
@@ -75195,17 +75218,217 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
 
         if (ico) ico.style.display = 'none';
+        if (btnRetake) btnRetake.style.display = 'inline-flex';
         if (bgPanel) bgPanel.style.display = 'block';
 
         // Auto-standardize background directly to Maroon (#800000)
-
         applyPhotoBackground(MAROON_BG_COLOR);
       };
       reader.readAsDataURL(file);
-        input.value = '';
+      input.value = '';
     }
 
     window.handlePubPhotoFile = handlePubPhotoFile;
+
+    // =========================================================================
+    // ONLINE STUDENT REGISTRATION WEBRTC CAMERA & SNAPSHOT CONTROLLER
+    // =========================================================================
+
+    let _onlineRegCamStream = null;
+    let _onlineRegCamFacing = 'user';
+    let _onlineRegCamActive = false;
+
+    function toggleOnlineRegCamera() {
+      if (_onlineRegCamActive) {
+        stopOnlineRegCamera();
+      } else {
+        launchOnlineRegCamera();
+      }
+    }
+
+    async function launchOnlineRegCamera() {
+      const vid = document.getElementById('videoOnlineRegCamera');
+      const ico = document.getElementById('icoPubPhotoPlaceholder');
+      const img = document.getElementById('imgPubPhotoPreview');
+      const btnToggle = document.getElementById('btnToggleOnlineRegCam');
+      const btnSnap = document.getElementById('btnSnapOnlineRegPhoto');
+      const btnFlip = document.getElementById('btnFlipOnlineRegCam');
+      const btnRetake = document.getElementById('btnRetakeOnlinePhoto');
+      const btnUploadWrapper = document.getElementById('lblBtnOnlineUploadWrapper');
+      const bgPanel = document.getElementById('panelPhotoBgOptions');
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('ไม่พบอุปกรณ์กล้อง', 'เบราว์เซอร์ไม่รองรับกล้อง กรุณาใช้ปุ่มเลือกรูปถ่าย', '⚠️');
+        return;
+      }
+
+      try {
+        stopOnlineRegCamera();
+        const constraints = {
+          video: {
+            facingMode: _onlineRegCamFacing,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        _onlineRegCamStream = stream;
+        if (vid) {
+          vid.srcObject = stream;
+          vid.style.display = 'block';
+          if (_onlineRegCamFacing === 'user') {
+            vid.style.transform = 'scaleX(-1)';
+            vid.style.webkitTransform = 'scaleX(-1)';
+          } else {
+            vid.style.transform = 'none';
+            vid.style.webkitTransform = 'none';
+          }
+          try {
+            await vid.play();
+          } catch (_) {}
+        }
+        if (ico) ico.style.display = 'none';
+        if (img) img.style.display = 'none';
+        if (bgPanel) bgPanel.style.display = 'none';
+        if (btnToggle) {
+          const dict = (typeof OCA_REG_I18N !== 'undefined' && OCA_REG_I18N[currentRegLanguage]) || {};
+          const closeText = dict.closeCam || 'ปิดกล้อง';
+          btnToggle.innerHTML = '<i class="fa-solid fa-video-slash"></i> <span>' + closeText + '</span>';
+          btnToggle.style.background = '#64748B';
+        }
+        if (btnSnap) btnSnap.style.display = 'inline-flex';
+        if (btnFlip) btnFlip.style.display = 'inline-flex';
+        if (btnRetake) btnRetake.style.display = 'none';
+        if (btnUploadWrapper) btnUploadWrapper.style.display = 'none';
+        _onlineRegCamActive = true;
+      } catch (err) {
+        console.warn('[OnlineRegCam] getUserMedia error:', err);
+        showToast('ไม่สามารถเปิดกล้องได้', err.message || 'กรุณาอนุญาตให้เข้าถึงกล้องถ่ายภาพ', '⚠️');
+        stopOnlineRegCamera();
+      }
+    }
+
+    function stopOnlineRegCamera() {
+      if (_onlineRegCamStream) {
+        try {
+          _onlineRegCamStream.getTracks().forEach(t => t.stop());
+        } catch (_) {}
+        _onlineRegCamStream = null;
+      }
+      const vid = document.getElementById('videoOnlineRegCamera');
+      if (vid) {
+        vid.pause();
+        vid.srcObject = null;
+        vid.style.display = 'none';
+      }
+      const btnToggle = document.getElementById('btnToggleOnlineRegCam');
+      const btnSnap = document.getElementById('btnSnapOnlineRegPhoto');
+      const btnFlip = document.getElementById('btnFlipOnlineRegCam');
+      const btnUploadWrapper = document.getElementById('lblBtnOnlineUploadWrapper');
+
+      if (btnToggle) {
+        const dict = (typeof OCA_REG_I18N !== 'undefined' && OCA_REG_I18N[currentRegLanguage]) || {};
+        const openText = dict.toggleCam || 'เปิดกล้องถ่ายรูป';
+        btnToggle.innerHTML = '<i class="fa-solid fa-camera"></i> <span id="lblBtnToggleOnlineRegCam">' + openText + '</span>';
+        btnToggle.style.background = '#047857';
+      }
+      if (btnSnap) btnSnap.style.display = 'none';
+      if (btnFlip) btnFlip.style.display = 'none';
+      if (btnUploadWrapper) btnUploadWrapper.style.display = 'inline-flex';
+      _onlineRegCamActive = false;
+    }
+
+    function switchOnlineRegCameraFacing() {
+      _onlineRegCamFacing = _onlineRegCamFacing === 'user' ? 'environment' : 'user';
+      if (_onlineRegCamActive) {
+        launchOnlineRegCamera();
+      }
+    }
+
+    async function captureOnlineRegPhoto() {
+      const vid = document.getElementById('videoOnlineRegCamera');
+      const canvas = document.getElementById('canvasOnlineRegSnapshot');
+      const img = document.getElementById('imgPubPhotoPreview');
+      const ico = document.getElementById('icoPubPhotoPlaceholder');
+      const btnRetake = document.getElementById('btnRetakeOnlinePhoto');
+
+      if (!vid || !vid.videoWidth || !canvas) {
+        showToast('ยังไม่พร้อมถ่ายภาพ', 'กรุณารอสักครู่เพื่อให้กล้องเริ่มทำงาน', '⚠️');
+        return;
+      }
+
+      const vw = vid.videoWidth;
+      const vh = vid.videoHeight;
+      const targetRatio = 3 / 4;
+      let cropW, cropH, startX, startY;
+      if (vw / vh > targetRatio) {
+        cropH = vh;
+        cropW = vh * targetRatio;
+        startX = (vw - cropW) / 2;
+        startY = 0;
+      } else {
+        cropW = vw;
+        cropH = vw / targetRatio;
+        startX = 0;
+        startY = (vh - cropH) / 2;
+      }
+
+      canvas.width = 600;
+      canvas.height = 800;
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      if (_onlineRegCamFacing === 'user') {
+        ctx.translate(600, 0);
+        ctx.scale(-1, 1);
+      }
+      ctx.drawImage(vid, startX, startY, cropW, cropH, 0, 0, 600, 800);
+      ctx.restore();
+
+      const dataUri = canvas.toDataURL('image/jpeg', 0.90);
+      stopOnlineRegCamera();
+
+      _rawOriginalPhotoDataUri = dataUri;
+      pubStudentPhotoDataUri = dataUri;
+
+      if (img) {
+        img.src = dataUri;
+        img.style.display = 'block';
+      }
+      if (ico) ico.style.display = 'none';
+      if (btnRetake) btnRetake.style.display = 'inline-flex';
+
+      if (typeof applyPhotoBackground === 'function') {
+        applyPhotoBackground(MAROON_BG_COLOR);
+      }
+    }
+
+    function retakeOnlineRegPhoto() {
+      const img = document.getElementById('imgPubPhotoPreview');
+      const ico = document.getElementById('icoPubPhotoPlaceholder');
+      const btnRetake = document.getElementById('btnRetakeOnlinePhoto');
+      const bgPanel = document.getElementById('panelPhotoBgOptions');
+
+      _rawOriginalPhotoDataUri = '';
+      pubStudentPhotoDataUri = '';
+
+      if (img) {
+        img.src = '';
+        img.style.display = 'none';
+      }
+      if (ico) ico.style.display = 'block';
+      if (btnRetake) btnRetake.style.display = 'none';
+      if (bgPanel) bgPanel.style.display = 'none';
+
+      launchOnlineRegCamera();
+    }
+
+    window.toggleOnlineRegCamera = toggleOnlineRegCamera;
+    window.launchOnlineRegCamera = launchOnlineRegCamera;
+    window.stopOnlineRegCamera = stopOnlineRegCamera;
+    window.switchOnlineRegCameraFacing = switchOnlineRegCameraFacing;
+    window.captureOnlineRegPhoto = captureOnlineRegPhoto;
+    window.retakeOnlineRegPhoto = retakeOnlineRegPhoto;
 
     /**
 
@@ -76151,7 +76374,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-61';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-62';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -76160,7 +76383,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-61):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-62):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
