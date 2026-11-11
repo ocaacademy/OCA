@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-75';
+      var LATEST_VERSION = 'oca-pwa-v358-76';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -9619,6 +9619,11 @@ body.printing-report #printReportContainer {
                     <button type="button" class="oca-sub-item-btn" id="btnSubReportCourseBreakdown" onclick="navigateToReportSubTab('course-breakdown', this)">
                       <svg width="14" height="14" viewBox="0 0 24 24" style="margin-right:2px; flex-shrink:0;"><rect width="24" height="24" rx="5" fill="#022c22"/><circle cx="12" cy="12" r="7" fill="#D4B996"/><path d="M12 5a7 7 0 0 1 7 7h-7z" fill="#E5D3B3"/></svg>
                       <span>7. จำแนกตามวิชา</span>
+                    </button>
+
+                    <button type="button" class="oca-sub-item-btn" id="btnSubReportMinistry" onclick="navigateToReportSubTab('ministry', this)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" style="margin-right:2px; flex-shrink:0;"><rect width="24" height="24" rx="5" fill="#022c22"/><rect x="5" y="4" width="14" height="16" rx="2" fill="#D4B996"/><line x1="8" y1="8" x2="16" y2="8" stroke="#022c22" stroke-width="1.5"/><line x1="8" y1="12" x2="16" y2="12" stroke="#022c22" stroke-width="1.5"/><line x1="8" y1="16" x2="13" y2="16" stroke="#022c22" stroke-width="1.5"/></svg>
+                      <span>8. เอกสารกระทรวง</span>
                     </button>
                   </div>
                 </div>
@@ -13612,10 +13617,10 @@ body.printing-report #printReportContainer {
             </div>
           </div>
 
-          <!-- Tab 1: Pending Slips -->
+          <!-- Tab 1: Pending Slips Embedded Queue -->
           <div id="financialTab1Content" class="hidden" style="display:none;">
             <div class="oca-table-card" style="margin-bottom:24px; padding:20px; border-radius:12px; border:1px solid rgba(215,166,0,0.2); background:rgba(0,0,0,0.25);">
-              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:12px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:12px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:14px;">
                 <div style="display:flex; align-items:center; gap:10px;">
                   <div style="width:40px; height:40px; border-radius:10px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); display:flex; align-items:center; justify-content:center; color:#f59e0b; font-size:18px;">
                     <i class="fa-solid fa-file-invoice-dollar"></i>
@@ -13624,19 +13629,27 @@ body.printing-report #printReportContainer {
                   <div>
                     <h3 style="font-size:16px; font-weight:700; color:#fff; margin:0; display:flex; align-items:center; gap:8px;">
                       <span id="txtPendingSlipsTitle">รายการสลิปรอตรวจสอบ</span>
+                      <span id="badgeFinancialEmbeddedPendingCount" style="background:#F59E0B; color:#0F172A; font-size:11.5px; font-weight:800; padding:2px 8px; border-radius:999px; display:none;">0</span>
                     </h3>
 
                     <p id="txtPendingSlipsSub" style="font-size:12.5px; color:var(--text-muted); margin:3px 0 0 0;">ตรวจสอบและอนุมัติสลิปโอนเงินที่นักศึกษาแนบมา ระบบจะออกใบเสร็จให้อัตโนมัติหลังอนุมัติ</p>
                   </div>
                 </div>
 
-                <button type="button" id="btnOpenPendingSlipsFinancial" onclick="openPendingSlipsModal()"
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <button type="button" class="oca-btn" style="height:32px; padding:0 14px; font-size:12px; background:rgba(245,158,11,0.15); border:1px solid #F59E0B; color:#F59E0B; border-radius:6px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:6px;" onclick="renderFinancialEmbeddedSlipsQueue()">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span>รีเฟรชคิวสลิป</span>
+                  </button>
+                </div>
+              </div>
 
-                  class="oca-btn-gold-submit" style="padding:10px 18px; font-size:13.5px; background:rgba(217,119,6,0.2); border:1px solid #d97706; color:#f59e0b; display:inline-flex; align-items:center; gap:8px;">
-
-                  <i class="fa-solid fa-clock-rotate-left"></i>
-                  <span id="txtOpenPendingSlipsBtn">เปิดดูสลิปรอตรวจ</span>
-                </button>
+              <!-- Embedded Pending & Verified Slips Queue Container -->
+              <div id="boxFinancialEmbeddedSlipsQueue" class="oca-table-scroll-container" style="max-height:650px; overflow-y:auto; overflow-x:auto;">
+                <div style="text-align:center; padding:36px 10px; color:#64748B;">
+                  <i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:#F59E0B; margin-bottom:8px;"></i>
+                  <div>กำลังโหลดคิวสลิปการเงิน...</div>
+                </div>
               </div>
             </div>
           </div>
@@ -15327,6 +15340,142 @@ body.printing-report #printReportContainer {
                   </tbody>
 
                   <tfoot id="tfootCourseBreakdownReport" style="background:#02231b; font-weight:800; border-top:2px solid rgba(52,211,153,0.4);">
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- =============================================================
+               SUBVIEW 8: MINISTRY REPORT (รายงานเอกสารกระทรวงศึกษาธิการ)
+               ============================================================= -->
+          <div id="subviewReportMinistry" style="display:none;">
+            <div class="oca-chart-card">
+              <!-- Header -->
+              <div class="oca-chart-header" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+                <div>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <div style="width:36px; height:36px; border-radius:10px; background:rgba(215,166,0,0.18); border:1px solid rgba(215,166,0,0.4); display:flex; align-items:center; justify-content:center; color:var(--color-gold); font-size:18px;">
+                      <i class="fa-solid fa-landmark"></i>
+                    </div>
+                    <div>
+                      <h3 style="font-size:16px; font-weight:800; color:#ffffff; margin:0;">8. รายงานทะเบียนนักศึกษาเสนอหน่วยงานกระทรวงศึกษาธิการ</h3>
+                      <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">รายงานสรุปข้อมูลนักศึกษารายบุคคล รหัสบัตรประชาชน คอร์สเล่มสุดท้าย และสถานะสำเร็จการศึกษา</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="oca-btn-gold-submit" style="padding:7px 14px; font-size:12px; background:linear-gradient(135deg, #059669, #047857); border:1px solid #34d399;" onclick="exportMinistryExcel()">
+                    <i class="fa-solid fa-file-excel" style="margin-right:5px;"></i>ส่งออก Excel (4 ชีต)
+                  </button>
+
+                  <button type="button" class="oca-btn-gold-submit" style="padding:7px 14px; font-size:12px; background:linear-gradient(135deg, #0284c7, #0369a1); border:1px solid #38bdf8;" onclick="exportMinistryPdf()">
+                    <i class="fa-solid fa-file-pdf" style="margin-right:5px;"></i>ส่งออก PDF
+                  </button>
+
+                  <button type="button" class="oca-btn-gold-submit" style="padding:7px 16px; font-size:12px; background:linear-gradient(135deg, #d97706, #b45309); border:1px solid #fbbf24;" onclick="printMinistryReport()">
+                    <i class="fa-solid fa-print" style="margin-right:5px;"></i>พิมพ์ A4 แนวนอน (6มม.)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Filter Bar -->
+              <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px; background:rgba(2,44,34,0.5); padding:10px 14px; border-radius:10px; border:1px solid rgba(215,166,0,0.25);">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <label for="selMinistryYear" style="font-size:12px; font-weight:700; color:var(--color-gold); white-space:nowrap;">ปีการศึกษา:</label>
+                  <select id="selMinistryYear" class="oca-input" style="height:32px; font-size:12.5px; padding:2px 10px; width:100px; font-weight:700; background-color:#ffffff; color:#0f172a;" onchange="filterMinistryReportTable()">
+                    <option value="ALL">ทั้งหมด</option>
+                    <option value="2571">2571</option>
+                    <option value="2570">2570</option>
+                    <option value="2569" selected>2569</option>
+                    <option value="2568">2568</option>
+                    <option value="2567">2567</option>
+                    <option value="2566">2566</option>
+                    <option value="2565">2565</option>
+                    <option value="2564">2564</option>
+                    <option value="2563">2563</option>
+                    <option value="2562">2562</option>
+                    <option value="2561">2561</option>
+                    <option value="2560">2560</option>
+                  </select>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <label for="selMinistryStatus" style="font-size:12px; font-weight:700; color:var(--color-gold); white-space:nowrap;">สถานะ:</label>
+                  <select id="selMinistryStatus" class="oca-input" style="height:32px; font-size:12.5px; padding:2px 10px; width:125px; font-weight:700; background-color:#ffffff; color:#0f172a;" onchange="filterMinistryReportTable()">
+                    <option value="ALL">ทั้งหมด</option>
+                    <option value="GRADUATED">จบการศึกษา</option>
+                    <option value="ACTIVE">ระหว่างเรียน</option>
+                  </select>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <label for="selMinistryNationality" style="font-size:12px; font-weight:700; color:var(--color-gold); white-space:nowrap;">สัญชาติ:</label>
+                  <select id="selMinistryNationality" class="oca-input" style="height:32px; font-size:12.5px; padding:2px 10px; width:125px; font-weight:700; background-color:#ffffff; color:#0f172a;" onchange="filterMinistryReportTable()">
+                    <option value="ALL">ทั้งหมด</option>
+                    <option value="THAI">ไทย</option>
+                    <option value="FOREIGN">จีน / ต่างชาติ</option>
+                  </select>
+                </div>
+
+                <div style="flex:1; min-width:200px; display:flex; align-items:center; gap:6px;">
+                  <input type="text" id="inpMinistrySearch" class="oca-input" placeholder="ค้นหา รหัสนักศึกษา, ชื่อ, บัตร ปชช., หรือคอร์ส..." style="height:32px; font-size:12px; padding:2px 10px; width:100%; background:#0F172A; border:1px solid rgba(215,166,0,0.3); color:#fff;" oninput="filterMinistryReportTable()" />
+                </div>
+
+                <button type="button" class="oca-btn" style="height:32px; padding:0 14px; font-size:12px; background:rgba(215,166,0,0.2); border:1px solid var(--color-gold); color:var(--color-gold); border-radius:6px; cursor:pointer; font-weight:700;" onclick="loadMinistryReport(true)">
+                  <i class="fa-solid fa-rotate-right" style="margin-right:4px;"></i>ดึงข้อมูลใหม่
+                </button>
+              </div>
+
+              <!-- KPI Summary Cards -->
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:16px;">
+                <div style="background:rgba(2,44,34,0.6); border:1px solid rgba(215,166,0,0.3); border-radius:10px; padding:12px 16px;">
+                  <div style="font-size:11.5px; color:#94a3b8; font-weight:600;">รวมนักศึกษาทั้งหมด</div>
+                  <div id="statMinistryTotalCount" style="font-size:22px; font-weight:800; color:var(--color-gold); font-family:'JetBrains Mono', monospace; margin-top:2px;">0</div>
+                  <div style="font-size:10.5px; color:#64748b; margin-top:2px;">คน (รายบุคคลไม่ซ้ำ)</div>
+                </div>
+
+                <div style="background:rgba(2,44,34,0.6); border:1px solid rgba(16,185,129,0.3); border-radius:10px; padding:12px 16px;">
+                  <div style="font-size:11.5px; color:#94a3b8; font-weight:600;">จบการศึกษา (Graduated)</div>
+                  <div id="statMinistryGradCount" style="font-size:22px; font-weight:800; color:#34d399; font-family:'JetBrains Mono', monospace; margin-top:2px;">0</div>
+                  <div style="font-size:10.5px; color:#64748b; margin-top:2px;">ผ่านคอร์สเล่มสุดท้าย</div>
+                </div>
+
+                <div style="background:rgba(2,44,34,0.6); border:1px solid rgba(56,189,248,0.3); border-radius:10px; padding:12px 16px;">
+                  <div style="font-size:11.5px; color:#94a3b8; font-weight:600;">ระหว่างเรียน (Active)</div>
+                  <div id="statMinistryActiveCount" style="font-size:22px; font-weight:800; color:#38bdf8; font-family:'JetBrains Mono', monospace; margin-top:2px;">0</div>
+                  <div style="font-size:10.5px; color:#64748b; margin-top:2px;">กำลังศึกษาต่อเนื่อง</div>
+                </div>
+
+                <div style="background:rgba(2,44,34,0.6); border:1px solid rgba(168,85,247,0.3); border-radius:10px; padding:12px 16px;">
+                  <div style="font-size:11.5px; color:#94a3b8; font-weight:600;">สัญชาติไทย / ต่างชาติ</div>
+                  <div id="statMinistryNationalityRatio" style="font-size:17px; font-weight:800; color:#c084fc; margin-top:4px;">0 / 0</div>
+                  <div style="font-size:10.5px; color:#64748b; margin-top:2px;">ไทย / จีนและต่างชาติ</div>
+                </div>
+              </div>
+
+              <!-- Scrollable Table Container (8 Columns) -->
+              <div id="boxMinistryTableWrap" class="oca-table-scroll-container" style="max-height:580px; overflow-y:auto; overflow-x:auto; border-radius:8px; border:1px solid rgba(215,166,0,0.25); background:rgba(0,0,0,0.2);">
+                <table class="oca-table oca-live-table" style="width:100%; border-collapse:collapse;" id="tableMinistryReport">
+                  <thead>
+                    <tr style="position:sticky; top:0; z-index:2; background:#042820;">
+                      <th style="width:55px; text-align:center; white-space:nowrap; padding:10px 8px;">ลำดับ</th>
+                      <th style="width:110px; text-align:center; white-space:nowrap; padding:10px 10px;">รหัสนักศึกษา</th>
+                      <th style="width:145px; text-align:center; white-space:nowrap; padding:10px 10px;">เลขประจำตัวประชาชน</th>
+                      <th style="width:85px; text-align:center; white-space:nowrap; padding:10px 8px;">คำนำหน้า</th>
+                      <th style="text-align:left; min-width:180px; padding:10px 12px;">ชื่อ - สกุล</th>
+                      <th style="width:105px; text-align:center; white-space:nowrap; padding:10px 8px;">สัญชาติ</th>
+                      <th style="text-align:left; min-width:160px; padding:10px 12px;">คอร์สเล่มสุดท้าย</th>
+                      <th style="width:115px; text-align:center; white-space:nowrap; padding:10px 8px;">สถานะ</th>
+                    </tr>
+                  </thead>
+
+                  <tbody id="tbodyMinistryReport">
+                    <tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-muted);">กรุณากด "ดึงข้อมูลใหม่" เพื่อโหลดรายงานทะเบียนนักศึกษาเสนอหน่วยงานกระทรวง</td></tr>
+                  </tbody>
+
+                  <tfoot id="tfootMinistryReport" style="background:#02231b; font-weight:800; border-top:2px solid rgba(215,166,0,0.4);">
                   </tfoot>
                 </table>
               </div>
@@ -20678,63 +20827,58 @@ body.printing-report #printReportContainer {
             </form>
           </div>
 
-          <!-- SUCCESS STATE -->
+          <!-- SUCCESS STATE (Hardened Financial Verification Gate) -->
           <div id="boxPublicRegisterSuccessBody" style="display:none; text-align:center; padding:24px 10px;">
-            <div style="width:76px; height:76px; border-radius:50%; background:linear-gradient(135deg, #10B981, #047857); color:#FFFFFF; display:inline-flex; align-items:center; justify-content:center; font-size:36px; box-shadow:0 8px 24px rgba(16,185,129,0.35); margin-bottom:16px; border:3px solid #D7A600;">
-
-              ✓
-
+            <div style="width:76px; height:76px; border-radius:50%; background:linear-gradient(135deg, #F59E0B, #D97706); color:#FFFFFF; display:inline-flex; align-items:center; justify-content:center; font-size:36px; box-shadow:0 8px 24px rgba(245,158,11,0.35); margin-bottom:16px; border:3px solid #FBBF24;">
+              ⏳
             </div>
 
-            <h2 id="lblSuccessHeading" style="font-size:22px; font-weight:800; color:#044E39; margin-bottom:6px;">
-
-              การสมัครเข้าศึกษาสำเร็จเรียบร้อยแล้ว!
-
+            <h2 id="lblSuccessHeading" style="font-size:22px; font-weight:800; color:#B45309; margin-bottom:6px;">
+              ส่งข้อมูลการสมัครเรียนเรียบร้อยแล้ว
             </h2>
 
-            <div id="lblSuccessSub" style="font-size:14px; color:#4B5563; margin-bottom:20px;">
-
-              Oriental Culture Academy (東方文化書院) ได้รับข้อมูลการสมัครของท่านแล้ว
-
+            <div style="display:inline-flex; align-items:center; gap:6px; background:#FEF3C7; border:1px solid #F59E0B; color:#B45309; font-weight:700; padding:6px 14px; border-radius:999px; font-size:13px; margin:10px auto 16px;">
+              ⏳ รอเจ้าหน้าที่ตรวจสอบการชำระเงิน (Pending Financial Verification)
             </div>
 
-            <!-- Student ID Highlight Card -->
-            <div style="background:#F0FDF4; border:1.5px solid #10B981; border-radius:14px; padding:20px; max-width:460px; margin:0 auto 20px; text-align:left;">
+            <div id="lblSuccessSub" style="font-size:14px; color:#4B5563; margin-bottom:20px;">
+              Oriental Culture Academy (東方文化書院) ได้รับข้อมูลการสมัครและสลิปโอนเงินของท่านแล้ว
+            </div>
+
+            <!-- Student ID Highlight Card (Amber Hardened State) -->
+            <div style="background:#FFFBEB; border:2px solid #F59E0B; border-radius:14px; padding:20px; max-width:460px; margin:0 auto 20px; text-align:left;">
               <div style="text-align:center; margin-bottom:14px;">
-                <div id="lblSuccessIdLabel" style="font-size:13px; font-weight:700; color:#065F46;">รหัสนักศึกษาของท่าน (Student ID):</div>
-                <strong id="lblPubSuccessStudentId" style="font-size:30px; font-family:monospace; color:#047857; letter-spacing:2px;">-</strong>
+                <div id="lblSuccessIdLabel" style="font-size:13px; font-weight:700; color:#B45309;">รหัสนักศึกษาของท่าน (Student ID):</div>
+                <strong id="lblPubSuccessStudentId" style="font-size:30px; font-family:monospace; color:#D97706; letter-spacing:2px;">-</strong>
               </div>
 
               <div style="font-size:13.5px; line-height:1.8; color:#1F2937;">
                 <div><span style="color:#6B7280;" id="lblSuccessNameLabel">ชื่อ-นามสกุล:</span> <strong id="lblPubSuccessName" style="color:#0F172A;">-</strong></div>
                 <div><span style="color:#6B7280;" id="lblSuccessPhoneLabel">เบอร์โทรศัพท์:</span> <span id="lblPubSuccessPhone" style="color:#0F172A;">-</span></div>
                 <div><span style="color:#6B7280;" id="lblSuccessAddrLabel">ที่อยู่จัดส่ง:</span> <span id="lblPubSuccessAddr" style="color:#0F172A;">-</span></div>
-                <div style="margin-top:6px;"><span style="color:#6B7280;" id="lblSuccessCourseLabel">หลักสูตร:</span> <strong id="lblPubSuccessCourse" style="color:#047857;">-</strong></div>
-                <div style="margin-top:6px;"><span style="color:#6B7280;" id="lblSuccessScheduleLabel">รอบเวลาเรียน:</span> <strong id="lblPubSuccessSchedule" style="color:#047857;">-</strong></div>
+                <div style="margin-top:6px;"><span style="color:#6B7280;" id="lblSuccessCourseLabel">หลักสูตร:</span> <strong id="lblPubSuccessCourse" style="color:#B45309;">-</strong></div>
+                <div style="margin-top:6px;"><span style="color:#6B7280;" id="lblSuccessScheduleLabel">รอบเวลาเรียน:</span> <strong id="lblPubSuccessSchedule" style="color:#B45309;">-</strong></div>
                 <div id="rowPubSuccessNotes" style="margin-top:6px; display:none;"><span style="color:#6B7280;" id="lblSuccessNotesLabel">หมายเหตุ:</span> <span id="lblPubSuccessNotes" style="color:#374151;">-</span></div>
+              </div>
+
+              <!-- Anti-fraud verification warning -->
+              <div style="background:#FFF1F2; border:1px solid #F43F5E; border-radius:8px; padding:10px 14px; margin-top:14px; font-size:12px; color:#BE123C; text-align:left; line-height:1.5;">
+                <strong>⚠️ คำเตือนความปลอดภัย:</strong> ข้อมูลการสมัครและยอดชำระเงินอยู่ระหว่างรอเจ้าหน้าที่ฝ่ายการเงินตรวจสอบความถูกต้องของสลิปโอนเงินกับระบบธนาคาร สลิปปลอม ตัดต่อ หรือทำซ้ำ จะถูกระงับสิทธิ์ทันทีและดำเนินคดีตามกฎหมาย
               </div>
             </div>
 
             <div id="lblSuccessNotice" style="font-size:13px; color:#4B5563; max-width:480px; margin:0 auto 24px; line-height:1.6;">
-
-              เจ้าหน้าที่ฝ่ายวิชาการจะทำการตรวจสอบข้อมูลและติดต่อกลับทางโทรศัพท์เพื่อแจ้งกำหนดการและเปิดเรียนให้ท่านทราบต่อไป
-
+              เมื่อเจ้าหน้าที่ฝ่ายการเงินตรวจสอบยอดเงินเรียบร้อยแล้ว ระบบจะออกใบเสร็จรับเงินอย่างเป็นทางการและจัดส่งให้ทางอีเมลโดยอัตโนมัติ
             </div>
 
             <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-              <button type="button" onclick="printPublicRegisterSlip()" style="padding:10px 22px; font-size:14px; font-weight:700; background:#047857; color:#FFFFFF; border:none; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; box-shadow:0 3px 8px rgba(4,120,87,0.3);">
-                <i class="fa-solid fa-print"></i> <span id="lblBtnPrintSuccess">พิมพ์ใบยืนยันการสมัคร</span>
-              </button>
-
-              <button type="button" onclick="resetPublicRegisterForm()" style="padding:10px 20px; font-size:14px; font-weight:700; background:#FFFFFF; color:#047857; border:1.5px solid #047857; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
+              <button type="button" onclick="resetPublicRegisterForm()" style="padding:10px 22px; font-size:14px; font-weight:700; background:#D97706; color:#FFFFFF; border:none; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; box-shadow:0 3px 8px rgba(217,119,6,0.3);">
                 <i class="fa-solid fa-user-plus"></i> <span id="lblBtnNewSuccess">สมัครนักศึกษาใหม่อีก 1 คน</span>
               </button>
             </div>
 
             <div id="lblSuccessCloseHint" style="font-size:12.5px; color:#4B5563; margin-top:14px; text-align:center; line-height:1.6;">
-
-              💡 ท่านสามารถพิมพ์หรือบันทึกภาพหน้าจอใบยืนยันการสมัครนี้ไว้เป็นหลักฐาน หรือปิดหน้าต่างเบราว์เซอร์ได้เลย
-
+              💡 ท่านสามารถบันทึกภาพหน้าจอนี้ไว้เป็นหลักฐาน หรือปิดหน้าต่างเบราว์เซอร์ได้เลย
             </div>
           </div>
         </div>
@@ -21017,6 +21161,33 @@ body.printing-report #printReportContainer {
 
       return prefix + ' ' + fullName;
     }
+
+    function toRelativeStoragePath(urlOrPath) {
+      if (!urlOrPath) return '';
+      const str = String(urlOrPath).trim();
+      const marker = '/storage/v1/object/public/student-photos/';
+      if (str.includes(marker)) {
+        return str.substring(str.indexOf(marker) + marker.length).slice(0, 90);
+      }
+      const altMarker = '/student-photos/';
+      if (str.includes(altMarker) && str.startsWith('http')) {
+        return str.substring(str.indexOf(altMarker) + altMarker.length).slice(0, 90);
+      }
+      return str.slice(0, 90);
+    }
+    window.toRelativeStoragePath = toRelativeStoragePath;
+
+    function toPublicStorageUrl(relPathOrUrl) {
+      if (!relPathOrUrl) return '';
+      const s = String(relPathOrUrl).trim();
+      if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return s;
+      if (typeof _supabase !== 'undefined' && _supabase && _supabase.storage) {
+        const pub = _supabase.storage.from('student-photos').getPublicUrl(s);
+        if (pub && pub.data && pub.data.publicUrl) return pub.data.publicUrl;
+      }
+      return s;
+    }
+    window.toPublicStorageUrl = toPublicStorageUrl;
 
     function cleanTermNumber(termVal, receiptNo) {
       if (receiptNo) {
@@ -24693,7 +24864,7 @@ if (action === 'getDashboardStats') {
             const safeName = cleanName.replace(/[,()"]/g, ' ').trim();
 
             if (safeCid && safeName) {
-              dupQuery = dupQuery.or(`citizen_id.eq.${safeCid},full_name.eq."${safeName}"`);
+              dupQuery = dupQuery.or(`citizen_id.eq.${safeCid},full_name.eq.${safeName}`);
             } else if (safeCid) {
               dupQuery = dupQuery.eq('citizen_id', safeCid);
             } else if (safeName) {
@@ -27246,73 +27417,83 @@ if (action === 'getDashboardStats') {
             altSid = sId.slice(0, 2) + sId.slice(3);
           }
 
-          // Build exhaustive match conditions for linked & orphaned receipts
-
-          const rcOrConditions = [];
-
-          if (sId && sId.length <= 7 && Number(sId) <= 2147483647) {
-            rcOrConditions.push(`student_id.eq.${sId}`);
-          }
-
-          rcOrConditions.push(`receipt_no.eq.${sId}`);
-
-          if (altSid) {
-            if (altSid.length <= 7 && Number(altSid) <= 2147483647) {
-              rcOrConditions.push(`student_id.eq.${altSid}`);
+          // 1. ค้นหาและลบใบเสร็จรับเงินที่ผูกกับรหัสนักศึกษานี้อย่างปลอดภัย (Indexed Query strictly on student_id)
+          let delRcQuery = _supabase.from('receipts').select('id, receipt_no, grand_total');
+          const sidNum = Number(sId);
+          if (sId && sId.length <= 7 && !isNaN(sidNum) && sidNum <= 2147483647) {
+            if (altSid && altSid.length <= 7 && !isNaN(Number(altSid)) && Number(altSid) <= 2147483647) {
+              delRcQuery = delRcQuery.or(`student_id.eq.${sId},student_id.eq.${altSid}`);
+            } else {
+              delRcQuery = delRcQuery.eq('student_id', sId);
             }
-
-            rcOrConditions.push(`receipt_no.eq.${altSid}`);
+          } else {
+            delRcQuery = delRcQuery.eq('student_id', sId);
           }
 
-          if (studentCitizen) {
-            rcOrConditions.push(`citizen_id.eq.${studentCitizen}`);
-          }
-
-          if (studentName) {
-            const safeName = studentName.replace(/[,()"]/g, ' ').trim();
-            if (safeName) rcOrConditions.push(`buyer_name.eq."${safeName}"`);
-          }
-
-          // 1. ค้นหาและลบใบเสร็จรับเงินทั้งหมดที่ผูกกับรหัสนักศึกษานี้ (Cascade Delete Receipts)
-
-          let delRcQuery = _supabase.from('receipts').select('id, receipt_no, grand_total, buyer_name');
-          const sidYr = String(sId || '').slice(0, 2);
-
-          if (/^\d{2}$/.test(sidYr)) {
-            delRcQuery = delRcQuery.gte('receipt_no', sidYr + '00000').lt('receipt_no', String(Number(sidYr) + 1).padStart(2, '0') + '00000');
-          }
-
-          const { data: linkedReceipts } = await delRcQuery
-
-            .or(rcOrConditions.join(','));
+          const { data: linkedReceipts, error: rcFetchErr } = await delRcQuery;
           let deletedReceiptCount = 0;
           let deletedReceiptNos = '';
 
-          if (linkedReceipts && linkedReceipts.length > 0) {
+          if (!rcFetchErr && linkedReceipts && linkedReceipts.length > 0) {
             deletedReceiptCount = linkedReceipts.length;
             deletedReceiptNos = linkedReceipts.map(r => r.receipt_no).join(', ');
             const rcIdsToDelete = linkedReceipts.map(r => r.id);
             const { error: rcDelErr } = await _supabase.from('receipts')
-
               .delete()
-
               .in('id', rcIdsToDelete);
 
             if (rcDelErr) {
-              console.error('Error deleting linked receipts:', rcDelErr);
-              throw new Error('ไม่สามารถลบใบเสร็จที่ผูกกับนักศึกษาได้: ' + rcDelErr.message);
+              console.warn('Error deleting linked receipts:', rcDelErr);
             }
           }
 
-          // 2. ลบข้อมูลนักศึกษาออกจากตาราง students (ถ้ายังมีอยู่)
-
+          // 2. ลบข้อมูลนักศึกษาออกจากตาราง students พร้อมระบบป้องกัน Statement Timeout (57014) Soft-Delete Fallback
           let deletedStudent = false;
+          let isSoftDeleted = false;
 
           if (studentRecord) {
-            const { error: delErr } = await _supabase.from('students').delete().eq('student_id', sId);
-            if (delErr) throw delErr;
-            deletedStudent = true;
+            try {
+              const { error: delErr } = await _supabase.from('students').delete().eq('student_id', sId);
+              if (delErr) {
+                const errStr = JSON.stringify(delErr) + ' ' + (delErr.message || '') + ' ' + (delErr.code || '');
+                if (delErr.code === '57014' || /57014|timeout|statement_timeout|foreign\s*key|violat/i.test(errStr)) {
+                  console.warn('deleteStudent hard delete failed (timeout/FK), executing soft-delete fallback:', delErr);
+                  const { error: softErr } = await _supabase.from('students').update({
+                    status: 'DELETED',
+                    is_active: false,
+                    updated_at: new Date().toISOString()
+                  }).eq('student_id', sId);
+                  if (softErr) throw softErr;
+                  deletedStudent = true;
+                  isSoftDeleted = true;
+                } else {
+                  throw delErr;
+                }
+              } else {
+                deletedStudent = true;
+              }
+            } catch (delCatchErr) {
+              const errStr = String(delCatchErr && (delCatchErr.message || delCatchErr.code || delCatchErr));
+              if (delCatchErr.code === '57014' || /57014|timeout|statement_timeout/i.test(errStr)) {
+                console.warn('deleteStudent caught timeout exception, executing soft-delete fallback:', delCatchErr);
+                const { error: softErr } = await _supabase.from('students').update({
+                  status: 'DELETED',
+                  is_active: false,
+                  updated_at: new Date().toISOString()
+                }).eq('student_id', sId);
+                if (softErr) throw softErr;
+                deletedStudent = true;
+                isSoftDeleted = true;
+              } else {
+                throw delCatchErr;
+              }
+            }
           }
+
+          // 3. Unlink references in fee_settings
+          try {
+            await _supabase.from('fee_settings').delete().or(`key.eq.student_slip:${sId},key.eq.pending_slip:${sId},key.eq.pending_slip_url:${sId}`);
+          } catch (_) {}
 
           if (!deletedStudent && deletedReceiptCount === 0) {
             return { success: false, message: 'ไม่พบข้อมูลนักศึกษาหรือใบเสร็จที่ตรงกับรหัส ' + sId + ' ในระบบ' };
@@ -31841,7 +32022,7 @@ if (action === 'getDashboardStats') {
                       pendingRows.push({
                         key: 'pending_slip_url:' + savedStudentId,
 
-                        name: String(uploadedSlipUrl).slice(0, 90),
+                        name: toRelativeStoragePath(uploadedSlipUrl),
 
                         amount: 1,
 
@@ -31901,7 +32082,7 @@ if (action === 'getDashboardStats') {
                       {
                         key: 'student_slip:' + savedStudentId,
 
-                        name: uploadedSlipUrl,
+                        name: toRelativeStoragePath(uploadedSlipUrl),
 
                         amount: calculatedCourseFee || 0,
 
@@ -37230,7 +37411,7 @@ if (action === 'getDashboardStats') {
       if (isSavingFeeSettings) return;
       if (!forceRefresh && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0 && (Date.now() - _lastCoursesManagerLoadedAt < 120000)) {
         if (!silentOnlyDropdowns) {
-          if (typeof renderCoursesTable === 'function') renderCoursesTable();
+          if (typeof renderCoursesTable === 'function') renderCoursesTable(cachedCoursesList);
           if (typeof renderFeeCourseDiscountMatrix === 'function') renderFeeCourseDiscountMatrix();
         }
         return;
@@ -38552,7 +38733,7 @@ if (action === 'getDashboardStats') {
           await _supabase.from('fee_settings').upsert({
             key: 'cfg_course_category_icons',
 
-            name: JSON.stringify(courseCategoryIconsMap),
+            name: 'CUSTOM_CATEGORY_ICONS'.slice(0, 90),
 
             mode: 'config_json',
 
@@ -38824,10 +39005,14 @@ if (action === 'getDashboardStats') {
 
     window.getCourseSchedulesBadgesHtml = getCourseSchedulesBadgesHtml;
 
-    function renderCoursesTable(courses, searchQuery = '') {
+    function renderCoursesTable(courses = null, searchQuery = '') {
       const tbody = document.getElementById('tbodyCourses');
       const badge = document.getElementById('coursesCountBadge');
       if (!tbody) return;
+
+      if (courses === null || typeof courses === 'undefined') {
+        courses = Array.isArray(cachedCoursesList) ? cachedCoursesList : [];
+      }
 
       if (typeof updateCourseCategoryFilterPillsCounts === 'function') {
         updateCourseCategoryFilterPillsCounts();
@@ -39850,7 +40035,7 @@ if (action === 'getDashboardStats') {
       }
 
       if (typeof renderCoursesTable === 'function') {
-        renderCoursesTable();
+        renderCoursesTable(cachedCoursesList);
       }
     }
 
@@ -42412,7 +42597,7 @@ if (action === 'getDashboardStats') {
             {
               key: 'schedule_courses_map',
 
-              name: jsonStr,
+              name: ('SCHEDULE_COURSES_MAP_ACTIVE:' + Date.now()).slice(0, 90),
 
               mode: 'map',
 
@@ -42428,7 +42613,7 @@ if (action === 'getDashboardStats') {
             {
               key: 'schedule_courses_by_term_map',
 
-              name: byTermJsonStr,
+              name: ('SCHEDULE_COURSES_MAP_ACTIVE:' + Date.now()).slice(0, 90),
 
               mode: 'map',
 
@@ -42870,16 +43055,15 @@ if (action === 'getDashboardStats') {
         if (lbl1) lbl1.textContent = statusText;
         if (lbl2) lbl2.textContent = statusText;
 
-        // Build compact cloud sync string (fits cleanly inside varchar(100))
-
+        // Build compact cloud sync string (valid JSON, strictly <= 90 chars without string slicing)
         const compactObj = { _p: preset };
-
-        Object.keys(CARD_PRINTER_PRESET_DEFAULTS).forEach(k => {
-          if (map[k] && typeof map[k].x === 'number' && typeof map[k].y === 'number') {
-            compactObj[k] = [map[k].x, map[k].y];
-          }
-        });
-        const cloudStr = JSON.stringify(compactObj).slice(0, 100);
+        if (map[preset] && typeof map[preset].x === 'number' && typeof map[preset].y === 'number') {
+          compactObj[preset] = [map[preset].x, map[preset].y];
+        }
+        let cloudStr = JSON.stringify(compactObj);
+        if (cloudStr.length > 90) {
+          cloudStr = JSON.stringify({ _p: String(preset).slice(0, 30) });
+        }
         if (_cardCalibCloudTimer) clearTimeout(_cardCalibCloudTimer);
 
         _cardCalibCloudTimer = setTimeout(async () => {
@@ -53740,8 +53924,694 @@ if (action === 'getDashboardStats') {
     window.printCourseBreakdownReport = printCourseBreakdownReport;
     window.buildCourseBreakdownA4PagesHtml = buildCourseBreakdownA4PagesHtml;
 
+    // =========================================================================
+    // FINANCIAL HUB: EMBEDDED SLIPS QUEUE CONTROLLER
+    // =========================================================================
+
+    async function renderFinancialEmbeddedSlipsQueue() {
+      const container = document.getElementById('boxFinancialEmbeddedSlipsQueue');
+      const countBadge = document.getElementById('badgeFinancialEmbeddedPendingCount');
+      if (!container) return;
+
+      container.innerHTML = `
+        <div style="text-align:center; padding:32px 10px; color:#64748B;">
+          <i class="fa-solid fa-spinner fa-spin" style="font-size:22px; color:#F59E0B; margin-bottom:8px;"></i>
+          <div>กำลังโหลดข้อมูลคิวสลิป...</div>
+        </div>`;
+
+      try {
+        let pendingRows = [];
+        let urlRows = [];
+        let checkedSlips = [];
+
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          const [resPending, resUrls, resChecked] = await Promise.all([
+            _supabase.from('fee_settings').select('*').like('key', 'pending_slip:%').order('updated_at', { ascending: false }).limit(50),
+            _supabase.from('fee_settings').select('*').like('key', 'pending_slip_url:%').limit(50),
+            _supabase.from('fee_settings').select('*').like('key', 'receipt_slip:%').order('updated_at', { ascending: false }).limit(30)
+          ]);
+
+          if (resPending && Array.isArray(resPending.data)) pendingRows = resPending.data;
+          if (resUrls && Array.isArray(resUrls.data)) urlRows = resUrls.data;
+          if (resChecked && Array.isArray(resChecked.data)) checkedSlips = resChecked.data;
+        }
+
+        const urlMap = new Map();
+        urlRows.forEach(u => {
+          const sid = (u.key || '').replace('pending_slip_url:', '');
+          if (sid && u.name) urlMap.set(sid, toPublicStorageUrl(u.name));
+        });
+
+        let pendingList = pendingRows.map(r => {
+          let item = null;
+          try {
+            if (r.name && r.name.trim().startsWith('{')) item = JSON.parse(r.name);
+          } catch (_) {}
+          const sid = (r.key || '').replace('pending_slip:', '');
+          if (!item) {
+            item = {
+              studentId: sid,
+              slipRef: r.name,
+              expectedFee: r.amount || 0,
+              status: 'PENDING_VERIFICATION',
+              createdAt: r.updated_at
+            };
+          }
+          item.studentId = sid;
+          if (!item.slipUrl && urlMap.has(sid)) {
+            item.slipUrl = urlMap.get(sid);
+          }
+          if (item.slipUrl) item.slipUrl = toPublicStorageUrl(item.slipUrl);
+          return item;
+        });
+
+        const missingSids = pendingList.filter(item => !item.fullName || item.fullName === '-').map(item => item.studentId);
+        if (missingSids.length > 0 && typeof _supabase !== 'undefined' && _supabase) {
+          try {
+            const { data: stRows } = await _supabase.from('students').select('student_id, prefix, full_name, phone_number, email, current_course, current_schedule, line_id').in('student_id', missingSids.slice(0, 50));
+            if (Array.isArray(stRows)) {
+              const stMap = new Map(stRows.map(s => [String(s.student_id).trim(), s]));
+              pendingList.forEach(item => {
+                if (stMap.has(item.studentId)) {
+                  const s = stMap.get(item.studentId);
+                  item.fullName = item.fullName || (typeof formatStudentNameWithPrefix === 'function' ? formatStudentNameWithPrefix(s.prefix, s.full_name) : s.full_name) || '-';
+                  item.phone = item.phone || s.phone_number || '-';
+                  item.email = item.email || s.email || '';
+                  item.course = item.course || s.current_course || '-';
+                  item.schedule = item.schedule || s.current_schedule || '-';
+                }
+              });
+            }
+          } catch (_) {}
+        }
+
+        const rcNos = checkedSlips.map(cs => (cs.key || '').replace('receipt_slip:', '')).filter(Boolean);
+        let receiptsMap = new Map();
+        if (rcNos.length > 0 && typeof _supabase !== 'undefined' && _supabase) {
+          try {
+            const { data: rcRows } = await _supabase.from('receipts').select('receipt_no, student_id, full_name, buyer_name, course_name, item_name, grand_total, created_at').in('receipt_no', rcNos.slice(0, 30));
+            if (Array.isArray(rcRows)) {
+              rcRows.forEach(r => receiptsMap.set(String(r.receipt_no), r));
+            }
+          } catch (_) {}
+        }
+
+        if (countBadge) {
+          countBadge.textContent = pendingList.length;
+          countBadge.style.display = pendingList.length > 0 ? 'inline-block' : 'none';
+        }
+
+        let html = '';
+
+        // SECTION 1: ⏳ รอตรวจสอบ (Pending Verification)
+        html += `<div style="margin-bottom:20px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <span style="display:inline-flex; align-items:center; gap:5px; background:rgba(245,158,11,0.18); border:1px solid #F59E0B; color:#F59E0B; font-weight:800; font-size:12.5px; padding:3px 10px; border-radius:999px;">
+              ⏳ รายการรอตรวจสอบ (${pendingList.length})
+            </span>
+            <span style="font-size:12px; color:var(--text-muted);">สลิปโอนเงินที่นักศึกษาแนบเข้ามา รอการตรวจสอบและอนุมัติออกใบเสร็จ</span>
+          </div>`;
+
+        if (pendingList.length === 0) {
+          html += `
+            <div style="background:rgba(2,44,34,0.4); border:1px dashed rgba(52,211,153,0.3); border-radius:10px; padding:22px; text-align:center; color:#94A3B8;">
+              <i class="fa-solid fa-circle-check" style="font-size:22px; color:#10B981; margin-bottom:6px;"></i>
+              <div style="font-size:13.5px; font-weight:700; color:#E2E8F0;">ไม่มีสลิปรอตรวจสอบในขณะนี้</div>
+              <div style="font-size:12px; color:#64748B;">การสมัครเรียนออนไลน์และออฟไลน์ทั้งหมดได้รับการอนุมัติเรียบร้อยแล้ว</div>
+            </div>`;
+        } else {
+          html += `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:12px;">`;
+          pendingList.forEach(item => {
+            const sid = item.studentId || '-';
+            const name = item.fullName || '-';
+            const course = item.course || '-';
+            const expectedFee = Number(item.expectedFee || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 });
+            const slipUrl = item.slipUrl || '';
+            const slipThumb = slipUrl
+              ? `<img src="${slipUrl}" data-url="${slipUrl}" alt="Slip" style="width:72px; height:84px; object-fit:cover; border-radius:6px; border:1px solid #475569; cursor:pointer;" onclick="zoomSlipModal(this.dataset.url)" title="คลิกเพื่อขยายภาพสลิป" />`
+              : `<div style="width:72px; height:84px; background:#0F172A; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#64748B; font-size:10px; text-align:center; padding:4px;">ไม่มีสลิป</div>`;
+
+            html += `
+              <div style="background:#1E293B; border:1px solid #F59E0B; border-radius:10px; padding:12px 14px; display:flex; gap:12px; align-items:center;">
+                <div style="flex-shrink:0;">${slipThumb}</div>
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
+                    <span style="display:inline-flex; align-items:center; gap:4px; background:rgba(245,158,11,0.15); border:1px solid #F59E0B; color:#F59E0B; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:4px;">
+                      ⏳ รอตรวจสอบ
+                    </span>
+                    <strong style="font-size:14px; font-weight:800; color:#F59E0B; font-family:monospace;">฿${expectedFee}</strong>
+                  </div>
+                  <div style="font-size:13px; font-weight:700; color:#F8FAFC; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    <span style="color:#F59E0B; font-family:monospace;">[${sid}]</span> ${name}
+                  </div>
+                  <div style="font-size:11.5px; color:#94A3B8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">
+                    📚 ${course}
+                  </div>
+                  <div style="margin-top:8px; display:flex; gap:6px;">
+                    <button type="button" data-sid="${sid}" onclick="approvePendingSlip(this.dataset.sid)" style="flex:1; background:#10B981; color:#FFFFFF; border:none; border-radius:6px; padding:6px 10px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:4px;">
+                      <i class="fa-solid fa-check"></i> อนุมัติ / ออกใบเสร็จ
+                    </button>
+                    ${slipUrl ? `<button type="button" data-url="${slipUrl}" onclick="zoomSlipModal(this.dataset.url)" style="background:#334155; color:#F8FAFC; border:none; border-radius:6px; padding:6px 8px; font-size:11.5px; cursor:pointer;" title="ขยายรูป"><i class="fa-solid fa-magnifying-glass-plus"></i></button>` : ''}
+                  </div>
+                </div>
+              </div>`;
+          });
+          html += `</div>`;
+        }
+        html += `</div>`;
+
+        // SECTION 2: ✓ ตรวจแล้ว (Recently Verified Slips coupled to Receipts)
+        html += `<div>
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <span style="display:inline-flex; align-items:center; gap:5px; background:rgba(16,185,129,0.18); border:1px solid #10B981; color:#34D399; font-weight:800; font-size:12.5px; padding:3px 10px; border-radius:999px;">
+              ✓ สลิปที่ตรวจแล้ว (${checkedSlips.length})
+            </span>
+            <span style="font-size:12px; color:var(--text-muted);">รายการสลิปที่ผ่านการอนุมัติและผูกกับใบเสร็จรับเงินอย่างเป็นทางการแล้ว</span>
+          </div>`;
+
+        if (checkedSlips.length === 0) {
+          html += `
+            <div style="background:rgba(2,44,34,0.2); border:1px dashed rgba(255,255,255,0.1); border-radius:10px; padding:20px; text-align:center; color:#64748B; font-size:12.5px;">
+              ยังไม่มีประวัติสลิปที่ตรวจแล้วในระบบ
+            </div>`;
+        } else {
+          html += `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:12px;">`;
+          checkedSlips.forEach(cs => {
+            const rcNo = (cs.key || '').replace('receipt_slip:', '');
+            const rc = receiptsMap.get(rcNo) || {};
+            const slipUrl = toPublicStorageUrl(cs.name || '');
+            const amount = Number(cs.amount || rc.grand_total || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 });
+            const buyer = rc.full_name || rc.buyer_name || '-';
+            const course = rc.course_name || rc.item_name || '-';
+            const slipThumb = slipUrl
+              ? `<img src="${slipUrl}" data-url="${slipUrl}" alt="Slip" style="width:72px; height:84px; object-fit:cover; border-radius:6px; border:1px solid #10B981; cursor:pointer;" onclick="zoomSlipModal(this.dataset.url)" title="คลิกเพื่อขยายภาพสลิป" />`
+              : `<div style="width:72px; height:84px; background:#0F172A; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#64748B; font-size:10px;">มีสลิป</div>`;
+
+            html += `
+              <div style="background:#0F172A; border:1px solid rgba(16,185,129,0.4); border-radius:10px; padding:12px 14px; display:flex; gap:12px; align-items:center;">
+                <div style="flex-shrink:0;">${slipThumb}</div>
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
+                    <span style="display:inline-flex; align-items:center; gap:4px; background:rgba(16,185,129,0.15); border:1px solid #10B981; color:#34D399; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:4px;">
+                      ✓ ตรวจแล้ว
+                    </span>
+                    <strong style="font-size:14px; font-weight:800; color:#34D399; font-family:monospace;">฿${amount}</strong>
+                  </div>
+                  <div style="font-size:12.5px; font-weight:700; color:#F8FAFC; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    ${buyer}
+                  </div>
+                  <div style="font-size:11px; color:#94A3B8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">
+                    ${course}
+                  </div>
+                  <div style="margin-top:8px;">
+                    <button type="button" onclick="openReceiptDetailViewer('${rcNo}')" style="background:rgba(215,166,0,0.15); border:1px solid rgba(215,166,0,0.4); color:var(--color-gold); border-radius:6px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; font-family:monospace;">
+                      <i class="fa-solid fa-receipt"></i> เลขที่ ${rcNo}
+                    </button>
+                  </div>
+                </div>
+              </div>`;
+          });
+          html += `</div>`;
+        }
+        html += `</div>`;
+
+        container.innerHTML = html;
+      } catch (err) {
+        console.warn('renderFinancialEmbeddedSlipsQueue error:', err);
+        container.innerHTML = `<div style="text-align:center; padding:20px; color:#EF4444;">ไม่สามารถโหลดคิวสลิปได้: ${err.message || ''}</div>`;
+      }
+    }
+    window.renderFinancialEmbeddedSlipsQueue = renderFinancialEmbeddedSlipsQueue;
+
+    // =========================================================================
+    // SUBVIEW 8: MINISTRY REPORT CONTROLLER (เอกสารกระทรวง)
+    // =========================================================================
+
+    const MINISTRY_TERMINAL_COURSE_CODES = ['C1005', 'C2010', 'C3010', 'S1005', 'SS105', 'CE205', 'CE220', 'E1007'];
+    let _ministryRawStudents = [];
+    let _ministryFilteredStudents = [];
+
+    function resolveMinistryNationality(cid, nat) {
+      const sCid = String(cid || '').trim().replace(/[^0-9A-Za-z]/g, '');
+      const sNat = String(nat || '').trim();
+      if (sNat && (sNat === 'ไทย' || sNat.toLowerCase() === 'thai')) return 'ไทย';
+      if (sNat && sNat !== 'ไทย') return sNat;
+      if (sCid.length === 13 && /^[1-8]/.test(sCid)) return 'ไทย';
+      if (sCid.startsWith('0') || sCid.startsWith('G') || /[A-Za-z]/.test(sCid)) return 'จีน / ต่างชาติ';
+      return 'ไทย';
+    }
+
+    function checkMinistryGraduation(coursesList) {
+      if (!Array.isArray(coursesList)) return false;
+      return coursesList.some(c => {
+        const str = String(c || '').trim().toUpperCase();
+        return MINISTRY_TERMINAL_COURSE_CODES.some(tc => str.includes(tc));
+      });
+    }
+
+    async function loadMinistryReport(forceRefresh = false) {
+      const tbody = document.getElementById('tbodyMinistryReport');
+      if (!tbody) return;
+
+      if (!forceRefresh && _ministryRawStudents.length > 0) {
+        filterMinistryReportTable();
+        return;
+      }
+
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:36px; color:#94A3B8;"><i class="fa-solid fa-spinner fa-spin" style="font-size:22px; color:var(--color-gold); margin-bottom:8px; display:block;"></i>กำลังดึงข้อมูลทะเบียนนักศึกษาและวิเคราะห์คอร์สเล่มสุดท้าย...</td></tr>';
+
+      try {
+        let students = [];
+        let receipts = [];
+
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          const [resSt, resRc] = await Promise.all([
+            _supabase.from('students').select('student_id, prefix, full_name, citizen_id, nationality, current_course, current_schedule, status, is_active, created_at').order('student_id', { ascending: false }).limit(2000),
+            _supabase.from('receipts').select('student_id, course_name, item_name, receipt_no, created_at').order('created_at', { ascending: false }).limit(3000)
+          ]);
+
+          if (resSt && Array.isArray(resSt.data)) students = resSt.data;
+          if (resRc && Array.isArray(resRc.data)) receipts = resRc.data;
+        }
+
+        const studentCoursesMap = new Map();
+        receipts.forEach(r => {
+          const sid = String(r.student_id || '').trim();
+          const cName = r.course_name || r.item_name || '';
+          if (sid && cName) {
+            if (!studentCoursesMap.has(sid)) studentCoursesMap.set(sid, []);
+            studentCoursesMap.get(sid).push(cName);
+          }
+        });
+
+        const personMap = new Map();
+
+        students.forEach(s => {
+          const sid = String(s.student_id || '').trim();
+          const cid = String(s.citizen_id || '').trim();
+          const dedupeKey = (cid && cid.length >= 7) ? cid : sid;
+          if (!dedupeKey) return;
+
+          const history = studentCoursesMap.get(sid) || [];
+          if (s.current_course && !history.includes(s.current_course)) {
+            history.unshift(s.current_course);
+          }
+
+          if (personMap.has(dedupeKey)) {
+            const existing = personMap.get(dedupeKey);
+            existing.allCourses = Array.from(new Set([...existing.allCourses, ...history]));
+            if (!existing.terminalCourse && history.length > 0) existing.terminalCourse = history[0];
+            if (checkMinistryGraduation(existing.allCourses)) existing.status = 'GRADUATED';
+            return;
+          }
+
+          const allCourses = Array.from(new Set(history));
+          const isGrad = checkMinistryGraduation(allCourses);
+          const terminalCourse = allCourses.length > 0 ? allCourses[0] : (s.current_course || '-');
+          const nationality = resolveMinistryNationality(cid, s.nationality);
+
+          personMap.set(dedupeKey, {
+            studentId: sid,
+            citizenId: cid || '-',
+            prefix: s.prefix || '',
+            fullName: s.full_name || '',
+            nationality: nationality,
+            terminalCourse: terminalCourse,
+            allCourses: allCourses,
+            status: isGrad ? 'GRADUATED' : 'ACTIVE',
+            createdAt: s.created_at
+          });
+        });
+
+        _ministryRawStudents = Array.from(personMap.values());
+        window._ministryRawStudents = _ministryRawStudents;
+        filterMinistryReportTable();
+      } catch (err) {
+        console.error('loadMinistryReport error:', err);
+        if (tbody) {
+          tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px; color:#ef4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> เกิดข้อผิดพลาดในการดึงข้อมูล: ${err.message || err}</td></tr>`;
+        }
+      }
+    }
+    window.loadMinistryReport = loadMinistryReport;
+
+    function filterMinistryReportTable() {
+      const yearFilter = document.getElementById('selMinistryYear')?.value || 'ALL';
+      const statusFilter = document.getElementById('selMinistryStatus')?.value || 'ALL';
+      const natFilter = document.getElementById('selMinistryNationality')?.value || 'ALL';
+      const query = (document.getElementById('inpMinistrySearch')?.value || '').trim().toLowerCase();
+
+      let filtered = _ministryRawStudents.filter(item => {
+        if (yearFilter !== 'ALL') {
+          const sidYr = String(item.studentId || '').slice(0, 2);
+          const shortTarget = yearFilter.slice(2);
+          if (sidYr !== shortTarget) return false;
+        }
+        if (statusFilter !== 'ALL' && item.status !== statusFilter) return false;
+        if (natFilter === 'THAI' && item.nationality !== 'ไทย') return false;
+        if (natFilter === 'FOREIGN' && item.nationality === 'ไทย') return false;
+        if (query) {
+          const matchSid = item.studentId.toLowerCase().includes(query);
+          const matchCid = item.citizenId.toLowerCase().includes(query);
+          const matchName = item.fullName.toLowerCase().includes(query);
+          const matchCourse = item.terminalCourse.toLowerCase().includes(query);
+          if (!matchSid && !matchCid && !matchName && !matchCourse) return false;
+        }
+        return true;
+      });
+
+      _ministryFilteredStudents = filtered;
+      window._ministryFilteredStudents = filtered;
+      renderMinistryReportTable(filtered);
+    }
+    window.filterMinistryReportTable = filterMinistryReportTable;
+
+    function renderMinistryReportTable(list) {
+      const tbody = document.getElementById('tbodyMinistryReport');
+      const tfoot = document.getElementById('tfootMinistryReport');
+      const statTotal = document.getElementById('statMinistryTotalCount');
+      const statGrad = document.getElementById('statMinistryGradCount');
+      const statActive = document.getElementById('statMinistryActiveCount');
+      const statNat = document.getElementById('statMinistryNationalityRatio');
+      if (!tbody) return;
+
+      const total = list.length;
+      const gradCount = list.filter(i => i.status === 'GRADUATED').length;
+      const activeCount = total - gradCount;
+      const thaiCount = list.filter(i => i.nationality === 'ไทย').length;
+      const foreignCount = total - thaiCount;
+
+      if (statTotal) statTotal.textContent = Number(total).toLocaleString();
+      if (statGrad) statGrad.textContent = Number(gradCount).toLocaleString();
+      if (statActive) statActive.textContent = Number(activeCount).toLocaleString();
+      if (statNat) statNat.textContent = `${Number(thaiCount).toLocaleString()} / ${Number(foreignCount).toLocaleString()}`;
+
+      if (total === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:36px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="font-size:24px; color:var(--color-gold); margin-bottom:10px; display:block;"></i>ไม่พบข้อมูลนักศึกษาที่ตรงกับเงื่อนไขการค้นหา</td></tr>';
+        if (tfoot) tfoot.innerHTML = '';
+        return;
+      }
+
+      tbody.innerHTML = list.map((item, idx) => {
+        const isGrad = item.status === 'GRADUATED';
+        const statusBadge = isGrad
+          ? '<span style="background:rgba(16,185,129,0.18); border:1px solid #10B981; color:#34D399; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px;">✓ จบการศึกษา</span>'
+          : '<span style="background:rgba(56,189,248,0.18); border:1px solid #38BDF8; color:#38BDF8; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px;">⏳ ระหว่างเรียน</span>';
+
+        const natBadge = item.nationality === 'ไทย'
+          ? '<span style="color:#CBD5E1;">ไทย</span>'
+          : '<span style="color:#F59E0B; font-weight:700;">จีน/ต่างชาติ</span>';
+
+        return `
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="text-align:center; padding:10px 8px; color:var(--text-muted);">${idx + 1}</td>
+            <td style="text-align:center; padding:10px 8px;"><strong style="font-family:monospace; color:var(--color-gold);">${escapeHtml(item.studentId)}</strong></td>
+            <td style="text-align:center; padding:10px 8px; font-family:monospace; color:#E2E8F0; letter-spacing:0.5px;">${escapeHtml(item.citizenId)}</td>
+            <td style="text-align:center; padding:10px 8px; color:#CBD5E1;">${escapeHtml(item.prefix || '-')}</td>
+            <td style="text-align:left; padding:10px 12px; font-weight:600; color:#F8FAFC;">${escapeHtml(item.fullName)}</td>
+            <td style="text-align:center; padding:10px 8px;">${natBadge}</td>
+            <td style="text-align:left; padding:10px 12px; color:#38BDF8; font-size:12px;">${escapeHtml(item.terminalCourse)}</td>
+            <td style="text-align:center; padding:10px 8px;">${statusBadge}</td>
+          </tr>`;
+      }).join('');
+
+      if (tfoot) {
+        tfoot.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align:right; padding:10px 14px; color:var(--color-gold); font-size:13px;">รวมนักศึกษาทั้งหมดตามตัวกรอง:</td>
+            <td style="text-align:center; padding:10px 8px; color:#34D399; font-size:14px; font-family:monospace;">${Number(total).toLocaleString()} คน</td>
+          </tr>`;
+      }
+    }
+    window.renderMinistryReportTable = renderMinistryReportTable;
+
+    function buildMinistryA4Html(studentsList) {
+      const yearFilter = document.getElementById('selMinistryYear')?.value || '2569';
+      const yearLabel = yearFilter === 'ALL' ? 'ทุกปีการศึกษา' : `ปีการศึกษา ${yearFilter}`;
+      const total = studentsList.length;
+      const gradCount = studentsList.filter(i => i.status === 'GRADUATED').length;
+      const activeCount = total - gradCount;
+
+      const rowsHtml = studentsList.map((s, idx) => `
+        <tr style="border-bottom: 0.5pt solid #ccc; font-size: 8.5pt;">
+          <td style="text-align:center; padding: 2.5mm 1mm;">${idx + 1}</td>
+          <td style="text-align:center; padding: 2.5mm 1mm; font-family: monospace;">${s.studentId}</td>
+          <td style="text-align:center; padding: 2.5mm 1mm; font-family: monospace;">${s.citizenId}</td>
+          <td style="text-align:center; padding: 2.5mm 1mm;">${s.prefix || '-'}</td>
+          <td style="text-align:left; padding: 2.5mm 2mm; font-weight: 600;">${s.fullName}</td>
+          <td style="text-align:center; padding: 2.5mm 1mm;">${s.nationality}</td>
+          <td style="text-align:left; padding: 2.5mm 2mm;">${s.terminalCourse}</td>
+          <td style="text-align:center; padding: 2.5mm 1mm; font-weight: bold; color: ${s.status === 'GRADUATED' ? '#047857' : '#0369a1'};">
+            ${s.status === 'GRADUATED' ? 'จบการศึกษา' : 'ระหว่างเรียน'}
+          </td>
+        </tr>
+      `).join('');
+
+      return `
+        <div class="oca-ministry-print-page" style="width: 297mm; min-height: 210mm; padding: 6mm; box-sizing: border-box; background: #ffffff; color: #000000; font-family: 'Sarabun', sans-serif;">
+          <div style="text-align:center; margin-bottom: 4mm; border-bottom: 2pt solid #044E39; padding-bottom: 3mm;">
+            <div style="font-size: 15pt; font-weight: 800; color: #044E39;">สถาบันภาษาและวัฒนธรรมตะวันออก (東方文化書院 · OCA)</div>
+            <div style="font-size: 12pt; font-weight: 700; margin-top: 1mm;">บัญชีรายชื่อทะเบียนนักศึกษาเพื่อเสนอหน่วยงานกระทรวงศึกษาธิการ (${yearLabel})</div>
+            <div style="font-size: 9pt; color: #555; margin-top: 1mm;">
+              รวมนักศึกษาทั้งหมด: <strong>${total}</strong> คน | จบการศึกษา: <strong>${gradCount}</strong> คน | ระหว่างเรียน: <strong>${activeCount}</strong> คน | วันที่พิมพ์: ${new Date().toLocaleDateString('th-TH')}
+            </div>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; margin-top: 2mm;">
+            <thead>
+              <tr style="background: #E6F4EA; border-top: 1.5pt solid #044E39; border-bottom: 1.5pt solid #044E39; font-size: 9pt; font-weight: bold; color: #044E39;">
+                <th style="width: 35px; text-align: center; padding: 2mm 1mm;">ลำดับ</th>
+                <th style="width: 80px; text-align: center; padding: 2mm 1mm;">รหัสนักศึกษา</th>
+                <th style="width: 120px; text-align: center; padding: 2mm 1mm;">เลขประจำตัวประชาชน</th>
+                <th style="width: 65px; text-align: center; padding: 2mm 1mm;">คำนำหน้า</th>
+                <th style="text-align: left; padding: 2mm 2mm;">ชื่อ - สกุล</th>
+                <th style="width: 75px; text-align: center; padding: 2mm 1mm;">สัญชาติ</th>
+                <th style="width: 160px; text-align: left; padding: 2mm 2mm;">คอร์สเล่มสุดท้าย</th>
+                <th style="width: 90px; text-align: center; padding: 2mm 1mm;">สถานะ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div style="display: flex; justify-content: space-around; margin-top: 12mm; font-size: 9.5pt; text-align: center; page-break-inside: avoid;">
+            <div>
+              <div style="margin-bottom: 12mm;">ลงชื่อ.......................................................</div>
+              <div>(.......................................................)</div>
+              <div style="font-weight: 600; margin-top: 1mm;">เจ้าหน้าที่งานทะเบียนและสถิติ</div>
+            </div>
+            <div>
+              <div style="margin-bottom: 12mm;">ลงชื่อ.......................................................</div>
+              <div>(.......................................................)</div>
+              <div style="font-weight: 600; margin-top: 1mm;">หัวหน้าฝ่ายวิชาการและหลักสูตร</div>
+            </div>
+            <div>
+              <div style="margin-bottom: 12mm;">ลงชื่อ.......................................................</div>
+              <div>(.......................................................)</div>
+              <div style="font-weight: 600; margin-top: 1mm;">ผู้บริหาร / ผู้รับใบอนุญาตสถาบัน OCA</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function printMinistryReport() {
+      const list = _ministryFilteredStudents.length > 0 ? _ministryFilteredStudents : _ministryRawStudents;
+      if (!list || list.length === 0) {
+        if (typeof showToast === 'function') showToast('ไม่มีข้อมูล', 'กรุณาดึงข้อมูลก่อนพิมพ์รายงาน', '⚠️');
+        return;
+      }
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        if (typeof showToast === 'function') showToast('Popup ถูกบล็อก', 'กรุณาอนุญาตป็อปอัปเพื่อสั่งพิมพ์รายงาน A4', '⚠️');
+        return;
+      }
+
+      const contentHtml = buildMinistryA4Html(list);
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>รายงานทะเบียนนักศึกษาเสนอหน่วยงานกระทรวงศึกษาธิการ - OCA</title>
+          <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
+          <style>
+            @page {
+              size: A4 landscape;
+              margin: 6mm;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              background: #ffffff;
+              font-family: 'Sarabun', sans-serif;
+            }
+          </style>
+        </head>
+        <body onload="try{window.print();}catch(_){}">
+          ${contentHtml}
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+    window.printMinistryReport = printMinistryReport;
+
+    async function exportMinistryPdf() {
+      const list = _ministryFilteredStudents.length > 0 ? _ministryFilteredStudents : _ministryRawStudents;
+      if (!list || list.length === 0) {
+        if (typeof showToast === 'function') showToast('ไม่มีข้อมูล', 'กรุณาดึงข้อมูลก่อนส่งออก PDF', '⚠️');
+        return;
+      }
+
+      if (typeof html2pdf === 'undefined') {
+        if (typeof showToast === 'function') showToast('ข้อผิดพลาด', 'ไลบรารี html2pdf ยังไม่พร้อมใช้งาน', '❌');
+        return;
+      }
+
+      if (typeof showToast === 'function') showToast('กำลังสร้าง PDF', 'ระบบกำลังประมวลผลไฟล์ PDF แนวนอน...', '⏳', 3000);
+
+      const wrapper = document.createElement('div');
+      wrapper.style.position = 'fixed';
+      wrapper.style.left = '-9999px';
+      wrapper.style.top = '0';
+      wrapper.innerHTML = buildMinistryA4Html(list);
+      document.body.appendChild(wrapper);
+
+      const opt = {
+        margin: [6, 6, 6, 6],
+        filename: `รายงานทะเบียนนักศึกษากระทรวง_OCA_${Date.now()}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+      };
+
+      try {
+        await html2pdf().set(opt).from(wrapper).save();
+        if (typeof showToast === 'function') showToast('ส่งออก PDF สำเร็จ', 'ดาวน์โหลดไฟล์ PDF เรียบร้อยแล้ว', '✓');
+      } catch (e) {
+        console.error('exportMinistryPdf error:', e);
+        if (typeof showToast === 'function') showToast('ข้อผิดพลาด', 'ไม่สามารถสร้าง PDF ได้: ' + e.message, '❌');
+      } finally {
+        if (wrapper && wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+      }
+    }
+    window.exportMinistryPdf = exportMinistryPdf;
+
+    function exportMinistryExcel() {
+      const list = _ministryFilteredStudents.length > 0 ? _ministryFilteredStudents : _ministryRawStudents;
+      if (!list || list.length === 0) {
+        if (typeof showToast === 'function') showToast('ไม่มีข้อมูล', 'กรุณาดึงข้อมูลก่อนส่งออก Excel', '⚠️');
+        return;
+      }
+
+      if (typeof window.XLSX === 'undefined') {
+        if (typeof showToast === 'function') showToast('ข้อผิดพลาด', 'ไลบรารี SheetJS (XLSX) ยังไม่พร้อมใช้งาน', '❌');
+        return;
+      }
+
+      const headers = ['ลำดับ', 'รหัสนักศึกษา', 'เลขประจำตัวประชาชน', 'คำนำหน้า', 'ชื่อ - สกุล', 'สัญชาติ', 'คอร์สเล่มสุดท้าย', 'สถานะ'];
+
+      function buildSheetArray(items) {
+        const rows = [headers];
+        items.forEach((item, idx) => {
+          rows.push([
+            idx + 1,
+            String(item.studentId || ''),
+            String(item.citizenId || ''),
+            item.prefix || '',
+            item.fullName || '',
+            item.nationality || '',
+            item.terminalCourse || '',
+            item.status === 'GRADUATED' ? 'จบการศึกษา' : 'ระหว่างเรียน'
+          ]);
+        });
+        return rows;
+      }
+
+      const wb = window.XLSX.utils.book_new();
+
+      // Sheet 1: ข้อมูลนักศึกษา (All)
+      const wsAll = window.XLSX.utils.aoa_to_sheet(buildSheetArray(list));
+      for (let r = 1; r <= list.length; r++) {
+        const cellRef = window.XLSX.utils.encode_cell({ r: r, c: 2 });
+        if (wsAll[cellRef]) {
+          wsAll[cellRef].t = 's';
+          wsAll[cellRef].z = '@';
+        }
+      }
+      window.XLSX.utils.book_append_sheet(wb, wsAll, 'ข้อมูลนักศึกษา');
+
+      // Sheet 2: จบการศึกษา
+      const gradList = list.filter(i => i.status === 'GRADUATED');
+      const wsGrad = window.XLSX.utils.aoa_to_sheet(buildSheetArray(gradList));
+      for (let r = 1; r <= gradList.length; r++) {
+        const cellRef = window.XLSX.utils.encode_cell({ r: r, c: 2 });
+        if (wsGrad[cellRef]) {
+          wsGrad[cellRef].t = 's';
+          wsGrad[cellRef].z = '@';
+        }
+      }
+      window.XLSX.utils.book_append_sheet(wb, wsGrad, 'จบการศึกษา');
+
+      // Sheet 3: ระหว่างเรียน
+      const activeList = list.filter(i => i.status !== 'GRADUATED');
+      const wsActive = window.XLSX.utils.aoa_to_sheet(buildSheetArray(activeList));
+      for (let r = 1; r <= activeList.length; r++) {
+        const cellRef = window.XLSX.utils.encode_cell({ r: r, c: 2 });
+        if (wsActive[cellRef]) {
+          wsActive[cellRef].t = 's';
+          wsActive[cellRef].z = '@';
+        }
+      }
+      window.XLSX.utils.book_append_sheet(wb, wsActive, 'ระหว่างเรียน');
+
+      // Sheet 4: สรุปภาพรวม (Summary)
+      const total = list.length;
+      const gradCount = gradList.length;
+      const activeCount = activeList.length;
+      const thaiCount = list.filter(i => i.nationality === 'ไทย').length;
+      const foreignCount = total - thaiCount;
+
+      const courseCounts = {};
+      list.forEach(i => {
+        const c = i.terminalCourse || 'ไม่ระบุ';
+        courseCounts[c] = (courseCounts[c] || 0) + 1;
+      });
+
+      const summaryRows = [
+        ['รายงานสรุปภาพรวมทะเบียนนักศึกษาเสนอหน่วยงานกระทรวงศึกษาธิการ'],
+        ['สถาบันภาษาและวัฒนธรรมตะวันออก (Oriental Culture Academy - OCA)'],
+        ['วันที่ออกรายงาน', new Date().toLocaleDateString('th-TH')],
+        [],
+        ['ตัวชี้วัด', 'จำนวน (คน)', 'คิดเป็นสัดส่วน (%)'],
+        ['รวมนักศึกษาทั้งหมด (รายบุคคลไม่ซ้ำ)', total, '100.00%'],
+        ['จบการศึกษา (Graduated)', gradCount, total > 0 ? ((gradCount / total) * 100).toFixed(2) + '%' : '0.00%'],
+        ['ระหว่างเรียน (Active)', activeCount, total > 0 ? ((activeCount / total) * 100).toFixed(2) + '%' : '0.00%'],
+        ['สัญชาติไทย', thaiCount, total > 0 ? ((thaiCount / total) * 100).toFixed(2) + '%' : '0.00%'],
+        ['สัญชาติจีน / ต่างชาติ', foreignCount, total > 0 ? ((foreignCount / total) * 100).toFixed(2) + '%' : '0.00%'],
+        [],
+        ['สรุปจำแนกตามคอร์สเล่มสุดท้าย (Terminal Course Breakdown)'],
+        ['รหัสวิชา / คอร์ส', 'จำนวนนักศึกษา (คน)']
+      ];
+
+      Object.entries(courseCounts).sort((a, b) => b[1] - a[1]).forEach(([c, cnt]) => {
+        summaryRows.push([c, cnt]);
+      });
+
+      const wsSummary = window.XLSX.utils.aoa_to_sheet(summaryRows);
+      window.XLSX.utils.book_append_sheet(wb, wsSummary, 'สรุปภาพรวม');
+
+      const fileName = `รายงานเอกสารกระทรวง_OCA_${Date.now()}.xlsx`;
+      window.XLSX.writeFile(wb, fileName);
+      if (typeof showToast === 'function') showToast('ส่งออก Excel สำเร็จ', 'ดาวน์โหลดไฟล์ 4 ชีตเรียบร้อยแล้ว', '✓');
+    }
+    window.exportMinistryExcel = exportMinistryExcel;
+
     function switchReportSubTab(subTab) {
-      const validReportSubTabs = ['classroom', 'teacher', 'checker', 'attendance-tracking', 'teacher-tracker', 'roster', 'termtimetable', 'course-breakdown'];
+      const validReportSubTabs = ['classroom', 'teacher', 'checker', 'attendance-tracking', 'teacher-tracker', 'roster', 'termtimetable', 'course-breakdown', 'ministry'];
       if (!subTab || !validReportSubTabs.includes(subTab)) subTab = 'classroom';
 
       try {
@@ -53765,7 +54635,17 @@ if (action === 'getDashboardStats') {
 
         // 3. Activate target subview and its corresponding Bento button
 
-        if (subTab === 'course-breakdown') {
+        if (subTab === 'ministry') {
+          const btn = document.getElementById('btnReportSubnavMinistry');
+          const view = document.getElementById('subviewReportMinistry');
+          if (btn) btn.classList.add('active');
+          if (view) view.style.display = 'block';
+
+          if (!window._ministryReportLoaded) {
+            window._ministryReportLoaded = true;
+            if (typeof loadMinistryReport === 'function') loadMinistryReport();
+          }
+        } else if (subTab === 'course-breakdown') {
           const btn = document.getElementById('btnReportSubnavCourseBreakdown');
           const view = document.getElementById('subviewReportCourseBreakdown');
           if (btn) btn.classList.add('active');
@@ -53843,7 +54723,9 @@ if (action === 'getDashboardStats') {
 
           'termtimetable': 'btnSubReportTermTimetable',
 
-          'course-breakdown': 'btnSubReportCourseBreakdown'
+          'course-breakdown': 'btnSubReportCourseBreakdown',
+
+          'ministry': 'btnSubReportMinistry'
         };
         const subBtnId = reportSubBtnMap[subTab];
 
@@ -55493,7 +56375,9 @@ if (action === 'getDashboardStats') {
         btn.classList.toggle('text-white/50', !active);
       });
 
-      if (tabNum === 2) {
+      if (tabNum === 1) {
+        if (typeof renderFinancialEmbeddedSlipsQueue === 'function') renderFinancialEmbeddedSlipsQueue();
+      } else if (tabNum === 2) {
         if (typeof loadFinancialReport === 'function') loadFinancialReport(true, false);
       }
     }
@@ -64391,45 +65275,44 @@ function openPublicRegisterView() {
                     createdAt: new Date().toISOString()
                   };
 
-                  // Write pending record and permanent anti-replay lock keys
-
-                  await _supabase.from('fee_settings').upsert([
+                  // Write pending record and permanent anti-replay lock keys (Safe VARCHAR(100) atomic rows)
+                  const pendingRows = [
                     {
                       key: 'pending_slip:' + sid,
-
-                      name: JSON.stringify(pendingRecord),
-
+                      name: String(slipTransRef || 'ONLINE_' + sid).slice(0, 80),
                       amount: expectedFee,
-
                       mode: 'PENDING',
-
-                      updated_at: new Date().toISOString()
-                    },
-
-                    {
-                      key: 'used_slip_ref:' + slipTransRef,
-
-                      name: 'LOCKED:' + sid,
-
-                      amount: expectedFee,
-
-                      mode: 'SLIP_LOCK',
-
-                      updated_at: new Date().toISOString()
-                    },
-
-                    {
-                      key: 'used_slip_hash:' + slipHash256,
-
-                      name: 'LOCKED:' + sid,
-
-                      amount: expectedFee,
-
-                      mode: 'SLIP_LOCK',
-
                       updated_at: new Date().toISOString()
                     }
-                  ]);
+                  ];
+                  if (uploadedSlipUrl) {
+                    pendingRows.push({
+                      key: 'pending_slip_url:' + sid,
+                      name: toRelativeStoragePath(uploadedSlipUrl),
+                      amount: expectedFee,
+                      mode: 'SLIP_URL',
+                      updated_at: new Date().toISOString()
+                    });
+                  }
+                  if (slipTransRef) {
+                    pendingRows.push({
+                      key: 'used_slip_ref:' + slipTransRef,
+                      name: 'LOCKED:' + sid,
+                      amount: expectedFee,
+                      mode: 'SLIP_LOCK',
+                      updated_at: new Date().toISOString()
+                    });
+                  }
+                  if (slipHash256) {
+                    pendingRows.push({
+                      key: 'used_slip_hash:' + slipHash256,
+                      name: 'LOCKED:' + sid,
+                      amount: expectedFee,
+                      mode: 'SLIP_LOCK',
+                      updated_at: new Date().toISOString()
+                    });
+                  }
+                  await _supabase.from('fee_settings').upsert(pendingRows);
                 }
               } catch (pendingErr) {
                 console.warn('[Pending Slip Record] Error:', pendingErr);
@@ -67625,6 +68508,34 @@ function openPublicRegisterView() {
     const OCA_INNER_CONTENT_I18N = {
       th: {},
       zh: {
+        "8. รายงานทะเบียนนักศึกษาเสนอหน่วยงานกระทรวงศึกษาธิการ": "8. 呈报教育部学员学籍名册报告",
+        "กรุณากด \"ดึงข้อมูลใหม่\" เพื่อโหลดรายงานทะเบียนนักศึกษาเสนอหน่วยงานกระทรวง": "请点击“重新获取数据”加载呈报教育部学员名册报告",
+        "กำลังศึกษาต่อเนื่อง": "持续在读进修",
+        "กำลังโหลดคิวสลิปการเงิน...": "正在加载财务凭证队列...",
+        "คน (รายบุคคลไม่ซ้ำ)": "人（不重复个体）",
+        "ค้นหา รหัสนักศึกษา, ชื่อ, บัตร ปชช., หรือคอร์ส...": "搜索 学号、姓名、身份证号或课程...",
+        "คอร์สเล่มสุดท้าย": "结业进修课程",
+        "คำนำหน้า": "称谓前缀",
+        "จีน / ต่างชาติ": "中国 / 外籍",
+        "จบการศึกษา": "结业",
+        "จบการศึกษา (Graduated)": "结业学员",
+        "ชื่อ - สกุล": "姓名",
+        "พิมพ์ A4 แนวนอน (6มม.)": "打印 A4 横向报表（6毫米）",
+        "ผ่านคอร์สเล่มสุดท้าย": "已完成结业课程",
+        "รวมนักศึกษาทั้งหมด": "学员总数",
+        "ระหว่างเรียน": "在读",
+        "ระหว่างเรียน (Active)": "在读学员",
+        "รายงานสรุปข้อมูลนักศึกษารายบุคคล รหัสบัตรประชาชน คอร์สเล่มสุดท้าย และสถานะสำเร็จการศึกษา": "个人学员信息、身份证号、结业课程与学籍状态汇总报告",
+        "รีเฟรชคิวสลิป": "刷新凭证队列",
+        "เลขประจำตัวประชาชน": "公民身份证号",
+        "สถานะ:": "状态:",
+        "สัญชาติ": "国籍",
+        "สัญชาติ:": "国籍:",
+        "สัญชาติไทย / ต่างชาติ": "泰国籍 / 外籍",
+        "ส่งออก Excel (4 ชีต)": "导出 Excel 表格（4 个工作表）",
+        "ส่งออก PDF": "导出 PDF 文件",
+        "ไทย": "泰国",
+        "ไทย / จีนและต่างชาติ": "泰国 / 中国及外籍",
         "\"(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)\"": "“（具体授课教室可于开学当日查询）”",
         "(กรุณาเลือกคอร์สเรียน)": "（请选择报读课程）",
         "(รหัส:": "（代码:",
@@ -77275,29 +78186,38 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const { data, error } = await _supabase
+          const [resSlips, resUrls] = await Promise.all([
+            _supabase.from('fee_settings').select('*').like('key', 'pending_slip:%').order('updated_at', { ascending: false }),
+            _supabase.from('fee_settings').select('*').like('key', 'pending_slip_url:%')
+          ]);
 
-            .from('fee_settings')
-
-            .select('*')
-
-            .like('key', 'pending_slip:%')
-
-            .order('updated_at', { ascending: false });
+          const data = resSlips?.data;
+          const error = resSlips?.error;
+          const urlMap = new Map();
+          if (Array.isArray(resUrls?.data)) {
+            resUrls.data.forEach(u => {
+              const sid = (u.key || '').replace('pending_slip_url:', '');
+              if (sid && u.name) urlMap.set(sid, toPublicStorageUrl(u.name));
+            });
+          }
 
           if (!error && Array.isArray(data)) {
             pendingList = data.map(r => {
+              let parsed = null;
               try {
-                if (r.name && r.name.trim().startsWith('{')) return JSON.parse(r.name);
+                if (r.name && r.name.trim().startsWith('{')) parsed = JSON.parse(r.name);
               } catch (_) {}
               const sid = (r.key || '').replace('pending_slip:', '');
-              return {
+              const item = parsed || {
                 studentId: sid,
                 slipRef: r.name,
                 expectedFee: r.amount || 0,
                 status: r.mode || 'PENDING',
                 createdAt: r.updated_at
               };
+              item.studentId = sid;
+              item.slipUrl = item.slipUrl ? toPublicStorageUrl(item.slipUrl) : (urlMap.get(sid) || '');
+              return item;
             }).filter(Boolean);
 
             const missingSids = pendingList.filter(item => !item.fullName || item.fullName === '-').map(item => item.studentId);
@@ -77687,6 +78607,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
 
         loadPendingSlipsQueue();
+        if (typeof renderFinancialEmbeddedSlipsQueue === 'function') renderFinancialEmbeddedSlipsQueue();
         if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable();
       } catch (err) {
         console.error('approvePendingSlip error:', err);
@@ -77895,7 +78816,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-75';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-76';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -77904,7 +78825,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-75):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-76):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
