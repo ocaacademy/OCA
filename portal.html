@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-69';
+      var LATEST_VERSION = 'oca-pwa-v358-70';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -21505,49 +21505,58 @@ body.printing-report #printReportContainer {
      */
 
     function refreshReportsModuleRealtime(sourceTable = 'all', isSilent = true) {
-      // 1. ล้างแคชเฉพาะเมื่อไม่ได้เป็นการรีเฟรชเงียบ เพื่อให้หน้าจอไม่กระพริบระหว่างดึงข้อมูลสด
-
       if (!isSilent) {
         if (typeof cachedStudentReportData !== 'undefined') cachedStudentReportData = [];
         if (typeof cachedFinancialSummary !== 'undefined') cachedFinancialSummary = null;
       }
 
-      // 2. อัปเดตข้อมูลรายงานนักศึกษา (Student Directory)
-
-      if (typeof loadStudentReport === 'function') {
-        loadStudentReport(true, isSilent);
-      }
-
-      // 3. อัปเดตข้อมูลรายงานการเงิน (Financial Summary)
-
-      if (typeof loadFinancialReport === 'function') {
-        loadFinancialReport(true, isSilent);
-      }
-
-      // 5. ถ้ากำลังเปิดดูหรือมีคอนเทนเนอร์ พิมพ์ใบแจ้งห้องเรียน (Classroom View) ให้อัปเดต
+      let activeSubtab = 'classroom';
+      try {
+        const savedSub = localStorage.getItem('oca_last_active_report_subtab');
+        if (savedSub) activeSubtab = savedSub;
+      } catch (_) {}
 
       const viewClassroom = document.getElementById('subviewReportClassroom');
-
-      if (viewClassroom && viewClassroom.style.display !== 'none' && typeof onRosterFilterChanged === 'function') {
-        onRosterFilterChanged();
-      }
-
-      // 6. ถ้ากำลังเปิดดูแท็บ ตรวจสอบห้องเรียน (Classroom Checker) และมีคำค้นหาค้างอยู่ ให้ค้นหาใหม่
-
+      const viewTeacher = document.getElementById('subviewReportTeacher');
       const viewChecker = document.getElementById('subviewReportChecker');
-      const inpChecker = document.getElementById('inpClassroomSearch');
-
-      if (viewChecker && viewChecker.style.display !== 'none' && inpChecker && inpChecker.value.trim() && typeof searchStudentClassroomNow === 'function') {
-        searchStudentClassroomNow();
-      }
-
       const viewAttTrack = document.getElementById('subviewReportAttTrack');
+      const viewTeacherTracker = document.getElementById('subviewReportTeacherTracker');
+      const viewTermTimetable = document.getElementById('subviewReportTermTimetable');
+      const viewCourseBreakdown = document.getElementById('subviewReportCourseBreakdown');
 
-      if (viewAttTrack && viewAttTrack.style.display !== 'none' && typeof loadCourseAttendanceTrackingReport === 'function') {
-        loadCourseAttendanceTrackingReport();
+      if (viewTeacher && viewTeacher.style.display !== 'none') activeSubtab = 'teacher';
+      else if (viewChecker && viewChecker.style.display !== 'none') activeSubtab = 'checker';
+      else if (viewAttTrack && viewAttTrack.style.display !== 'none') activeSubtab = 'attendance-tracking';
+      else if (viewTeacherTracker && viewTeacherTracker.style.display !== 'none') activeSubtab = 'teacher-tracker';
+      else if (viewTermTimetable && viewTermTimetable.style.display !== 'none') activeSubtab = 'termtimetable';
+      else if (viewCourseBreakdown && viewCourseBreakdown.style.display !== 'none') activeSubtab = 'course-breakdown';
+      else if (viewClassroom && viewClassroom.style.display !== 'none') activeSubtab = 'classroom';
+
+      if (activeSubtab === 'classroom') {
+        if (typeof onRosterFilterChanged === 'function') onRosterFilterChanged();
+      } else if (activeSubtab === 'teacher') {
+        if (typeof loadTeacherTimesheetReport === 'function') loadTeacherTimesheetReport();
+      } else if (activeSubtab === 'attendance-tracking') {
+        if (typeof loadCourseAttendanceTrackingReport === 'function') loadCourseAttendanceTrackingReport();
+      } else if (activeSubtab === 'teacher-tracker') {
+        if (typeof loadTeacherActivityTrackerReport === 'function') loadTeacherActivityTrackerReport();
+      } else if (activeSubtab === 'termtimetable') {
+        if (typeof initTermTimetableDropdowns === 'function') initTermTimetableDropdowns();
+      } else if (activeSubtab === 'course-breakdown') {
+        if (typeof loadCourseBreakdownReport === 'function') loadCourseBreakdownReport();
+      } else if (activeSubtab === 'checker') {
+        const inpChecker = document.getElementById('inpClassroomSearch');
+        if (inpChecker && inpChecker.value.trim() && typeof searchStudentClassroomNow === 'function') {
+          searchStudentClassroomNow();
+        }
+      } else if (activeSubtab === 'students' || activeSubtab === 'student-directory') {
+        if (typeof loadStudentReport === 'function') loadStudentReport(true, isSilent);
       }
 
-      // แจ้งเตือน Toast หากเป็นการกดปุ่มรีเฟรชด้วยมือ
+      const tabFinancial = document.getElementById('tabFinancial');
+      if (tabFinancial && tabFinancial.classList.contains('active') && typeof loadFinancialReport === 'function') {
+        loadFinancialReport(true, isSilent);
+      }
 
       if (!isSilent && typeof showToast === 'function') {
         showToast('อัปเดตข้อมูลรายงานแบบ Real-time สำเร็จ', 'ดึงข้อมูลล่าสุดจาก Cloud เรียบร้อย', '✓');
@@ -21854,9 +21863,6 @@ body.printing-report #printReportContainer {
       } else if (tabId === 'tabReport') {
         if (typeof refreshReportsModuleRealtime === 'function') {
           refreshReportsModuleRealtime('all', true);
-        } else {
-          if (typeof loadStudentReport === 'function') loadStudentReport(true, true);
-          if (typeof loadFinancialReport === 'function') loadFinancialReport(true, true);
         }
       } else if (tabId === 'tabCard') {
         if (typeof loadRecentStudentsForCard === 'function') loadRecentStudentsForCard();
@@ -70892,6 +70898,17 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               OCA_GEOFENCE_TARGET.lat, OCA_GEOFENCE_TARGET.lng
             );
             updateGeofenceUiState(true);
+            try {
+              sessionStorage.setItem('oca_teacher_geo_cache', JSON.stringify({
+                timestamp: Date.now(),
+                lat: lat,
+                lng: lng,
+                accuracy: 500,
+                distance: _teacherCurrentDistance,
+                source: 'IP_NETWORK',
+                city: city
+              }));
+            } catch (_) {}
 
             if (titleEl) {
               titleEl.textContent = (dict.gpsIpNetworkTitle || 'พิกัดโครงข่ายอินเทอร์เน็ต ({city})').replace('{city}', city);
@@ -70941,6 +70958,33 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const btnOut = document.getElementById('btnClockOutAction');
       const lockNotice = document.getElementById('lblGpsLockNotice');
 
+      if (!manual) {
+        try {
+          const cachedRaw = sessionStorage.getItem('oca_teacher_geo_cache');
+          if (cachedRaw) {
+            const cached = JSON.parse(cachedRaw);
+            const age = Date.now() - (cached.timestamp || 0);
+            if (age < 20 * 60 * 1000 && !isNaN(cached.lat) && !isNaN(cached.lng)) {
+              if (ico) ico.classList.remove('fa-spin');
+              _teacherCurrentPosition = {
+                lat: cached.lat,
+                lng: cached.lng,
+                accuracy: cached.accuracy || 20,
+                source: cached.source || 'CACHE',
+                city: cached.city || ''
+              };
+              _teacherCurrentAccuracy = cached.accuracy || 20;
+              _teacherCurrentDistance = cached.distance || calculateHaversineDistance(
+                cached.lat, cached.lng,
+                OCA_GEOFENCE_TARGET.lat, OCA_GEOFENCE_TARGET.lng
+              );
+              updateGeofenceUiState(true);
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+
       // Listen for browser permission state change (prompt -> granted)
 
       if (navigator.permissions && navigator.permissions.query) {
@@ -70985,6 +71029,16 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           OCA_GEOFENCE_TARGET.lat, OCA_GEOFENCE_TARGET.lng
         );
         updateGeofenceUiState(true);
+        try {
+          sessionStorage.setItem('oca_teacher_geo_cache', JSON.stringify({
+            timestamp: Date.now(),
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy || 20,
+            distance: _teacherCurrentDistance,
+            source: 'BROWSER_GPS'
+          }));
+        } catch (_) {}
 
         if (manual && typeof showToast === 'function') {
           const isInside = isTeacherInsideGeofence(_teacherCurrentDistance, _teacherCurrentAccuracy);
@@ -71037,11 +71091,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
             handleFinalFailure,
 
-            { enableHighAccuracy: false, timeout: 14000, maximumAge: 300000 }
+            { enableHighAccuracy: false, timeout: 2500, maximumAge: 300000 }
           );
         },
 
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+        { enableHighAccuracy: true, timeout: 2500, maximumAge: 60000 }
       );
 
       // Continuous Watcher with safe configuration
@@ -71720,24 +71774,22 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const { data: rcData } = await _supabase.from('receipts')
-
-            .select('student_id, buyer_name, item_code, item_name, schedule')
-
-            .gte('receipt_no', tPrefix + '0000')
-
-            .lt('receipt_no', nextTPrefix + '0000')
-
-            .limit(500);
-          const { data: stData } = await _supabase.from('students')
-
-            .select('student_id, prefix, full_name, current_schedule, current_course')
-
-            .gte('student_id', tPrefix + '0000')
-
-            .lt('student_id', nextTPrefix + '0000')
-
-            .limit(500);
+          const [rcRes, stRes] = await Promise.all([
+            _supabase.from('receipts')
+              .select('student_id, buyer_name, item_code, item_name, schedule')
+              .gte('receipt_no', tPrefix + '0000')
+              .lt('receipt_no', nextTPrefix + '0000')
+              .limit(500),
+            _supabase.from('students')
+              .select('student_id, prefix, full_name, current_schedule, current_course, photo_url')
+              .gte('student_id', tPrefix + '0000')
+              .lt('student_id', nextTPrefix + '0000')
+              .limit(500)
+          ]);
+          const rcData = rcRes?.data || [];
+          if (rcRes?.error) console.warn('[Teacher Roster DB] receipts query notice:', rcRes.error);
+          const stData = stRes?.data || [];
+          if (stRes?.error) console.warn('[Teacher Roster DB] students query notice:', stRes.error);
           const lookupNames = new Map();
 
           if (Array.isArray(stData)) {
@@ -71746,7 +71798,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
               if (sid) {
                 const cName = (typeof formatStudentNameWithPrefix === 'function') ? formatStudentNameWithPrefix(s.prefix, s.full_name) : (s.full_name || '');
-                lookupNames.set(sid, { fullName: cName, sched: s.current_schedule || '', course: s.current_course || '' });
+                lookupNames.set(sid, { fullName: cName, sched: s.current_schedule || '', course: s.current_course || '', photoUrl: s.photo_url || '' });
               }
             });
           }
@@ -71770,7 +71822,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
                   full_name: disp,
 
-                  photo_url: '',
+                  photo_url: lk?.photoUrl || '',
 
                   current_schedule: r.schedule || schedName,
 
@@ -71797,7 +71849,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
                   full_name: cName || `นักศึกษา (${sid})`,
 
-                  photo_url: '',
+                  photo_url: s.photo_url || '',
 
                   current_schedule: s.current_schedule || schedName,
 
@@ -71809,18 +71861,6 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
           if (stTeacherMap.size > 0) {
             studentsList = Array.from(stTeacherMap.values());
-            const classSids = studentsList.map(st => st.student_id).filter(Boolean).slice(0, 60);
-
-            if (classSids.length > 0) {
-              try {
-                const { data: photoRows } = await _supabase.from('students').select('student_id, photo_url').in('student_id', classSids);
-
-                if (Array.isArray(photoRows)) {
-                  const pMap = new Map(photoRows.map(p => [String(p.student_id).trim(), p.photo_url || '']));
-                  studentsList.forEach(st => { if (pMap.get(st.student_id)) st.photo_url = pMap.get(st.student_id); });
-                }
-              } catch (_) {}
-            }
           }
         } catch (e) {
           console.warn('[Teacher Roster DB] query error:', e);
@@ -77165,7 +77205,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-69';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-70';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -77174,7 +77214,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-69):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-70):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
