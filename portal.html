@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '80';
+      var LATEST_VERSION = '81';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -15384,7 +15384,7 @@ body.printing-report #printReportContainer {
               <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px; background:rgba(2,44,34,0.5); padding:10px 14px; border-radius:10px; border:1px solid rgba(215,166,0,0.25);">
                 <div style="display:flex; align-items:center; gap:6px;">
                   <label for="selMinistryYear" style="font-size:12px; font-weight:700; color:var(--color-gold); white-space:nowrap;">ปีการศึกษา:</label>
-                  <select id="selMinistryYear" class="oca-input" style="height:32px; font-size:12.5px; padding:2px 10px; width:100px; font-weight:700; background-color:#ffffff; color:#0f172a;" onchange="filterMinistryReportTable()">
+                  <select id="selMinistryYear" class="oca-input" style="height:32px; font-size:12.5px; padding:2px 10px; width:100px; font-weight:700; background-color:#ffffff; color:#0f172a;" onchange="loadMinistryReport(true)">
                     <option value="ALL">ทั้งหมด</option>
                     <option value="2571">2571</option>
                     <option value="2570">2570</option>
@@ -15398,6 +15398,16 @@ body.printing-report #printReportContainer {
                     <option value="2562">2562</option>
                     <option value="2561">2561</option>
                     <option value="2560">2560</option>
+                    <option value="2559">2559</option>
+                    <option value="2558">2558</option>
+                    <option value="2557">2557</option>
+                    <option value="2556">2556</option>
+                    <option value="2555">2555</option>
+                    <option value="2554">2554</option>
+                    <option value="2553">2553</option>
+                    <option value="2552">2552</option>
+                    <option value="2551">2551</option>
+                    <option value="2550">2550</option>
                   </select>
                 </div>
 
@@ -54181,6 +54191,7 @@ if (action === 'getDashboardStats') {
     const MINISTRY_TERMINAL_COURSE_CODES = ['C1005', 'C2010', 'C3010', 'S1005', 'SS105', 'CE205', 'CE220', 'E1007'];
     let _ministryRawStudents = [];
     let _ministryFilteredStudents = [];
+    let _ministryLoadedYear = null;
 
     function resolveMinistryNationality(cid, nat, fullName = '') {
       const sCid = String(cid || '').trim().replace(/[^0-9A-Za-z]/g, '');
@@ -54205,10 +54216,12 @@ if (action === 'getDashboardStats') {
       const tbody = document.getElementById('tbodyMinistryReport');
       if (!tbody) return;
 
-      if (!forceRefresh && _ministryRawStudents.length > 0) {
+      const yearFilter = document.getElementById('selMinistryYear')?.value || '2569';
+      if (!forceRefresh && _ministryRawStudents.length > 0 && _ministryLoadedYear === yearFilter) {
         filterMinistryReportTable();
         return;
       }
+      _ministryLoadedYear = yearFilter;
 
       tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:36px; color:#94A3B8;"><i class="fa-solid fa-spinner fa-spin" style="font-size:22px; color:var(--color-gold); margin-bottom:8px; display:block;"></i>กำลังดึงข้อมูลทะเบียนนักศึกษาและวิเคราะห์คอร์สเล่มสุดท้าย...</td></tr>';
 
@@ -54217,9 +54230,42 @@ if (action === 'getDashboardStats') {
         let receipts = [];
 
         if (typeof _supabase !== 'undefined' && _supabase) {
+          let qStudents = _supabase.from('students')
+            .select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at')
+            .neq('status', 'DELETED');
+          let qReceipts = _supabase.from('receipts')
+            .select('student_id, item_name, receipt_no, created_at');
+
+          if (yearFilter !== 'ALL' && /^\d{4}$/.test(yearFilter)) {
+            const yrPrefix = yearFilter.slice(-2);
+            const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
+            const minId = yrPrefix + '00000';
+            const maxId = nextPrefix + '00000';
+
+            qStudents = qStudents
+              .gte('student_id', minId)
+              .lt('student_id', maxId)
+              .order('student_id', { ascending: false })
+              .limit(2000);
+
+            qReceipts = qReceipts
+              .gte('receipt_no', minId)
+              .lt('receipt_no', maxId)
+              .order('created_at', { ascending: false })
+              .limit(1000);
+          } else {
+            qStudents = qStudents
+              .order('student_id', { ascending: false })
+              .limit(2000);
+
+            qReceipts = qReceipts
+              .order('created_at', { ascending: false })
+              .limit(600);
+          }
+
           const [resSt, resRc] = await Promise.all([
-            _supabase.from('students').select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at').order('student_id', { ascending: false }).limit(2000),
-            _supabase.from('receipts').select('student_id, item_name, receipt_no, created_at').order('created_at', { ascending: false }).limit(600)
+            qStudents,
+            qReceipts
           ]);
 
           if (resSt && Array.isArray(resSt.data)) students = resSt.data;
@@ -54287,6 +54333,7 @@ if (action === 'getDashboardStats') {
         window._ministryRawStudents = _ministryRawStudents;
         filterMinistryReportTable();
       } catch (err) {
+        _ministryLoadedYear = null;
         console.error('loadMinistryReport error:', err);
         if (tbody) {
           tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px; color:#ef4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> เกิดข้อผิดพลาดในการดึงข้อมูล: ${err.message || err}</td></tr>`;
@@ -78856,7 +78903,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=80';
+      const swPath = basePath + 'sw.js?v=81';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -78865,7 +78912,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (80):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (81):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
