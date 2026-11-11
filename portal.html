@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '82';
+      var LATEST_VERSION = '83';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -31039,6 +31039,64 @@ if (action === 'getDashboardStats') {
                   });
                 }
               } catch (_) {}
+
+              try {
+                let aMap = {};
+                try {
+                  const localMatrix = JSON.parse(localStorage.getItem('oca_course_discount_matrix_map') || '{}');
+                  if (localMatrix && typeof localMatrix === 'object') {
+                    Object.keys(localMatrix).forEach(k => {
+                      aMap[k] = String(localMatrix[k] || '').trim().toLowerCase();
+                    });
+                  }
+                } catch (_) {}
+
+                const { data: aRows } = await _supabase.from('fee_settings').select('key, name').like('key', 'course_audience_%');
+                if (aRows && Array.isArray(aRows)) {
+                  aRows.forEach(f => {
+                    const cid = f.key.replace('course_audience_', '').trim();
+                    aMap[cid] = (f.name || '').trim().toLowerCase();
+                  });
+                }
+
+                coursesList.forEach(c => {
+                  const aud = aMap[c.id] || aMap[c.code];
+                  if (aud) {
+                    c.target_audience = aud;
+                    c.targetAudience = aud;
+                    c.is_kids = (aud === 'kids');
+                    c.isKids = (aud === 'kids');
+                  }
+                });
+              } catch (audErr) {
+                console.warn('[populatePublicEnrollDropdowns] audience hydration warning:', audErr);
+              }
+
+              try {
+                const { data: gRows } = await _supabase.from('fee_settings').select('key, name, amount, mode, start_date, end_date').in('key', ['discountNormal', 'discountKids']);
+                if (gRows && Array.isArray(gRows)) {
+                  if (typeof globalFeePresets !== 'object' || !globalFeePresets) globalFeePresets = { items: {} };
+                  if (!globalFeePresets.items) globalFeePresets.items = {};
+                  gRows.forEach(r => {
+                    const amt = (r.amount !== undefined && r.amount !== null) ? Number(r.amount) : 0;
+                    globalFeePresets[r.key] = amt;
+                    globalFeePresets.items[r.key] = {
+                      amount: amt,
+                      mode: r.mode || 'always',
+                      startDate: r.start_date || '',
+                      endDate: r.end_date || '',
+                      name: r.name || r.key
+                    };
+                  });
+                  if (globalFeePresets.items.discountNormal) {
+                    globalFeePresets.items.discountNormal.adultAmount = globalFeePresets.discountNormal !== undefined ? globalFeePresets.discountNormal : 200;
+                    if (globalFeePresets.discountKids !== undefined) {
+                      globalFeePresets.items.discountNormal.kidsAmount = globalFeePresets.discountKids;
+                    }
+                  }
+                  try { localStorage.setItem('oca_general_fee_settings', JSON.stringify(globalFeePresets)); } catch (_) {}
+                }
+              } catch (_) {}
             }
           } catch (err) {
             console.warn('[Enrollment] Courses fetch fallback:', err);
@@ -36134,13 +36192,18 @@ if (action === 'getDashboardStats') {
         if (found) cObj = found;
       }
 
-      const isKids = isKidsCourse(cObj || courseOrCode);
+      let isKids = isKidsCourse(cObj || courseOrCode);
+      if (cObj && (cObj.target_audience === 'adult' || cObj.targetAudience === 'adult')) {
+        isKids = false;
+      } else if (cObj && (cObj.target_audience === 'kids' || cObj.targetAudience === 'kids')) {
+        isKids = true;
+      }
+
       const feeItems = (globalFeePresets && globalFeePresets.items) || {};
       const normItem = feeItems.discountNormal || {};
       const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(normItem) : { active: true };
 
       // Check if course has a custom normal discount configured
-
       const customDisc = (cObj && (cObj.custom_discount_normal !== undefined && cObj.custom_discount_normal !== null ? cObj.custom_discount_normal : cObj.customDiscountNormal));
       let amount = 0;
       let hasCustom = false;
@@ -36149,35 +36212,35 @@ if (action === 'getDashboardStats') {
         amount = Number(customDisc);
         hasCustom = true;
       } else if (isKids) {
-        if (normItem.kidsAmount !== undefined && normItem.kidsAmount !== null && normItem.kidsAmount !== '') {
-          amount = Number(normItem.kidsAmount);
-        } else if (globalFeePresets && globalFeePresets.discountKids !== undefined) {
-          amount = Number(globalFeePresets.discountKids);
-        } else {
-          amount = 200;
-        }
+        const kidsVal = (normItem.kidsAmount !== undefined && normItem.kidsAmount !== null && normItem.kidsAmount !== '' && Number(normItem.kidsAmount) > 0)
+          ? normItem.kidsAmount
+          : ((globalFeePresets && globalFeePresets.discountKids !== undefined && Number(globalFeePresets.discountKids) > 0)
+            ? globalFeePresets.discountKids
+            : 100);
+        amount = Number(kidsVal || 100);
       } else {
-        if (normItem.adultAmount !== undefined && normItem.adultAmount !== null && normItem.adultAmount !== '') {
-          amount = Number(normItem.adultAmount);
-        } else if (normItem.amount !== undefined && normItem.amount !== null && normItem.amount !== '') {
-          amount = Number(normItem.amount);
-        } else if (globalFeePresets && globalFeePresets.discountNormal !== undefined) {
-          amount = Number(globalFeePresets.discountNormal);
-        } else {
-          amount = 240;
-        }
+        const adultVal = (normItem.adultAmount !== undefined && normItem.adultAmount !== null && normItem.adultAmount !== '' && Number(normItem.adultAmount) > 0)
+          ? normItem.adultAmount
+          : ((normItem.amount !== undefined && normItem.amount !== null && normItem.amount !== '' && Number(normItem.amount) > 0)
+            ? normItem.amount
+            : ((globalFeePresets && globalFeePresets.discountNormal !== undefined && Number(globalFeePresets.discountNormal) > 0)
+              ? globalFeePresets.discountNormal
+              : 200));
+        amount = Number(adultVal || 200);
       }
 
-      if (isNaN(amount) || amount < 0) amount = isKids ? 200 : 240;
+      if (isNaN(amount) || amount < 0) amount = isKids ? 100 : 200;
+
+      let isActive = (normItem && normItem.mode === 'always') ? true : !!st.active;
+      if (cObj && (cObj.target_audience || cObj.targetAudience)) {
+        isActive = true;
+      }
 
       return {
         amount: amount,
-
         isKids: isKids,
-
         label: hasCustom ? `ส่วนลดปกติ (เฉพาะคอร์ส ฿${amount})` : (isKids ? 'ส่วนลดปกติ (เด็ก)' : 'ส่วนลดปกติ (ผู้ใหญ่)'),
-
-        active: !!st.active
+        active: isActive
       };
     }
 
@@ -64966,6 +65029,64 @@ function openPublicRegisterView() {
                   });
                 }
               } catch (_) {}
+
+              try {
+                let aMap = {};
+                try {
+                  const localMatrix = JSON.parse(localStorage.getItem('oca_course_discount_matrix_map') || '{}');
+                  if (localMatrix && typeof localMatrix === 'object') {
+                    Object.keys(localMatrix).forEach(k => {
+                      aMap[k] = String(localMatrix[k] || '').trim().toLowerCase();
+                    });
+                  }
+                } catch (_) {}
+
+                const { data: aRows } = await _supabase.from('fee_settings').select('key, name').like('key', 'course_audience_%');
+                if (aRows && Array.isArray(aRows)) {
+                  aRows.forEach(f => {
+                    const cid = f.key.replace('course_audience_', '').trim();
+                    aMap[cid] = (f.name || '').trim().toLowerCase();
+                  });
+                }
+
+                coursesList.forEach(c => {
+                  const aud = aMap[c.id] || aMap[c.code];
+                  if (aud) {
+                    c.target_audience = aud;
+                    c.targetAudience = aud;
+                    c.is_kids = (aud === 'kids');
+                    c.isKids = (aud === 'kids');
+                  }
+                });
+              } catch (audErr) {
+                console.warn('[populatePublicEnrollDropdowns] audience hydration warning:', audErr);
+              }
+
+              try {
+                const { data: gRows } = await _supabase.from('fee_settings').select('key, name, amount, mode, start_date, end_date').in('key', ['discountNormal', 'discountKids']);
+                if (gRows && Array.isArray(gRows)) {
+                  if (typeof globalFeePresets !== 'object' || !globalFeePresets) globalFeePresets = { items: {} };
+                  if (!globalFeePresets.items) globalFeePresets.items = {};
+                  gRows.forEach(r => {
+                    const amt = (r.amount !== undefined && r.amount !== null) ? Number(r.amount) : 0;
+                    globalFeePresets[r.key] = amt;
+                    globalFeePresets.items[r.key] = {
+                      amount: amt,
+                      mode: r.mode || 'always',
+                      startDate: r.start_date || '',
+                      endDate: r.end_date || '',
+                      name: r.name || r.key
+                    };
+                  });
+                  if (globalFeePresets.items.discountNormal) {
+                    globalFeePresets.items.discountNormal.adultAmount = globalFeePresets.discountNormal !== undefined ? globalFeePresets.discountNormal : 200;
+                    if (globalFeePresets.discountKids !== undefined) {
+                      globalFeePresets.items.discountNormal.kidsAmount = globalFeePresets.discountKids;
+                    }
+                  }
+                  try { localStorage.setItem('oca_general_fee_settings', JSON.stringify(globalFeePresets)); } catch (_) {}
+                }
+              } catch (_) {}
             }
           } catch (err) {
             console.warn('[Realtime Enrollment] Courses fetch fallback:', err);
@@ -77850,7 +77971,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       }
 
-      const discInfo = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(foundCourse || val) : { amount: 240, isKids: false, active: true };
+      const discInfo = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(foundCourse || val) : { amount: 200, isKids: false, active: true };
       const discAmt = (discInfo && discInfo.active) ? Math.max(0, discInfo.amount) : 0;
       const netFee = Math.max(0, fee - discAmt);
       lblAmount.textContent = `฿${netFee.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -78952,7 +79073,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=82';
+      const swPath = basePath + 'sw.js?v=83';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -78961,7 +79082,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (82):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (83):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
