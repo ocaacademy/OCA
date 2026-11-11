@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-70';
+      var LATEST_VERSION = 'oca-pwa-v358-71';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -38559,11 +38559,14 @@ if (action === 'getDashboardStats') {
 
       matchedScheds.sort();
 
-      return '<div style="display:flex; flex-wrap:wrap; gap:3px;">' +
+      const badgesHtml = matchedScheds.map(sId => {
+        const schedObj = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList) ? cachedSchedulesList.find(x => x.id === sId) : null) ||
+                         (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES) ? OFFICIAL_DEFAULT_SCHEDULES.find(x => x.id === sId) : null);
+        const sName = schedObj ? (schedObj.name || schedObj.day_time || sId) : sId;
+        return '<span style="font-size:11px; padding:2px 7px; border-radius:5px; background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.3); color:#38bdf8; display:inline-flex; align-items:center; gap:5px; line-height:1.35; white-space:normal; word-break:break-word;" title="[' + escapeHtml(sId) + '] ' + escapeHtml(sName) + '"><i class="fa-solid fa-clock" style="font-size:10px; color:#38bdf8; flex-shrink:0;"></i><span>' + escapeHtml(sName) + '</span></span>';
+      }).join('');
 
-        matchedScheds.map(s => '<span class="oca-mono-code-badge" style="font-size:10.5px; padding:1px 5px; border-color:rgba(56,189,248,0.3); color:#38bdf8; background:rgba(56,189,248,0.1);">' + escapeHtml(s) + '</span>').join('') +
-
-        '</div>';
+      return '<div style="display:flex; flex-direction:column; gap:4px;">' + badgesHtml + '</div>';
     }
 
     window.getCourseSchedulesBadgesHtml = getCourseSchedulesBadgesHtml;
@@ -38963,13 +38966,12 @@ if (action === 'getDashboardStats') {
         if (activeSchedIds.length === 0) {
           colScheduleBadges.innerHTML = '<span style="font-size:11px; color:var(--text-muted);">-</span>';
         } else {
-          colScheduleBadges.innerHTML = activeSchedIds.map(s => (
-            '<span class="oca-sched-badge" style="font-family:monospace; font-size:11px; font-weight:600; padding:1px 6px; border-radius:4px; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.35); color:#38bdf8; display:inline-flex; align-items:center; gap:4px;">' +
-
-            '<i class="fa-solid fa-clock" style="font-size:10px;"></i> ' + escapeHtml(s) +
-
-            '</span>'
-          )).join('');
+          colScheduleBadges.innerHTML = '<div style="display:flex; flex-direction:column; gap:4px;">' + activeSchedIds.map(sId => {
+            const schedObj = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList) ? cachedSchedulesList.find(x => x.id === sId) : null) ||
+                             (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES) ? OFFICIAL_DEFAULT_SCHEDULES.find(x => x.id === sId) : null);
+            const sName = schedObj ? (schedObj.name || schedObj.day_time || sId) : sId;
+            return '<span style="font-size:11px; padding:2px 7px; border-radius:5px; background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.3); color:#38bdf8; display:inline-flex; align-items:center; gap:5px; line-height:1.35; white-space:normal; word-break:break-word;" title="[' + escapeHtml(sId) + '] ' + escapeHtml(sName) + '"><i class="fa-solid fa-clock" style="font-size:10px; color:#38bdf8; flex-shrink:0;"></i><span>' + escapeHtml(sName) + '</span></span>';
+          }).join('') + '</div>';
         }
       }
     }
@@ -41830,14 +41832,32 @@ if (action === 'getDashboardStats') {
       }
 
       const map = (typeof getScheduleCoursesMapForTerm === 'function')
-
         ? getScheduleCoursesMapForTerm(t, y)
-
         : (window._ocaScheduleCoursesMap || DEFAULT_SCHEDULE_COURSES_MAP);
       let offered = [];
 
+      let resolvedSchedId = '';
+      let resolvedSchedName = raw;
+      if (/^SCH-\d+$/i.test(raw)) {
+        resolvedSchedId = raw.toUpperCase();
+      } else {
+        const idMatch = raw.match(/\b(SCH-\d+)\b/i);
+        if (idMatch) {
+          resolvedSchedId = idMatch[1].toUpperCase();
+        }
+      }
+
+      const foundSched = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList) ? cachedSchedulesList.find(s => s.id === raw || s.name === raw || (resolvedSchedId && s.id === resolvedSchedId)) : null) ||
+                         (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES) ? OFFICIAL_DEFAULT_SCHEDULES.find(s => s.id === raw || s.name === raw || (resolvedSchedId && s.id === resolvedSchedId)) : null);
+      if (foundSched) {
+        if (!resolvedSchedId && foundSched.id) resolvedSchedId = String(foundSched.id).toUpperCase();
+        if (foundSched.name) resolvedSchedName = foundSched.name;
+      }
+
       if (map[raw] && Array.isArray(map[raw]) && map[raw].length > 0) {
         offered = [...map[raw]];
+      } else if (resolvedSchedId && map[resolvedSchedId] && Array.isArray(map[resolvedSchedId]) && map[resolvedSchedId].length > 0) {
+        offered = [...map[resolvedSchedId]];
       } else {
         const idMatch = raw.match(/\b(SCH-\d+)\b/i);
 
@@ -41902,35 +41922,55 @@ if (action === 'getDashboardStats') {
           }
         });
 
-        // 2. If unmapped courses exist that aren't assigned to ANY schedule, allow them across schedules
+        // 2. Do not inject unmapped courses when a schedule has an explicit list of courses mapped
+        const hasExplicitMapping = (map[raw] && Array.isArray(map[raw]) && map[raw].length > 0) ||
+                                   (resolvedSchedId && map[resolvedSchedId] && Array.isArray(map[resolvedSchedId]) && map[resolvedSchedId].length > 0) ||
+                                   cleanOffered.length > 0;
 
-        const allMappedCodes = new Set();
+        if (!hasExplicitMapping) {
+          const allMappedCodes = new Set();
 
-        Object.values(map).forEach(arr => {
-          if (Array.isArray(arr)) {
-            arr.forEach(c => {
-              const k = String(c).trim().toUpperCase();
-              if (validDbCourseMap.has(k)) allMappedCodes.add(k);
-            });
-          }
-        });
+          Object.values(map).forEach(arr => {
+            if (Array.isArray(arr)) {
+              arr.forEach(c => {
+                const k = String(c).trim().toUpperCase();
+                if (validDbCourseMap.has(k)) allMappedCodes.add(k);
+              });
+            }
+          });
 
-        cachedCoursesList.forEach(c => {
-          if (c && c.is_active !== false && !c.is_legacy_archive) {
-            const cId = String(c.id || '').trim().toUpperCase();
-            const cCode = String(c.code || '').trim().toUpperCase();
+          cachedCoursesList.forEach(c => {
+            if (c && c.is_active !== false && !c.is_legacy_archive) {
+              const cId = String(c.id || '').trim().toUpperCase();
+              const cCode = String(c.code || '').trim().toUpperCase();
 
-            if (!allMappedCodes.has(cId) && !allMappedCodes.has(cCode)) {
-              const canonCode = c.code || c.id;
+              if (!allMappedCodes.has(cId) && !allMappedCodes.has(cCode)) {
+                const canonCode = c.code || c.id;
 
-              if (!seen.has(canonCode)) {
-                seen.add(canonCode);
-                cleanOffered.push(canonCode);
+                if (!seen.has(canonCode)) {
+                  seen.add(canonCode);
+                  cleanOffered.push(canonCode);
+                }
               }
             }
-          }
-        });
+          });
+        }
+
+        // 3. Audience Guard: If schedule is for kids, filter out adult courses so only kids courses are offered
+        const isKidsSchedule = /เด็ก|เด็กเล็ก|kids|youth/i.test(raw) || /เด็ก|เด็กเล็ก|kids|youth/i.test(resolvedSchedName);
+        if (isKidsSchedule) {
+          cleanOffered = cleanOffered.filter(code => {
+            const cObj = cachedCoursesList.find(c => c && (c.id === code || c.code === code));
+            return cObj ? (typeof isKidsCourse === 'function' ? isKidsCourse(cObj) : true) : (typeof isKidsCourse === 'function' ? isKidsCourse(code) : true);
+          });
+        }
+
         return cleanOffered;
+      }
+
+      const isKidsSchedule = /เด็ก|เด็กเล็ก|kids|youth/i.test(raw) || /เด็ก|เด็กเล็ก|kids|youth/i.test(resolvedSchedName);
+      if (isKidsSchedule && offered.length > 0) {
+        offered = offered.filter(code => typeof isKidsCourse === 'function' ? isKidsCourse(code) : true);
       }
 
       return offered;
@@ -63230,27 +63270,38 @@ function openPublicRegisterView() {
         return;
       }
 
+      const selectedOption = selSchedule && selSchedule.selectedIndex >= 0 ? selSchedule.options[selSchedule.selectedIndex] : null;
+      let targetSchedId = selectedOption?.dataset?.scheduleId || '';
+      if (!targetSchedId && selectedSched) {
+        const foundSched = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList) ? cachedSchedulesList.find(s => s.id === selectedSched || s.name === selectedSched) : null) ||
+                           (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES) ? OFFICIAL_DEFAULT_SCHEDULES.find(s => s.id === selectedSched || s.name === selectedSched) : null);
+        if (foundSched) targetSchedId = foundSched.id;
+      }
+      const schedParam = targetSchedId || selectedSched;
+
       let coursesList = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
-
         ? cachedCoursesList
-
         : [];
       const actTerm = (typeof resolveCurrentAcademicTerm === 'function') ? resolveCurrentAcademicTerm() : null;
       const termVal = actTerm ? actTerm.term : 5;
       const yearVal = actTerm ? actTerm.yearBE : 2569;
-      const offeredCodes = (typeof getOfferedCourseCodesForSchedule === 'function') ? getOfferedCourseCodesForSchedule(selectedSched, termVal, yearVal) : [];
+      const offeredCodes = (typeof getOfferedCourseCodesForSchedule === 'function') ? getOfferedCourseCodesForSchedule(schedParam, termVal, yearVal) : [];
       let displayCourses = [];
 
       if (offeredCodes && offeredCodes.length > 0) {
         offeredCodes.forEach(code => {
           const found = coursesList.find(c => c.id === code || c.code === code);
-
           if (found) {
             displayCourses.push(found);
           }
         });
-      } else {
-        displayCourses = coursesList;
+      }
+
+      if (displayCourses.length === 0) {
+        const noCourseMsg = dict.courseNoOffered || '-- ไม่มีหลักสูตรเปิดสอนในรอบเวลานี้ --';
+        selCourse.innerHTML = `<option value="">${safeEscape(noCourseMsg)}</option>`;
+        if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
+        return;
       }
 
       let placeholder = dict.courseSelect || `-- กรุณาเลือกหลักสูตรที่ต้องการสมัคร (${displayCourses.length} คอร์ส) --`;
@@ -63319,6 +63370,29 @@ function openPublicRegisterView() {
           } catch (err) {
             console.warn('[Realtime Enrollment] Schedules fetch fallback:', err);
           }
+
+          try {
+            const { data: feeData, error: feeErr } = await _supabase
+              .from('fee_settings')
+              .select('key, name')
+              .in('key', ['schedule_courses_by_term_map', 'schedule_courses_map']);
+
+            if (!feeErr && Array.isArray(feeData)) {
+              feeData.forEach(row => {
+                if (row.key === 'schedule_courses_by_term_map' && row.name) {
+                  try {
+                    window._ocaScheduleCoursesByTermMap = JSON.parse(row.name);
+                  } catch (_) {}
+                } else if (row.key === 'schedule_courses_map' && row.name) {
+                  try {
+                    window._ocaScheduleCoursesMap = JSON.parse(row.name);
+                  } catch (_) {}
+                }
+              });
+            }
+          } catch (err) {
+            console.warn('[Realtime Enrollment] Schedule courses map fetch fallback:', err);
+          }
         }
 
         if (!schedulesList || schedulesList.length === 0) {
@@ -63358,7 +63432,7 @@ function openPublicRegisterView() {
 
           const label = s.id ? `[${s.id}] ${sName}` : sName;
           const val = s.name || s.id;
-          htmlSchedule += `<option value="${safeEscape(val)}">${safeEscape(label)}</option>`;
+          htmlSchedule += `<option value="${safeEscape(val)}" data-schedule-id="${safeEscape(s.id || '')}">${safeEscape(label)}</option>`;
         });
         selSchedule.innerHTML = htmlSchedule;
 
@@ -77205,7 +77279,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-70';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-71';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -77214,7 +77288,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-70):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-71):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
