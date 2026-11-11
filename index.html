@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-72';
+      var LATEST_VERSION = 'oca-pwa-v358-73';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -35385,6 +35385,66 @@ if (action === 'getDashboardStats') {
     ];
     let cachedCoursesList = [];
     let cachedSchedulesList = OFFICIAL_DEFAULT_SCHEDULES.map(s => ({ ...s }));
+
+    function resolveCanonicalScheduleId(input) {
+      if (!input) return '';
+      const str = String(input).trim();
+      if (!str) return '';
+
+      const mExact = str.match(/^SCH-(\d+)$/i);
+      if (mExact) {
+        return `SCH-${mExact[1].padStart(2, '0').toUpperCase()}`;
+      }
+
+      const mToken = str.match(/\bSCH-(\d+)\b/i);
+      if (mToken) {
+        return `SCH-${mToken[1].padStart(2, '0').toUpperCase()}`;
+      }
+
+      const cleanScheduleText = (s) => {
+        if (!s) return '';
+        return String(s)
+          .replace(/^SCH-\d+\s*[:\-]\s*/i, '')
+          .replace(/(^|[^\d])(\d)[\.:](\d{2})/g, '$10$2.$3')
+          .replace(/วัน/g, '')
+          .replace(/และ/g, '')
+          .replace(/หรือ/g, '')
+          .replace(/เดียว/g, '')
+          .replace(/น\./g, '')
+          .replace(/[\s\-_:.,]/g, '')
+          .toLowerCase();
+      };
+
+      const cleanIn = cleanScheduleText(str);
+      const sList = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList) && cachedSchedulesList.length > 0)
+        ? cachedSchedulesList
+        : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES : []);
+
+      for (let i = 0; i < sList.length; i++) {
+        const item = sList[i];
+        if (!item) continue;
+        if (cleanScheduleText(item.id) === cleanIn || cleanScheduleText(item.name) === cleanIn) {
+          const matchId = String(item.id || '').toUpperCase();
+          const mSub = matchId.match(/^SCH-(\d+)$/);
+          return mSub ? `SCH-${mSub[1].padStart(2, '0')}` : matchId;
+        }
+      }
+
+      for (let i = 0; i < sList.length; i++) {
+        const item = sList[i];
+        if (!item || !item.name) continue;
+        const cleanName = cleanScheduleText(item.name);
+        if (cleanName && (cleanName.includes(cleanIn) || cleanIn.includes(cleanName))) {
+          const matchId = String(item.id || '').toUpperCase();
+          const mSub = matchId.match(/^SCH-(\d+)$/);
+          return mSub ? `SCH-${mSub[1].padStart(2, '0')}` : matchId;
+        }
+      }
+
+      return str;
+    }
+    window.resolveCanonicalScheduleId = resolveCanonicalScheduleId;
+
     let globalFeePresets = {
       regFee: 0,
 
@@ -64515,6 +64575,9 @@ function openPublicRegisterView() {
           const isSchedMatch = (sched) => {
             if (schedVal === 'ALL') return true;
             if (!sched) return false;
+            const canA = resolveCanonicalScheduleId(sched);
+            const canB = resolveCanonicalScheduleId(schedVal);
+            if (canA && canB && canA === canB) return true;
             return sched === schedVal || schedText.includes(sched) || schedVal.includes(sched);
           };
 
@@ -71867,6 +71930,15 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         'SCH-08': 'เสาร์ หรือ อาทิตย์ วันเดียว 09.00-12.00 น.'
       };
       const schedName = scheduleMap[scheduleId] || scheduleId;
+      const targetCanonicalId = (typeof resolveCanonicalScheduleId === 'function') ? resolveCanonicalScheduleId(scheduleId) : scheduleId;
+      const isRosterScheduleMatch = (cs) => {
+        if (!cs) return false;
+        const studentCanonicalId = (typeof resolveCanonicalScheduleId === 'function') ? resolveCanonicalScheduleId(cs) : cs;
+        const isMatch = targetCanonicalId && studentCanonicalId && (targetCanonicalId === studentCanonicalId);
+        if (isMatch) return true;
+        return cs === schedName || cs === scheduleId || cs.includes(schedName) || cs.includes(scheduleId) ||
+          (scheduleMap[scheduleId] && (cs.includes(scheduleMap[scheduleId]) || scheduleMap[scheduleId].includes(cs)));
+      };
 
       // 1. Load active students for this schedule from Supabase receipts & students
 
@@ -71915,9 +71987,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               const sid = String(r.student_id || '').trim();
               if (!sid) return;
               const cs = (r.schedule || '').trim();
-              const isMatch = cs === schedName || cs === scheduleId || cs.includes(schedName) || cs.includes(scheduleId) ||
-
-                (scheduleMap[scheduleId] && (cs.includes(scheduleMap[scheduleId]) || scheduleMap[scheduleId].includes(cs)));
+              const isMatch = isRosterScheduleMatch(cs);
 
               if (isMatch) {
                 const lk = lookupNames.get(sid);
@@ -71944,9 +72014,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               const sid = String(s.student_id || '').trim();
               if (!sid || stTeacherMap.has(sid)) return;
               const cs = (s.current_schedule || '').trim();
-              const isMatch = cs === schedName || cs === scheduleId || cs.includes(schedName) || cs.includes(scheduleId) ||
-
-                (scheduleMap[scheduleId] && (cs.includes(scheduleMap[scheduleId]) || scheduleMap[scheduleId].includes(cs)));
+              const isMatch = isRosterScheduleMatch(cs);
 
               if (isMatch) {
                 const cName = (typeof formatStudentNameWithPrefix === 'function') ? formatStudentNameWithPrefix(s.prefix, s.full_name) : (s.full_name || '');
@@ -71990,7 +72058,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           if (allStudents.length > 0) {
             studentsList = allStudents.filter(s => {
               const cs = (s.current_schedule || s.schedule || '').trim();
-              return cs === schedName || cs === scheduleId || cs.includes(schedName) || cs.includes(scheduleId);
+              return isRosterScheduleMatch(cs);
             });
           }
         } catch (_) {}
@@ -75927,7 +75995,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
     window.printTeacherTimesheetReport = printTeacherTimesheetReport;
 
-    function initTeacherPortal() {
+    async function initTeacherPortal() {
       const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
       const nameEl = document.getElementById('lblTeacherNameDisplay');
       const uEl = document.getElementById('lblTeacherUsernameDisplay');
@@ -75978,6 +76046,31 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       checkTeacherGeolocation(false);
       checkTeacherBiometricEnrollment();
       renderTeacherMyHistory();
+
+      if (!window._ocaScheduleCoursesByTermMap && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data: feeData, error: feeErr } = await _supabase
+            .from('fee_settings')
+            .select('key, name')
+            .in('key', ['schedule_courses_by_term_map', 'schedule_courses_map']);
+          if (!feeErr && Array.isArray(feeData)) {
+            feeData.forEach(row => {
+              if (row.key === 'schedule_courses_by_term_map' && row.name) {
+                try {
+                  window._ocaScheduleCoursesByTermMap = JSON.parse(row.name);
+                } catch (_) {}
+              } else if (row.key === 'schedule_courses_map' && row.name) {
+                try {
+                  window._ocaScheduleCoursesMap = JSON.parse(row.name);
+                } catch (_) {}
+              }
+            });
+          }
+        } catch (err) {
+          console.warn('[Teacher Portal] Fee settings hydration fallback:', err);
+        }
+      }
+
       populateTeacherCourseGroupDropdown();
       loadTeacherClassroomStudents();
 
@@ -77312,7 +77405,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-72';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-73';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -77321,7 +77414,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-72):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-73):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
