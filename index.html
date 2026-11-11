@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-74';
+      var LATEST_VERSION = 'oca-pwa-v358-75';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -18464,6 +18464,88 @@ body.printing-report #printReportContainer {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+
+        <!-- ===================================================================
+             MODAL 3.4: RECEIPT & SLIP DUAL-TAB VIEWER (ดูใบเสร็จและสลิปโอนเงินแบบแยกแท็บ)
+             =================================================================== -->
+        <div id="modalReceiptDetailViewer" class="oca-custom-modal-backdrop" style="display:none; padding:16px; align-items:center; justify-content:center; z-index:999999;">
+          <div class="oca-custom-modal-box" style="max-width:860px; width:100%; max-height:92vh; display:flex; flex-direction:column; background:#0f172a; border:1px solid rgba(215,166,0,0.4); border-radius:14px; box-shadow:0 25px 60px rgba(0,0,0,0.85); overflow:hidden;">
+            <!-- Modal Header -->
+            <div style="padding:14px 20px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:linear-gradient(90deg, rgba(215,166,0,0.12), rgba(15,23,42,0.95)); flex-shrink:0;">
+              <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <span style="font-size:18px; color:var(--color-gold);"><i class="fa-solid fa-file-invoice"></i></span>
+                <div>
+                  <div style="font-size:16px; font-weight:800; color:#ffffff; display:flex; align-items:center; gap:8px;">
+                    <span>ใบเสร็จรับเงินเลขที่</span>
+                    <span id="lblViewerReceiptNo" style="font-family:monospace; color:#fcd34d; font-size:17px;">-</span>
+                    <span id="badgeViewerSlipStatus" style="font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3);">
+                      <i class="fa-solid fa-check"></i> มีสลิปคู่ใบเสร็จ
+                    </span>
+                  </div>
+                  <div style="font-size:12px; color:#94a3b8; margin-top:2px;" id="lblViewerSubTitle">ผู้ชำระ: - | คอร์ส: -</div>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <button type="button" id="btnViewerPrintReceipt" class="oca-btn-action-edit" style="background:rgba(215,166,0,0.2); color:#fcd34d; border-color:rgba(215,166,0,0.4); padding:6px 14px; font-size:12.5px;" onclick="printReceiptFromModal()">
+                  <i class="fa-solid fa-print"></i> พิมพ์ใบเสร็จ
+                </button>
+                <button type="button" style="background:transparent; border:none; color:var(--text-muted); font-size:20px; cursor:pointer; padding:4px 8px;" onclick="closeReceiptDetailViewer()">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Dual Tab Bar -->
+            <div style="display:flex; background:#0b1120; border-bottom:1px solid rgba(255,255,255,0.08); padding:4px 16px; gap:8px; flex-shrink:0;">
+              <button type="button" id="btnViewerTabReceipt" onclick="switchReceiptViewerTab('receipt')" style="padding:10px 18px; font-size:13px; font-weight:700; color:#fcd34d; background:rgba(215,166,0,0.15); border:none; border-bottom:2px solid #fcd34d; border-radius:6px 6px 0 0; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-file-invoice"></i> 🧾 ใบเสร็จรับเงิน (Official Receipt)
+              </button>
+              <button type="button" id="btnViewerTabSlip" onclick="switchReceiptViewerTab('slip')" style="padding:10px 18px; font-size:13px; font-weight:700; color:#94a3b8; background:transparent; border:none; border-bottom:2px solid transparent; border-radius:6px 6px 0 0; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-receipt"></i> 💳 สลิปโอนเงิน (Verified Bank Slip)
+                <span id="badgeViewerTabSlipNotice" style="font-size:10.5px; padding:1px 6px; border-radius:10px; background:rgba(16,185,129,0.2); color:#10b981; font-weight:700; display:none;">มีสลิป</span>
+              </button>
+            </div>
+
+            <!-- Tab 1: Receipt Body -->
+            <div id="viewViewerTabReceipt" style="flex:1; overflow-y:auto; padding:16px; background:#1e293b; max-height:calc(92vh - 120px);">
+              <div id="boxViewerReceiptContentWrap" style="background:#ffffff; color:#000000; padding:20px; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.3); max-width:760px; margin:0 auto; font-family:'Sarabun', sans-serif;">
+              </div>
+            </div>
+
+            <!-- Tab 2: Slip Body -->
+            <div id="viewViewerTabSlip" style="display:none; flex:1; overflow-y:auto; padding:20px; background:#0b1120; max-height:calc(92vh - 120px);">
+              <div id="boxViewerSlipContentWrap" style="max-width:680px; margin:0 auto; display:flex; flex-direction:column; gap:16px;">
+                <div style="background:#1e293b; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                  <div>
+                    <div style="font-size:12px; color:#94a3b8;">รหัสอ้างอิงธุรกรรม (Transaction Ref):</div>
+                    <div id="lblViewerSlipTransRef" style="font-family:monospace; font-weight:700; color:#38bdf8; font-size:15px;">-</div>
+                  </div>
+                  <div>
+                    <div style="font-size:12px; color:#94a3b8;">ยอดเงินที่ตรวจพบในสลิป:</div>
+                    <div id="lblViewerSlipAmount" style="font-family:monospace; font-weight:700; color:#34d399; font-size:17px;">-</div>
+                  </div>
+                  <div>
+                    <div style="font-size:12px; color:#94a3b8;">สถานะการตรวจสอบ:</div>
+                    <span id="lblViewerSlipStatusBadge" style="display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:6px; font-weight:700; font-size:12px; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3);">
+                      <i class="fa-solid fa-circle-check"></i> ตรวจสอบเรียบร้อยแล้ว
+                    </span>
+                  </div>
+                </div>
+
+                <div style="text-align:center; background:#0f172a; border:1px dashed rgba(255,255,255,0.15); border-radius:12px; padding:16px;">
+                  <div style="margin-bottom:8px; font-size:12px; color:#94a3b8;">
+                    <i class="fa-solid fa-magnifying-glass-plus"></i> คลิกที่รูปภาพเพื่อเปิดดูรูปสลิปขนาดเต็ม
+                  </div>
+                  <img id="imgViewerSlip" src="" alt="Verified Slip" style="max-height:480px; max-width:100%; object-fit:contain; border-radius:8px; cursor:zoom-in; border:1px solid rgba(255,255,255,0.1); box-shadow:0 10px 25px rgba(0,0,0,0.5);" onclick="openSlipLightbox(this.src)">
+                  <div id="boxViewerNoSlip" style="display:none; padding:40px; color:#64748b;">
+                    <i class="fa-solid fa-image-slash" style="font-size:40px; margin-bottom:10px; display:block;"></i>
+                    <span>ไม่พบรูปภาพสลิปสำหรับใบเสร็จเลขที่นี้ (อาจเป็นการชำระด้วยเงินสด ณ เคาน์เตอร์ หรือไม่ได้แนบสลิป)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -30709,6 +30791,23 @@ if (action === 'getDashboardStats') {
               const activeDbCourses = resC.data.filter(c => c && c.is_active !== false && !c.is_legacy_archive);
               coursesList = activeDbCourses;
               cachedCoursesList = activeDbCourses;
+              try {
+                const { data: dRows } = await _supabase.from('fee_settings').select('key, name, amount').like('key', 'course_disc_%');
+                if (dRows && Array.isArray(dRows)) {
+                  const dMap = {};
+                  dRows.forEach(f => {
+                    const cid = f.key.replace('course_disc_', '').trim();
+                    dMap[cid] = (f.amount !== undefined && f.amount !== null) ? Number(f.amount) : Number(f.name);
+                  });
+                  coursesList.forEach(c => {
+                    const cd = dMap[c.id] !== undefined ? dMap[c.id] : (dMap[c.code] !== undefined ? dMap[c.code] : null);
+                    if (cd !== null && !isNaN(cd)) {
+                      c.custom_discount_normal = cd;
+                      c.customDiscountNormal = cd;
+                    }
+                  });
+                }
+              } catch (_) {}
             }
           } catch (err) {
             console.warn('[Enrollment] Courses fetch fallback:', err);
@@ -30752,17 +30851,31 @@ if (action === 'getDashboardStats') {
 
       let fee = 4000;
       let courseTitle = val;
+      let foundCourse = null;
       const selectedOpt = selCourse.selectedOptions ? selCourse.selectedOptions[0] : null;
+
+      if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
+        foundCourse = cachedCoursesList.find(c => c.name === val || c.code === val || c.id === val);
+      }
 
       if (selectedOpt && selectedOpt.dataset.price) {
         fee = Number(selectedOpt.dataset.price);
-      } else if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
-        const found = cachedCoursesList.find(c => c.name === val || c.code === val || c.id === val);
-        if (found && found.price) fee = Number(found.price);
+      } else if (foundCourse && foundCourse.price) {
+        fee = Number(foundCourse.price);
       }
 
-      lblAmount.textContent = `฿${fee.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      if (lblDesc) lblDesc.textContent = `หลักสูตร: ${courseTitle}`;
+      const discInfo = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(foundCourse || val) : null;
+      const discAmt = (discInfo && discInfo.active) ? Math.max(0, discInfo.amount) : 0;
+      const netFee = Math.max(0, fee - discAmt);
+
+      lblAmount.textContent = `฿${netFee.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (lblDesc) {
+        let descText = `หลักสูตร: ${courseTitle}`;
+        if (discAmt > 0) {
+          descText += ` • ค่าเรียน ฿${fee.toLocaleString()} หักส่วนลด ฿${discAmt.toLocaleString()} (สุทธิ ฿${netFee.toLocaleString()})`;
+        }
+        lblDesc.textContent = descText;
+      }
     }
 
     window.updateEnrollCourseFeeDisplay = updateEnrollCourseFeeDisplay;
@@ -31589,6 +31702,14 @@ if (action === 'getDashboardStats') {
             const selCourseEl = document.getElementById('selEnrollCourse');
             const selOpt = selCourseEl?.selectedOptions?.[0];
             if (selOpt && selOpt.dataset.price) calculatedCourseFee = Number(selOpt.dataset.price);
+            const enrollCourseVal = (selCourseEl?.value || '').trim();
+            let foundEnrollCourse = null;
+            if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
+              foundEnrollCourse = cachedCoursesList.find(c => c.name === enrollCourseVal || c.code === enrollCourseVal || c.id === enrollCourseVal);
+            }
+            const enrollDiscInfo = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(foundEnrollCourse || enrollCourseVal) : null;
+            const enrollDiscAmt = (enrollDiscInfo && enrollDiscInfo.active) ? Math.max(0, enrollDiscInfo.amount) : 0;
+            calculatedCourseFee = Math.max(0, calculatedCourseFee - enrollDiscAmt);
 
             // Handle Attached Payment Slip (Offline Enrollment)
 
@@ -32254,11 +32375,23 @@ if (action === 'getDashboardStats') {
 
         if (selMatNew && selMatNew.value === 'ไม่มีอุปกรณ์') { selMatNew.value = 'หนังสือและสมุด'; }
 
-        // ส่วนลดปกติ และ ส่วนลดอื่นๆ (ไม่นำเข้าอัตโนมัติ - ให้เลือกจากใบเสร็จ)
+        // ส่วนลดปกติ และ ส่วนลดอื่นๆ (คำนวณตามสิทธิ์คอร์สที่เลือก)
+        const selCNew = document.getElementById('selRcptCourse');
+        const selValNew = selCNew ? selCNew.value : '';
+        let cObjNew = null;
+        if (Array.isArray(receiptCoursesList)) cObjNew = receiptCoursesList.find(c => c.id === selValNew || c.code === selValNew || c.name === selValNew);
+        if (!cObjNew && Array.isArray(cachedCoursesList)) cObjNew = cachedCoursesList.find(c => c.id === selValNew || c.code === selValNew || c.name === selValNew);
+        const cDiscNew = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(cObjNew || selValNew) : null;
+        const discAmtNew = (cDiscNew && cDiscNew.active) ? Number(cDiscNew.amount || 0) : 0;
 
         const chkDisc = document.getElementById('chkRcptApplyDiscountNormal');
-
-        if (chkDisc && chkDisc.checked) { chkDisc.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('discountNormal'); }
+        const inpDisc = document.getElementById('inpRcptDiscountNormal');
+        if (discAmtNew > 0) {
+          if (chkDisc) { chkDisc.checked = true; document.getElementById('tileRcptDiscountNormal')?.classList.add('active'); }
+          if (inpDisc) inpDisc.value = discAmtNew;
+        } else {
+          if (chkDisc && chkDisc.checked) { chkDisc.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('discountNormal'); }
+        }
 
         const chkDiscOther = document.getElementById('chkRcptApplyDiscountOther');
 
@@ -32315,15 +32448,27 @@ if (action === 'getDashboardStats') {
 
         if (selMatRenew && selMatRenew.value === 'ไม่มีอุปกรณ์') { selMatRenew.value = 'หนังสือและสมุด'; }
 
-        // ส่วนลดปกติ และ ส่วนลดอื่นๆ
+        // ส่วนลดปกติ และ ส่วนลดอื่นๆ (คำนวณตามสิทธิ์คอร์สที่เลือก)
+        const selCRenew = document.getElementById('selRcptCourse');
+        const selValRenew = selCRenew ? selCRenew.value : '';
+        let cObjRenew = null;
+        if (Array.isArray(receiptCoursesList)) cObjRenew = receiptCoursesList.find(c => c.id === selValRenew || c.code === selValRenew || c.name === selValRenew);
+        if (!cObjRenew && Array.isArray(cachedCoursesList)) cObjRenew = cachedCoursesList.find(c => c.id === selValRenew || c.code === selValRenew || c.name === selValRenew);
+        const cDiscRenew = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(cObjRenew || selValRenew) : null;
+        const discAmtRenew = (cDiscRenew && cDiscRenew.active) ? Number(cDiscRenew.amount || 0) : 0;
 
-        const chkDisc = document.getElementById('chkRcptApplyDiscountNormal');
+        const chkDiscRenew = document.getElementById('chkRcptApplyDiscountNormal');
+        const inpDiscRenew = document.getElementById('inpRcptDiscountNormal');
+        if (discAmtRenew > 0) {
+          if (chkDiscRenew) { chkDiscRenew.checked = true; document.getElementById('tileRcptDiscountNormal')?.classList.add('active'); }
+          if (inpDiscRenew) inpDiscRenew.value = discAmtRenew;
+        } else {
+          if (chkDiscRenew && chkDiscRenew.checked) { chkDiscRenew.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('discountNormal'); }
+        }
 
-        if (chkDisc && chkDisc.checked) { chkDisc.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('discountNormal'); }
+        const chkDiscOtherRenew = document.getElementById('chkRcptApplyDiscountOther');
 
-        const chkDiscOther = document.getElementById('chkRcptApplyDiscountOther');
-
-        if (chkDiscOther && chkDiscOther.checked) { chkDiscOther.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('discountOther'); }
+        if (chkDiscOtherRenew && chkDiscOtherRenew.checked) { chkDiscOtherRenew.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('discountOther'); }
 
         if (typeof calcReceiptTotals === 'function') calcReceiptTotals();
         if (typeof updateReceiptLivePreview === 'function') updateReceiptLivePreview();
@@ -35747,7 +35892,7 @@ if (action === 'getDashboardStats') {
       if (typeof courseOrCode === 'object' && courseOrCode !== null) {
         cObj = courseOrCode;
       } else if (typeof courseOrCode === 'string' && Array.isArray(cachedCoursesList)) {
-        const found = cachedCoursesList.find(x => (x.id || x.code) === courseOrCode);
+        const found = cachedCoursesList.find(x => (x.id || x.code) === courseOrCode || x.name === courseOrCode || x.id === courseOrCode || x.code === courseOrCode);
         if (found) cObj = found;
       }
 
@@ -44815,11 +44960,14 @@ if (action === 'getDashboardStats') {
                   courseDisplay += '<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">' + (termYear ? ('<span style="color:var(--color-gold);">' + termYear + '</span> ') : '') + (sched ? ('· ' + escapeHtml(sched)) : '') + '</div>';
                 }
 
+                const hasEnrollSlip = (window._receiptSlipsMap && window._receiptSlipsMap.has(String(r.receiptNo || r.receipt_no))) || (r.paymentRef && (r.paymentRef.includes('SLIP') || r.paymentRef.includes('ONLINE')));
+                const enrollSlipBadge = hasEnrollSlip ? (' <span style="background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); padding:1px 5px; border-radius:4px; font-size:10px; font-weight:700; cursor:pointer; vertical-align:middle;" onclick="openReceiptDetailViewer(&#39;' + escapeHtml(r.receiptNo || r.receipt_no) + '&#39;, &#39;slip&#39;); event.stopPropagation();" title="ดูสลิปโอนเงิน"><i class="fa-solid fa-receipt"></i> สลิป</span>') : '';
+
                 rRows +=
 
                   '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">' +
 
-                  '  <td style="padding:6px 6px; white-space:nowrap;"><strong style="font-family:monospace; color:var(--color-gold); cursor:pointer;" onclick="previewReceiptFromHistory(&#39;' + escapeHtml(r.receiptNo || r.receipt_no) + '&#39;)" title="คลิกดูใบเสร็จ">' + rNo + '</strong></td>' +
+                  '  <td style="padding:6px 6px; white-space:nowrap;"><strong style="font-family:monospace; color:var(--color-gold); cursor:pointer;" onclick="openReceiptDetailViewer(&#39;' + escapeHtml(r.receiptNo || r.receipt_no) + '&#39;, &#39;receipt&#39;)" title="คลิกดูใบเสร็จ">' + rNo + '</strong>' + enrollSlipBadge + '</td>' +
 
                   '  <td style="padding:6px 6px;">' + courseDisplay + '</td>' +
 
@@ -44831,7 +44979,7 @@ if (action === 'getDashboardStats') {
 
                   '  <td style="padding:6px 6px; text-align:center; white-space:nowrap;">' +
 
-                  '    <button type="button" class="oca-btn-icon-gold" style="padding:3px 8px; font-size:11.5px; border-radius:5px; background:rgba(215,166,0,0.12); border:1px solid rgba(215,166,0,0.3); color:var(--color-gold); cursor:pointer;" onclick="previewReceiptFromHistory(&#39;' + escapeHtml(r.receiptNo || r.receipt_no) + '&#39;)" title="ดูใบเสร็จฉบับเต็ม">' +
+                  '    <button type="button" class="oca-btn-icon-gold" style="padding:3px 8px; font-size:11.5px; border-radius:5px; background:rgba(215,166,0,0.12); border:1px solid rgba(215,166,0,0.3); color:var(--color-gold); cursor:pointer;" onclick="openReceiptDetailViewer(&#39;' + escapeHtml(r.receiptNo || r.receipt_no) + '&#39;, &#39;receipt&#39;)" title="ดูใบเสร็จฉบับเต็ม">' +
 
                   '      <i class="fa-solid fa-eye"></i>' +
 
@@ -46859,6 +47007,27 @@ if (action === 'getDashboardStats') {
             // ล้างฟอร์มฝั่งซ้ายทันที ไม่ค้างประวัติเดิม เพื่อให้เจ้าหน้าที่กรอกคนใหม่ได้ทันที
 
             if (window._pendingEnrollSlipHandover && String(window._pendingEnrollSlipHandover.studentId) === String(buyerId)) {
+              const handover = window._pendingEnrollSlipHandover;
+              const rawPath = handover.storagePath || handover.slipUrl || '';
+              let slipStoragePath = rawPath.includes('/student-photos/') ? (rawPath.split('/student-photos/')[1] || '').split('?')[0] : rawPath;
+              slipStoragePath = String(slipStoragePath || ('slips/slip_' + buyerId + '.jpg')).slice(0, 90);
+              if (typeof _supabase !== 'undefined' && _supabase) {
+                _supabase.from('fee_settings').upsert([{
+                  key: 'receipt_slip:' + res.receiptNo,
+                  name: slipStoragePath,
+                  amount: Number(grandTotal || 0),
+                  mode: String(handover.slipRef || 'COUNTER_VERIFIED').slice(0, 90),
+                  updated_at: new Date().toISOString()
+                }]).then(() => {
+                  if (window._receiptSlipsMap) {
+                    window._receiptSlipsMap.set(String(res.receiptNo), {
+                      name: slipStoragePath,
+                      amount: Number(grandTotal || 0),
+                      mode: String(handover.slipRef || 'COUNTER_VERIFIED')
+                    });
+                  }
+                }).catch(slipErr => console.warn('[saveReceiptForm] receipt_slip handover coupling error:', slipErr));
+              }
               window._pendingEnrollSlipHandover = null;
             }
 
@@ -47663,6 +47832,19 @@ if (action === 'getDashboardStats') {
     function loadReceiptsHistoryTable(force = false) {
       if (typeof window.loadPendingSlipsQueue === 'function') window.loadPendingSlipsQueue();
 
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        _supabase.from('fee_settings').select('key, name, amount, mode, updated_at').like('key', 'receipt_slip:%')
+          .then(({ data, error }) => {
+            if (!error && Array.isArray(data)) {
+              window._receiptSlipsMap = new Map();
+              data.forEach(item => {
+                const rNo = (item.key || '').replace('receipt_slip:', '').trim();
+                if (rNo) window._receiptSlipsMap.set(rNo, item);
+              });
+            }
+          }).catch(err => console.warn('[ReceiptSlips] Map load error:', err));
+      }
+
       if (!force && Array.isArray(receiptHistoryCachedLogs) && receiptHistoryCachedLogs.length > 0 && (Date.now() - _lastReceiptsLoadedAt < 120000)) {
         filterReceiptHistoryTable(true);
         return;
@@ -47892,7 +48074,9 @@ if (action === 'getDashboardStats') {
       const citId = (row.citizenId || (citizenMap ? citizenMap.get(String(row.buyerId).trim()) : '') || '').trim();
 
       // 1. Receipt No: Strict single-line tabular-nums badge with nowrap inline-block
-      const rcptBadgeHtml = '<td style="padding-left:14px !important; padding-right:12px !important; white-space:nowrap !important; min-width:145px !important; width:145px !important;"><span class="whitespace-nowrap inline-block" style="font-family:monospace; font-weight:800; font-size:12.5px; color:#FCD34D; background:rgba(215,166,0,0.14); border:1px solid rgba(252,211,77,0.38); padding:4px 10px; border-radius:7px; display:inline-block; white-space:nowrap !important; word-break:keep-all !important; font-variant-numeric:tabular-nums; letter-spacing:0.3px;">' + toArabicDigits(row.receiptNo) + '</span></td>';
+      const hasCoupledSlip = (window._receiptSlipsMap && window._receiptSlipsMap.has(String(row.receiptNo))) || (row.paymentRef && (row.paymentRef.includes('SLIP') || row.paymentRef.includes('ONLINE')));
+      const slipBadgeHtml = hasCoupledSlip ? ('<span class="oca-badge-slip" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:#10B981; padding:2px 6px; border-radius:5px; font-size:11px; font-weight:700; margin-left:6px; display:inline-flex; align-items:center; gap:3px; cursor:pointer;" onclick="openReceiptDetailViewer(&#39;' + escapeHtml(row.receiptNo) + '&#39;, &#39;slip&#39;); event.stopPropagation();" title="มีสลิปโอนเงินที่ผ่านการตรวจสอบ (คลิกดู)"><i class="fa-solid fa-receipt"></i> สลิป</span>') : '';
+      const rcptBadgeHtml = '<td style="padding-left:14px !important; padding-right:12px !important; white-space:nowrap !important; min-width:145px !important; width:145px !important;"><span class="whitespace-nowrap inline-block" style="font-family:monospace; font-weight:800; font-size:12.5px; color:#FCD34D; background:rgba(215,166,0,0.14); border:1px solid rgba(252,211,77,0.38); padding:4px 10px; border-radius:7px; display:inline-block; white-space:nowrap !important; word-break:keep-all !important; font-variant-numeric:tabular-nums; letter-spacing:0.3px; cursor:pointer;" onclick="openReceiptDetailViewer(&#39;' + escapeHtml(row.receiptNo) + '&#39;, &#39;receipt&#39;)">' + toArabicDigits(row.receiptNo) + '</span>' + slipBadgeHtml + '</td>';
 
       // 2. Receipt Type: Dynamic language translation & no-wrap badge
       const rType = String(row.type || row.receiptType || 'tuition').toLowerCase();
@@ -47954,7 +48138,7 @@ if (action === 'getDashboardStats') {
 
           '<div style="display:flex; gap:6px; flex-wrap:nowrap; justify-content:center;">' +
 
-            '<button class="oca-btn-action-edit" onclick="previewReceiptFromHistory(&#39;' + escapeHtml(row.receiptNo || row.receipt_no) + '&#39;)">' +
+            '<button class="oca-btn-action-edit" onclick="openReceiptDetailViewer(&#39;' + escapeHtml(row.receiptNo || row.receipt_no) + '&#39;, &#39;receipt&#39;)">' +
 
               '<i class="fa-solid fa-file-invoice" style="margin-right:3px;"></i> ดูใบเสร็จ' +
 
@@ -48452,6 +48636,10 @@ if (action === 'getDashboardStats') {
             }
 
             window.scrollTo({ top: 300, behavior: 'smooth' });
+
+            if (typeof openReceiptDetailViewer === 'function') {
+              openReceiptDetailViewer(rcptNo, 'receipt', item);
+            }
           }
         });
     }
@@ -48627,6 +48815,164 @@ if (action === 'getDashboardStats') {
       const modal = document.getElementById('modalReceiptRevisionHistory');
       if (modal) modal.style.display = 'none';
     }
+
+    /* =========================================================================
+       RECEIPT & SLIP COUPLING DUAL-TAB VIEWER CONTROLLER
+       ========================================================================= */
+
+    async function openReceiptDetailViewer(receiptNo, initialTab = 'receipt', itemData = null) {
+      if (!receiptNo) return;
+      const modal = document.getElementById('modalReceiptDetailViewer');
+      if (!modal) return;
+
+      const lblNo = document.getElementById('lblViewerReceiptNo');
+      const lblSub = document.getElementById('lblViewerSubTitle');
+      const badgeSlipStatus = document.getElementById('badgeViewerSlipStatus');
+      const badgeSlipNotice = document.getElementById('badgeViewerTabSlipNotice');
+      const imgSlip = document.getElementById('imgViewerSlip');
+      const boxNoSlip = document.getElementById('boxViewerNoSlip');
+      const lblSlipRef = document.getElementById('lblViewerSlipTransRef');
+      const lblSlipAmt = document.getElementById('lblViewerSlipAmount');
+      const boxReceiptWrap = document.getElementById('boxViewerReceiptContentWrap');
+
+      if (lblNo) lblNo.textContent = toArabicDigits(receiptNo);
+
+      // 1. Resolve receipt item details
+      let item = itemData;
+      if (!item && Array.isArray(receiptHistoryCachedLogs)) {
+        item = receiptHistoryCachedLogs.find(r => String(r.receiptNo || r.receipt_no) === String(receiptNo));
+      }
+      if (!item && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data: rcData } = await _supabase.from('receipts').select('*').eq('receipt_no', receiptNo).maybeSingle();
+          if (rcData) item = normalizeReceiptObject(rcData);
+        } catch (_) {}
+      }
+
+      if (lblSub && item) {
+        lblSub.textContent = `ผู้ชำระ: ${item.buyerName || '-'} | หลักสูตร: ${item.itemName || item.item_name || '-'}`;
+      }
+
+      // 2. Fetch Slip row from fee_settings
+      let slipRow = window._receiptSlipsMap ? window._receiptSlipsMap.get(String(receiptNo)) : null;
+      if (!slipRow && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data: fsData } = await _supabase.from('fee_settings').select('*').eq('key', 'receipt_slip:' + receiptNo).maybeSingle();
+          if (fsData) slipRow = fsData;
+          else if (item && item.buyerId) {
+            const { data: altFs } = await _supabase.from('fee_settings').select('*').or('key.eq.student_slip:' + item.buyerId + ',key.eq.pending_slip:' + item.buyerId).maybeSingle();
+            if (altFs) slipRow = altFs;
+          }
+        } catch (fsErr) {
+          console.warn('[openReceiptDetailViewer] slip fetch error:', fsErr);
+        }
+      }
+
+      // 3. Render Slip tab
+      if (slipRow && slipRow.name) {
+        let slipUrl = slipRow.name;
+        if (slipUrl.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(slipUrl);
+            slipUrl = parsed.slipUrl || parsed.slipPath || '';
+          } catch (_) {}
+        }
+        if (slipUrl && !slipUrl.startsWith('http') && !slipUrl.startsWith('data:image/') && typeof _supabase !== 'undefined' && _supabase?.storage) {
+          const pub = _supabase.storage.from('student-photos').getPublicUrl(slipUrl);
+          slipUrl = pub?.data?.publicUrl || slipUrl;
+        }
+
+        if (slipUrl && (slipUrl.startsWith('http') || slipUrl.startsWith('data:image/'))) {
+          if (imgSlip) {
+            imgSlip.src = slipUrl;
+            imgSlip.style.display = 'inline-block';
+          }
+          if (boxNoSlip) boxNoSlip.style.display = 'none';
+          if (badgeSlipStatus) {
+            badgeSlipStatus.style.display = 'inline-flex';
+            badgeSlipStatus.innerHTML = '<i class="fa-solid fa-circle-check"></i> มีสลิปคู่ใบเสร็จ (Verified)';
+          }
+          if (badgeSlipNotice) badgeSlipNotice.style.display = 'inline-block';
+        } else {
+          if (imgSlip) imgSlip.style.display = 'none';
+          if (boxNoSlip) boxNoSlip.style.display = 'block';
+          if (badgeSlipStatus) badgeSlipStatus.style.display = 'none';
+          if (badgeSlipNotice) badgeSlipNotice.style.display = 'none';
+        }
+
+        if (lblSlipRef) lblSlipRef.textContent = slipRow.mode || (item ? item.paymentRef : '') || 'ONLINE_VERIFIED';
+        if (lblSlipAmt) lblSlipAmt.textContent = '฿' + Number(slipRow.amount || (item ? item.grandTotal : 0)).toLocaleString('en-US', { minimumFractionDigits: 2 });
+      } else {
+        if (imgSlip) imgSlip.style.display = 'none';
+        if (boxNoSlip) boxNoSlip.style.display = 'block';
+        if (badgeSlipStatus) badgeSlipStatus.style.display = 'none';
+        if (badgeSlipNotice) badgeSlipNotice.style.display = 'none';
+        if (lblSlipRef) lblSlipRef.textContent = (item ? item.paymentRef : '') || '-';
+        if (lblSlipAmt) lblSlipAmt.textContent = '฿' + Number(item ? item.grandTotal : 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+      }
+
+      // 4. Render Receipt Dot-Matrix Tab
+      if (boxReceiptWrap) {
+        const previewEl = document.getElementById('viewContinuousReceipt');
+        if (previewEl) {
+          boxReceiptWrap.innerHTML = previewEl.innerHTML;
+        }
+      }
+
+      // 5. Switch to initial tab and show modal
+      switchReceiptViewerTab(initialTab);
+      modal.style.display = 'flex';
+    }
+
+    function closeReceiptDetailViewer() {
+      const modal = document.getElementById('modalReceiptDetailViewer');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function switchReceiptViewerTab(tab) {
+      const btnReceipt = document.getElementById('btnViewerTabReceipt');
+      const btnSlip = document.getElementById('btnViewerTabSlip');
+      const viewReceipt = document.getElementById('viewViewerTabReceipt');
+      const viewSlip = document.getElementById('viewViewerTabSlip');
+      if (!btnReceipt || !btnSlip || !viewReceipt || !viewSlip) return;
+
+      if (tab === 'slip') {
+        btnSlip.style.color = '#38bdf8';
+        btnSlip.style.background = 'rgba(56,189,248,0.15)';
+        btnSlip.style.borderBottom = '2px solid #38bdf8';
+        btnReceipt.style.color = '#94a3b8';
+        btnReceipt.style.background = 'transparent';
+        btnReceipt.style.borderBottom = '2px solid transparent';
+        viewReceipt.style.display = 'none';
+        viewSlip.style.display = 'block';
+      } else {
+        btnReceipt.style.color = '#fcd34d';
+        btnReceipt.style.background = 'rgba(215,166,0,0.15)';
+        btnReceipt.style.borderBottom = '2px solid #fcd34d';
+        btnSlip.style.color = '#94a3b8';
+        btnSlip.style.background = 'transparent';
+        btnSlip.style.borderBottom = '2px solid transparent';
+        viewReceipt.style.display = 'block';
+        viewSlip.style.display = 'none';
+      }
+    }
+
+    function printReceiptFromModal() {
+      if (typeof printReceipt === 'function') {
+        printReceipt();
+      }
+    }
+
+    function openSlipLightbox(src) {
+      if (!src) return;
+      window.open(src, '_blank');
+    }
+
+    window.openReceiptDetailViewer = openReceiptDetailViewer;
+    window.closeReceiptDetailViewer = closeReceiptDetailViewer;
+    window.switchReceiptViewerTab = switchReceiptViewerTab;
+    window.printReceiptFromModal = printReceiptFromModal;
+    window.openSlipLightbox = openSlipLightbox;
 
     // =========================================================================
 
@@ -61328,11 +61674,14 @@ function openForgotPasswordModal() {
             instructorCell = '<span style="color:#64748b; font-size:11px;">อาจารย์ประจำคอร์ส</span>';
           }
 
+          const hasSrSlip = (window._receiptSlipsMap && window._receiptSlipsMap.has(String(r.receiptNo || r.receipt_no))) || (r.paymentRef && (r.paymentRef.includes('SLIP') || r.paymentRef.includes('ONLINE')));
+          const srSlipBadge = hasSrSlip ? (' <span style="background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); padding:1px 5px; border-radius:4px; font-size:10px; font-weight:700; cursor:pointer; vertical-align:middle;" onclick="openReceiptDetailViewer(&#39;' + escapeHtml(r.receiptNo || r.receipt_no) + '&#39;, &#39;slip&#39;); event.stopPropagation();" title="ดูสลิปโอนเงิน"><i class="fa-solid fa-receipt"></i> สลิป</span>') : '';
+
           html +=
 
             '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">' +
 
-            '  <td style="padding:6px 6px; white-space:nowrap;"><strong style="font-family:monospace; color:var(--color-gold); cursor:pointer;" onclick="previewReceiptFromHistory(&#39;' + escapeHtml(r.receiptNo || r.receipt_no) + '&#39;)">' + rNo + '</strong>' + (termYear ? ('<div style="font-size:10px; color:#fbbf24;">' + termYear + '</div>') : '') + '</td>' +
+            '  <td style="padding:6px 6px; white-space:nowrap;"><strong style="font-family:monospace; color:var(--color-gold); cursor:pointer;" onclick="openReceiptDetailViewer(&#39;' + escapeHtml(r.receiptNo || r.receipt_no) + '&#39;, &#39;receipt&#39;)">' + rNo + '</strong>' + srSlipBadge + (termYear ? ('<div style="font-size:10px; color:#fbbf24;">' + termYear + '</div>') : '') + '</td>' +
 
             '  <td style="padding:6px 6px;">' + courseCell + '</td>' +
 
@@ -61346,7 +61695,7 @@ function openForgotPasswordModal() {
 
             '  <td style="padding:6px 6px; text-align:center; white-space:nowrap;">' +
 
-            '    <button type="button" class="oca-btn-icon-gold" style="padding:2px 6px; font-size:11.5px; border-radius:4px; background:rgba(215,166,0,0.12); border:1px solid rgba(215,166,0,0.3); color:var(--color-gold); cursor:pointer;" onclick="previewReceiptFromHistory(&#39;' + escapeHtml(r.receiptNo || r.receipt_no) + '&#39;)" title="ดูใบเสร็จ">' +
+            '    <button type="button" class="oca-btn-icon-gold" style="padding:2px 6px; font-size:11.5px; border-radius:4px; background:rgba(215,166,0,0.12); border:1px solid rgba(215,166,0,0.3); color:var(--color-gold); cursor:pointer;" onclick="openReceiptDetailViewer(&#39;' + escapeHtml(r.receiptNo || r.receipt_no) + '&#39;, &#39;receipt&#39;)" title="ดูใบเสร็จ">' +
 
             '      <i class="fa-solid fa-eye"></i>' +
 
@@ -61713,6 +62062,8 @@ function openForgotPasswordModal() {
 
       valRequiredTitle: 'กรุณากรอกข้อมูลให้ครบถ้วน',
 
+      valAddr: 'กรุณากรอกที่อยู่ จังหวัด และรหัสไปรษณีย์ให้ครบถ้วน',
+
       // Actions & Footer
 
       btnSubmit: 'บันทึกข้อมูลและส่งใบสมัคร',
@@ -61994,6 +62345,8 @@ function openForgotPasswordModal() {
 
       valRequiredTitle: 'Required Fields Incomplete',
 
+      valAddr: 'Please fill in address, province and postal code completely.',
+
       // Actions & Footer
 
       btnSubmit: 'Save & Submit Application',
@@ -62274,6 +62627,8 @@ function openForgotPasswordModal() {
       valSlipModalTitle: '需上传转账凭证',
 
       valRequiredTitle: '请填写完整必填信息',
+
+      valAddr: '请完整填写地址、省份和邮政编码。',
 
       // Actions & Footer
 
@@ -62797,10 +63152,10 @@ function openForgotPasswordModal() {
     function parseAndFillAddress(fullAddr) {
       if (!fullAddr) return;
       const addrLineEl = document.getElementById('txtPubAddrLine');
-      const subdistrictEl = document.getElementById('txtPubSubdistrict');
-      const districtEl = document.getElementById('txtPubDistrict');
-      const provinceEl = document.getElementById('txtPubProvince');
-      const postalEl = document.getElementById('txtPubPostalCode');
+      const subdistrictEl = document.getElementById('selPubSubdistrict') || document.getElementById('txtPubSubdistrict');
+      const districtEl = document.getElementById('selPubDistrict') || document.getElementById('txtPubDistrict');
+      const provinceEl = document.getElementById('selPubProvince') || document.getElementById('txtPubProvince');
+      const postalEl = document.getElementById('selPubPostalCode') || document.getElementById('txtPubPostalCode');
       if (addrLineEl && addrLineEl.value) return;
       const zipMatch = fullAddr.match(/\b\d{5}\b/);
 
@@ -63002,7 +63357,9 @@ function openForgotPasswordModal() {
 
         'txtPubPhone', 'txtPubEmergencyPhone', 'txtPubEmail', 'txtPubLineId',
 
-        'txtPubAddrLine', 'txtPubProvince', 'txtPubDistrict', 'txtPubSubdistrict', 'txtPubPostalCode',
+        'txtPubAddrLine', 'selPubProvince', 'selPubDistrict', 'selPubSubdistrict', 'selPubPostalCode',
+
+        'txtPubProvince', 'txtPubDistrict', 'txtPubSubdistrict', 'txtPubPostalCode',
 
         'selPubEducation', 'selPubCourse', 'selPubSchedule'
       ];
@@ -63426,7 +63783,9 @@ function openPublicRegisterView() {
 
         const val = c.name || c.code || c.id;
         const priceVal = c.price ? Number(c.price) : 2200;
-        htmlCourse += `<option value="${safeEscape(val)}" data-price="${priceVal}" data-course-id="${safeEscape(c.id || c.code)}">${safeEscape(label)}</option>`;
+        const discInfo = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(c) : null;
+        const discVal = (discInfo && discInfo.active) ? Number(discInfo.amount || 0) : 0;
+        htmlCourse += `<option value="${safeEscape(val)}" data-price="${priceVal}" data-discount="${discVal}" data-course-id="${safeEscape(c.id || c.code)}">${safeEscape(label)}</option>`;
       });
       selCourse.innerHTML = htmlCourse;
 
@@ -63576,6 +63935,23 @@ function openPublicRegisterView() {
             if (!error && Array.isArray(data) && data.length > 0) {
               coursesList = data;
               cachedCoursesList = data;
+              try {
+                const { data: dRows } = await _supabase.from('fee_settings').select('key, name, amount').like('key', 'course_disc_%');
+                if (dRows && Array.isArray(dRows)) {
+                  const dMap = {};
+                  dRows.forEach(f => {
+                    const cid = f.key.replace('course_disc_', '').trim();
+                    dMap[cid] = (f.amount !== undefined && f.amount !== null) ? Number(f.amount) : Number(f.name);
+                  });
+                  coursesList.forEach(c => {
+                    const cd = dMap[c.id] !== undefined ? dMap[c.id] : (dMap[c.code] !== undefined ? dMap[c.code] : null);
+                    if (cd !== null && !isNaN(cd)) {
+                      c.custom_discount_normal = cd;
+                      c.customDiscountNormal = cd;
+                    }
+                  });
+                }
+              } catch (_) {}
             }
           } catch (err) {
             console.warn('[Realtime Enrollment] Courses fetch fallback:', err);
@@ -63673,10 +64049,10 @@ function openPublicRegisterView() {
       const email = (document.getElementById('txtPubEmail')?.value || '').trim();
       const lineId = sanitizeInputText(document.getElementById('txtPubLineId')?.value || '');
       const addrLine = sanitizeInputText(document.getElementById('txtPubAddrLine')?.value || '');
-      const subdistrict = (document.getElementById('txtPubSubdistrict')?.value || '').trim();
-      const district = (document.getElementById('txtPubDistrict')?.value || '').trim();
-      const province = (document.getElementById('txtPubProvince')?.value || '').trim();
-      const postalCode = (document.getElementById('txtPubPostalCode')?.value || '').trim();
+      const subdistrict = (document.getElementById('selPubSubdistrict')?.value || document.getElementById('txtPubSubdistrict')?.value || '').trim();
+      const district = (document.getElementById('selPubDistrict')?.value || document.getElementById('txtPubDistrict')?.value || '').trim();
+      const province = (document.getElementById('selPubProvince')?.value || document.getElementById('txtPubProvince')?.value || '').trim();
+      const postalCode = (document.getElementById('selPubPostalCode')?.value || document.getElementById('txtPubPostalCode')?.value || '').trim();
       const selCourse = (document.getElementById('selPubCourse')?.value || '').trim();
       const selSchedule = (document.getElementById('selPubSchedule')?.value || '').trim();
       const userNotes = sanitizeInputText(document.getElementById('txtPubNotes')?.value || '');
@@ -63953,8 +64329,11 @@ function openPublicRegisterView() {
               }
 
               const regDisc = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(regCourseObj || selCourse) : null;
+              let regBaseFee = expectedFee;
+              let regDiscAmt = 0;
               if (regDisc && regDisc.active && regDisc.amount > 0) {
-                expectedFee = Math.max(0, expectedFee - regDisc.amount);
+                regDiscAmt = Number(regDisc.amount);
+                expectedFee = Math.max(0, expectedFee - regDiscAmt);
               }
 
               // 3. 5-Layer Anti-Fraud: Save Pending Verification & Record Anti-Replay Locks
@@ -63990,6 +64369,10 @@ function openPublicRegisterView() {
                     course: selCourse,
 
                     schedule: selSchedule,
+
+                    baseFee: regBaseFee,
+
+                    discountAmount: regDiscAmt,
 
                     expectedFee: expectedFee,
 
@@ -77172,6 +77555,28 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const corpBuyerName = isCorp ? (info.companyName + (info.companyBranch ? ' (' + info.companyBranch + ')' : ' (สำนักงานใหญ่)')) : (info.fullName || '');
         const corpBuyerAddress = isCorp ? (info.companyAddress || info.address || '-') : (info.address || '-');
         const corpPayRef = isCorp ? ((info.slipRef || 'ONLINE_SLIP_VERIFIED') + ' | [ผู้เรียน: ' + studentId + ' ' + (info.fullName || '') + ']') : (info.slipRef || 'ONLINE_SLIP_VERIFIED');
+
+        let appBaseFee = 0;
+        let appDiscFee = 0;
+        let appGrandTotal = 0;
+
+        if (info.baseFee !== undefined && info.discountAmount !== undefined) {
+          appBaseFee = Number(info.baseFee || 0);
+          appDiscFee = Number(info.discountAmount || 0);
+          appGrandTotal = Number(info.expectedFee || (appBaseFee - appDiscFee));
+        } else {
+          let cMatch = null;
+          if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
+            cMatch = cachedCoursesList.find(c => c.name === info.course || c.code === info.course || c.id === info.course);
+          }
+          const basePrice = cMatch ? Number(cMatch.price || 0) : Number(info.expectedFee || 4000);
+          const dObj = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(cMatch || info.course) : null;
+          const dAmt = (dObj && dObj.active) ? Number(dObj.amount || 0) : 0;
+          appBaseFee = basePrice;
+          appDiscFee = dAmt;
+          appGrandTotal = Number(info.expectedFee || Math.max(0, basePrice - dAmt));
+        }
+
         const rcPayload = {
           receiptNo: undefined,
 
@@ -77215,7 +77620,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
           learningMode: 'Online',
 
-          baseAmount: Number(info.expectedFee || 4000),
+          baseAmount: appBaseFee || Number(info.expectedFee || 4000),
 
           regFee: 0,
 
@@ -77225,17 +77630,47 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
           transferFee: 0,
 
-          discountNormal: 0,
+          discountNormal: appDiscFee,
 
           discountOther: 0,
 
-          grandTotal: Number(info.expectedFee || 4000),
+          grandTotal: appGrandTotal || Number(info.expectedFee || 4000),
 
           paymentMethod: 'TRANSFER',
 
           paymentRef: info.slipRef || 'ONLINE_SLIP_VERIFIED'
         };
         const rcRes = await callGasApi('saveReceipt', rcPayload, 'POST');
+
+        // Permanent Coupling: Upsert atomic receipt_slip key into fee_settings
+        if (rcRes && rcRes.receiptNo) {
+          let storageRelativePath = '';
+          if (info.slipUrl && typeof info.slipUrl === 'string') {
+            storageRelativePath = info.slipUrl.includes('/student-photos/') ? (info.slipUrl.split('/student-photos/')[1] || '').split('?')[0] : info.slipUrl;
+          }
+          if (!storageRelativePath && info.slipPath) storageRelativePath = info.slipPath;
+          if (!storageRelativePath) storageRelativePath = 'slips/slip_' + studentId + '.jpg';
+          storageRelativePath = String(storageRelativePath).slice(0, 90);
+
+          try {
+            await _supabase.from('fee_settings').upsert([{
+              key: 'receipt_slip:' + rcRes.receiptNo,
+              name: storageRelativePath,
+              amount: Number(appGrandTotal || info.expectedFee || rcPayload.grandTotal || 0),
+              mode: String(info.slipRef || 'ONLINE_VERIFIED').slice(0, 90),
+              updated_at: new Date().toISOString()
+            }]);
+            if (window._receiptSlipsMap) {
+              window._receiptSlipsMap.set(String(rcRes.receiptNo), {
+                name: storageRelativePath,
+                amount: Number(appGrandTotal || info.expectedFee || rcPayload.grandTotal || 0),
+                mode: String(info.slipRef || 'ONLINE_VERIFIED')
+              });
+            }
+          } catch (slipUpsertErr) {
+            console.warn('[approvePendingSlip] receipt_slip upsert error:', slipUpsertErr);
+          }
+        }
 
         // 3. Remove pending slip record from fee_settings
 
@@ -77460,7 +77895,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-74';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-75';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -77469,7 +77904,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-74):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-75):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
