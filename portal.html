@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '79';
+      var LATEST_VERSION = '80';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -15544,8 +15544,8 @@ body.printing-report #printReportContainer {
                 <table class="oca-table" style="width:100%; min-width:980px; border-collapse:collapse;" id="tblUsersList">
                   <thead>
                     <tr style="background:rgba(215,166,0,0.08); border-bottom:1px solid rgba(215,166,0,0.2);">
-                      <th style="padding:12px 16px; text-align:left; font-size:12.5px; color:var(--color-gold);">ชื่อผู้ใช้งาน / Username</th>
-                      <th style="padding:12px 16px; text-align:left; font-size:12.5px; color:var(--color-gold);">ชื่อ-นามสกุล</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12.5px; color:var(--color-gold); white-space:nowrap; min-width:140px;">ชื่อผู้ใช้งาน / Username</th>
+                      <th style="padding:12px 16px; text-align:left; font-size:12.5px; color:var(--color-gold); white-space:nowrap;">ชื่อ-นามสกุลเจ้าหน้าที่</th>
                       <th style="padding:12px 16px; text-align:center; font-size:12.5px; color:var(--color-gold);">ตำแหน่ง / Role</th>
                       <th style="padding:12px 16px; text-align:left; font-size:12.5px; color:var(--color-gold);">สิทธิ์เมนูที่ได้รับอนุญาต (Permissions)</th>
                       <th style="padding:12px 16px; text-align:center; font-size:12.5px; color:var(--color-gold);">Device ID ล่าสุด</th>
@@ -31704,6 +31704,7 @@ if (action === 'getDashboardStats') {
 
     function submitEnrollment(event) {
       if (event) event.preventDefault();
+      if (window._isSubmittingEnrollment) return;
       const yearBE = document.getElementById('selYear').value;
       const term = document.getElementById('selTerm').value;
       const citizenRaw = document.getElementById('citizenId').value.trim();
@@ -31877,10 +31878,12 @@ if (action === 'getDashboardStats') {
       };
       const btn = document.getElementById('btnSubmitForm');
       setButtonLoading(btn, true, 'กำลังบันทึกข้อมูลและอัปโหลดรูปภาพ...');
+      window._isSubmittingEnrollment = true;
 
       callGasApi('register', formData, 'POST')
 
         .then(async res => {
+          window._isSubmittingEnrollment = false;
           setButtonLoading(btn, false);
 
           if (res && res.isDuplicate) {
@@ -32165,6 +32168,7 @@ if (action === 'getDashboardStats') {
         })
 
         .catch(err => {
+          window._isSubmittingEnrollment = false;
           setButtonLoading(btn, false);
           showModal('เกิดข้อผิดพลาด', err.message || 'เครือข่ายขัดข้อง กรุณาลองใหม่อีกครั้ง', '❌');
         });
@@ -46360,7 +46364,8 @@ if (action === 'getDashboardStats') {
         const tuitionBadge = document.getElementById('badgeAmount_tuitionFee');
 
         if (tuitionBadge) {
-          tuitionBadge.innerHTML = `${baseAmount} ฿ <i class="fa-solid fa-lock" style="font-size:9px;"></i>`;
+          const fmtBase = Number(baseAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          tuitionBadge.innerHTML = `${fmtBase} ฿ <i class="fa-solid fa-lock" style="font-size:9px;"></i>`;
         }
       } else {
         const bookPrice = Math.max(0, Number(document.getElementById('inpRcptBookPrice')?.value) || 0);
@@ -54177,12 +54182,14 @@ if (action === 'getDashboardStats') {
     let _ministryRawStudents = [];
     let _ministryFilteredStudents = [];
 
-    function resolveMinistryNationality(cid, nat) {
+    function resolveMinistryNationality(cid, nat, fullName = '') {
       const sCid = String(cid || '').trim().replace(/[^0-9A-Za-z]/g, '');
       const sNat = String(nat || '').trim();
       if (sNat && (sNat === 'ไทย' || sNat.toLowerCase() === 'thai')) return 'ไทย';
       if (sNat && sNat !== 'ไทย') return sNat;
       if (sCid.length === 13 && /^[1-8]/.test(sCid)) return 'ไทย';
+      const hasThai = /[\u0E00-\u0E7F]/.test(fullName || '');
+      if (hasThai) return 'ไทย';
       return 'ต่างชาติ/จีน';
     }
 
@@ -54212,7 +54219,7 @@ if (action === 'getDashboardStats') {
         if (typeof _supabase !== 'undefined' && _supabase) {
           const [resSt, resRc] = await Promise.all([
             _supabase.from('students').select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at').order('student_id', { ascending: false }).limit(2000),
-            _supabase.from('receipts').select('student_id, item_name, receipt_no, created_at').order('created_at', { ascending: false }).limit(3000)
+            _supabase.from('receipts').select('student_id, item_name, receipt_no, created_at').order('created_at', { ascending: false }).limit(600)
           ]);
 
           if (resSt && Array.isArray(resSt.data)) students = resSt.data;
@@ -54254,13 +54261,20 @@ if (action === 'getDashboardStats') {
           const isGrad = checkMinistryGraduation(allCourses);
           const terminalCourse = allCourses.length > 0 ? allCourses[0] : (s.current_course || '-');
           const cleanCid = cid.replace(/[^0-9A-Za-z]/g, '');
-          const nationality = (cleanCid.length === 13 && /^[1-8]/.test(cleanCid)) ? 'ไทย' : 'ต่างชาติ/จีน';
+          const hasThaiName = /[\u0E00-\u0E7F]/.test(s.full_name || '');
+          const nationality = (cleanCid.length === 13 && /^[1-8]/.test(cleanCid)) ? 'ไทย' : (hasThaiName ? 'ไทย' : 'ต่างชาติ/จีน');
+
+          let cleanFullName = (s.full_name || '').trim();
+          const pref = (s.prefix || '').trim();
+          if (pref && cleanFullName.startsWith(pref)) {
+            cleanFullName = cleanFullName.slice(pref.length).trim();
+          }
 
           personMap.set(dedupeKey, {
             studentId: sid,
             citizenId: cid || '-',
-            prefix: s.prefix || '',
-            fullName: s.full_name || '',
+            prefix: pref,
+            fullName: cleanFullName,
             nationality: nationality,
             terminalCourse: terminalCourse,
             allCourses: allCourses,
@@ -60062,7 +60076,7 @@ function openForgotPasswordModal() {
         html += `
 
           <tr style="border-bottom:1px solid rgba(255,255,255,0.05); hover:background:rgba(255,255,255,0.02);">
-            <td style="padding:12px 16px;">
+            <td style="padding:12px 16px; white-space:nowrap; min-width:140px;">
               <div style="display:flex; align-items:center; gap:8px;">
 
                 ${(() => {
@@ -68919,6 +68933,7 @@ function openPublicRegisterView() {
         "ชื่อ-นามสกุล / รหัสนักศึกษา": "姓名 / 学号",
         "ชื่อ-นามสกุล ผู้ซื้อ *": "付款人姓名 *",
         "ชื่อ-นามสกุล ผู้เรียน หรือ ผู้ซื้อ": "学员姓名或缴费人",
+        "ชื่อ-นามสกุลเจ้าหน้าที่": "教职工姓名",
         "ชื่อครู": "教师姓名",
         "ชื่อครูผู้สอน": "任课教师",
         "ชื่อคอร์สและระดับ": "课程名称与级别",
@@ -70156,6 +70171,7 @@ function openPublicRegisterView() {
         "ชื่อ-นามสกุล / รหัสนักศึกษา": "Name / Student ID",
         "ชื่อ-นามสกุล ผู้ซื้อ *": "Payer Name *",
         "ชื่อ-นามสกุล ผู้เรียน หรือ ผู้ซื้อ": "Student / Payer Name",
+        "ชื่อ-นามสกุลเจ้าหน้าที่": "Staff Name",
         "ชื่อครู": "Teacher Name",
         "ชื่อครูผู้สอน": "Instructor Name",
         "ชื่อคอร์สและระดับ": "Course Name & Level",
@@ -78840,7 +78856,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=79';
+      const swPath = basePath + 'sw.js?v=80';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -78849,7 +78865,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (79):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (80):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
