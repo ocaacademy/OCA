@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-73';
+      var LATEST_VERSION = 'oca-pwa-v358-74';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -31702,11 +31702,12 @@ if (action === 'getDashboardStats') {
                       createdAt: new Date().toISOString()
                     };
 
-                    await _supabase.from('fee_settings').upsert([
+                    const safeSlipName = String(pendingRecord.slipRef || 'SLIP_' + savedStudentId).slice(0, 80);
+                    const pendingRows = [
                       {
                         key: 'pending_slip:' + savedStudentId,
 
-                        name: JSON.stringify(pendingRecord),
+                        name: safeSlipName,
 
                         amount: calculatedCourseFee,
 
@@ -31714,7 +31715,21 @@ if (action === 'getDashboardStats') {
 
                         updated_at: new Date().toISOString()
                       }
-                    ]);
+                    ];
+                    if (uploadedSlipUrl) {
+                      pendingRows.push({
+                        key: 'pending_slip_url:' + savedStudentId,
+
+                        name: String(uploadedSlipUrl).slice(0, 90),
+
+                        amount: 1,
+
+                        mode: 'SLIP_URL',
+
+                        updated_at: new Date().toISOString()
+                      });
+                    }
+                    await _supabase.from('fee_settings').upsert(pendingRows);
 
                     if (typeof loadPendingSlipsQueue === 'function') {
                       loadPendingSlipsQueue();
@@ -46465,8 +46480,10 @@ if (action === 'getDashboardStats') {
       let cardFee = 0;
       let otherRegFee = 0;
       let transferFee = 0;
-      let normalDiscount = Math.max(0, Number(document.getElementById('inpRcptDiscountNormal')?.value) || 0);
-      let otherDiscount = Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || 0);
+      const chkNorm = document.getElementById('chkRcptApplyDiscountNormal');
+      const chkOther = document.getElementById('chkRcptApplyDiscountOther');
+      let normalDiscount = (chkNorm && chkNorm.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountNormal')?.value) || 0) : 0;
+      let otherDiscount = (chkOther && chkOther.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || Number(document.getElementById('inpRcptDiscount')?.value) || 0) : 0;
 
       if (receiptCurrentType === 'tuition') {
         const selC = document.getElementById('selRcptCourse');
@@ -64178,9 +64195,7 @@ function openPublicRegisterView() {
 
               .select('current_course, year_be, term')
 
-              .gte('student_id', tPrefix + '0000')
-
-              .lt('student_id', nextTPrefix + '0000')
+              .or(`term.eq.${termNo},student_id.gte.${tPrefix}0000`)
 
               .limit(500);
 
@@ -64520,17 +64535,18 @@ function openPublicRegisterView() {
 
             .limit(500);
 
-          // 2. Query students registered in this term
+          // 2. Query students registered in this term (including returning/renewal students)
 
-          const { data: stData } = await _supabase.from('students')
-
-            .select('student_id, prefix, full_name, current_course, current_schedule, year_be, term, status')
-
-            .gte('student_id', tPrefix + '0000')
-
-            .lt('student_id', nextTPrefix + '0000')
-
-            .limit(500);
+          let stQuery = _supabase.from('students')
+            .select('student_id, prefix, full_name, current_course, current_schedule, year_be, term, status');
+          const rcSids = (Array.isArray(rcData) && rcData.length > 0) ? rcData.map(r => String(r.student_id || '').trim()).filter(Boolean) : [];
+          if (rcSids.length > 0) {
+            const sidChunk = rcSids.slice(0, 80).join(',');
+            stQuery = stQuery.or(`student_id.in.(${sidChunk}),term.eq.${termNo},student_id.gte.${tPrefix}0000`);
+          } else {
+            stQuery = stQuery.or(`term.eq.${termNo},student_id.gte.${tPrefix}0000`);
+          }
+          const { data: stData } = await stQuery.limit(500);
 
           // Build student info lookup map from stData
 
@@ -71961,8 +71977,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               .limit(500),
             _supabase.from('students')
               .select('student_id, prefix, full_name, current_schedule, current_course, photo_url')
-              .gte('student_id', tPrefix + '0000')
-              .lt('student_id', nextTPrefix + '0000')
+              .or(`term.eq.${tNo},student_id.gte.${tPrefix}0000`)
               .limit(500)
           ]);
           const rcData = rcRes?.data || [];
@@ -72614,11 +72629,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
       try {
         if (typeof _supabase !== 'undefined' && _supabase && typeof _supabase.channel === 'function') {
-          _supabase.channel('oca_teacher_contacts_realtime_feed')
-
+          if (window._activeTeacherContactsChannel) {
+            try { _supabase.removeChannel(window._activeTeacherContactsChannel); } catch (_) {}
+          }
+          window._activeTeacherContactsChannel = _supabase.channel('oca_teacher_contacts_realtime_feed')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => debounceSync())
-
             .subscribe();
+          window._activeOcaChannel = window._activeTeacherContactsChannel;
         }
       } catch (_) {}
 
@@ -74543,17 +74560,17 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
       try {
         if (typeof _supabase !== 'undefined' && _supabase && typeof _supabase.channel === 'function') {
-          _supabase.channel('oca_attendance_realtime_feed')
-
+          if (window._activeAttendanceChannel) {
+            try { _supabase.removeChannel(window._activeAttendanceChannel); } catch (_) {}
+          }
+          window._activeAttendanceChannel = _supabase.channel('oca_attendance_realtime_feed')
             .on('broadcast', { event: 'teacher_attendance_updated' }, () => triggerRealtimeRefresh())
-
             /* teacher_attendance realtime bypassed */
-
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security_audit_logs' }, (payload) => {
               if (payload?.new?.action === 'TEACHER_ATTENDANCE_SAVED') triggerRealtimeRefresh();
             })
-
             .subscribe();
+          window._activeOcaChannel = window._activeAttendanceChannel;
         }
       } catch (_) {}
 
@@ -74788,9 +74805,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
             .select('current_course')
 
-            .gte('student_id', tPrefix + '0000')
-
-            .lt('student_id', nextTPrefix + '0000')
+            .or(`term.eq.${termNo},student_id.gte.${tPrefix}0000`)
 
             .limit(500);
 
@@ -74955,17 +74970,18 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
             .limit(500);
 
-          // 1.2 Query students registered for this term
+          // 1.2 Query students registered for this term (including returning/renewal students)
 
-          const { data: stData, error: stErr } = await _supabase.from('students')
-
-            .select('student_id, prefix, full_name, current_course, current_schedule, year_be, term')
-
-            .gte('student_id', tPrefix + '0000')
-
-            .lt('student_id', nextTPrefix + '0000')
-
-            .limit(500);
+          let stQuery = _supabase.from('students')
+            .select('student_id, prefix, full_name, current_course, current_schedule, year_be, term');
+          const rcGradeSids = (Array.isArray(rcData) && rcData.length > 0) ? rcData.map(r => String(r.student_id || '').trim()).filter(Boolean) : [];
+          if (rcGradeSids.length > 0) {
+            const sidChunk = rcGradeSids.slice(0, 80).join(',');
+            stQuery = stQuery.or(`student_id.in.(${sidChunk}),term.eq.${termNo},student_id.gte.${tPrefix}0000`);
+          } else {
+            stQuery = stQuery.or(`term.eq.${termNo},student_id.gte.${tPrefix}0000`);
+          }
+          const { data: stData, error: stErr } = await stQuery.limit(500);
 
           if (Array.isArray(stData)) {
             stData.forEach(s => {
@@ -75154,31 +75170,19 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
                (cName && (targetCourseClean.includes(cName) || cName.includes(targetCourseClean)));
       };
-      const scheduleMap = {
-        'SCH-01': 'วันจันทร์-พุธ 18.30-21.00 น.',
-
-        'SCH-02': 'วันอังคาร-พฤหัสบดี 18.30-21.00 น.',
-
-        'SCH-03': 'วันเสาร์ 09.00-12.00 น.',
-
-        'SCH-04': 'วันเสาร์ 13.00-16.00 น.',
-
-        'SCH-05': 'วันอาทิตย์ 09.00-12.00 น.',
-
-        'SCH-06': 'วันอาทิตย์ 13.00-16.00 น.',
-
-        'SCH-07': 'วันเสาร์ 16.30-19.30 น.',
-
-        'SCH-08': 'วันอาทิตย์ 16.30-19.30 น.'
-      };
       const isSchedMatch = (sched) => {
         if (schedFilter === 'ALL') return true;
         if (!sched) return false;
+        const canA = (typeof resolveCanonicalScheduleId === 'function') ? resolveCanonicalScheduleId(sched) : '';
+        const canB = (typeof resolveCanonicalScheduleId === 'function') ? resolveCanonicalScheduleId(schedFilter) : '';
+        if (canA && canB && canA === canB) return true;
         const sNorm = String(sched).trim();
-
+        const schedObj = (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES))
+          ? OFFICIAL_DEFAULT_SCHEDULES.find(o => o.id === schedFilter || o.code === schedFilter)
+          : null;
+        const officialText = schedObj ? (schedObj.name || schedObj.time || '') : '';
         return sNorm === schedFilter || sNorm.includes(schedFilter) || schedFilter.includes(sNorm) ||
-
-               (scheduleMap[schedFilter] && (sNorm.includes(scheduleMap[schedFilter]) || scheduleMap[schedFilter].includes(sNorm)));
+               (officialText && (sNorm.includes(officialText) || officialText.includes(sNorm)));
       };
 
       // Filter students by Course and Schedule
@@ -75252,7 +75256,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
         ? selSched.options[selSched.selectedIndex].textContent
 
-        : (schedFilter !== 'ALL' ? (scheduleMap[schedFilter] || schedFilter) : 'ทุกรอบเวลา');
+        : (schedFilter !== 'ALL' ? ((typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES) ? OFFICIAL_DEFAULT_SCHEDULES.find(o => o.id === schedFilter || o.code === schedFilter)?.name : null) || schedFilter) : 'ทุกรอบเวลา');
       const courseDisplay = (selCourse && selCourse.options[selCourse.selectedIndex] && selCourse.value !== 'ALL')
 
         ? selCourse.options[selCourse.selectedIndex].textContent
@@ -76900,8 +76904,39 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
           if (!error && Array.isArray(data)) {
             pendingList = data.map(r => {
-              try { return JSON.parse(r.name); } catch(_) { return null; }
+              try {
+                if (r.name && r.name.trim().startsWith('{')) return JSON.parse(r.name);
+              } catch (_) {}
+              const sid = (r.key || '').replace('pending_slip:', '');
+              return {
+                studentId: sid,
+                slipRef: r.name,
+                expectedFee: r.amount || 0,
+                status: r.mode || 'PENDING',
+                createdAt: r.updated_at
+              };
             }).filter(Boolean);
+
+            const missingSids = pendingList.filter(item => !item.fullName || item.fullName === '-').map(item => item.studentId);
+            if (missingSids.length > 0) {
+              try {
+                const { data: stRows } = await _supabase.from('students').select('student_id, prefix, full_name, phone_number, email, current_course, current_schedule, line_id').in('student_id', missingSids.slice(0, 50));
+                if (Array.isArray(stRows)) {
+                  const stMap = new Map(stRows.map(s => [String(s.student_id).trim(), s]));
+                  pendingList.forEach(item => {
+                    if (stMap.has(item.studentId)) {
+                      const s = stMap.get(item.studentId);
+                      item.fullName = item.fullName || (typeof formatStudentNameWithPrefix === 'function' ? formatStudentNameWithPrefix(s.prefix, s.full_name) : s.full_name) || '-';
+                      item.phone = item.phone || s.phone_number || '-';
+                      item.email = item.email || s.email || '';
+                      item.course = item.course || s.current_course || '-';
+                      item.schedule = item.schedule || s.current_schedule || '-';
+                      item.lineId = item.lineId || s.line_id || '';
+                    }
+                  });
+                }
+              } catch (_) {}
+            }
           }
         } catch (e) {
           console.warn('loadPendingSlipsQueue error:', e);
@@ -77096,7 +77131,27 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           return;
         }
 
-        const info = JSON.parse(fRow.name);
+        let info = {};
+        try {
+          if (fRow.name && fRow.name.trim().startsWith('{')) info = JSON.parse(fRow.name);
+          else info = { studentId: studentId, slipRef: fRow.name, expectedFee: fRow.amount };
+        } catch (_) {
+          info = { studentId: studentId, slipRef: fRow.name, expectedFee: fRow.amount };
+        }
+
+        if (!info.fullName || !info.course) {
+          try {
+            const { data: stRow } = await _supabase.from('students').select('*').eq('student_id', studentId).maybeSingle();
+            if (stRow) {
+              info.fullName = info.fullName || (typeof formatStudentNameWithPrefix === 'function' ? formatStudentNameWithPrefix(stRow.prefix, stRow.full_name) : stRow.full_name) || '';
+              info.phone = info.phone || stRow.phone_number || '';
+              info.email = info.email || stRow.email || '';
+              info.course = info.course || stRow.current_course || '';
+              info.schedule = info.schedule || stRow.current_schedule || '';
+              info.address = info.address || stRow.address || '';
+            }
+          } catch (_) {}
+        }
 
         // 1. Update Student status to ACTIVE
 
@@ -77190,7 +77245,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
           .delete()
 
-          .eq('key', 'pending_slip:' + studentId);
+          .or('key.eq.pending_slip:' + studentId + ',key.eq.pending_slip_url:' + studentId);
 
         if (typeof showToast === 'function') {
           showToast('อนุมัติสำเร็จ', `ออกใบเสร็จรับเงิน ${rcRes.receiptNo || ''} และส่งเข้าอีเมลเรียบร้อยแล้ว`, '✅', 4000);
@@ -77405,7 +77460,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-73';
+      const swPath = basePath + 'sw.js?v=oca-pwa-v358-74';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -77414,7 +77469,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-73):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-74):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
