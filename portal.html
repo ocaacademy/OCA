@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '78';
+      var LATEST_VERSION = '79';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -25633,6 +25633,8 @@ if (action === 'getDashboardStats') {
           }
         }
 
+          stList = (stList || []).filter(s => s && s.status !== 'DELETED' && !String(s.notes || '').includes('[DELETED_ARCHIVE]'));
+
           if (!stList || stList.length === 0) {
             return {
               success: true,
@@ -26144,7 +26146,7 @@ if (action === 'getDashboardStats') {
             const safeQ = rawQ.replace(/[,()"]/g, ' ').trim();
             const cleanQ = safeQ.replace(/[^0-9A-Za-z]/g, '');
             const isDigits = /^\d+$/.test(cleanQ);
-            let qb = _supabase.from('students').select(REPORT_STUDENT_COLS);
+            let qb = _supabase.from('students').select(REPORT_STUDENT_COLS).neq('status', 'DELETED');
 
             if (isDigits) {
               if (cleanQ.length === 7) {
@@ -26179,6 +26181,8 @@ if (action === 'getDashboardStats') {
 
               .select(REPORT_STUDENT_COLS)
 
+              .neq('status', 'DELETED')
+
               .gte('student_id', '6900000')
 
               .lt('student_id', '7000000')
@@ -26205,6 +26209,8 @@ if (action === 'getDashboardStats') {
             const { data: recentStudents } = await _supabase.from('students')
 
               .select(REPORT_STUDENT_COLS)
+
+              .neq('status', 'DELETED')
 
               .gte('student_id', minId)
 
@@ -26248,7 +26254,7 @@ if (action === 'getDashboardStats') {
             } catch (_) {}
           }
 
-          let list = stList || [];
+          let list = (stList || []).filter(s => s && s.status !== 'DELETED' && !String(s.notes || '').includes('[DELETED_ARCHIVE]'));
 
           if (params && params.year && params.year !== 'ALL') {
             const targetYear = Number(params.year);
@@ -27461,17 +27467,21 @@ if (action === 'getDashboardStats') {
           let isSoftDeleted = false;
 
           if (studentRecord) {
+            const stIdToDel = studentRecord.id || null;
+            const primaryDelBuilder = stIdToDel ? _supabase.from('students').delete().eq('id', stIdToDel) : _supabase.from('students').delete().eq('student_id', sId);
             try {
-              const { error: delErr } = await _supabase.from('students').delete().eq('student_id', sId);
+              const { error: delErr } = await primaryDelBuilder;
               if (delErr) {
                 const errStr = JSON.stringify(delErr) + ' ' + (delErr.message || '') + ' ' + (delErr.code || '');
                 if (delErr.code === '57014' || /57014|timeout|statement_timeout|foreign\s*key|violat/i.test(errStr)) {
                   console.warn('deleteStudent hard delete failed (timeout/FK), executing soft-delete fallback:', delErr);
-                  const { error: softErr } = await _supabase.from('students').update({
+                  const softPayload = {
                     status: 'DELETED',
                     notes: (studentRecord && studentRecord.notes ? studentRecord.notes + ' ' : '') + '[DELETED_ARCHIVE]',
                     updated_at: new Date().toISOString()
-                  }).eq('student_id', sId);
+                  };
+                  const softBuilder = stIdToDel ? _supabase.from('students').update(softPayload).eq('id', stIdToDel) : _supabase.from('students').update(softPayload).eq('student_id', sId);
+                  const { error: softErr } = await softBuilder;
                   if (softErr) throw softErr;
                   deletedStudent = true;
                   isSoftDeleted = true;
@@ -27485,11 +27495,13 @@ if (action === 'getDashboardStats') {
               const errStr = String(delCatchErr && (delCatchErr.message || delCatchErr.code || delCatchErr));
               if (delCatchErr.code === '57014' || /57014|timeout|statement_timeout/i.test(errStr)) {
                 console.warn('deleteStudent caught timeout exception, executing soft-delete fallback:', delCatchErr);
-                const { error: softErr } = await _supabase.from('students').update({
+                const softPayload = {
                   status: 'DELETED',
                   notes: (studentRecord && studentRecord.notes ? studentRecord.notes + ' ' : '') + '[DELETED_ARCHIVE]',
                   updated_at: new Date().toISOString()
-                }).eq('student_id', sId);
+                };
+                const softBuilder = stIdToDel ? _supabase.from('students').update(softPayload).eq('id', stIdToDel) : _supabase.from('students').update(softPayload).eq('student_id', sId);
+                const { error: softErr } = await softBuilder;
                 if (softErr) throw softErr;
                 deletedStudent = true;
                 isSoftDeleted = true;
@@ -33162,7 +33174,7 @@ if (action === 'getDashboardStats') {
 
       const selDel = document.getElementById('selSearchDelivery')?.value || 'ALL';
       const selStatus = document.getElementById('selSearchStatus')?.value || 'ALL';
-      let filtered = (cachedSearchStudentsData || []).slice();
+      let filtered = (cachedSearchStudentsData || []).filter(s => s && s.status !== 'DELETED' && !String(s.notes || '').includes('[DELETED_ARCHIVE]'));
 
       // 1. กรองตามปีการศึกษา (ค่าเริ่มต้น: แสดงเฉพาะปีล่าสุด 2569 เสมอ)
 
@@ -34684,7 +34696,10 @@ if (action === 'getDashboardStats') {
                 showToast('ลบข้อมูลเรียบร้อย', res.message || '', '✅');
                 closeEditStudentModal();
                 closeStudentDetailCard();
-                cachedSearchStudentsData = [];
+                cachedSearchStudentsData = (cachedSearchStudentsData || []).filter(s => s && s.studentId !== studentId && s.id !== studentId);
+                if (typeof filterAndRenderSearchStudents === 'function') {
+                  filterAndRenderSearchStudents();
+                }
                 loadAllStudentsStatus(true);
 
                 try { loadDashData(); } catch(_) {}
@@ -43440,11 +43455,13 @@ if (action === 'getDashboardStats') {
 
         .then(res => {
           let students = (res && res.students) || [];
+          students = students.filter(s => s && s.status !== 'DELETED' && !String(s.notes || '').includes('[DELETED_ARCHIVE]'));
 
           if (students.length === 0 && Array.isArray(cachedSearchStudentsData) && cachedSearchStudentsData.length > 0) {
             const cleanQ = q.replace(/[^0-9A-Za-z]/g, '').toLowerCase();
 
             students = cachedSearchStudentsData.filter(s => {
+              if (s.status === 'DELETED' || String(s.notes || '').includes('[DELETED_ARCHIVE]')) return false;
               const card = (s.smartCardUid || '').replace(/[^0-9A-Za-z]/g, '').toLowerCase();
               const sid = (s.studentId || '').toLowerCase();
               const cid = (s.citizenId || '').toLowerCase();
@@ -78823,7 +78840,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=78';
+      const swPath = basePath + 'sw.js?v=79';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -78832,7 +78849,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (78):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (79):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
