@@ -9266,7 +9266,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = 'oca-pwa-v358-76';
+      var LATEST_VERSION = '77';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -25097,26 +25097,35 @@ if (action === 'getDashboardStats') {
           const rawQ = (params.query || params.citizenId || params.phone || '').trim();
           const q = rawQ.replace(/[,()"]/g, ' ').trim();
           if (!q) return { success: true, found: false, isDuplicate: false, duplicates: [] };
-            const cleanQ = q.replace(/[^0-9A-Za-z]/g, '');
-            const isDigits = /^\d+$/.test(cleanQ);
-            const orList = [];
+          const cleanQ = q.replace(/[^0-9A-Za-z]/g, '');
+          const isDigits = /^\d+$/.test(cleanQ);
+          const orList = [];
 
-            if (isDigits) {
-              if (cleanQ.length <= 7 && Number(cleanQ) <= 2147483647) orList.push(`student_id.eq.${cleanQ}`);
-              if (cleanQ.length === 13) orList.push(`citizen_id.eq.${cleanQ}`);
-              if (cleanQ.length >= 9) orList.push(`phone_number.eq.${cleanQ}`);
-              if (cleanQ.length >= 7) orList.push(`smart_card_uid.eq.${cleanQ}`);
-            } else {
-              if (q.length >= 3) orList.push(`full_name.ilike.%${q}%`);
+          if (isDigits) {
+            if (cleanQ.length <= 7 && Number(cleanQ) <= 2147483647) orList.push(`student_id.eq.${cleanQ}`);
+            if (cleanQ.length === 13) orList.push(`citizen_id.eq.${cleanQ}`);
+            if (cleanQ.length >= 9) orList.push(`phone_number.eq.${cleanQ}`);
+            if (cleanQ.length >= 7) orList.push(`smart_card_uid.eq.${cleanQ}`);
+          } else {
+            // Guard against unindexed wildcard ILIKE scans across 94k+ rows (prevents PG 57014 timeout)
+            if (action !== 'checkStudentDuplicate' && q.length >= 4) {
+              orList.push(`full_name.eq.${q}`);
             }
+          }
 
-            const { data: found } = await _supabase.from('students')
+          if (orList.length === 0) {
+            return { success: true, found: false, isDuplicate: false, duplicates: [] };
+          }
 
-              .select('student_id, full_name, citizen_id, phone_number, smart_card_uid')
-
-              .or(orList.length > 0 ? orList.join(',') : ((cleanQ.length <= 7 && Number(cleanQ) <= 2147483647) ? `student_id.eq.${cleanQ}` : (cleanQ.length === 13 ? `citizen_id.eq.${cleanQ}` : `phone_number.eq.${cleanQ}`)))
-
+          const { data: found, error: foundErr } = await _supabase.from('students')
+            .select('student_id, full_name, citizen_id, phone_number, smart_card_uid')
+            .or(orList.join(','))
             .limit(5);
+
+          if (foundErr) {
+            console.warn('checkStudentDuplicate/checkStatus query error:', foundErr);
+            return { success: false, found: false, isDuplicate: false, duplicates: [], error: foundErr.message };
+          }
           const hasMatches = !!(found && found.length > 0);
           const st = hasMatches ? found[0] : null;
 
@@ -54157,8 +54166,7 @@ if (action === 'getDashboardStats') {
       if (sNat && (sNat === 'ไทย' || sNat.toLowerCase() === 'thai')) return 'ไทย';
       if (sNat && sNat !== 'ไทย') return sNat;
       if (sCid.length === 13 && /^[1-8]/.test(sCid)) return 'ไทย';
-      if (sCid.startsWith('0') || sCid.startsWith('G') || /[A-Za-z]/.test(sCid)) return 'จีน / ต่างชาติ';
-      return 'ไทย';
+      return 'ต่างชาติ/จีน';
     }
 
     function checkMinistryGraduation(coursesList) {
@@ -54186,8 +54194,8 @@ if (action === 'getDashboardStats') {
 
         if (typeof _supabase !== 'undefined' && _supabase) {
           const [resSt, resRc] = await Promise.all([
-            _supabase.from('students').select('student_id, prefix, full_name, citizen_id, nationality, current_course, current_schedule, status, is_active, created_at').order('student_id', { ascending: false }).limit(2000),
-            _supabase.from('receipts').select('student_id, course_name, item_name, receipt_no, created_at').order('created_at', { ascending: false }).limit(3000)
+            _supabase.from('students').select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at').order('student_id', { ascending: false }).limit(2000),
+            _supabase.from('receipts').select('student_id, item_name, receipt_no, created_at').order('created_at', { ascending: false }).limit(3000)
           ]);
 
           if (resSt && Array.isArray(resSt.data)) students = resSt.data;
@@ -54197,7 +54205,7 @@ if (action === 'getDashboardStats') {
         const studentCoursesMap = new Map();
         receipts.forEach(r => {
           const sid = String(r.student_id || '').trim();
-          const cName = r.course_name || r.item_name || '';
+          const cName = r.item_name || '';
           if (sid && cName) {
             if (!studentCoursesMap.has(sid)) studentCoursesMap.set(sid, []);
             studentCoursesMap.get(sid).push(cName);
@@ -54228,7 +54236,8 @@ if (action === 'getDashboardStats') {
           const allCourses = Array.from(new Set(history));
           const isGrad = checkMinistryGraduation(allCourses);
           const terminalCourse = allCourses.length > 0 ? allCourses[0] : (s.current_course || '-');
-          const nationality = resolveMinistryNationality(cid, s.nationality);
+          const cleanCid = cid.replace(/[^0-9A-Za-z]/g, '');
+          const nationality = (cleanCid.length === 13 && /^[1-8]/.test(cleanCid)) ? 'ไทย' : 'ต่างชาติ/จีน';
 
           personMap.set(dedupeKey, {
             studentId: sid,
@@ -64164,13 +64173,11 @@ function openForgotPasswordModal() {
         }
       }
 
-      // 4. Check via backend API
-
-      const queryTerm = cleanCid || rawName;
-      if (!queryTerm || queryTerm.length < 4) return;
+      // 4. Check via backend API (Citizen ID only - 13 digits)
+      if (!cleanCid || cleanCid.length !== 13) return;
 
       try {
-        const res = await callGasApi('checkStudentDuplicate', { query: queryTerm, citizenId: cleanCid }, 'POST');
+        const res = await callGasApi('checkStudentDuplicate', { query: cleanCid, citizenId: cleanCid }, 'POST');
 
         if (res && res.found && res.student) {
           restorePublicRegisterFromDraft(res, `ข้อมูลประวัติผู้สมัครเดิมในระบบ (รหัส: ${toArabicDigits(res.studentId || '')})`);
@@ -78816,7 +78823,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=oca-pwa-v358-76';
+      const swPath = basePath + 'sw.js?v=77';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -78825,7 +78832,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (oca-pwa-v358-76):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (77):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
