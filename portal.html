@@ -9276,7 +9276,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '85';
+      var LATEST_VERSION = '86';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -9459,7 +9459,7 @@ body.printing-report #printReportContainer {
                     </div>
 
                     <!-- Subtle Gold Divider -->
-                    <div style="border-top:1px dashed rgba(215,166,0,0.18); margin:6px 4px;"></div>
+                    <div id="dividerSubcatCourses" style="border-top:1px dashed rgba(215,166,0,0.18); margin:6px 4px;"></div>
                     <!-- Fixed Functional Modules -->
                     <button type="button" class="oca-sub-item-btn" id="btnSubCoursesSchedules" onclick="navigateToSubCourse('schedules', this)">
                       <svg width="14" height="14" viewBox="0 0 24 24" style="margin-right:2px; flex-shrink:0;"><rect width="24" height="24" rx="5" fill="#022c22"/><circle cx="12" cy="12" r="7" stroke="#E5D3B3" stroke-width="2" fill="none"/><polyline points="12,8 12,12 15,14" stroke="#D4B996" stroke-width="2" stroke-linecap="round"/></svg>
@@ -28684,6 +28684,21 @@ if (action === 'getDashboardStats') {
     // View Navigation
 
     function switchTextbooksSubTab(subTab) {
+      const validTabs = ['scanner', 'catalog'];
+      if (!subTab || !validTabs.includes(subTab)) subTab = 'scanner';
+
+      if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('textbooks', subTab)) {
+        const fallback = (typeof getFirstPermittedSubmenu === 'function') ? getFirstPermittedSubmenu('textbooks') : null;
+        if (!fallback) {
+          if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าใช้งานเมนูย่อยตำราเรียน', '⚠️');
+          const nextNav = (typeof getFirstPermittedNavKey === 'function') ? getFirstPermittedNavKey() : 'teacher';
+          if (nextNav && nextNav !== 'textbooks') switchNav(nextNav);
+          return;
+        }
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'สลับไปยังเมนูย่อยที่คุณมีสิทธิ์', '⚠️');
+        subTab = fallback;
+      }
+
       const btnScan = document.getElementById('btnTbSubnavScanner');
       const btnCat = document.getElementById('btnTbSubnavCatalog');
       const subBtnScan = document.getElementById('btnSubTbScanner');
@@ -28721,6 +28736,10 @@ if (action === 'getDashboardStats') {
      * @param {HTMLElement} [btnEl]
      */
     function navigateToTextbooksSubTab(subTab, btnEl) {
+      if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('textbooks', subTab)) {
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าใช้งานเมนูย่อยนี้', '⚠️');
+        return;
+      }
       switchNav('textbooks');
       toggleSidebarSubcat('subcatTextbooks', true);
       if (typeof switchTextbooksSubTab === 'function') {
@@ -28880,6 +28899,18 @@ if (action === 'getDashboardStats') {
         targetView = 'catalog';
       }
 
+      if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('courses', targetView)) {
+        const fallback = (typeof getFirstPermittedSubmenu === 'function') ? getFirstPermittedSubmenu('courses') : null;
+        if (!fallback) {
+          if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าใช้งานเมนูย่อยของหลักสูตร', '⚠️');
+          const nextNav = (typeof getFirstPermittedNavKey === 'function') ? getFirstPermittedNavKey() : 'teacher';
+          if (nextNav && nextNav !== 'courses') switchNav(nextNav);
+          return;
+        }
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'สลับไปยังเมนูย่อยที่คุณมีสิทธิ์', '⚠️');
+        targetView = fallback;
+      }
+
       try {
         localStorage.setItem('oca_last_active_course_subview', targetView);
       } catch (_) {}
@@ -29029,6 +29060,12 @@ if (action === 'getDashboardStats') {
     function renderSidebarCourseCategories() {
       const container = document.getElementById('sidebarCourseCategoriesContainer');
       if (!container) return;
+      if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('courses', 'catalog')) {
+        container.innerHTML = '';
+        container.style.display = 'none';
+        return;
+      }
+      container.style.display = '';
       const lang = window._currentSystemLang || 'th';
       const currentCat = window._activeCourseCategoryFilter || 'ทั้งหมด';
       const lastSubview = localStorage.getItem('oca_last_active_course_subview') || 'catalog';
@@ -29104,28 +29141,35 @@ if (action === 'getDashboardStats') {
      */
 
     function navigateToSubCourse(target, btnEl) {
-      switchNav('courses');
-      toggleSidebarSubcat('subcatCourses', true);
       let targetView = 'catalog';
 
       if (target === 'all' || target === 'tableCourses') {
         targetView = 'catalog';
-        const inp = document.getElementById('inpSearchCourses');
-
-        if (inp) {
-          inp.value = '';
-          if (typeof filterCoursesTable === 'function') filterCoursesTable('');
-        }
-
-        if (typeof filterCoursesByCategory === 'function') {
-          filterCoursesByCategory('ทั้งหมด');
-        }
       } else if (target === 'schedules' || target === 'tableSchedules') {
         targetView = 'schedules';
       } else if (target === 'classrooms' || target === 'boxClassroomsTableWrap') {
         targetView = 'classrooms';
       } else if (target === 'fees' || target === 'boxGeneralFeeSettings' || target === 'cardGeneralFeeSettings') {
         targetView = 'fees';
+      }
+
+      if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('courses', targetView)) {
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าใช้งานเมนูย่อยนี้', '⚠️');
+        return;
+      }
+
+      switchNav('courses');
+      toggleSidebarSubcat('subcatCourses', true);
+
+      if (targetView === 'catalog') {
+        const inp = document.getElementById('inpSearchCourses');
+        if (inp) {
+          inp.value = '';
+          if (typeof filterCoursesTable === 'function') filterCoursesTable('');
+        }
+        if (typeof filterCoursesByCategory === 'function') {
+          filterCoursesByCategory('ทั้งหมด');
+        }
       }
 
       switchCourseSubView(targetView);
@@ -29139,16 +29183,15 @@ if (action === 'getDashboardStats') {
     window.navigateToSubCourse = navigateToSubCourse;
 
     /**
-
      * เมนูย่อยคอร์สเรียนแยกตามระดับ/หมวดหมู่: กรองตารางคอร์สเรียนทันที
-
      * @param {string} categoryName
-
      * @param {HTMLElement} [btnEl]
-
      */
-
     function navigateToSubCourseCategory(categoryName, btnEl) {
+      if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('courses', 'catalog')) {
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าใช้งานหมวดหมู่คอร์สเรียน', '⚠️');
+        return;
+      }
       switchNav('courses');
       toggleSidebarSubcat('subcatCourses', true);
       switchCourseSubView('catalog', categoryName);
@@ -29176,6 +29219,11 @@ if (action === 'getDashboardStats') {
      */
 
     function navigateToFinancialTab(tabNum, btnEl) {
+      const subKey = (tabNum === 1 || tabNum === '1') ? 'pending' : 'summary';
+      if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('financial', subKey)) {
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าใช้งานเมนูย่อยนี้', '⚠️');
+        return;
+      }
       switchNav('financial');
       toggleSidebarSubcat('subcatFinancial', true);
 
@@ -29190,16 +29238,16 @@ if (action === 'getDashboardStats') {
     window.navigateToFinancialTab = navigateToFinancialTab;
 
     /**
-
-     * เมนูย่อยรายงานและสถิติ: สลับไปยัง 1 ใน 7 รายงาน
-
+     * เมนูย่อยรายงานและสถิติ: สลับไปยัง 1 ใน 8 รายงาน
      * @param {string} subTab
-
      * @param {HTMLElement} [btnEl]
-
      */
-
     function navigateToReportSubTab(subTab, btnEl) {
+      const checkKey = (subTab === 'roster') ? 'classroom' : subTab;
+      if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('report', checkKey)) {
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าใช้งานรายงานนี้', '⚠️');
+        return;
+      }
       switchNav('report');
       toggleSidebarSubcat('subcatReports', true);
 
@@ -29214,16 +29262,15 @@ if (action === 'getDashboardStats') {
     window.navigateToReportSubTab = navigateToReportSubTab;
 
     /**
-
      * เมนูย่อยตั้งค่าระบบ: สลับไปยังส่วนงานตั้งค่าที่ต้องการ
-
      * @param {string} subTab
-
      * @param {HTMLElement} [btnEl]
-
      */
-
     function navigateToSettingsSubTab(subTab, btnEl) {
+      if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('settings', subTab)) {
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าใช้งานเมนูย่อยนี้', '⚠️');
+        return;
+      }
       switchNav('settings');
       toggleSidebarSubcat('subcatSettings', true);
 
@@ -29471,11 +29518,13 @@ if (action === 'getDashboardStats') {
         activate('mobNavCourses');
 
         if (typeof switchCourseSubView === 'function') {
-          let targetSub = 'catalog';
+          let targetSub = (typeof getFirstPermittedSubmenu === 'function' ? getFirstPermittedSubmenu('courses') : null) || 'catalog';
 
           try {
             const savedSub = localStorage.getItem('oca_last_active_course_subview');
-            if (savedSub && ['catalog', 'schedules', 'classrooms', 'fees'].includes(savedSub)) targetSub = savedSub;
+            if (savedSub && ['catalog', 'schedules', 'classrooms', 'fees'].includes(savedSub) && (typeof hasSubmenuPermission !== 'function' || hasSubmenuPermission('courses', savedSub))) {
+              targetSub = savedSub;
+            }
           } catch (_) {}
 
           switchCourseSubView(targetSub);
@@ -29506,14 +29555,15 @@ if (action === 'getDashboardStats') {
         if (typeof window.loadPendingSlipsQueue === 'function') window.loadPendingSlipsQueue();
 
         if (typeof switchFinancialTab === 'function') {
-          let targetFin = 2;
+          let targetFin = (typeof hasSubmenuPermission === 'function' && hasSubmenuPermission('financial', 'summary')) ? 2 : ((typeof hasSubmenuPermission === 'function' && hasSubmenuPermission('financial', 'pending')) ? 1 : 2);
 
           try {
             const savedFin = localStorage.getItem('oca_last_active_financial_tab');
 
             if (savedFin) {
               const num = parseInt(savedFin, 10);
-              if (num === 1 || num === 2) targetFin = num;
+              const finKey = (num === 1) ? 'pending' : 'summary';
+              if ((num === 1 || num === 2) && (typeof hasSubmenuPermission !== 'function' || hasSubmenuPermission('financial', finKey))) targetFin = num;
             }
           } catch (_) {}
 
@@ -29523,10 +29573,10 @@ if (action === 'getDashboardStats') {
         activate('tabTextbooks');
         activate('btnNavTextbooks');
         activate('mobNavTextbooks');
-        let targetTbSub = 'scanner';
+        let targetTbSub = (typeof getFirstPermittedSubmenu === 'function' ? getFirstPermittedSubmenu('textbooks') : null) || 'scanner';
         try {
           const savedTb = localStorage.getItem('oca_last_active_textbooks_subtab');
-          if (savedTb && ['scanner', 'catalog'].includes(savedTb)) targetTbSub = savedTb;
+          if (savedTb && ['scanner', 'catalog'].includes(savedTb) && (typeof hasSubmenuPermission !== 'function' || hasSubmenuPermission('textbooks', savedTb))) targetTbSub = savedTb;
         } catch (_) {}
         if (typeof switchTextbooksSubTab === 'function') switchTextbooksSubTab(targetTbSub);
         if (typeof initTextbooksModule === 'function') initTextbooksModule();
@@ -29542,12 +29592,12 @@ if (action === 'getDashboardStats') {
         if (typeof refreshReportsModuleRealtime === 'function') refreshReportsModuleRealtime('all', true);
 
         if (typeof switchReportSubTab === 'function') {
-          const validReportSubTabs = ['classroom', 'teacher', 'checker', 'attendance-tracking', 'teacher-tracker', 'termtimetable', 'course-breakdown'];
-          let targetSub = 'classroom';
+          const validReportSubTabs = ['classroom', 'teacher', 'checker', 'attendance-tracking', 'teacher-tracker', 'termtimetable', 'course-breakdown', 'ministry'];
+          let targetSub = (typeof getFirstPermittedSubmenu === 'function' ? getFirstPermittedSubmenu('report') : null) || 'classroom';
 
           try {
             const savedSub = localStorage.getItem('oca_last_active_report_subtab');
-            if (savedSub && validReportSubTabs.includes(savedSub)) targetSub = savedSub;
+            if (savedSub && validReportSubTabs.includes(savedSub) && (typeof hasSubmenuPermission !== 'function' || hasSubmenuPermission('report', savedSub))) targetSub = savedSub;
           } catch (_) {}
 
           switchReportSubTab(targetSub);
@@ -29559,11 +29609,11 @@ if (action === 'getDashboardStats') {
         if (typeof initSettingsModule === 'function') initSettingsModule();
 
         if (typeof switchSettingsSubTab === 'function') {
-          let targetSetSub = 'users';
+          let targetSetSub = (typeof getFirstPermittedSubmenu === 'function' ? getFirstPermittedSubmenu('settings') : null) || 'users';
 
           try {
             const savedSet = localStorage.getItem('oca_last_active_settings_subtab');
-            if (savedSet && ['users', 'audit', 'device'].includes(savedSet)) targetSetSub = savedSet;
+            if (savedSet && ['users', 'audit', 'device'].includes(savedSet) && (typeof hasSubmenuPermission !== 'function' || hasSubmenuPermission('settings', savedSet))) targetSetSub = savedSet;
           } catch (_) {}
 
           switchSettingsSubTab(targetSetSub);
@@ -55290,6 +55340,19 @@ if (action === 'getDashboardStats') {
       const validReportSubTabs = ['classroom', 'teacher', 'checker', 'attendance-tracking', 'teacher-tracker', 'roster', 'termtimetable', 'course-breakdown', 'ministry'];
       if (!subTab || !validReportSubTabs.includes(subTab)) subTab = 'classroom';
 
+      const checkKey = (subTab === 'roster') ? 'classroom' : subTab;
+      if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('report', checkKey)) {
+        const fallback = (typeof getFirstPermittedSubmenu === 'function') ? getFirstPermittedSubmenu('report') : null;
+        if (!fallback) {
+          if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าใช้งานเมนูย่อยรายงาน', '⚠️');
+          const nextNav = (typeof getFirstPermittedNavKey === 'function') ? getFirstPermittedNavKey() : 'teacher';
+          if (nextNav && nextNav !== 'report') switchNav(nextNav);
+          return;
+        }
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'สลับไปยังเมนูย่อยที่คุณมีสิทธิ์', '⚠️');
+        subTab = fallback;
+      }
+
       try {
         localStorage.setItem('oca_last_active_report_subtab', subTab);
       } catch (_) {}
@@ -57005,6 +57068,19 @@ if (action === 'getDashboardStats') {
     // ============================================================
 
     function switchFinancialTab(tabNum) {
+      const finSubKey = (tabNum === 1 || tabNum === '1') ? 'pending' : 'summary';
+      if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('financial', finSubKey)) {
+        const fallback = (typeof getFirstPermittedSubmenu === 'function') ? getFirstPermittedSubmenu('financial') : null;
+        if (!fallback) {
+          if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าใช้งานเมนูย่อยการเงิน', '⚠️');
+          const nextNav = (typeof getFirstPermittedNavKey === 'function') ? getFirstPermittedNavKey() : 'teacher';
+          if (nextNav && nextNav !== 'financial') switchNav(nextNav);
+          return;
+        }
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'สลับไปยังเมนูย่อยที่คุณมีสิทธิ์', '⚠️');
+        tabNum = (fallback === 'pending') ? 1 : 2;
+      }
+
       try {
         localStorage.setItem('oca_last_active_financial_tab', String(tabNum));
       } catch (_) {}
@@ -58909,15 +58985,59 @@ if (action === 'getDashboardStats') {
       const uname = (user.username || '').toLowerCase();
       if (user.role === 'Admin' || user.role === 'Administrator' || uname === 'admin' || uname === 'cake' || role === 'admin' || role === 'administrator') return true;
       if (!Array.isArray(user.permissions)) return false;
-      return user.permissions.includes(menuKey);
+      if (user.permissions.includes(menuKey)) return true;
+      return user.permissions.some(p => typeof p === 'string' && p.startsWith(menuKey + ':'));
     }
 
     /**
-
-     * ค้นหาเมนูแรกที่ผู้ใช้งานมีสิทธิ์เข้าใช้งาน
-
+     * ตรวจสอบว่าผู้ใช้มีสิทธิ์เข้าถึงเมนูย่อยที่ระบุหรือไม่ (Granular Submenu RBAC Check)
+     * @param {string} parentKey เช่น 'courses', 'financial', 'textbooks', 'report', 'settings'
+     * @param {string|number} subKey เช่น 'catalog', 'schedules', 1, 2, 'users', 'audit', 'device'
      */
+    function hasSubmenuPermission(parentKey, subKey) {
+      const user = getSavedCurrentUser();
+      if (!user) return false;
+      const role = (user.role || '').toLowerCase();
+      const uname = (user.username || '').toLowerCase();
+      if (user.role === 'Admin' || user.role === 'Administrator' || uname === 'admin' || uname === 'cake' || role === 'admin' || role === 'administrator') return true;
+      if (!hasUserPermission(parentKey)) return false;
+      if (!Array.isArray(user.permissions)) return false;
 
+      let normalizedSub = subKey;
+      if (parentKey === 'financial') {
+        if (subKey === 1 || subKey === '1') normalizedSub = 'pending';
+        else if (subKey === 2 || subKey === '2') normalizedSub = 'summary';
+      } else if (parentKey === 'report' && subKey === 'roster') {
+        normalizedSub = 'classroom';
+      }
+
+      const hasAnyScopedSub = user.permissions.some(p => typeof p === 'string' && p.startsWith(parentKey + ':'));
+      // Legacy Parent-Key Compatibility: if user has parentKey and NO parentKey:* submenus defined, allow all submenus
+      if (!hasAnyScopedSub && user.permissions.includes(parentKey)) return true;
+
+      const fullSubKey = `${parentKey}:${normalizedSub}`;
+      return user.permissions.includes(fullSubKey);
+    }
+
+    /**
+     * ค้นหาเมนูย่อยแรกที่ผู้ใช้งานมีสิทธิ์เข้าใช้งาน
+     * @param {string} parentKey
+     */
+    function getFirstPermittedSubmenu(parentKey) {
+      const sysMenus = (typeof OCA_SYSTEM_MENUS !== 'undefined' && Array.isArray(OCA_SYSTEM_MENUS))
+        ? OCA_SYSTEM_MENUS
+        : (window.OCA_SYSTEM_MENUS || []);
+      const parentMenu = sysMenus.find(m => m.key === parentKey);
+      if (!parentMenu || !Array.isArray(parentMenu.submenus) || parentMenu.submenus.length === 0) return null;
+      for (const sub of parentMenu.submenus) {
+        if (hasSubmenuPermission(parentKey, sub.subKey)) return sub.subKey;
+      }
+      return null;
+    }
+
+    /**
+     * ค้นหาเมนูแรกที่ผู้ใช้งานมีสิทธิ์เข้าใช้งาน
+     */
     function getFirstPermittedNavKey() {
       const user = getSavedCurrentUser();
       if (!user) return 'teacher';
@@ -58932,6 +59052,11 @@ if (action === 'getDashboardStats') {
 
       return 'teacher';
     }
+
+    window.hasUserPermission = hasUserPermission;
+    window.hasSubmenuPermission = hasSubmenuPermission;
+    window.getFirstPermittedSubmenu = getFirstPermittedSubmenu;
+    window.getFirstPermittedNavKey = getFirstPermittedNavKey;
 
     /**
 
@@ -59106,8 +59231,41 @@ if (action === 'getDashboardStats') {
       const mobShip = document.getElementById('mobNavShipping');
       if (mobShip) mobShip.style.display = hasUserPermission('shipping') ? '' : 'none';
 
-      // Active tab permission guard: switch to permitted view if currently on unauthorized tab
+      // ปรับการซ่อน/แสดงเมนูย่อย (Tier-3 Submenus & In-page Tabs) ตามสิทธิ์รายย่อย
+      const sysMenus = (typeof OCA_SYSTEM_MENUS !== 'undefined' && Array.isArray(OCA_SYSTEM_MENUS))
+        ? OCA_SYSTEM_MENUS
+        : (window.OCA_SYSTEM_MENUS || []);
 
+      sysMenus.forEach(m => {
+        if (Array.isArray(m.submenus)) {
+          m.submenus.forEach(sub => {
+            const allowed = hasSubmenuPermission(m.key, sub.subKey);
+            if (Array.isArray(sub.sidebarIds)) {
+              sub.sidebarIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = allowed ? '' : 'none';
+              });
+            }
+            if (Array.isArray(sub.pillIds)) {
+              sub.pillIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = allowed ? '' : 'none';
+              });
+            }
+          });
+        }
+      });
+
+      // ปรับการแสดงผลกล่องหมวดหมู่คอร์สและเส้นคั่นทองใน #subcatCourses
+      const hasCatalogPerm = hasSubmenuPermission('courses', 'catalog');
+      const catContainer = document.getElementById('sidebarCourseCategoriesContainer');
+      if (catContainer) catContainer.style.display = hasCatalogPerm ? '' : 'none';
+
+      const hasAnyOtherCourseSub = ['schedules', 'classrooms', 'fees'].some(sk => hasSubmenuPermission('courses', sk));
+      const courseDivider = document.getElementById('dividerSubcatCourses') || document.querySelector('#subcatCourses div[style*="border-top:1px dashed"]');
+      if (courseDivider) courseDivider.style.display = (hasCatalogPerm && hasAnyOtherCourseSub) ? '' : 'none';
+
+      // Active tab permission guard: switch to permitted view if currently on unauthorized tab
       try {
         const activeView = document.querySelector('.oca-view-tab.active');
 
@@ -59120,6 +59278,40 @@ if (action === 'getDashboardStats') {
 
             if (nextPermitted && hasUserPermission(nextPermitted)) {
               switchNav(nextPermitted);
+            }
+          } else if (curNav) {
+            // Guard current sub-tab inside active permitted view
+            if (curNav === 'courses' && typeof switchCourseSubView === 'function') {
+              const curSub = localStorage.getItem('oca_last_active_course_subview') || 'catalog';
+              if (!hasSubmenuPermission('courses', curSub)) {
+                const fb = getFirstPermittedSubmenu('courses');
+                if (fb) switchCourseSubView(fb);
+              }
+            } else if (curNav === 'report' && typeof switchReportSubTab === 'function') {
+              const curSub = localStorage.getItem('oca_last_active_report_subtab') || 'classroom';
+              if (!hasSubmenuPermission('report', curSub)) {
+                const fb = getFirstPermittedSubmenu('report');
+                if (fb) switchReportSubTab(fb);
+              }
+            } else if (curNav === 'settings' && typeof switchSettingsSubTab === 'function') {
+              const curSub = localStorage.getItem('oca_last_active_settings_subtab') || 'users';
+              if (!hasSubmenuPermission('settings', curSub)) {
+                const fb = getFirstPermittedSubmenu('settings');
+                if (fb) switchSettingsSubTab(fb);
+              }
+            } else if (curNav === 'financial' && typeof switchFinancialTab === 'function') {
+              const curFin = localStorage.getItem('oca_last_active_financial_tab') || '2';
+              const finKey = curFin === '1' ? 'pending' : 'summary';
+              if (!hasSubmenuPermission('financial', finKey)) {
+                const fb = getFirstPermittedSubmenu('financial');
+                if (fb) switchFinancialTab(fb === 'pending' ? 1 : 2);
+              }
+            } else if (curNav === 'textbooks' && typeof switchTextbooksSubTab === 'function') {
+              const curSub = localStorage.getItem('oca_last_active_textbooks_subtab') || 'scanner';
+              if (!hasSubmenuPermission('textbooks', curSub)) {
+                const fb = getFirstPermittedSubmenu('textbooks');
+                if (fb) switchTextbooksSubTab(fb);
+              }
             }
           }
         }
@@ -60101,6 +60293,21 @@ function openForgotPasswordModal() {
      */
 
     function switchSettingsSubTab(subTab) {
+      const validSettings = ['users', 'audit', 'device'];
+      if (!subTab || !validSettings.includes(subTab)) subTab = 'users';
+
+      if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('settings', subTab)) {
+        const fallback = (typeof getFirstPermittedSubmenu === 'function') ? getFirstPermittedSubmenu('settings') : null;
+        if (!fallback) {
+          if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าใช้งานเมนูย่อยการตั้งค่า', '⚠️');
+          const nextNav = (typeof getFirstPermittedNavKey === 'function') ? getFirstPermittedNavKey() : 'teacher';
+          if (nextNav && nextNav !== 'settings') switchNav(nextNav);
+          return;
+        }
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'สลับไปยังเมนูย่อยที่คุณมีสิทธิ์', '⚠️');
+        subTab = fallback;
+      }
+
       try {
         localStorage.setItem('oca_last_active_settings_subtab', subTab);
       } catch (_) {}
@@ -60686,13 +60893,20 @@ function openForgotPasswordModal() {
         }
 
         u.permissions = perms;
-        const pCount = Array.isArray(perms) ? perms.length : 0;
+        const mainSysKeys = (typeof OCA_SYSTEM_MENUS !== 'undefined' && Array.isArray(OCA_SYSTEM_MENUS))
+          ? OCA_SYSTEM_MENUS.map(m => m.key)
+          : (window.OCA_SYSTEM_MENUS ? window.OCA_SYSTEM_MENUS.map(m => m.key) : []);
+        const mainPerms = Array.isArray(perms) ? perms.filter(p => !p.includes(':') && (mainSysKeys.length === 0 || mainSysKeys.includes(p))) : [];
+        const subPerms = Array.isArray(perms) ? perms.filter(p => p.includes(':')) : [];
+        const pCount = mainPerms.length;
+        const subCount = subPerms.length;
+        const subBadge = subCount > 0 ? ` <span style="font-size:10.5px; opacity:0.85; background:rgba(255,255,255,0.12); padding:1px 5px; border-radius:6px; margin-left:2px;">+${subCount} เมนูย่อย</span>` : '';
 
         if (pCount >= totalSysMenus) {
-          permBadges = `<span style="display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:12px; background:rgba(215,166,0,0.22); border:1px solid rgba(215,166,0,0.45); color:var(--color-gold); font-size:11.5px; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-circle-check"></i> ทุกเมนู (${pCount}/${totalSysMenus})</span>`;
+          permBadges = `<span style="display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:12px; background:rgba(215,166,0,0.22); border:1px solid rgba(215,166,0,0.45); color:var(--color-gold); font-size:11.5px; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-circle-check"></i> ทุกเมนู (${pCount}/${totalSysMenus})${subBadge}</span>`;
         } else if (pCount > 0) {
-          const tooltipList = perms.map(p => menuNames[p] || p).join(', ');
-          permBadges = `<span title="${tooltipList}" style="display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:12px; background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.38); color:#38bdf8; font-size:11.5px; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-list-check"></i> ${pCount}/${totalSysMenus} เมนูที่ได้รับอนุญาต</span>`;
+          const tooltipList = mainPerms.map(p => menuNames[p] || p).join(', ') + (subCount > 0 ? ` (+${subCount} เมนูย่อย)` : '');
+          permBadges = `<span title="${escapeHtml(tooltipList)}" style="display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:12px; background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.38); color:#38bdf8; font-size:11.5px; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-list-check"></i> ${pCount}/${totalSysMenus} เมนูที่ได้รับอนุญาต${subBadge}</span>`;
         } else {
           permBadges = `<span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; background:rgba(239,68,68,0.18); border:1px solid rgba(239,68,68,0.38); color:#ef4444; font-size:11px; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-ban"></i> 0/${totalSysMenus} เมนู (ไม่มีสิทธิ์)</span>`;
         }
@@ -60876,29 +61090,59 @@ function openForgotPasswordModal() {
 
     const OCA_SYSTEM_MENUS = [
       { key: 'dashboard', no: 1, name: 'แดชบอร์ด (Dashboard)', desc: 'ภาพรวมสถิตินักศึกษาและ KPI รายวัน', icon: 'fa-chart-pie', color: '#38bdf8' },
-
       { key: 'enroll', no: 2, name: 'รับสมัครนักศึกษา (Enroll)', desc: 'ฟอร์มบันทึกนักศึกษาและซิงค์ฟอร์ม', icon: 'fa-user-plus', color: '#10b981' },
-
       { key: 'search', no: 3, name: 'ค้นหาประวัติ (Search Status)', desc: 'ค้นหาและตรวจสอบสถานะการเรียน', icon: 'fa-magnifying-glass', color: '#6366f1' },
-
-      { key: 'courses', no: 4, name: 'หลักสูตร/ตารางเรียน (Courses)', desc: 'จัดการวิชา ค่าเรียน และตารางสอน', icon: 'fa-book-open', color: '#f59e0b' },
-
+      {
+        key: 'courses', no: 4, name: 'หลักสูตร/ตารางเรียน (Courses)', desc: 'จัดการวิชา ค่าเรียน และตารางสอน', icon: 'fa-book-open', color: '#f59e0b',
+        submenus: [
+          { subKey: 'catalog', key: 'courses:catalog', name: 'คอร์สเรียน & หมวดหมู่', sidebarIds: ['sidebarCourseCategoriesContainer'], pillIds: ['btnCourseSubnavCatalog'] },
+          { subKey: 'schedules', key: 'courses:schedules', name: 'ตารางสอนและรอบเวลา', sidebarIds: ['btnSubCoursesSchedules'], pillIds: ['btnCourseSubnavSchedules'] },
+          { subKey: 'classrooms', key: 'courses:classrooms', name: 'จัดการห้องเรียน', sidebarIds: ['btnSubCoursesRooms'], pillIds: ['btnCourseSubnavClassrooms'] },
+          { subKey: 'fees', key: 'courses:fees', name: 'ค่าธรรมเนียมและส่วนลด', sidebarIds: ['btnSubCoursesFees'], pillIds: ['btnCourseSubnavFees'] }
+        ]
+      },
       { key: 'card', no: 5, name: 'บัตรนักศึกษา (Smart Card)', desc: 'ออกบัตร Mifare 1K และเขียน UID', icon: 'fa-id-card', color: '#ec4899' },
-
       { key: 'receipts', no: 6, name: 'ใบเสร็จรับเงิน (Receipts)', desc: 'ออกใบเสร็จ ต่อคอร์ส ส่งอีเมล', icon: 'fa-receipt', color: '#14b8a6' },
-
-      { key: 'financial', no: 7, name: 'ศูนย์การเงิน (Financial Hub)', desc: 'ตรวจสลิปโอนเงิน สรุปรายรับ และบัญชีการเงิน', icon: 'fa-coins', color: '#f59e0b' },
-
-      { key: 'textbooks', no: 8, name: 'เบิกจ่ายและคลังตำรา (Textbooks)', desc: 'จัดการสต็อกตำราและสแกน QR Claim', icon: 'fa-book', color: '#8b5cf6' },
-
+      {
+        key: 'financial', no: 7, name: 'ศูนย์การเงิน (Financial Hub)', desc: 'ตรวจสลิปโอนเงิน สรุปรายรับ และบัญชีการเงิน', icon: 'fa-coins', color: '#f59e0b',
+        submenus: [
+          { subKey: 'pending', key: 'financial:pending', name: '1. รอตรวจสลิป', sidebarIds: ['btnSubFinPending'], pillIds: [] },
+          { subKey: 'summary', key: 'financial:summary', name: '2. สรุปรายรับการเงิน', sidebarIds: ['btnSubFinSummary'], pillIds: [] }
+        ]
+      },
+      {
+        key: 'textbooks', no: 8, name: 'เบิกจ่ายและคลังตำรา (Textbooks)', desc: 'จัดการสต็อกตำราและสแกน QR Claim', icon: 'fa-book', color: '#8b5cf6',
+        submenus: [
+          { subKey: 'scanner', key: 'textbooks:scanner', name: '1. ตรวจรับตำราเรียน', sidebarIds: ['btnSubTbScanner'], pillIds: ['btnTbSubnavScanner'] },
+          { subKey: 'catalog', key: 'textbooks:catalog', name: '2. รายชื่อตำราเรียนและราคา', sidebarIds: ['btnSubTbCatalog'], pillIds: ['btnTbSubnavCatalog'] }
+        ]
+      },
       { key: 'shipping', no: 9, name: 'จัดส่งพัสดุ (Shipping)', desc: 'พิมพ์ใบปะหน้า 8 ใบ/A4 และ Tracking', icon: 'fa-truck-fast', color: '#f97316' },
-
-      { key: 'report', no: 10, name: 'รายงานสรุป (Reports)', desc: 'สถิติการเงิน รายรับ และตรวจสอบชั้นเรียน', icon: 'fa-file-lines', color: '#06b6d4' },
-
+      {
+        key: 'report', no: 10, name: 'รายงานสรุป (Reports)', desc: 'สถิติการเงิน รายรับ และตรวจสอบชั้นเรียน', icon: 'fa-file-lines', color: '#06b6d4',
+        submenus: [
+          { subKey: 'classroom', key: 'report:classroom', name: '1. ใบแจ้งห้องเรียน', sidebarIds: ['btnSubReportClassroom'], pillIds: ['btnReportSubnavClassroom'] },
+          { subKey: 'teacher', key: 'report:teacher', name: '2. เช็คเวลางานครู', sidebarIds: ['btnSubReportTeacher'], pillIds: ['btnReportSubnavTeacher'] },
+          { subKey: 'checker', key: 'report:checker', name: '3. ตรวจสอบห้องเรียน', sidebarIds: ['btnSubReportChecker'], pillIds: ['btnReportSubnavChecker'] },
+          { subKey: 'attendance-tracking', key: 'report:attendance-tracking', name: '4. ติดตามเช็คชื่อ', sidebarIds: ['btnSubReportAttendance'], pillIds: ['btnReportSubnavAttTrack'] },
+          { subKey: 'teacher-tracker', key: 'report:teacher-tracker', name: '5. ติดตามงานครู', sidebarIds: ['btnSubReportTeacherTracker'], pillIds: ['btnReportSubnavTeacherTracker'] },
+          { subKey: 'termtimetable', key: 'report:termtimetable', name: '6. ตารางอาจารย์', sidebarIds: ['btnSubReportTermTimetable'], pillIds: ['btnReportSubnavTermTimetable'] },
+          { subKey: 'course-breakdown', key: 'report:course-breakdown', name: '7. จำแนกตามวิชา', sidebarIds: ['btnSubReportCourseBreakdown'], pillIds: ['btnReportSubnavCourseBreakdown'] },
+          { subKey: 'ministry', key: 'report:ministry', name: '8. เอกสารกระทรวง', sidebarIds: ['btnSubReportMinistry'], pillIds: ['btnReportSubnavMinistry'] }
+        ]
+      },
       { key: 'teacher', no: 11, name: 'ครูผู้สอน (Teacher Portal)', desc: 'ลงเวลาเข้า-ออกงาน (GPS 50m) และเช็คชื่อนักเรียน', icon: 'fa-chalkboard-user', color: '#eab308' },
-
-      { key: 'settings', no: 12, name: 'ตั้งค่าระบบ (Settings)', desc: 'จัดการสิทธิ์ผู้ใช้และดู Audit Log', icon: 'fa-sliders', color: '#e2e8f0' }
+      {
+        key: 'settings', no: 12, name: 'ตั้งค่าระบบ (Settings)', desc: 'จัดการสิทธิ์ผู้ใช้และดู Audit Log', icon: 'fa-sliders', color: '#e2e8f0',
+        submenus: [
+          { subKey: 'users', key: 'settings:users', name: 'ผู้ใช้และสิทธิ์', sidebarIds: ['btnSubSettingsUsers'], pillIds: ['btnSubnavUsers'] },
+          { subKey: 'audit', key: 'settings:audit', name: 'ประวัติ 90 วัน', sidebarIds: ['btnSubSettingsAudit'], pillIds: ['btnSubnavAudit'] },
+          { subKey: 'device', key: 'settings:device', name: 'ความปลอดภัย', sidebarIds: ['btnSubSettingsDevice'], pillIds: ['btnSubnavDevice'] }
+        ]
+      }
     ];
+
+    window.OCA_SYSTEM_MENUS = OCA_SYSTEM_MENUS;
 
     /**
 
@@ -60908,30 +61152,65 @@ function openForgotPasswordModal() {
 
      */
 
+    function onMainPermCheckboxChanged(parentKey, isChecked) {
+      document.querySelectorAll(`.chk-user-subperm[data-parent="${parentKey}"]`).forEach(cb => {
+        cb.checked = !!isChecked;
+      });
+    }
+    window.onMainPermCheckboxChanged = onMainPermCheckboxChanged;
+
+    function onSubPermCheckboxChanged(parentKey) {
+      const subCheckboxes = Array.from(document.querySelectorAll(`.chk-user-subperm[data-parent="${parentKey}"]`));
+      const anyChecked = subCheckboxes.some(cb => cb.checked);
+      const mainCb = document.querySelector(`.chk-user-perm[value="${parentKey}"]`);
+      if (mainCb) {
+        mainCb.checked = anyChecked;
+      }
+    }
+    window.onSubPermCheckboxChanged = onSubPermCheckboxChanged;
+
     function renderMenuAccessMatrix(activePerms = []) {
       const container = document.getElementById('matrixMenuCheckboxes');
       if (!container) return;
       const titleEl = document.getElementById('lblMatrixMenuTitle');
 
       if (titleEl) {
-        titleEl.textContent = `กำหนดสิทธิ์เข้าถึงเมนู (Menu Access Matrix - ${OCA_SYSTEM_MENUS.length} เมนูหลัก)`;
+        titleEl.textContent = 'กำหนดสิทธิ์เข้าถึงเมนู (12 เมนูหลัก + เมนูย่อย)';
       }
 
       container.innerHTML = OCA_SYSTEM_MENUS.map(m => {
-        const isChecked = Array.isArray(activePerms) && activePerms.includes(m.key);
+        const hasSub = Array.isArray(m.submenus) && m.submenus.length > 0;
+        const isChecked = Array.isArray(activePerms) && (activePerms.includes(m.key) || activePerms.some(p => typeof p === 'string' && p.startsWith(m.key + ':')));
+        const hasExplicitSubPerms = Array.isArray(activePerms) && activePerms.some(p => typeof p === 'string' && p.startsWith(m.key + ':'));
+        const isLegacyAllSub = isChecked && !hasExplicitSubPerms;
+        const gridSpan = hasSub ? 'grid-column: 1 / -1;' : '';
 
-        return `<label class="oca-perm-card" style="display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.08); padding:10px 12px; border-radius:8px; cursor:pointer; transition:all 0.15s ease;">
+        let subHtml = '';
+        if (hasSub) {
+          subHtml = `<div class="oca-subperm-wrap" style="margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.3); border:1px dashed rgba(215,166,0,0.22); border-radius:8px; margin-left:27px; display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:6px 14px;">` +
+            m.submenus.map(sub => {
+              const isSubChecked = hasExplicitSubPerms ? activePerms.includes(sub.key) : isLegacyAllSub;
+              return `<label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; color:#e2e8f0; user-select:none; padding:3px 0;">
+                <input type="checkbox" value="${sub.key}" data-parent="${m.key}" class="chk-user-subperm" ${isSubChecked ? 'checked' : ''} onchange="onSubPermCheckboxChanged('${m.key}')" style="width:15px; height:15px; accent-color:#D7A600; cursor:pointer;">
+                <span style="font-size:12px;">${sub.name}</span>
+              </label>`;
+            }).join('') +
+          `</div>`;
+        }
 
-          <input type="checkbox" value="${m.key}" class="chk-user-perm" ${isChecked ? 'checked' : ''} style="width:17px; height:17px; accent-color:#D7A600;">
-          <div style="flex:1;">
-            <div style="font-size:13px; font-weight:600; color:${m.color || '#ffffff'}; display:flex; align-items:center; gap:6px;">
-              <i class="fa-solid ${m.icon}" style="font-size:12px;"></i>
-              <span>${m.no}. ${m.name}</span>
+        return `<div class="oca-perm-card" style="display:flex; flex-direction:column; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.08); padding:10px 12px; border-radius:8px; transition:all 0.15s ease; ${gridSpan}">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <input type="checkbox" value="${m.key}" class="chk-user-perm" ${isChecked ? 'checked' : ''} onchange="onMainPermCheckboxChanged('${m.key}', this.checked)" style="width:17px; height:17px; accent-color:#D7A600; cursor:pointer;">
+            <div style="flex:1;">
+              <div style="font-size:13px; font-weight:600; color:${m.color || '#ffffff'}; display:flex; align-items:center; gap:6px;">
+                <i class="fa-solid ${m.icon}" style="font-size:12px;"></i>
+                <span>${m.no}. ${m.name}</span>
+              </div>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${m.desc}</div>
             </div>
-
-            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${m.desc}</div>
           </div>
-        </label>`;
+          ${subHtml}
+        </div>`;
       }).join('');
     }
 
@@ -61305,14 +61584,14 @@ function openForgotPasswordModal() {
       document.querySelectorAll('.chk-user-perm').forEach(cb => {
         cb.checked = !!checked;
       });
+      document.querySelectorAll('.chk-user-subperm').forEach(cb => {
+        cb.checked = !!checked;
+      });
     }
 
     /**
-
      * บันทึกข้อมูลผู้ใช้งาน
-
      */
-
     function submitSaveUser() {
       const uInp = document.getElementById('inpModalUsername');
       const fInp = document.getElementById('inpModalFullName');
@@ -61330,6 +61609,7 @@ function openForgotPasswordModal() {
       const status = sSel?.value || 'Active';
       const perms = [];
       document.querySelectorAll('.chk-user-perm:checked').forEach(cb => perms.push(cb.value));
+      document.querySelectorAll('.chk-user-subperm:checked').forEach(cb => perms.push(cb.value));
 
       if (!username) {
         if (alertBox) {
@@ -79589,7 +79869,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=85';
+      const swPath = basePath + 'sw.js?v=86';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -79598,7 +79878,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (85):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (86):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
