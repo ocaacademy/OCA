@@ -9276,7 +9276,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '84';
+      var LATEST_VERSION = '85';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -22322,6 +22322,68 @@ body.printing-report #printReportContainer {
       return copy;
     }
 
+    function sanitizePostgrestSearchToken(raw) {
+      if (!raw) return '';
+      return String(raw).replace(/[,()"[\]:*%\\_]/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+    if (typeof window !== 'undefined') {
+      window.sanitizePostgrestSearchToken = sanitizePostgrestSearchToken;
+    }
+
+    async function fetchStudentReceiptsSafely(studentId, selectCols = '*', maxRows = 200) {
+      if (!studentId || typeof _supabase === 'undefined' || !_supabase) return [];
+      const sId = String(studentId).trim();
+      if (!sId) return [];
+
+      const promises = [];
+      promises.push(
+        _supabase.from('receipts')
+          .select(selectCols)
+          .eq('student_id', sId)
+          .gte('receipt_no', '6800000')
+          .lt('receipt_no', '7500000')
+          .order('receipt_no', { ascending: false })
+          .limit(maxRows)
+      );
+
+      const yy = sId.slice(0, 2);
+      if (/^\d{2}$/.test(yy) && Number(yy) < 68) {
+        const nextYy = String(Number(yy) + 1).padStart(2, '0');
+        promises.push(
+          _supabase.from('receipts')
+            .select(selectCols)
+            .eq('student_id', sId)
+            .gte('receipt_no', yy + '00000')
+            .lt('receipt_no', nextYy + '00000')
+            .order('receipt_no', { ascending: false })
+            .limit(maxRows)
+        );
+      }
+
+      const results = await Promise.all(promises);
+      const map = new Map();
+      results.forEach(res => {
+        if (res && res.error) console.warn('[fetchStudentReceiptsSafely] query warning:', res.error);
+        if (res && Array.isArray(res.data)) {
+          res.data.forEach(r => {
+            if (r && r.receipt_no && !map.has(r.receipt_no)) map.set(r.receipt_no, r);
+          });
+        }
+      });
+
+      const list = Array.from(map.values());
+      list.sort((a, b) => {
+        const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        if (tB !== tA) return tB - tA;
+        return String(b.receipt_no || '').localeCompare(String(a.receipt_no || ''));
+      });
+      return list.slice(0, maxRows);
+    }
+    if (typeof window !== 'undefined') {
+      window.fetchStudentReceiptsSafely = fetchStudentReceiptsSafely;
+    }
+
     function getAuditActor(override = {}) {
       let u = null;
 
@@ -24612,28 +24674,39 @@ if (action === 'getDashboardStats') {
 
         if (action === 'getFinancialSummary') {
           const queryYearParam = params.filterYear || '';
-          let qb = _supabase.from('receipts')
-
-            .select('receipt_no, buyer_name, grand_total, base_amount, reg_fee, card_fee, other_reg_fee, discount_normal, discount_other, payment_method, receipt_type, year_be, term, created_at')
-
-            .order('receipt_no', { ascending: false });
-
+          let minRNo = '6900000';
+          let maxRNo = '7000000';
           if (queryYearParam && queryYearParam !== 'all' && queryYearParam !== 'ALL') {
             const yr = String(queryYearParam).slice(-2);
-            qb = qb.gte('receipt_no', yr + '00000').lt('receipt_no', String(Number(yr) + 1).padStart(2, '0') + '00000').limit(2000);
-          } else {
-            // High-speed indexed query for modern active receipts (2569)
-
-            qb = qb.gte('receipt_no', '6900000').lt('receipt_no', '7000000').limit(2000);
+            minRNo = yr + '00000';
+            maxRNo = String(Number(yr) + 1).padStart(2, '0') + '00000';
           }
-
-          const { data: rcpts } = await qb;
+          const rcpts = [];
+          const chunkSize = 1000;
+          let offset = 0;
+          while (true) {
+            const { data: chunk, error: rcptErr } = await _supabase.from('receipts')
+              .select('receipt_no, buyer_name, grand_total, base_amount, reg_fee, card_fee, other_reg_fee, discount_normal, discount_other, payment_method, receipt_type, year_be, term, created_at')
+              .gte('receipt_no', minRNo)
+              .lt('receipt_no', maxRNo)
+              .order('receipt_no', { ascending: false })
+              .range(offset, offset + chunkSize - 1);
+            if (rcptErr) {
+              console.error('getFinancialSummary receipts pagination error:', rcptErr);
+              break;
+            }
+            if (!chunk || chunk.length === 0) break;
+            rcpts.push(...chunk);
+            if (chunk.length < chunkSize) break;
+            offset += chunkSize;
+          }
           let totalRev = 0;
           let totalTuition = 0;
           let totalReg = 0;
           let totalCard = 0;
           let totalDisc = 0;
           const yearMap = {};
+          const liveYearsReset = new Set();
 
           if (window.OCA_ANNUAL_REVENUE_REGISTRY) {
             Object.keys(window.OCA_ANNUAL_REVENUE_REGISTRY).forEach(y => {
@@ -24729,7 +24802,10 @@ if (action === 'getDashboardStats') {
 
               // 1. Group by Year
 
-              if (!yearMap[yBe]) {
+              if (!liveYearsReset.has(yBe)) {
+                liveYearsReset.add(yBe);
+                yearMap[yBe] = { yearBE: yBe, receiptCount: 0, tuitionTotal: 0, otherFeesTotal: 0, discountTotal: 0, grandTotal: 0 };
+              } else if (!yearMap[yBe]) {
                 yearMap[yBe] = { yearBE: yBe, receiptCount: 0, tuitionTotal: 0, otherFeesTotal: 0, discountTotal: 0, grandTotal: 0 };
               }
 
@@ -24787,23 +24863,7 @@ if (action === 'getDashboardStats') {
             });
           }
 
-          const yearlySummary = (window.OCA_ANNUAL_REVENUE_REGISTRY ? Object.keys(window.OCA_ANNUAL_REVENUE_REGISTRY).map(y => {
-            const regItem = window.OCA_ANNUAL_REVENUE_REGISTRY[y];
-
-            return {
-              yearBE: Number(y),
-
-              receiptCount: Number(regItem.receiptCount || 0),
-
-              tuitionTotal: Number(regItem.tuitionTotal || 0),
-
-              otherFeesTotal: Number(regItem.otherFeesTotal || 0),
-
-              discountTotal: Number(regItem.discountTotal || 0),
-
-              grandTotal: Number(regItem.grandTotal || 0)
-            };
-          }) : Object.values(yearMap)).sort((a, b) => b.yearBE - a.yearBE);
+          const yearlySummary = Object.values(yearMap).sort((a, b) => b.yearBE - a.yearBE);
           let termSummary = Object.values(termMap).sort((a, b) => {
             if (b.yearBE !== a.yearBE) return b.yearBE - a.yearBE;
             return b.term - a.term;
@@ -24984,7 +25044,7 @@ if (action === 'getDashboardStats') {
           if (cleanCid || cleanName) {
             let dupQuery = _supabase.from('students').select('student_id, full_name, phone_number, citizen_id');
             const safeCid = cleanCid.replace(/[^0-9A-Za-z]/g, '');
-            const safeName = cleanName.replace(/[,()"]/g, ' ').trim();
+            const safeName = sanitizePostgrestSearchToken(cleanName);
 
             if (safeCid && safeName) {
               dupQuery = dupQuery.or(`citizen_id.eq.${safeCid},full_name.eq.${safeName}`);
@@ -25677,7 +25737,7 @@ if (action === 'getDashboardStats') {
 
         if (action === 'searchStudentsForCard' || action === 'getStudentProfileAndHistory') {
         const rawQ = (params.query || params.studentId || '').trim();
-        const safeQ = rawQ.replace(/[,()"]/g, ' ').trim();
+        const safeQ = sanitizePostgrestSearchToken(rawQ);
         let stList = [];
 
         if (safeQ) {
@@ -25780,12 +25840,7 @@ if (action === 'getDashboardStats') {
           }
 
           const st = stList[0];
-          let rQuery = _supabase.from('receipts')
-            .select('*')
-            .eq('student_id', st.student_id)
-            .order('receipt_no', { ascending: false })
-            .limit(100);
-          const { data: rawRList } = await rQuery;
+          const rawRList = await fetchStudentReceiptsSafely(st.student_id, '*', 100);
           const rList = (rawRList || []).map(r => safeNormalizeReceipt(r));
           const mappedList = stList.map(s => ({
             studentId: s.student_id,
@@ -25987,14 +26042,8 @@ if (action === 'getDashboardStats') {
 
             if (params.textbookOption === 'new') {
               try {
-                const { data: rList, error: rListErr } = await _supabase.from('receipts')
-                  .select('receipt_no, edit_notes, item_name')
-                  .eq('student_id', sid)
-                  .eq('receipt_type', 'tuition')
-                  .order('receipt_no', { ascending: false })
-                  .limit(1);
-                if (rListErr) console.warn('[transferStudentCourse] receipts lookup warning:', rListErr);
-
+                const rRaw = await fetchStudentReceiptsSafely(sid, 'receipt_no, edit_notes, item_name, receipt_type', 10);
+                const rList = (rRaw || []).filter(r => r && r.receipt_type === 'tuition');
                 if (rList && rList.length > 0) {
                   const r = rList[0];
                   const rNote = (r.edit_notes || '') + ` [สิทธิ์ตำราใหม่: ${newCourse}]`;
@@ -26247,7 +26296,7 @@ if (action === 'getDashboardStats') {
 
           if (params && params.query && String(params.query).trim()) {
             const rawQ = String(params.query).trim();
-            const safeQ = rawQ.replace(/[,()"]/g, ' ').trim();
+            const safeQ = sanitizePostgrestSearchToken(rawQ);
             const cleanQ = safeQ.replace(/[^0-9A-Za-z]/g, '');
             const isDigits = /^\d+$/.test(cleanQ);
             let qb = _supabase.from('students').select(REPORT_STUDENT_COLS).neq('status', 'DELETED');
@@ -26751,7 +26800,7 @@ if (action === 'getDashboardStats') {
           let query = _supabase.from('receipts').select('*').gte('receipt_no', '6900000').lt('receipt_no', '7000000');
 
           if (params && params.search) {
-            const s = String(params.search).trim().replace(/[,()"%_]/g, ' ').trim();
+            const s = sanitizePostgrestSearchToken(params.search);
 
             if (s) {
               if (/^\d+$/.test(s) && s.length === 7) {
@@ -28216,7 +28265,7 @@ if (action === 'getDashboardStats') {
           // ค้นหาข้อความอิสระ (Free Text Search)
 
           if (params.search && params.search.trim() !== '') {
-            const cleanSearch = params.search.trim().replace(/[%_"]/g, '');
+            const cleanSearch = sanitizePostgrestSearchToken(params.search);
 
             if (cleanSearch) {
               query = query.or(`username.ilike.%${cleanSearch}%,full_name.ilike.%${cleanSearch}%,device_id.ilike.%${cleanSearch}%,details.ilike.%${cleanSearch}%`);
@@ -32223,7 +32272,7 @@ if (action === 'getDashboardStats') {
                       pendingRows.push({
                         key: 'pending_slip_url:' + savedStudentId,
 
-                        name: toRelativeStoragePath(uploadedSlipUrl),
+                        name: String(toRelativeStoragePath(uploadedSlipUrl) || '').slice(0, 90),
 
                         amount: 1,
 
@@ -32232,7 +32281,10 @@ if (action === 'getDashboardStats') {
                         updated_at: new Date().toISOString()
                       });
                     }
-                    await _supabase.from('fee_settings').upsert(pendingRows);
+                    const { error: pUpsertErr } = await _supabase.from('fee_settings').upsert(pendingRows, { onConflict: 'key' });
+                    if (pUpsertErr) {
+                      console.warn('[Financial Queue Slip Error]:', pUpsertErr);
+                    }
 
                     if (typeof loadPendingSlipsQueue === 'function') {
                       loadPendingSlipsQueue();
@@ -54653,37 +54705,60 @@ if (action === 'getDashboardStats') {
         let students = [];
         let receipts = [];
 
+        let totalStudents = 0;
+        const studentCoursesMap = new Map();
+
         if (typeof _supabase !== 'undefined' && _supabase) {
-          let qCount = _supabase.from('students')
-            .select('*', { count: 'exact', head: true })
-            .neq('status', 'DELETED');
-          if (yearFilter !== 'ALL' && /^\d{4}$/.test(yearFilter)) {
-            const yrPrefix = yearFilter.slice(-2);
-            const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
-            qCount = qCount.gte('student_id', yrPrefix + '00000').lt('student_id', nextPrefix + '00000');
-          }
-          const countRes = await qCount;
-          const totalStudents = countRes.count || 0;
           const pageSize = 1000;
           let offset = 0;
-          while (offset < totalStudents || offset === 0) {
-            if (thisLoadSeq !== _ministryLoadSeq) return;
-            let q = _supabase.from('students')
-              .select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at')
+          if (yearFilter === 'ALL') {
+            totalStudents = Object.values(window.OCA_ACADEMIC_YEARS_REGISTRY || {}).reduce((acc, y) => acc + (Number(y.total) || 0), 0);
+            while (true) {
+              if (thisLoadSeq !== _ministryLoadSeq) return;
+              const { data: chunk, error: cErr } = await _supabase.from('students')
+                .select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at')
+                .gte('student_id', '6800000')
+                .order('student_id', { ascending: false })
+                .range(offset, offset + pageSize - 1);
+              if (cErr) throw cErr;
+              if (!chunk || chunk.length === 0) break;
+              const activeRows = chunk.filter(s => s.status !== 'DELETED');
+              students.push(...activeRows);
+              offset += chunk.length;
+              renderProgress(students.length, totalStudents, 'กำลังดึงข้อมูลทะเบียนนักศึกษาปัจจุบัน...');
+              if (chunk.length < pageSize) break;
+            }
+          } else {
+            let qCount = _supabase.from('students')
+              .select('*', { count: 'exact', head: true })
               .neq('status', 'DELETED');
-            if (yearFilter !== 'ALL' && /^\d{4}$/.test(yearFilter)) {
+            if (/^\d{4}$/.test(yearFilter)) {
               const yrPrefix = yearFilter.slice(-2);
               const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
-              q = q.gte('student_id', yrPrefix + '00000').lt('student_id', nextPrefix + '00000');
+              qCount = qCount.gte('student_id', yrPrefix + '00000').lt('student_id', nextPrefix + '00000');
             }
-            q = q.order('student_id', { ascending: false }).range(offset, offset + pageSize - 1);
-            const { data: chunk, error: cErr } = await q;
-            if (cErr) throw cErr;
-            if (!chunk || chunk.length === 0) break;
-            students.push(...chunk);
-            offset += chunk.length;
-            renderProgress(students.length, totalStudents, 'กำลังดึงข้อมูลทะเบียนนักศึกษา...');
-            if (chunk.length < pageSize) break;
+            const countRes = await qCount;
+            if (countRes.error) console.warn('[Ministry Report] count warning:', countRes.error);
+            totalStudents = countRes.count || 0;
+            while (true) {
+              if (thisLoadSeq !== _ministryLoadSeq) return;
+              let q = _supabase.from('students')
+                .select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at')
+                .neq('status', 'DELETED');
+              if (/^\d{4}$/.test(yearFilter)) {
+                const yrPrefix = yearFilter.slice(-2);
+                const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
+                q = q.gte('student_id', yrPrefix + '00000').lt('student_id', nextPrefix + '00000');
+              }
+              q = q.order('student_id', { ascending: false }).range(offset, offset + pageSize - 1);
+              const { data: chunk, error: cErr } = await q;
+              if (cErr) throw cErr;
+              if (!chunk || chunk.length === 0) break;
+              students.push(...chunk);
+              offset += chunk.length;
+              renderProgress(students.length, totalStudents || students.length, 'กำลังดึงข้อมูลทะเบียนนักศึกษา...');
+              if (chunk.length < pageSize) break;
+            }
           }
 
           if (yearFilter !== 'ALL' && /^\d{4}$/.test(yearFilter)) {
@@ -54707,41 +54782,58 @@ if (action === 'getDashboardStats') {
               if (rcChunk.length < 1000) break;
             }
           } else {
-            renderProgress(students.length, totalStudents, 'กำลังวิเคราะห์ประวัติคอร์สและผู้จบการศึกษา...');
-            const orCond = MINISTRY_TERMINAL_COURSE_CODES.map(tc => `item_name.ilike.%${tc}%`).join(',');
-            let termOffset = 0;
-            while (true) {
+            // ALL years: Load historical academic JSON shards (yr_36..yr_67) in batches
+            const shardYears = [];
+            for (let y = 36; y <= 67; y++) shardYears.push(`yr_${y}`);
+            const batchSize = 5;
+            for (let i = 0; i < shardYears.length; i += batchSize) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
-              const { data: termChunk, error: tErr } = await _supabase.from('receipts')
-                .select('student_id, item_name, receipt_no, created_at')
-                .or(orCond)
-                .order('receipt_no', { ascending: false })
-                .range(termOffset, termOffset + 999);
-              if (tErr) { console.warn('[Ministry Report] terminal chunk error:', tErr); break; }
-              if (!termChunk || termChunk.length === 0) break;
-              receipts.push(...termChunk);
-              termOffset += termChunk.length;
-              if (termChunk.length < 1000) break;
+              const batch = shardYears.slice(i, i + batchSize);
+              await Promise.all(batch.map(async (sName) => {
+                try {
+                  let json = window._ocaAcademicShards ? window._ocaAcademicShards[sName] : null;
+                  if (!json) {
+                    const res = await fetch('./assets/data/academic_history/' + sName + '.json');
+                    if (res.ok) {
+                      json = await res.json();
+                      if (!window._ocaAcademicShards) window._ocaAcademicShards = {};
+                      window._ocaAcademicShards[sName] = json;
+                    }
+                  }
+                  if (json) {
+                    for (const [sid, tuples] of Object.entries(json)) {
+                      if (Array.isArray(tuples)) {
+                        if (!studentCoursesMap.has(sid)) studentCoursesMap.set(sid, []);
+                        const list = studentCoursesMap.get(sid);
+                        tuples.forEach(t => {
+                          const cCode = String(t[1] || '').trim();
+                          if (cCode) list.push(cCode);
+                        });
+                      }
+                    }
+                  }
+                } catch (_) {}
+              }));
+              renderProgress(students.length, totalStudents, `กำลังโหลดประวัติวิชาการย้อนหลัง (${Math.min(i + batchSize, shardYears.length)}/${shardYears.length})...`);
             }
 
-            let recOffset = 0;
+            let rcOffset = 0;
             while (true) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
-              const { data: recChunk, error: rErr } = await _supabase.from('receipts')
+              const { data: rcChunk, error: rcErr } = await _supabase.from('receipts')
                 .select('student_id, item_name, receipt_no, created_at')
-                .gte('receipt_no', '6500000')
+                .gte('receipt_no', '6800000')
                 .order('receipt_no', { ascending: false })
-                .range(recOffset, recOffset + 999);
-              if (rErr) { console.warn('[Ministry Report] recent chunk error:', rErr); break; }
-              if (!recChunk || recChunk.length === 0) break;
-              receipts.push(...recChunk);
-              recOffset += recChunk.length;
-              if (recChunk.length < 1000) break;
+                .range(rcOffset, rcOffset + 999);
+              if (rcErr) { console.warn('[Ministry Report] recent chunk error:', rcErr); break; }
+              if (!rcChunk || rcChunk.length === 0) break;
+              receipts.push(...rcChunk);
+              rcOffset += rcChunk.length;
+              if (rcChunk.length < 1000) break;
             }
           }
         }
 
-        const studentCoursesMap = new Map();
         receipts.forEach(r => {
           const sid = String(r.student_id || '').trim();
           const cName = r.item_name || '';
@@ -63007,20 +63099,9 @@ function openForgotPasswordModal() {
       if (!tbody || !studentId) return;
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:12px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin" style="margin-right:6px; color:var(--color-gold);"></i>กำลังค้นหาประวัติการศึกษาและใบเสร็จ...</td></tr>';
       const sId = String(studentId).trim();
-      const receiptPromise = (_supabase) ? (async () => {
-        try {
-          const { data, error } = await _supabase.from('receipts')
-            .select('receipt_no, item_name, item_code, grand_total, delivery_method, claim_status, claimed_at, claimed_by, year_be, term, created_at, receipt_type, schedule')
-            .eq('student_id', sId)
-            .order('created_at', { ascending: false })
-            .limit(200);
-          if (error) console.warn('[loadSrStudentReceipts] Supabase receipts query warning:', error);
-          return data || [];
-        } catch (e) {
-          console.warn('[loadSrStudentReceipts] Supabase error:', e);
-          return [];
-        }
-      })() : Promise.resolve([]);
+      const receiptPromise = (_supabase && typeof fetchStudentReceiptsSafely === 'function')
+        ? fetchStudentReceiptsSafely(sId, 'receipt_no, item_name, item_code, grand_total, delivery_method, claim_status, claimed_at, claimed_by, year_be, term, created_at, receipt_type, schedule', 200)
+        : Promise.resolve([]);
       const academicPromise = (typeof loadStudentAcademicShard === 'function')
         ? loadStudentAcademicShard(sId).catch(() => [])
         : Promise.resolve([]);
@@ -65906,7 +65987,7 @@ function openPublicRegisterView() {
                   if (uploadedSlipUrl) {
                     pendingRows.push({
                       key: 'pending_slip_url:' + sid,
-                      name: toRelativeStoragePath(uploadedSlipUrl),
+                      name: String(toRelativeStoragePath(uploadedSlipUrl) || '').slice(0, 90),
                       amount: expectedFee,
                       mode: 'SLIP_URL',
                       updated_at: new Date().toISOString()
@@ -65930,7 +66011,10 @@ function openPublicRegisterView() {
                       updated_at: new Date().toISOString()
                     });
                   }
-                  await _supabase.from('fee_settings').upsert(pendingRows);
+                  const { error: pendingUpsertErr } = await _supabase.from('fee_settings').upsert(pendingRows, { onConflict: 'key' });
+                  if (pendingUpsertErr) {
+                    console.warn('[Pending Slip Record] fee_settings upsert error:', pendingUpsertErr);
+                  }
                 }
               } catch (pendingErr) {
                 console.warn('[Pending Slip Record] Error:', pendingErr);
@@ -67182,7 +67266,7 @@ function openPublicRegisterView() {
         // Query Supabase receipts if not found or to get most updated room
 
         if (_supabase) {
-          const cleanQ = (query || '').replace(/[,()"]/g, ' ').trim();
+          const cleanQ = sanitizePostgrestSearchToken(query);
           const idMatch = cleanQ.match(/\d{7,8}/);
           const targetId = idMatch ? idMatch[0] : cleanQ;
           let rcQb = _supabase.from('receipts')
@@ -67241,7 +67325,10 @@ function openPublicRegisterView() {
               stQb = stQb.gte('student_id', minId).lt('student_id', maxId);
             }
           } else {
-            stQb = stQb.ilike('full_name', `%${query}%`);
+            const cleanNameQ = sanitizePostgrestSearchToken(query);
+            if (cleanNameQ) {
+              stQb = stQb.ilike('full_name', `%${cleanNameQ}%`);
+            }
           }
 
           const { data: stData } = await stQb.limit(1);
@@ -78827,9 +78914,14 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const [resSlips, resUrls] = await Promise.all([
+          const [resSlips, resUrls, resPendingStudents] = await Promise.all([
             _supabase.from('fee_settings').select('*').like('key', 'pending_slip:%').order('updated_at', { ascending: false }),
-            _supabase.from('fee_settings').select('*').like('key', 'pending_slip_url:%')
+            _supabase.from('fee_settings').select('*').like('key', 'pending_slip_url:%'),
+            _supabase.from('students').select('student_id, prefix, full_name, phone_number, email, current_course, current_schedule, line_id, status, created_at')
+              .eq('status', 'PENDING_PAYMENT_VERIFICATION')
+              .gte('student_id', '6800000')
+              .order('student_id', { ascending: false })
+              .limit(50)
           ]);
           const data = resSlips?.data;
           const error = resSlips?.error;
@@ -78859,26 +78951,60 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               item.slipUrl = item.slipUrl ? toPublicStorageUrl(item.slipUrl) : (urlMap.get(sid) || '');
               return item;
             }).filter(Boolean);
-            const missingSids = pendingList.filter(item => !item.fullName || item.fullName === '-').map(item => item.studentId);
-            if (missingSids.length > 0) {
-              try {
-                const { data: stRows } = await _supabase.from('students').select('student_id, prefix, full_name, phone_number, email, current_course, current_schedule, line_id').in('student_id', missingSids.slice(0, 50));
-                if (Array.isArray(stRows)) {
-                  const stMap = new Map(stRows.map(s => [String(s.student_id).trim(), s]));
-                  pendingList.forEach(item => {
-                    if (stMap.has(item.studentId)) {
-                      const s = stMap.get(item.studentId);
-                      item.fullName = item.fullName || (typeof formatStudentNameWithPrefix === 'function' ? formatStudentNameWithPrefix(s.prefix, s.full_name) : s.full_name) || '-';
-                      item.phone = item.phone || s.phone_number || '-';
-                      item.email = item.email || s.email || '';
-                      item.course = item.course || s.current_course || '-';
-                      item.schedule = item.schedule || s.current_schedule || '-';
-                      item.lineId = item.lineId || s.line_id || '';
-                    }
-                  });
-                }
-              } catch (_) {}
-            }
+          }
+
+          const existingSids = new Set(pendingList.map(item => item.studentId));
+          if (Array.isArray(resPendingStudents?.data)) {
+            resPendingStudents.data.forEach(s => {
+              const sid = String(s.student_id).trim();
+              if (sid && !existingSids.has(sid)) {
+                existingSids.add(sid);
+                pendingList.push({
+                  studentId: sid,
+                  fullName: (typeof formatStudentNameWithPrefix === 'function' ? formatStudentNameWithPrefix(s.prefix, s.full_name) : s.full_name) || s.full_name || '-',
+                  phone: s.phone_number || '-',
+                  email: s.email || '',
+                  course: s.current_course || '-',
+                  schedule: s.current_schedule || '-',
+                  lineId: s.line_id || '',
+                  expectedFee: 0,
+                  slipRef: 'ORPHAN_RECOVERED',
+                  status: 'PENDING_PAYMENT_VERIFICATION',
+                  createdAt: s.created_at,
+                  slipUrl: urlMap.get(sid) || ''
+                });
+              }
+            });
+          }
+
+          const allSids = pendingList.map(item => item.studentId);
+          if (allSids.length > 0) {
+            try {
+              const { data: stRows } = await _supabase.from('students').select('student_id, prefix, full_name, phone_number, email, current_course, current_schedule, line_id, status').in('student_id', allSids.slice(0, 50));
+              if (Array.isArray(stRows)) {
+                const stMap = new Map(stRows.map(s => [String(s.student_id).trim(), s]));
+                pendingList = pendingList.filter(item => {
+                  const s = stMap.get(item.studentId);
+                  if (!s) return true;
+                  const stStatus = String(s.status || '').trim().toUpperCase();
+                  if (stStatus === 'DELETED' || stStatus === 'พร้อมเรียน' || stStatus === 'ACTIVE' || stStatus === 'พร้อมเรียน (ACTIVE)') {
+                    return false;
+                  }
+                  return true;
+                });
+                pendingList.forEach(item => {
+                  if (stMap.has(item.studentId)) {
+                    const s = stMap.get(item.studentId);
+                    item.fullName = item.fullName || (typeof formatStudentNameWithPrefix === 'function' ? formatStudentNameWithPrefix(s.prefix, s.full_name) : s.full_name) || '-';
+                    item.phone = item.phone || s.phone_number || '-';
+                    item.email = item.email || s.email || '';
+                    item.course = item.course || s.current_course || '-';
+                    item.schedule = item.schedule || s.current_schedule || '-';
+                    item.lineId = item.lineId || s.line_id || '';
+                  }
+                });
+              }
+            } catch (_) {}
           }
         } catch (e) {
           console.warn('loadPendingSlipsQueue error:', e);
@@ -79463,7 +79589,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=84';
+      const swPath = basePath + 'sw.js?v=85';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -79472,7 +79598,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (84):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (85):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
