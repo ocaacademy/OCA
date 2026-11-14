@@ -9276,7 +9276,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '88';
+      var LATEST_VERSION = '89';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -30938,10 +30938,73 @@ if (action === 'getDashboardStats') {
       return { refR, refG, refB, isBackdropBlue, isBackdropGreen };
     }
 
+    function computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB) {
+      const N = w * h;
+      const exteriorBg = new Uint8Array(N);
+      if (!srcPixels || !w || !h) return exteriorBg;
+      const bgLuma = 0.299 * refR + 0.587 * refG + 0.114 * refB;
+      const queue = new Int32Array(N);
+      let head = 0;
+      let tail = 0;
+      const maxY = h;
+
+      const isBgPixel = (idx) => {
+        const j = idx * 4;
+        const sR = srcPixels[j];
+        const sG = srcPixels[j + 1];
+        const sB = srcPixels[j + 2];
+        const luma = 0.299 * sR + 0.587 * sG + 0.114 * sB;
+        const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
+        return distBg < 48 && Math.abs(luma - bgLuma) < 34;
+      };
+
+      for (let x = 0; x < w; x++) {
+        if (isBgPixel(x) && exteriorBg[x] === 0) {
+          exteriorBg[x] = 1;
+          queue[tail++] = x;
+        }
+      }
+      for (let y = 1; y < maxY; y++) {
+        const leftIdx = y * w;
+        if (isBgPixel(leftIdx) && exteriorBg[leftIdx] === 0) {
+          exteriorBg[leftIdx] = 1;
+          queue[tail++] = leftIdx;
+        }
+        const rightIdx = leftIdx + w - 1;
+        if (isBgPixel(rightIdx) && exteriorBg[rightIdx] === 0) {
+          exteriorBg[rightIdx] = 1;
+          queue[tail++] = rightIdx;
+        }
+      }
+
+      while (head < tail) {
+        const cur = queue[head++];
+        const cx = cur % w;
+        const cy = (cur - cx) / w;
+        if (cx > 0) {
+          const n = cur - 1;
+          if (exteriorBg[n] === 0 && isBgPixel(n)) { exteriorBg[n] = 1; queue[tail++] = n; }
+        }
+        if (cx + 1 < w) {
+          const n = cur + 1;
+          if (exteriorBg[n] === 0 && isBgPixel(n)) { exteriorBg[n] = 1; queue[tail++] = n; }
+        }
+        if (cy > 0) {
+          const n = cur - w;
+          if (exteriorBg[n] === 0 && isBgPixel(n)) { exteriorBg[n] = 1; queue[tail++] = n; }
+        }
+        if (cy + 1 < h) {
+          const n = cur + w;
+          if (exteriorBg[n] === 0 && isBgPixel(n)) { exteriorBg[n] = 1; queue[tail++] = n; }
+        }
+      }
+      return exteriorBg;
+    }
+
     function refineAlphaWithGuidedFilter(srcPixels, alphaArr, w, h) {
       if (!srcPixels || !alphaArr || !w || !h) return alphaArr;
       const N = w * h;
-      const r = 3;
+      const r = 2;
       const eps = 0.0015;
       const I = new Float32Array(N);
       for (let i = 0; i < N; i++) {
@@ -31029,25 +31092,48 @@ if (action === 'getDashboardStats') {
 
     window.refineAlphaWithGuidedFilter = refineAlphaWithGuidedFilter;
 
-    function applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels) {
+    function applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels, exteriorBgMask = null) {
       isolatePrimarySubjectAlpha(alphaArr, w, h);
       const N = w * h;
+      const exteriorBg = exteriorBgMask || computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB);
 
-      // Dark-Hair & Temple/Neck Corridor Opacity Recovery before Guided Filter
+      // Torso Notch/Hole Closure: protect interior non-backdrop pixels surrounded horizontally by foreground
+      const torsoStartY = Math.floor(h * 0.45);
+      for (let y = torsoStartY; y < h; y++) {
+        const row = y * w;
+        let leftFg = -1;
+        let rightFg = -1;
+        for (let x = 0; x < w; x++) {
+          if (alphaArr[row + x] >= 0.55) {
+            if (leftFg === -1) leftFg = x;
+            rightFg = x;
+          }
+        }
+        if (leftFg !== -1 && rightFg > leftFg) {
+          for (let x = leftFg + 1; x < rightFg; x++) {
+            const idx = row + x;
+            if (exteriorBg[idx] === 0) {
+              alphaArr[idx] = 1.0;
+            }
+          }
+        }
+      }
+
+      // Dark-Hair & Suit/Neck Corridor Opacity Recovery before Guided Filter
       const refLuma = 0.299 * refR + 0.587 * refG + 0.114 * refB;
       for (let i = 0; i < N; i++) {
-        if (alphaArr[i] >= 0.14 && alphaArr[i] < 0.92) {
+        if (exteriorBg[i] === 0 && alphaArr[i] >= 0.10 && alphaArr[i] < 0.94) {
           const j = i * 4;
           const sR = srcPixels[j];
           const sG = srcPixels[j + 1];
           const sB = srcPixels[j + 2];
           const pixLuma = 0.299 * sR + 0.587 * sG + 0.114 * sB;
           const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
-          const notBackdrop = !(isBackdropBlue && sB > sR + 22 && sB > sG + 14 && distBg < 65) &&
-                              !(isBackdropGreen && sG > sR + 22 && sG > sB + 16 && distBg < 65);
+          const notBackdrop = !(isBackdropBlue && sB > sR + 22 && sB > sG + 14 && distBg < 38 && Math.abs(pixLuma - refLuma) < 26) &&
+                              !(isBackdropGreen && sG > sR + 22 && sG > sB + 16 && distBg < 38 && Math.abs(pixLuma - refLuma) < 26);
 
-          if (notBackdrop && ((pixLuma < Math.min(125, refLuma - 28) && distBg > 34) || (distBg > 50 && alphaArr[i] >= 0.22))) {
-            alphaArr[i] = Math.min(1, Math.max(alphaArr[i], (alphaArr[i] - 0.12) / 0.40));
+          if (notBackdrop && (pixLuma < 85 || (pixLuma < Math.min(125, refLuma - 28) && distBg > 34) || (distBg > 50 && alphaArr[i] >= 0.22))) {
+            alphaArr[i] = Math.min(1, Math.max(alphaArr[i], (alphaArr[i] - 0.10) / 0.36));
           }
         }
       }
@@ -31095,16 +31181,23 @@ if (action === 'getDashboardStats') {
         const sR = srcPixels[j];
         const sG = srcPixels[j + 1];
         const sB = srcPixels[j + 2];
+        const sLuma = 0.299 * sR + 0.587 * sG + 0.114 * sB;
         const gA = guidedAlpha[i];
         let a = 0;
 
-        if (gA >= 0.66 || distMap[i] >= 3) {
+        if (exteriorBg[i] === 1 && (gA < 0.85 || i >= w * Math.floor(h * 0.40))) {
+          a = 0.0;
+        } else if (gA >= 0.50 || distMap[i] >= 2) {
           a = 1.0;
-        } else if (gA <= 0.14) {
+        } else if (gA <= 0.24) {
           a = 0.0;
         } else {
-          const t = (gA - 0.14) / (0.66 - 0.14);
+          const t = (gA - 0.24) / (0.50 - 0.24);
           a = t * t * (3 - 2 * t);
+        }
+
+        if (sLuma < 85 && exteriorBg[i] === 0 && gA >= 0.28) {
+          a = Math.max(a, Math.min(1, (gA - 0.18) / 0.24));
         }
 
         let fgR = sR;
@@ -31118,12 +31211,16 @@ if (action === 'getDashboardStats') {
           fgG = Math.min(255, Math.max(0, (sG - decontam * refG) * invA));
           fgB = Math.min(255, Math.max(0, (sB - decontam * refB) * invA));
 
-          if (isBackdropBlue && fgB > Math.max(fgR, fgG) + 10) {
-            fgB = Math.max(fgR, fgG) + 6;
+          if (sB > sR + 12 && sB > sG + 8) {
+            const cap = Math.max(sR, sG);
+            fgB = Math.round(fgB * 0.4 + cap * 0.6);
           }
           if (isBackdropGreen && fgG > Math.max(fgR, fgB) + 10) {
             fgG = Math.max(fgR, fgB) + 6;
           }
+        } else if (a === 1 && isBackdropBlue && distMap[i] <= 2 && sB > sR + 18 && sB > sG + 14 && sLuma < 110) {
+          const cap = Math.max(fgR, fgG);
+          fgB = Math.round(fgB * 0.35 + cap * 0.65);
         }
 
         outPixels[j] = Math.round(fgR * a + bg[0] * (1 - a));
@@ -31134,12 +31231,17 @@ if (action === 'getDashboardStats') {
     }
 
     async function renderModnetMatting(srcCanvas, targetBgColor, w, h) {
+      const aiCanvas = normalizeCanvasForAiMatting(srcCanvas);
+      const mpPromise = Promise.race([
+        getMediaPipeAlphaMask(srcCanvas, w, h, aiCanvas),
+        new Promise((resolve) => setTimeout(() => resolve(null), 3000))
+      ]).catch(() => null);
+
       const session = await getModnetSession();
       const tCanvas = document.createElement('canvas');
       tCanvas.width = MODNET_IN_W;
       tCanvas.height = MODNET_IN_H;
       const tCtx = tCanvas.getContext('2d');
-      const aiCanvas = normalizeCanvasForAiMatting(srcCanvas);
       tCtx.drawImage(aiCanvas, 0, 0, MODNET_IN_W, MODNET_IN_H);
       const inPixels = tCtx.getImageData(0, 0, MODNET_IN_W, MODNET_IN_H).data;
       const P = MODNET_IN_W * MODNET_IN_H;
@@ -31152,7 +31254,10 @@ if (action === 'getDashboardStats') {
       }
 
       const tensor = new ort.Tensor('float32', tensorData, [1, 3, MODNET_IN_H, MODNET_IN_W]);
-      const results = await session.run({ input: tensor });
+      const [results, mpAlpha] = await Promise.all([
+        session.run({ input: tensor }),
+        mpPromise
+      ]);
       const rawMatte = results[Object.keys(results)[0]].data;
 
       // Bilinear upscale matte from 512x672 back to target dimensions (e.g. 600x800)
@@ -31207,13 +31312,37 @@ if (action === 'getDashboardStats') {
       const srcCtx = srcCanvas.getContext('2d');
       const srcPixels = srcCtx.getImageData(0, 0, w, h).data;
       const { refR, refG, refB, isBackdropBlue, isBackdropGreen } = sampleBackdropColorFromMask(srcPixels, alphaArr, w, h);
+      const exteriorBg = computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB);
+
+      if (mpAlpha && mpAlpha.length === N) {
+        const bgLuma = 0.299 * refR + 0.587 * refG + 0.114 * refB;
+        const torsoYStart = Math.floor(h * 0.40);
+        for (let y = torsoYStart; y < h; y++) {
+          const row = y * w;
+          for (let x = 0; x < w; x++) {
+            const i = row + x;
+            if (exteriorBg[i] === 0) {
+              const j = i * 4;
+              const sR = srcPixels[j];
+              const sG = srcPixels[j + 1];
+              const sB = srcPixels[j + 2];
+              const luma = 0.299 * sR + 0.587 * sG + 0.114 * sB;
+              const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
+              if (distBg > 28 || Math.abs(luma - bgLuma) > 22) {
+                alphaArr[i] = Math.max(alphaArr[i], mpAlpha[i] * 0.92);
+              }
+            }
+          }
+        }
+      }
+
       const outCanvas = document.createElement('canvas');
       outCanvas.width = w;
       outCanvas.height = h;
       const outCtx = outCanvas.getContext('2d');
       const outImgData = outCtx.createImageData(w, h);
       const outPixels = outImgData.data;
-      applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels);
+      applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels, exteriorBg);
       outCtx.putImageData(outImgData, 0, 0);
       return outCanvas;
     }
@@ -31255,9 +31384,9 @@ if (action === 'getDashboardStats') {
       return _mediaPipeSegmenterPromise;
     }
 
-    async function renderMediaPipeMatting(srcCanvas, targetBgColor, w = 600, h = 800) {
+    async function getMediaPipeAlphaMask(srcCanvas, w = 600, h = 800, preparedAiCanvas = null) {
       const segmenter = await getMediaPipeSegmenter();
-      const aiCanvas = normalizeCanvasForAiMatting(srcCanvas);
+      const aiCanvas = preparedAiCanvas || normalizeCanvasForAiMatting(srcCanvas);
       const result = segmenter.segment(aiCanvas);
       const confMask = result.confidenceMasks[0];
       const mw = confMask.width;
@@ -31280,7 +31409,6 @@ if (action === 'getDashboardStats') {
       mCtx.putImageData(mImg, 0, 0);
 
       // High-quality upscale to target dimensions
-
       const upCanvas = document.createElement('canvas');
       upCanvas.width = w;
       upCanvas.height = h;
@@ -31289,14 +31417,19 @@ if (action === 'getDashboardStats') {
       upCtx.imageSmoothingQuality = 'high';
       upCtx.drawImage(maskCanvas, 0, 0, w, h);
       const alphaPixels = upCtx.getImageData(0, 0, w, h).data;
-      const srcCtx = srcCanvas.getContext('2d');
-      const srcPixels = srcCtx.getImageData(0, 0, w, h).data;
       const N = w * h;
       const alphaArr = new Float32Array(N);
 
       for (let i = 0; i < N; i++) {
         alphaArr[i] = alphaPixels[i * 4] / 255;
       }
+      return alphaArr;
+    }
+
+    async function renderMediaPipeMatting(srcCanvas, targetBgColor, w = 600, h = 800) {
+      const alphaArr = await getMediaPipeAlphaMask(srcCanvas, w, h);
+      const srcCtx = srcCanvas.getContext('2d');
+      const srcPixels = srcCtx.getImageData(0, 0, w, h).data;
 
       const { refR, refG, refB, isBackdropBlue, isBackdropGreen } = sampleBackdropColorFromMask(srcPixels, alphaArr, w, h);
 
@@ -81389,7 +81522,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=88';
+      const swPath = basePath + 'sw.js?v=89';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -81398,7 +81531,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (88):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (89):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
