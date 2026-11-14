@@ -9276,7 +9276,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '86';
+      var LATEST_VERSION = '87';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -22334,7 +22334,6 @@ body.printing-report #printReportContainer {
       if (!studentId || typeof _supabase === 'undefined' || !_supabase) return [];
       const sId = String(studentId).trim();
       if (!sId) return [];
-
       const promises = [];
       promises.push(
         _supabase.from('receipts')
@@ -22345,7 +22344,6 @@ body.printing-report #printReportContainer {
           .order('receipt_no', { ascending: false })
           .limit(maxRows)
       );
-
       const yy = sId.slice(0, 2);
       if (/^\d{2}$/.test(yy) && Number(yy) < 68) {
         const nextYy = String(Number(yy) + 1).padStart(2, '0');
@@ -22370,7 +22368,6 @@ body.printing-report #printReportContainer {
           });
         }
       });
-
       const list = Array.from(map.values());
       list.sort((a, b) => {
         const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -30046,22 +30043,9 @@ if (action === 'getDashboardStats') {
       const preview = document.getElementById('capturedPreview');
       const overlay = document.getElementById('enrollPhotoAiOverlay');
       if (overlay) overlay.style.display = 'flex';
-      canvas.width = vid.videoWidth || 640;
-      canvas.height = vid.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
-
-      // Mirror horizontally
-
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
-
-      // Digital Center Crop Zoom for 100% fidelity matching the viewfinder
-
-      // Digital 3:4 Center Crop & Zoom for 100% fidelity matching the 3:4 portrait viewfinder
-
-      const z = Math.max(1.0, currentCameraZoom || 1.0);
       const vw = vid.videoWidth || 640;
       const vh = vid.videoHeight || 480;
+      const z = Math.max(1.0, currentCameraZoom || 1.0);
       const targetVw = Math.min(vw, Math.round((vh * 3) / 4));
       const targetVh = Math.min(vh, Math.round((targetVw * 4) / 3));
       const sw = targetVw / z;
@@ -30070,7 +30054,12 @@ if (action === 'getDashboardStats') {
       const sy = (vh - sh) / 2;
       canvas.width = 600;
       canvas.height = 800;
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
       ctx.drawImage(vid, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
       const rawSnapUri = canvas.toDataURL('image/jpeg', 0.88);
 
       if (typeof applyPhotoBackgroundMaroonForEnroll === 'function') {
@@ -30171,7 +30160,7 @@ if (action === 'getDashboardStats') {
           canvas.height = h;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, w, h);
-          const dataUri = canvas.toDataURL('image/jpeg', 0.85);
+          const dataUri = canvas.toDataURL('image/jpeg', 0.94);
 
         if (typeof applyPhotoBackgroundMaroonForEnroll === 'function') {
           applyPhotoBackgroundMaroonForEnroll(dataUri);
@@ -30274,7 +30263,7 @@ if (action === 'getDashboardStats') {
     function isolatePrimarySubjectAlpha(alphaArr, w, h) {
       if (!alphaArr || !w || !h || w <= 0 || h <= 0) return alphaArr;
       const N = w * h;
-      const FG_THRESH = 0.35;
+      const FG_THRESH = 0.22;
       const compLabels = new Int32Array(N);
       const queue = new Int32Array(N);
       const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
@@ -30346,7 +30335,11 @@ if (action === 'getDashboardStats') {
       const isPrimary = new Uint8Array(N);
 
       for (const c of components) {
-        const isPrimaryComp = (c.id === best.id) || (c.bottomAnchorHits > 50 && c.maxY >= h - 10);
+        const cCenterX = (c.minX + c.maxX) * 0.5;
+        const overlapW = Math.max(0, Math.min(c.maxX, best.maxX) - Math.max(c.minX, best.minX));
+        const cWidth = Math.max(1, c.maxX - c.minX);
+        const isAlignedHeadOrHair = (c.maxY <= best.maxY && cCenterX >= best.minX && cCenterX <= best.maxX && overlapW >= cWidth * 0.40 && (best.minY - c.maxY) <= Math.floor(h * 0.12));
+        const isPrimaryComp = (c.id === best.id) || (c.bottomAnchorHits > 50 && c.maxY >= h - 10) || isAlignedHeadOrHair;
         if (isPrimaryComp) {
           for (let i = 0; i < N; i++) {
             if (compLabels[i] === c.id) {
@@ -30356,7 +30349,7 @@ if (action === 'getDashboardStats') {
         }
       }
 
-      const R = 5;
+      const R = 12;
       const tempMask = new Uint8Array(N);
 
       for (let y = 0; y < h; y++) {
@@ -30401,197 +30394,323 @@ if (action === 'getDashboardStats') {
 
     window.isolatePrimarySubjectAlpha = isolatePrimarySubjectAlpha;
 
-    function applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels) {
-      isolatePrimarySubjectAlpha(alphaArr, w, h);
-      const N = w * h;
-      const aWork = new Float32Array(N);
+    function normalizeCanvasForAiMatting(srcCanvas) {
+      if (!srcCanvas) return srcCanvas;
+      const w = srcCanvas.width;
+      const h = srcCanvas.height;
+      if (!w || !h) return srcCanvas;
+      const aiCanvas = document.createElement('canvas');
+      aiCanvas.width = w;
+      aiCanvas.height = h;
+      const aiCtx = aiCanvas.getContext('2d');
+      aiCtx.drawImage(srcCanvas, 0, 0);
+      const imgData = aiCtx.getImageData(0, 0, w, h);
+      const pix = imgData.data;
+      const hist = new Int32Array(256);
+      let sampleCount = 0;
+      let totalLuma = 0;
 
-      for (let i = 0; i < N; i++) {
-        let a = alphaArr[i];
-        const j = i * 4;
-        const sR = srcPixels[j];
-        const sG = srcPixels[j + 1];
-        const sB = srcPixels[j + 2];
+      for (let i = 0; i < pix.length; i += 16) {
+        const r = pix[i];
+        const g = pix[i + 1];
+        const b = pix[i + 2];
+        const luma = (77 * r + 150 * g + 29 * b) >> 8;
+        hist[luma]++;
+        totalLuma += luma;
+        sampleCount++;
+      }
 
-        if (isBackdropBlue || isBackdropGreen) {
-          const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
-          const isSkinTone = (sR > sG + 8 && sR > sB + 15 && sR > 75);
+      if (sampleCount === 0) return srcCanvas;
+      const meanLuma = totalLuma / sampleCount;
+      const p05Target = Math.floor(sampleCount * 0.05);
+      const p90Target = Math.floor(sampleCount * 0.90);
+      let accum = 0;
+      let p05 = 0;
+      let p90 = 255;
 
-          if (!isSkinTone) {
-            if (isBackdropBlue) {
-              const blueDom = sB - Math.max(sR, sG);
+      for (let k = 0; k < 256; k++) {
+        accum += hist[k];
+        if (p05 === 0 && accum >= p05Target) p05 = k;
+        if (accum >= p90Target) {
+          p90 = k;
+          break;
+        }
+      }
 
-              if (distBg < 45 || (blueDom > 12 && distBg < 80)) {
-                const suppressed = distBg < 25 ? 0 : Math.min(1, (distBg - 25) / 55);
-                a = Math.min(a, suppressed);
-              }
-            } else if (isBackdropGreen) {
-              const greenDom = sG - Math.max(sR, sB);
+      const needsDehaze = p05 > 24;
+      const isOverBright = meanLuma > 162 || p90 > 228;
 
-              if (distBg < 45 || (greenDom > 12 && distBg < 80)) {
-                const suppressed = distBg < 25 ? 0 : Math.min(1, (distBg - 25) / 55);
-                a = Math.min(a, suppressed);
-              }
+      if (!needsDehaze && !isOverBright) {
+        return srcCanvas;
+      }
+
+      const blackFloor = needsDehaze ? Math.min(45, p05 - 8) : 0;
+      const gamma = meanLuma > 180 ? 1.35 : (meanLuma > 162 ? 1.20 : 1.08);
+      const invRange = 1 / Math.max(1, 255 - blackFloor);
+
+      for (let i = 0; i < pix.length; i += 4) {
+        let r = pix[i];
+        let g = pix[i + 1];
+        let b = pix[i + 2];
+        let nr = Math.max(0, r - blackFloor) * invRange;
+        let ng = Math.max(0, g - blackFloor) * invRange;
+        let nb = Math.max(0, b - blackFloor) * invRange;
+        nr = Math.pow(Math.min(1, Math.max(0, nr)), gamma);
+        ng = Math.pow(Math.min(1, Math.max(0, ng)), gamma);
+        nb = Math.pow(Math.min(1, Math.max(0, nb)), gamma);
+        const pLuma = 0.299 * nr + 0.587 * ng + 0.114 * nb;
+        nr = pLuma + (nr - pLuma) * 1.12;
+        ng = pLuma + (ng - pLuma) * 1.12;
+        nb = pLuma + (nb - pLuma) * 1.12;
+        pix[i] = Math.round(Math.min(255, Math.max(0, nr * 255)));
+        pix[i + 1] = Math.round(Math.min(255, Math.max(0, ng * 255)));
+        pix[i + 2] = Math.round(Math.min(255, Math.max(0, nb * 255)));
+      }
+
+      aiCtx.putImageData(imgData, 0, 0);
+      return aiCanvas;
+    }
+
+    window.normalizeCanvasForAiMatting = normalizeCanvasForAiMatting;
+
+    function sampleBackdropColorFromMask(srcPixels, alphaArr, w, h) {
+      let sumR = 0, sumG = 0, sumB = 0, count = 0;
+      const topH = Math.floor(h * 0.12);
+      const latH = Math.floor(h * 0.45);
+      const latW1 = Math.floor(w * 0.12);
+      const latW2 = Math.floor(w * 0.88);
+
+      for (let y = 0; y < latH; y += 2) {
+        const row = y * w;
+        const isTop = y < topH;
+        for (let x = 0; x < w; x += 2) {
+          if (isTop || x < latW1 || x >= latW2) {
+            const i = row + x;
+            if (alphaArr && alphaArr[i] < 0.12) {
+              const j = i * 4;
+              sumR += srcPixels[j];
+              sumG += srcPixels[j + 1];
+              sumB += srcPixels[j + 2];
+              count++;
             }
           }
         }
-
-        aWork[i] = a;
       }
 
-      const distMap = new Int32Array(N);
+      if (count === 0) {
+        const fbTopH = Math.max(8, Math.floor(h * 0.08));
+        for (let y = 0; y < fbTopH; y += 2) {
+          for (let x = 0; x < Math.floor(w * 0.15); x += 2) {
+            const j = (y * w + x) * 4;
+            sumR += srcPixels[j]; sumG += srcPixels[j + 1]; sumB += srcPixels[j + 2]; count++;
+          }
+          for (let x = Math.floor(w * 0.85); x < w; x += 2) {
+            const j = (y * w + x) * 4;
+            sumR += srcPixels[j]; sumG += srcPixels[j + 1]; sumB += srcPixels[j + 2]; count++;
+          }
+        }
+      }
 
+      const refR = count > 0 ? sumR / count : 240;
+      const refG = count > 0 ? sumG / count : 240;
+      const refB = count > 0 ? sumB / count : 240;
+      const isBackdropBlue = (refB > refR + 22 && refB > refG + 15 && refB > 95);
+      const isBackdropGreen = (refG > refR + 22 && refG > refB + 18 && refG > 90);
+      return { refR, refG, refB, isBackdropBlue, isBackdropGreen };
+    }
+
+    function refineAlphaWithGuidedFilter(srcPixels, alphaArr, w, h) {
+      if (!srcPixels || !alphaArr || !w || !h) return alphaArr;
+      const N = w * h;
+      const r = 3;
+      const eps = 0.0015;
+      const I = new Float32Array(N);
       for (let i = 0; i < N; i++) {
         const j = i * 4;
-        const sR = srcPixels[j];
-        const sG = srcPixels[j + 1];
-        const sB = srcPixels[j + 2];
-        const isMaroon = (sR > 95 && sG < 38 && sB < 38 && sR > sG * 2.8 && sR > sB * 2.8);
+        I[i] = (0.299 * srcPixels[j] + 0.587 * srcPixels[j + 1] + 0.114 * srcPixels[j + 2]) / 255;
+      }
 
-        if (aWork[i] < 0.45 || isMaroon) {
-          distMap[i] = 0;
-        } else {
-          distMap[i] = 999;
+      function boxBlur(src, radius) {
+        const dst = new Float32Array(N);
+        const temp = new Float32Array(N);
+
+        for (let y = 0; y < h; y++) {
+          const row = y * w;
+          let sum = 0;
+          let cnt = 0;
+          for (let x = 0; x <= Math.min(radius, w - 1); x++) {
+            sum += src[row + x];
+            cnt++;
+          }
+          for (let x = 0; x < w; x++) {
+            const addX = x + radius;
+            const subX = x - radius - 1;
+            if (x > 0) {
+              if (addX < w) { sum += src[row + addX]; cnt++; }
+              if (subX >= 0) { sum -= src[row + subX]; cnt--; }
+            }
+            temp[row + x] = sum / cnt;
+          }
         }
+
+        for (let x = 0; x < w; x++) {
+          let sum = 0;
+          let cnt = 0;
+          for (let y = 0; y <= Math.min(radius, h - 1); y++) {
+            sum += temp[y * w + x];
+            cnt++;
+          }
+          for (let y = 0; y < h; y++) {
+            const addY = y + radius;
+            const subY = y - radius - 1;
+            if (y > 0) {
+              if (addY < h) { sum += temp[addY * w + x]; cnt++; }
+              if (subY >= 0) { sum -= temp[subY * w + x]; cnt--; }
+            }
+            dst[y * w + x] = sum / cnt;
+          }
+        }
+
+        return dst;
+      }
+
+      const mean_I = boxBlur(I, r);
+      const mean_p = boxBlur(alphaArr, r);
+      const II = new Float32Array(N);
+      const Ip = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        II[i] = I[i] * I[i];
+        Ip[i] = I[i] * alphaArr[i];
+      }
+
+      const mean_II = boxBlur(II, r);
+      const mean_Ip = boxBlur(Ip, r);
+      const a = new Float32Array(N);
+      const b = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        const var_I = Math.max(0, mean_II[i] - mean_I[i] * mean_I[i]);
+        const cov_Ip = mean_Ip[i] - mean_I[i] * mean_p[i];
+        const aVal = cov_Ip / (var_I + eps);
+        a[i] = aVal;
+        b[i] = mean_p[i] - aVal * mean_I[i];
+      }
+
+      const mean_a = boxBlur(a, r);
+      const mean_b = boxBlur(b, r);
+      const q = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        let val = mean_a[i] * I[i] + mean_b[i];
+        if (val < 0) val = 0;
+        else if (val > 1) val = 1;
+        q[i] = val;
+      }
+
+      return q;
+    }
+
+    window.refineAlphaWithGuidedFilter = refineAlphaWithGuidedFilter;
+
+    function applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels) {
+      isolatePrimarySubjectAlpha(alphaArr, w, h);
+      const N = w * h;
+
+      // Dark-Hair & Temple/Neck Corridor Opacity Recovery before Guided Filter
+      const refLuma = 0.299 * refR + 0.587 * refG + 0.114 * refB;
+      for (let i = 0; i < N; i++) {
+        if (alphaArr[i] >= 0.14 && alphaArr[i] < 0.92) {
+          const j = i * 4;
+          const sR = srcPixels[j];
+          const sG = srcPixels[j + 1];
+          const sB = srcPixels[j + 2];
+          const pixLuma = 0.299 * sR + 0.587 * sG + 0.114 * sB;
+          const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
+          const notBackdrop = !(isBackdropBlue && sB > sR + 22 && sB > sG + 14 && distBg < 65) &&
+                              !(isBackdropGreen && sG > sR + 22 && sG > sB + 16 && distBg < 65);
+
+          if (notBackdrop && ((pixLuma < Math.min(125, refLuma - 28) && distBg > 34) || (distBg > 50 && alphaArr[i] >= 0.22))) {
+            alphaArr[i] = Math.min(1, Math.max(alphaArr[i], (alphaArr[i] - 0.12) / 0.40));
+          }
+        }
+      }
+
+      const guidedAlpha = refineAlphaWithGuidedFilter(srcPixels, alphaArr, w, h);
+      const distMap = new Int32Array(N);
+      for (let i = 0; i < N; i++) {
+        distMap[i] = guidedAlpha[i] < 0.30 ? 0 : 999;
       }
 
       for (let y = 0; y < h; y++) {
         const row = y * w;
-
         for (let x = 0; x < w; x++) {
           const idx = row + x;
           let d = distMap[idx];
           if (d === 0) continue;
           if (x > 0) d = Math.min(d, distMap[idx - 1] + 1);
-
           if (y > 0) {
             d = Math.min(d, distMap[idx - w] + 1);
             if (x > 0) d = Math.min(d, distMap[idx - w - 1] + 1);
             if (x + 1 < w) d = Math.min(d, distMap[idx - w + 1] + 1);
           }
-
           distMap[idx] = d;
         }
       }
 
       for (let y = h - 1; y >= 0; y--) {
         const row = y * w;
-
         for (let x = w - 1; x >= 0; x--) {
           const idx = row + x;
           let d = distMap[idx];
           if (d === 0) continue;
           if (x + 1 < w) d = Math.min(d, distMap[idx + 1] + 1);
-
           if (y + 1 < h) {
             d = Math.min(d, distMap[idx + w] + 1);
             if (x + 1 < w) d = Math.min(d, distMap[idx + w + 1] + 1);
             if (x > 0) d = Math.min(d, distMap[idx + w - 1] + 1);
           }
-
           distMap[idx] = d;
         }
       }
 
-      const shoulderCutY = Math.floor(h * 0.57);
-      const pocketSuppressed = new Uint8Array(N);
+      for (let i = 0; i < N; i++) {
+        const j = i * 4;
+        const sR = srcPixels[j];
+        const sG = srcPixels[j + 1];
+        const sB = srcPixels[j + 2];
+        const gA = guidedAlpha[i];
+        let a = 0;
 
-      for (let y = 0; y < shoulderCutY; y++) {
-        const row = y * w;
+        if (gA >= 0.66 || distMap[i] >= 3) {
+          a = 1.0;
+        } else if (gA <= 0.14) {
+          a = 0.0;
+        } else {
+          const t = (gA - 0.14) / (0.66 - 0.14);
+          a = t * t * (3 - 2 * t);
+        }
 
-        for (let x = 0; x < w; x++) {
-          const i = row + x;
-          const d = distMap[i];
+        let fgR = sR;
+        let fgG = sG;
+        let fgB = sB;
 
-          if (d > 0 && d <= 16) {
-            const j = i * 4;
-            const sR = srcPixels[j];
-            const sG = srcPixels[j + 1];
-            const sB = srcPixels[j + 2];
-            const isSkinTone = (sR > sG + 8 && sR > sB + 15 && sR > 75);
-            const isCyanBluePocket = !isSkinTone && sB > 118 && (sB - sR) > 38 && ((sG - sR) > 15 || sB > 145);
+        if (a > 0 && a < 1) {
+          const decontam = (1 - a) * 0.55;
+          const invA = 1 / Math.max(a, 0.45);
+          fgR = Math.min(255, Math.max(0, (sR - decontam * refR) * invA));
+          fgG = Math.min(255, Math.max(0, (sG - decontam * refG) * invA));
+          fgB = Math.min(255, Math.max(0, (sB - decontam * refB) * invA));
 
-            if (isCyanBluePocket) {
-              const ramp = Math.max(0, Math.min(aWork[i], 1 - (sB - sR - 32) / 18));
-              aWork[i] = ramp;
-              if (ramp < 0.5) pocketSuppressed[i] = 1;
-            }
+          if (isBackdropBlue && fgB > Math.max(fgR, fgG) + 10) {
+            fgB = Math.max(fgR, fgG) + 6;
+          }
+          if (isBackdropGreen && fgG > Math.max(fgR, fgB) + 10) {
+            fgG = Math.max(fgR, fgB) + 6;
           }
         }
-      }
 
-      for (let y = 1; y < shoulderCutY - 1; y++) {
-        const row = y * w;
-
-        for (let x = 1; x < w - 1; x++) {
-          const i = row + x;
-
-          if (pocketSuppressed[i] === 0 && (
-            pocketSuppressed[i - 1] === 1 || pocketSuppressed[i + 1] === 1 ||
-
-            pocketSuppressed[i - w] === 1 || pocketSuppressed[i + w] === 1
-          )) {
-            const j = i * 4;
-            const sR = srcPixels[j];
-            const sG = srcPixels[j + 1];
-            const sB = srcPixels[j + 2];
-            const isSkinTone = (sR > sG + 8 && sR > sB + 15 && sR > 75);
-
-            if (!isSkinTone && (sB > sR + 20 || sG > sR + 20)) {
-              aWork[i] = Math.min(aWork[i], 0.35);
-            }
-          }
-        }
-      }
-
-      const hairCutY = Math.floor(h * 0.55);
-
-      for (let y = 0; y < h; y++) {
-        const row = y * w;
-
-        for (let x = 0; x < w; x++) {
-          const i = row + x;
-          let a = aWork[i];
-          const j = i * 4;
-          const sR = srcPixels[j];
-          const sG = srcPixels[j + 1];
-          const sB = srcPixels[j + 2];
-          const d = distMap[i];
-
-          if (y < hairCutY && d <= 2 && (sB - sR > 22)) {
-            a = Math.min(a, 0.55);
-          }
-
-          a = a < 0.04 ? 0 : (a > 0.96 ? 1 : a);
-          let fgR = sR;
-          let fgG = sG;
-          let fgB = sB;
-
-          if (a > 0 && a < 1 && (isBackdropBlue || isBackdropGreen)) {
-            fgR = Math.min(255, Math.max(0, (fgR - (1 - a) * refR) / Math.max(a, 0.35)));
-            fgG = Math.min(255, Math.max(0, (fgG - (1 - a) * refG) / Math.max(a, 0.35)));
-            fgB = Math.min(255, Math.max(0, (fgB - (1 - a) * refB) / Math.max(a, 0.35)));
-          }
-
-          if (y < hairCutY && d <= 12) {
-            const isSkinTone = (sR > sG + 8 && sR > sB + 15 && sR > 75);
-
-            if (!isSkinTone) {
-              if (fgB > fgR + 4) {
-                fgB = Math.round(fgR * 0.88 + Math.min(fgG, fgR) * 0.12);
-              }
-
-              if (fgG > fgR + 4) {
-                fgG = Math.round(fgR * 0.90 + fgB * 0.10);
-              }
-            }
-          }
-
-          outPixels[j] = Math.round(fgR * a + bg[0] * (1 - a));
-          outPixels[j + 1] = Math.round(fgG * a + bg[1] * (1 - a));
-          outPixels[j + 2] = Math.round(fgB * a + bg[2] * (1 - a));
-          outPixels[j + 3] = 255;
-        }
+        outPixels[j] = Math.round(fgR * a + bg[0] * (1 - a));
+        outPixels[j + 1] = Math.round(fgG * a + bg[1] * (1 - a));
+        outPixels[j + 2] = Math.round(fgB * a + bg[2] * (1 - a));
+        outPixels[j + 3] = 255;
       }
     }
 
@@ -30601,7 +30720,8 @@ if (action === 'getDashboardStats') {
       tCanvas.width = MODNET_IN_W;
       tCanvas.height = MODNET_IN_H;
       const tCtx = tCanvas.getContext('2d');
-      tCtx.drawImage(srcCanvas, 0, 0, MODNET_IN_W, MODNET_IN_H);
+      const aiCanvas = normalizeCanvasForAiMatting(srcCanvas);
+      tCtx.drawImage(aiCanvas, 0, 0, MODNET_IN_W, MODNET_IN_H);
       const inPixels = tCtx.getImageData(0, 0, MODNET_IN_W, MODNET_IN_H).data;
       const P = MODNET_IN_W * MODNET_IN_H;
       const tensorData = new Float32Array(3 * P);
@@ -30667,77 +30787,7 @@ if (action === 'getDashboardStats') {
       const bg = [bgR, bgG, bgB];
       const srcCtx = srcCanvas.getContext('2d');
       const srcPixels = srcCtx.getImageData(0, 0, w, h).data;
-
-      // Sample backdrop reference from outer perimeter zones (top corners & upper sides - guaranteed background)
-
-      let sumR = 0, sumG = 0, sumB = 0, count = 0;
-      const topH = Math.max(10, Math.floor(h * 0.08));
-
-      // Top-left and Top-right corners
-
-      for (let y = 0; y < topH; y += 2) {
-        for (let x = 0; x < Math.floor(w * 0.15); x += 2) {
-          const idx = (y * w + x) * 4;
-          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
-        }
-
-        for (let x = Math.floor(w * 0.85); x < w; x += 2) {
-          const idx = (y * w + x) * 4;
-          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
-        }
-      }
-
-      // Upper-left and Upper-right side strips
-
-      const midH1 = Math.floor(h * 0.10), midH2 = Math.floor(h * 0.35);
-
-      for (let y = midH1; y < midH2; y += 2) {
-        for (let x = 0; x < Math.floor(w * 0.06); x += 2) {
-          const idx = (y * w + x) * 4;
-          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
-        }
-
-        for (let x = Math.floor(w * 0.94); x < w; x += 2) {
-          const idx = (y * w + x) * 4;
-          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
-        }
-      }
-
-      let refR = count > 0 ? sumR / count : 240;
-      let refG = count > 0 ? sumG / count : 240;
-      let refB = count > 0 ? sumB / count : 240;
-
-      // Check if backdrop is Chroma Blue or Chroma Green
-
-      let isBackdropBlue = (refB > refR + 15 && refB > refG + 15);
-      let isBackdropGreen = (refG > refR + 15 && refG > refB + 15);
-
-      // Edge case: If perimeter was already marooned from prior crop, detect if bottom corners contain residual blue/green backdrop
-
-      if (!isBackdropBlue && !isBackdropGreen) {
-        let bCornerSumR = 0, bCornerSumG = 0, bCornerSumB = 0, bCornerCount = 0;
-        const bStart = Math.floor(h * 0.70);
-
-        for (let y = bStart; y < h; y += 3) {
-          for (const x of [0, 4, 8, 12, 16, w - 20, w - 16, w - 12, w - 8, w - 4]) {
-            if (x < 0 || x >= w) continue;
-            const idx = (y * w + x) * 4;
-            const cr = srcPixels[idx], cg = srcPixels[idx + 1], cb = srcPixels[idx + 2];
-
-            if (cb > cr + 30 && cb > 80) {
-              bCornerSumR += cr; bCornerSumG += cg; bCornerSumB += cb; bCornerCount++;
-            }
-          }
-        }
-
-        if (bCornerCount > 10) {
-          refR = bCornerSumR / bCornerCount;
-          refG = bCornerSumG / bCornerCount;
-          refB = bCornerSumB / bCornerCount;
-          isBackdropBlue = true;
-        }
-      }
-
+      const { refR, refG, refB, isBackdropBlue, isBackdropGreen } = sampleBackdropColorFromMask(srcPixels, alphaArr, w, h);
       const outCanvas = document.createElement('canvas');
       outCanvas.width = w;
       outCanvas.height = h;
@@ -30788,7 +30838,8 @@ if (action === 'getDashboardStats') {
 
     async function renderMediaPipeMatting(srcCanvas, targetBgColor, w = 600, h = 800) {
       const segmenter = await getMediaPipeSegmenter();
-      const result = segmenter.segment(srcCanvas);
+      const aiCanvas = normalizeCanvasForAiMatting(srcCanvas);
+      const result = segmenter.segment(aiCanvas);
       const confMask = result.confidenceMasks[0];
       const mw = confMask.width;
       const mh = confMask.height;
@@ -30821,29 +30872,14 @@ if (action === 'getDashboardStats') {
       const alphaPixels = upCtx.getImageData(0, 0, w, h).data;
       const srcCtx = srcCanvas.getContext('2d');
       const srcPixels = srcCtx.getImageData(0, 0, w, h).data;
+      const N = w * h;
+      const alphaArr = new Float32Array(N);
 
-      // Sample backdrop reference color from outer perimeter zones
-
-      let sumR = 0, sumG = 0, sumB = 0, count = 0;
-      const topH = Math.max(10, Math.floor(h * 0.08));
-
-      for (let y = 0; y < topH; y += 2) {
-        for (let x = 0; x < Math.floor(w * 0.15); x += 2) {
-          const idx = (y * w + x) * 4;
-          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
-        }
-
-        for (let x = Math.floor(w * 0.85); x < w; x += 2) {
-          const idx = (y * w + x) * 4;
-          sumR += srcPixels[idx]; sumG += srcPixels[idx + 1]; sumB += srcPixels[idx + 2]; count++;
-        }
+      for (let i = 0; i < N; i++) {
+        alphaArr[i] = alphaPixels[i * 4] / 255;
       }
 
-      const refR = count > 0 ? sumR / count : 240;
-      const refG = count > 0 ? sumG / count : 240;
-      const refB = count > 0 ? sumB / count : 240;
-      const isBackdropBlue = (refB > refR + 15 && refB > refG + 15);
-      const isBackdropGreen = (refG > refR + 15 && refG > refB + 15);
+      const { refR, refG, refB, isBackdropBlue, isBackdropGreen } = sampleBackdropColorFromMask(srcPixels, alphaArr, w, h);
 
       // Parse target background hex color (default #800000 Maroon)
 
@@ -30868,13 +30904,6 @@ if (action === 'getDashboardStats') {
       const outCtx = outCanvas.getContext('2d');
       const outImgData = outCtx.createImageData(w, h);
       const outPixels = outImgData.data;
-      const N = w * h;
-      const alphaArr = new Float32Array(N);
-
-      for (let i = 0; i < N; i++) {
-        alphaArr[i] = alphaPixels[i * 4] / 255;
-      }
-
       applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels);
       outCtx.putImageData(outImgData, 0, 0);
       return outCanvas;
@@ -30922,7 +30951,22 @@ if (action === 'getDashboardStats') {
               inCtx.drawImage(imgEl, 0, 0, imgW, imgH, 0, 0, 600, 800);
             }
 
-            // 1. Primary Engine: MediaPipe Image Segmenter (Ultra-Fast ~50ms, Zero Halo, All Colors & Patterns Protected)
+            // 1. Primary Engine: MODNet Studio AI Portrait Matting (512x672 studio portrait alpha, fine hair & edge fidelity)
+
+            try {
+              const mattingPromise = renderModnetMatting(inCanvas, targetHexColor, 600, 800);
+              const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('MODNet timeout')), 7500));
+              const outCanvas = await Promise.race([mattingPromise, timeoutPromise]);
+
+              if (outCanvas) {
+                resolve(outCanvas.toDataURL('image/jpeg', 0.92));
+                return;
+              }
+            } catch (modnetErr) {
+              console.warn('[Portrait AI] MODNet matting fallback to MediaPipe:', modnetErr);
+            }
+
+            // 2. High-Safety Secondary Fallback: MediaPipe Image Segmenter
 
             try {
               const mpPromise = renderMediaPipeMatting(inCanvas, targetHexColor, 600, 800);
@@ -30934,22 +30978,7 @@ if (action === 'getDashboardStats') {
                 return;
               }
             } catch (mpErr) {
-              console.warn('[Portrait AI] MediaPipe matting fallback to MODNet:', mpErr);
-            }
-
-            // 2. High-Safety Secondary Fallback: MODNet Studio AI Portrait Matting
-
-            try {
-              const mattingPromise = renderModnetMatting(inCanvas, targetHexColor, 600, 800);
-              const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('MODNet timeout')), 9000));
-              const outCanvas = await Promise.race([mattingPromise, timeoutPromise]);
-
-              if (outCanvas) {
-                resolve(outCanvas.toDataURL('image/jpeg', 0.92));
-                return;
-              }
-            } catch (modnetErr) {
-              console.warn('[Portrait AI] MODNet matting fallback to 3:4 crop:', modnetErr);
+              console.warn('[Portrait AI] MediaPipe matting fallback to 3:4 crop:', mpErr);
             }
 
             // 3. High-safety fallback: 3:4 crop
@@ -30992,11 +31021,11 @@ if (action === 'getDashboardStats') {
 
       applyCapturedPhoto(rawUri);
 
-      // Failsafe auto-close safety timer: guarantees overlay closes in max 6s no matter what
+      // Failsafe auto-close safety timer: guarantees overlay closes in max 13.5s no matter what
 
       const safetyTimer = setTimeout(() => {
         if (overlay) overlay.style.display = 'none';
-      }, 6000);
+      }, 13500);
 
       try {
         const processedUri = await processPortraitToMaroonDataUri(rawUri, MAROON_COLOR);
@@ -54754,7 +54783,6 @@ if (action === 'getDashboardStats') {
       try {
         let students = [];
         let receipts = [];
-
         let totalStudents = 0;
         const studentCoursesMap = new Map();
 
@@ -55339,7 +55367,6 @@ if (action === 'getDashboardStats') {
     function switchReportSubTab(subTab) {
       const validReportSubTabs = ['classroom', 'teacher', 'checker', 'attendance-tracking', 'teacher-tracker', 'roster', 'termtimetable', 'course-breakdown', 'ministry'];
       if (!subTab || !validReportSubTabs.includes(subTab)) subTab = 'classroom';
-
       const checkKey = (subTab === 'roster') ? 'classroom' : subTab;
       if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('report', checkKey)) {
         const fallback = (typeof getFirstPermittedSubmenu === 'function') ? getFirstPermittedSubmenu('report') : null;
@@ -59002,7 +59029,6 @@ if (action === 'getDashboardStats') {
       if (user.role === 'Admin' || user.role === 'Administrator' || uname === 'admin' || uname === 'cake' || role === 'admin' || role === 'administrator') return true;
       if (!hasUserPermission(parentKey)) return false;
       if (!Array.isArray(user.permissions)) return false;
-
       let normalizedSub = subKey;
       if (parentKey === 'financial') {
         if (subKey === 1 || subKey === '1') normalizedSub = 'pending';
@@ -59014,7 +59040,6 @@ if (action === 'getDashboardStats') {
       const hasAnyScopedSub = user.permissions.some(p => typeof p === 'string' && p.startsWith(parentKey + ':'));
       // Legacy Parent-Key Compatibility: if user has parentKey and NO parentKey:* submenus defined, allow all submenus
       if (!hasAnyScopedSub && user.permissions.includes(parentKey)) return true;
-
       const fullSubKey = `${parentKey}:${normalizedSub}`;
       return user.permissions.includes(fullSubKey);
     }
@@ -59260,7 +59285,6 @@ if (action === 'getDashboardStats') {
       const hasCatalogPerm = hasSubmenuPermission('courses', 'catalog');
       const catContainer = document.getElementById('sidebarCourseCategoriesContainer');
       if (catContainer) catContainer.style.display = hasCatalogPerm ? '' : 'none';
-
       const hasAnyOtherCourseSub = ['schedules', 'classrooms', 'fees'].some(sk => hasSubmenuPermission('courses', sk));
       const courseDivider = document.getElementById('dividerSubcatCourses') || document.querySelector('#subcatCourses div[style*="border-top:1px dashed"]');
       if (courseDivider) courseDivider.style.display = (hasCatalogPerm && hasAnyOtherCourseSub) ? '' : 'none';
@@ -61141,7 +61165,6 @@ function openForgotPasswordModal() {
         ]
       }
     ];
-
     window.OCA_SYSTEM_MENUS = OCA_SYSTEM_MENUS;
 
     /**
@@ -61184,7 +61207,6 @@ function openForgotPasswordModal() {
         const hasExplicitSubPerms = Array.isArray(activePerms) && activePerms.some(p => typeof p === 'string' && p.startsWith(m.key + ':'));
         const isLegacyAllSub = isChecked && !hasExplicitSubPerms;
         const gridSpan = hasSub ? 'grid-column: 1 / -1;' : '';
-
         let subHtml = '';
         if (hasSub) {
           subHtml = `<div class="oca-subperm-wrap" style="margin-top:10px; padding:10px 12px; background:rgba(0,0,0,0.3); border:1px dashed rgba(215,166,0,0.22); border-radius:8px; margin-left:27px; display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:6px 14px;">` +
@@ -78658,7 +78680,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const safetyTimer = setTimeout(() => {
         if (procEl) procEl.style.display = 'none';
         if (succEl) succEl.style.display = 'flex';
-      }, 6000);
+      }, 13500);
 
       try {
         const processedUri = await processPortraitToMaroonDataUri(_rawOriginalPhotoDataUri, _currentPhotoBgColor);
@@ -79869,7 +79891,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=86';
+      const swPath = basePath + 'sw.js?v=87';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -79878,7 +79900,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (86):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (87):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
