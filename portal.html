@@ -9276,7 +9276,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '93';
+      var LATEST_VERSION = '94';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -10377,16 +10377,15 @@ body.printing-report #printReportContainer {
 
             <!-- Right: Form Fields Card -->
             <div class="oca-enroll-form-surface">
-              <!-- Mode Indicator / Toggle: New vs Returning Student -->
-              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:8px 12px;">
+              <!-- Automatic Citizen ID / Student Detection Banner (1 Citizen ID = 1 Student ID) -->
+              <div id="enrollAutoDetectBanner" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:10px; background:rgba(215,166,0,0.08); border:1px solid rgba(215,166,0,0.3); border-radius:10px; padding:8px 12px;">
                 <div style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; color:var(--color-gold);">
-                  <i class="fa-solid fa-user-check"></i>
-                  <span id="lblEnrollModeStatus">โหมดปัจจุบัน: นักศึกษาใหม่ (สมัครเรียนครั้งแรก)</span>
+                  <i class="fa-solid fa-id-card-clip"></i>
+                  <span id="lblEnrollModeStatus">ระบบตรวจจับอัตโนมัติ: นักศึกษาใหม่ (ออกรหัสใหม่เมื่อไม่พบเลขบัตรฯ ในระบบ)</span>
                 </div>
-                <div style="display:flex; gap:6px;">
-                  <button type="button" id="btnEnrollModeNew" class="oca-type-toggle-btn active" style="padding:5px 12px; font-size:12px;" onclick="setEnrollStudentMode('new')">นักศึกษาใหม่</button>
-                  <button type="button" id="btnEnrollModeReturning" class="oca-type-toggle-btn" style="padding:5px 12px; font-size:12px;" onclick="setEnrollStudentMode('returning')">นักศึกษาเก่า (ต่อคอร์ส)</button>
-                </div>
+                <button type="button" id="btnEnrollResetMode" class="oca-type-toggle-btn" style="display:none; padding:4px 10px; font-size:11.5px; border-color:rgba(255,255,255,0.25);" onclick="resetEnrollAutoDetectMode()">
+                  <i class="fa-solid fa-rotate-left"></i> ล้างข้อมูล / เริ่มใหม่
+                </button>
               </div>
 
               <!-- Quick-Lookup & Auto-Fill for Returning Students -->
@@ -10493,7 +10492,7 @@ body.printing-report #printReportContainer {
                   <!-- 1. บัตรประชาชน (13 หลัก) -->
                   <div class="oca-input-group">
                     <label class="oca-label" for="citizenId">1. เลขประจำตัวประชาชน (13 หลัก) *</label>
-                    <input type="text" id="citizenId" class="oca-input" placeholder="x-xxxx-xxxxx-xx-x" maxlength="17" oninput="formatCitizen(this)" onblur="checkDuplicateOnBlur()" required>
+                    <input type="text" id="citizenId" class="oca-input" placeholder="x-xxxx-xxxxx-xx-x" maxlength="17" oninput="formatCitizen(this); if (typeof onEnrollCitizenIdTyped === 'function') onEnrollCitizenIdTyped(this);" onblur="checkDuplicateOnBlur()" required>
                   </div>
 
                   <!-- 2. คำนำหน้า -->
@@ -22253,7 +22252,7 @@ body.printing-report #printReportContainer {
           })
 
           .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_users' }, (payload) => {
-            console.log('[Realtime DB Event] Staff users updated:', payload.eventType);
+            console.log('[Realtime DB Event] Staff users updated:', payload);
             handleRealtimeBroadcast('staff_users', payload);
           })
 
@@ -22289,6 +22288,7 @@ body.printing-report #printReportContainer {
 
             if (status === 'SUBSCRIBED') {
               _isConnectingRealtime = false;
+              window._activeOcaChannel = _ocaRealtimeChannel;
               console.log('[Realtime DB Engine] 100% Live Realtime Subscriptions Active (All 9 Tables)');
               window._realtimeRetryCount = 0;
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -25608,75 +25608,132 @@ if (action === 'getDashboardStats') {
         // --- 6. REGISTER STUDENT (WITH CONCURRENCY RETRY & ENHANCED DUP DETECTION) ---
 
         if (action === 'register') {
-          const cleanCid = (params.citizenId || '').toString().replace(/[^0-9A-Za-z]/g, '').slice(0, 13);
+          const cleanCid = (params.citizenId || '').toString().replace(/[\s-]/g, '').replace(/[^0-9A-Za-z]/g, '').slice(0, 13);
           const cleanName = (params.fullName || '').trim();
+          const isValidCidForDupCheck = cleanCid && cleanCid.length >= 5 && !/^0+$/.test(cleanCid);
 
-          if (cleanCid || cleanName) {
-            let dupQuery = _supabase.from('students').select('student_id, full_name, phone_number, citizen_id');
-            const safeCid = cleanCid.replace(/[^0-9A-Za-z]/g, '');
-            const safeName = sanitizePostgrestSearchToken(cleanName);
+          if (isValidCidForDupCheck) {
+            const { data: existingCidRows, error: cidLookupErr } = await _supabase
+              .from('students')
+              .select('student_id, full_name, status, year_be, term, phone_number, address, notes, photo_url')
+              .eq('citizen_id', cleanCid)
+              .neq('status', 'DELETED')
+              .limit(1);
 
-            if (safeCid && safeName) {
-              dupQuery = dupQuery.or(`citizen_id.eq.${safeCid},full_name.eq.${safeName}`);
-            } else if (safeCid) {
-              dupQuery = dupQuery.eq('citizen_id', safeCid);
-            } else if (safeName) {
-              dupQuery = dupQuery.eq('full_name', safeName);
+            if (cidLookupErr) {
+              console.warn('[Register Citizen ID Guard] Lookup warning:', cidLookupErr);
             }
 
-            const { data: dup } = await dupQuery.limit(5);
+            if (existingCidRows && existingCidRows.length > 0) {
+              const existing = existingCidRows[0];
+              if (params.isCourseRenewal === true || params.allowExistingReuse === true) {
+                let reusePhotoUrl = existing.photo_url || '';
+                const rawReusePhoto = params.photoBase64 || params.photo || params.photoDataUri || '';
+                if (rawReusePhoto) {
+                  if (rawReusePhoto.startsWith('http')) {
+                    reusePhotoUrl = rawReusePhoto;
+                  } else if (rawReusePhoto.startsWith('data:image/')) {
+                    try {
+                      reusePhotoUrl = await uploadStudentPhotoToStorage(rawReusePhoto, existing.student_id);
+                    } catch (_) {}
+                  }
+                }
+                const reusePayload = {
+                  year_be: Number(params.yearBE) || existing.year_be || 2569,
+                  term: Number(params.term) || existing.term || 5,
+                  current_course: params.course || undefined,
+                  current_schedule: params.schedule || undefined,
+                  phone_number: params.phoneNumber || params.phone || existing.phone_number || '',
+                  email: (params.email || '').toString().trim() || undefined,
+                  address: params.address || existing.address || '',
+                  line_id: params.lineId || undefined,
+                  language_level: params.level || undefined,
+                  photo_url: reusePhotoUrl || undefined
+                };
+                if (cleanName) reusePayload.full_name = cleanName;
+                if (params.prefix) reusePayload.prefix = params.prefix;
+                if (params.smartCardUid) reusePayload.smart_card_uid = params.smartCardUid;
+                Object.keys(reusePayload).forEach(k => { if (reusePayload[k] === undefined) delete reusePayload[k]; });
+
+                const { error: reuseErr } = await _supabase
+                  .from('students')
+                  .update(reusePayload)
+                  .eq('student_id', existing.student_id);
+                if (reuseErr) {
+                  return { success: false, error: reuseErr.message, message: 'ไม่สามารถอัปเดตข้อมูลรหัสเดิมได้: ' + reuseErr.message };
+                }
+                return {
+                  success: true,
+                  isUpdated: true,
+                  reusedExisting: true,
+                  studentId: existing.student_id,
+                  existingStudentId: existing.student_id,
+                  message: `ใช้รหัสนักศึกษาเดิม ${existing.student_id} (${existing.full_name}) ต่อคอร์สเรียบร้อยแล้ว`
+                };
+              }
+
+              const dupCidErrMsg = 'เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว (' + existing.student_id + ' - ' + existing.full_name + ') นักเรียน 1 คนมีได้ 1 รหัสเท่านั้น กรุณาใช้รหัสเดิมต่อคอร์ส';
+              return {
+                success: false,
+                isDuplicate: true,
+                duplicateCitizenId: true,
+                existingStudentId: existing.student_id,
+                existingName: existing.full_name,
+                error: dupCidErrMsg,
+                message: dupCidErrMsg,
+                duplicates: [existing]
+              };
+            }
+          }
+
+          if (cleanName && !isValidCidForDupCheck) {
+            const safeName = sanitizePostgrestSearchToken(cleanName);
+            const { data: dup } = await _supabase
+              .from('students')
+              .select('student_id, full_name, phone_number, citizen_id, address, notes')
+              .eq('full_name', safeName)
+              .neq('status', 'DELETED')
+              .limit(5);
 
             if (dup && dup.length > 0) {
-              // Resuming / completing existing online admission application
-
               const existingSt = dup[0];
               const isResume = !params.blockDuplicateCitizenId && !!(params.allowUpdate || params.isOnlineResume);
 
               if (isResume) {
                 const updatedPayload = {
                   full_name: cleanName,
-
                   phone_number: params.phoneNumber || params.phone || existingSt.phone_number,
-
                   email: (params.email || '').toString().trim(),
-
                   address: params.address || existingSt.address || '',
-
                   photo_url: params.photoBase64 || params.photo || existingSt.photo_url || ''
                 };
                 if (params.prefix) updatedPayload.prefix = params.prefix;
                 if (params.lineId) updatedPayload.line_id = params.lineId;
                 let n = existingSt.notes || '';
-
                 if (params.fullNameEn && !n.includes('EN:')) {
                   n = n ? (n + ' | EN: ' + params.fullNameEn) : ('EN: ' + params.fullNameEn);
                 }
-
                 const emResume = (params.emergencyPhone || params.emergencyContact || '').trim();
-
                 if (emResume && !n.includes('ฉุกเฉิน:')) {
                   n = n ? (n + ' | ฉุกเฉิน: ' + emResume) : ('ฉุกเฉิน: ' + emResume);
                 }
-
                 updatedPayload.notes = n;
-                await _supabase.from('students').update(updatedPayload).eq('student_id', existingSt.student_id);
-
+                const { error: resUpdErr } = await _supabase.from('students').update(updatedPayload).eq('student_id', existingSt.student_id);
+                if (resUpdErr) {
+                  return { success: false, error: resUpdErr.message, message: resUpdErr.message };
+                }
                 return {
                   success: true,
-
                   isUpdated: true,
-
                   studentId: existingSt.student_id,
-
                   message: `อัปเดตข้อมูลและแนบรูปถ่ายในประวัติเดิมเรียบร้อยแล้ว (รหัส: ${existingSt.student_id})`
                 };
               }
 
               return {
+                success: false,
                 isDuplicate: true,
-
                 message: `พบประวัติในระบบแล้ว (รหัส: ${dup[0].student_id} - ${dup[0].full_name})`,
-
                 duplicates: dup
               };
             }
@@ -29720,20 +29777,22 @@ if (action === 'getDashboardStats') {
 
         const isActive = isCatalogActive && (catKey === currentCat);
         const onclickAttr = (catKey === 'ทั้งหมด')
-
           ? "navigateToSubCourse('all', this)"
-
           : ("navigateToSubCourseCategory('" + escapeHtml(catKey) + "', this)");
+        const catSubKey = catKey === 'ศิลป์ (วาดภาพ / เขียนอักษร)'
+          ? 'cat_art'
+          : (catKey === 'ดนตรี (กู่เจิง / ขลุ่ยจีน / หยางฉิน / เอ้อหู)' ? 'cat_music' : '');
+        const isCatPermitted = (!catSubKey || typeof hasSubmenuPermission !== 'function') ? true : hasSubmenuPermission('courses', catSubKey);
 
-        html += '<button type="button" class="oca-sub-item-btn' + (isActive ? ' active' : '') + '" id="' + btnId + '" data-cat="' + escapeHtml(catKey) + '" onclick="' + onclickAttr + '">' +
-
+        html += '<button type="button" class="oca-sub-item-btn' + (isActive ? ' active' : '') + '" id="' + btnId + '" data-cat="' + escapeHtml(catKey) + '"' + (catSubKey ? (' data-perm="courses:' + catSubKey + '"') : '') + (isCatPermitted ? '' : ' style="display:none;"') + ' onclick="' + onclickAttr + '">' +
                 iconHtml +
-
                 '<span>' + btnLabel + '</span>' +
-
                 '</button>';
       });
       container.innerHTML = html.trim();
+      if (typeof syncDynamicSubmenuPermissions === 'function') {
+        try { syncDynamicSubmenuPermissions(); } catch (_) {}
+      }
     }
 
     window.renderSidebarCourseCategories = renderSidebarCourseCategories;
@@ -30418,13 +30477,21 @@ if (action === 'getDashboardStats') {
     // Student ID Generation (7 digits: YY + T + NNNN เช่น 6940001, 6950001)
 
     function calcNextStudentId() {
+      const txtEl = document.getElementById('txtStudentId');
+      if (window._enrollAutoDetectedStudent && (window._enrollAutoDetectedStudent.student_id || window._enrollAutoDetectedStudent.studentId)) {
+        const lockedId = String(window._enrollAutoDetectedStudent.student_id || window._enrollAutoDetectedStudent.studentId).trim();
+        if (txtEl) {
+          txtEl.textContent = lockedId;
+          txtEl.dataset.lockedExistingId = lockedId;
+        }
+        return;
+      }
       const selYear = document.getElementById('selYear');
       const selTerm = document.getElementById('selTerm');
       const yearBE = selYear ? selYear.value : '2569';
       const term = selTerm ? selTerm.value : (window._currentResolvedAcademicTerm ? String(window._currentResolvedAcademicTerm.term) : '5');
       const yy = String(yearBE).slice(-2);
       const t = String(parseInt(term, 10) || 4);
-      const txtEl = document.getElementById('txtStudentId');
       const lblPhoto = document.getElementById('lblPhotoName');
 
       callGasApi('generateStudentId', { year: yearBE, term: term })
@@ -32424,7 +32491,69 @@ if (action === 'getDashboardStats') {
 
      */
 
-    function checkDuplicateOnBlur() {
+    function applyEnrollAutoDetectedStudent(student) {
+      if (!student) return;
+      const sid = String(student.studentId || student.student_id || '').trim();
+      if (!sid) return;
+      window._enrollAutoDetectedStudent = Object.assign({}, student, { student_id: sid, studentId: sid });
+      window._enrollStudentMode = 'returning';
+      window._enrollRegFeeOverride = 0;
+
+      const txtEl = document.getElementById('txtStudentId');
+      if (txtEl) {
+        txtEl.textContent = sid;
+        txtEl.dataset.lockedExistingId = sid;
+      }
+      const lblPhoto = document.getElementById('lblPhotoName');
+      if (lblPhoto) lblPhoto.textContent = sid + '_photo.jpg';
+
+      const lbl = document.getElementById('lblEnrollModeStatus');
+      if (lbl) {
+        lbl.textContent = `ตรวจพบ น.ศ. เดิมในระบบ: ${sid} (ใช้รหัสเดิม 1 คนต่อ 1 รหัส)`;
+      }
+      const banner = document.getElementById('enrollAutoDetectBanner');
+      if (banner) {
+        banner.style.background = 'rgba(16,185,129,0.14)';
+        banner.style.borderColor = 'rgba(16,185,129,0.5)';
+      }
+      const btnReset = document.getElementById('btnEnrollResetMode');
+      if (btnReset) btnReset.style.display = 'inline-flex';
+      hideDuplicateWarningBox();
+    }
+    window.applyEnrollAutoDetectedStudent = applyEnrollAutoDetectedStudent;
+
+    function resetEnrollAutoDetectMode() {
+      window._enrollAutoDetectedStudent = null;
+      window._enrollStudentMode = 'new';
+      window._enrollRegFeeOverride = null;
+      window._lastEnrollCheckedCid = '';
+      const txtEl = document.getElementById('txtStudentId');
+      if (txtEl) delete txtEl.dataset.lockedExistingId;
+      const lbl = document.getElementById('lblEnrollModeStatus');
+      if (lbl) lbl.textContent = 'ระบบตรวจจับอัตโนมัติ: นักศึกษาใหม่ (ออกรหัสใหม่เมื่อไม่พบเลขบัตรฯ ในระบบ)';
+      const banner = document.getElementById('enrollAutoDetectBanner');
+      if (banner) {
+        banner.style.background = 'rgba(215,166,0,0.08)';
+        banner.style.borderColor = 'rgba(215,166,0,0.3)';
+      }
+      const btnReset = document.getElementById('btnEnrollResetMode');
+      if (btnReset) btnReset.style.display = 'none';
+      if (typeof calcNextStudentId === 'function') calcNextStudentId();
+    }
+    window.resetEnrollAutoDetectMode = resetEnrollAutoDetectMode;
+
+    function onEnrollCitizenIdTyped(input) {
+      if (!input) return;
+      const digits = String(input.value || '').replace(/\D/g, '');
+      if (digits.length === 13 && window._lastEnrollCheckedCid !== digits) {
+        checkDuplicateOnBlur();
+      } else if (digits.length < 13 && window._enrollAutoDetectedStudent) {
+        resetEnrollAutoDetectMode();
+      }
+    }
+    window.onEnrollCitizenIdTyped = onEnrollCitizenIdTyped;
+
+    async function checkDuplicateOnBlur() {
       const citizenRaw = document.getElementById('citizenId')?.value.trim() || '';
       const citizenDigits = citizenRaw.replace(/\D/g, '');
       const fullName = document.getElementById('fullName')?.value.trim() || '';
@@ -32433,16 +32562,46 @@ if (action === 'getDashboardStats') {
         return;
       }
 
-      callGasApi('checkStudentDuplicate', { citizenId: citizenDigits, fullName: fullName }, 'GET')
+      if (citizenDigits.length === 13 && !/^0+$/.test(citizenDigits) && typeof _supabase !== 'undefined' && _supabase) {
+        window._lastEnrollCheckedCid = citizenDigits;
+        try {
+          const { data: cidRows, error: cidErr } = await _supabase
+            .from('students')
+            .select('*')
+            .eq('citizen_id', citizenDigits)
+            .neq('status', 'DELETED')
+            .limit(1);
+          if (!cidErr && cidRows && cidRows.length > 0) {
+            const matchedSt = cidRows[0];
+            applyEnrollAutoDetectedStudent(matchedSt);
+            if (typeof autoFillStudentProfile === 'function') {
+              await autoFillStudentProfile(matchedSt, { skipToast: false });
+            }
+            return;
+          } else if (window._enrollAutoDetectedStudent) {
+            resetEnrollAutoDetectMode();
+          }
+        } catch (err) {
+          console.warn('checkDuplicateOnBlur citizen lookup error:', err);
+        }
+      }
 
+      callGasApi('checkStudentDuplicate', { citizenId: citizenDigits, fullName: fullName }, 'GET')
         .then(res => {
           if (res && res.success && res.isDuplicate && res.duplicates && res.duplicates.length > 0) {
-            showDuplicateWarningBox(res.duplicates);
+            const firstDup = res.duplicates[0];
+            if (citizenDigits.length === 13 && firstDup && firstDup.studentId) {
+              applyEnrollAutoDetectedStudent(firstDup);
+              if (typeof autoFillStudentProfile === 'function') {
+                autoFillStudentProfile(firstDup);
+              }
+            } else {
+              showDuplicateWarningBox(res.duplicates);
+            }
           } else {
             hideDuplicateWarningBox();
           }
         })
-
         .catch(err => {
           console.warn('checkStudentDuplicate error:', err);
         });
@@ -32493,6 +32652,10 @@ if (action === 'getDashboardStats') {
       const sid = student.studentId || student.student_id;
       const cid = student.citizenId || student.citizen_id;
       const targetQuery = sid || cid;
+
+      if (sid && typeof applyEnrollAutoDetectedStudent === 'function') {
+        applyEnrollAutoDetectedStudent(student);
+      }
 
       if (targetQuery && (!student.address && !student.addr_house_no && !student.addrProvince)) {
         try {
@@ -32765,19 +32928,12 @@ if (action === 'getDashboardStats') {
     // Submit Enrollment
 
     function setEnrollStudentMode(mode) {
-      window._enrollStudentMode = (mode === 'returning') ? 'returning' : 'new';
-      const btnNew = document.getElementById('btnEnrollModeNew');
-      const btnRet = document.getElementById('btnEnrollModeReturning');
-      const lbl = document.getElementById('lblEnrollModeStatus');
-      if (btnNew) btnNew.classList.toggle('active', window._enrollStudentMode === 'new');
-      if (btnRet) btnRet.classList.toggle('active', window._enrollStudentMode === 'returning');
-      if (lbl) {
-        lbl.textContent = window._enrollStudentMode === 'returning'
-          ? 'โหมดปัจจุบัน: นักศึกษาเก่า (ต่อคอร์ส / ดึงประวัติ)'
-          : 'โหมดปัจจุบัน: นักศึกษาใหม่ (สมัครเรียนครั้งแรก)';
-      }
-      if (window._enrollStudentMode === 'returning') {
+      if (mode === 'returning') {
+        window._enrollStudentMode = 'returning';
+        window._enrollRegFeeOverride = 0;
         document.getElementById('inpEnrollQuickLookup')?.focus();
+      } else {
+        resetEnrollAutoDetectMode();
       }
     }
     window.setEnrollStudentMode = setEnrollStudentMode;
@@ -32958,7 +33114,10 @@ if (action === 'getDashboardStats') {
 
         photoBase64: photoDataUri,
 
-        blockDuplicateCitizenId: window._enrollStudentMode !== 'returning',
+        blockDuplicateCitizenId: !(window._enrollAutoDetectedStudent || window._enrollStudentMode === 'returning'),
+        allowExistingReuse: !!(window._enrollAutoDetectedStudent || window._enrollStudentMode === 'returning'),
+        isCourseRenewal: !!(window._enrollAutoDetectedStudent || window._enrollStudentMode === 'returning'),
+        regFee: (window._enrollAutoDetectedStudent || window._enrollStudentMode === 'returning') ? 0 : undefined,
 
         notes: (typeof encodeExtProfileToNotes === 'function') ? encodeExtProfileToNotes('', {
           ethnicity: document.getElementById('enrollEthnicity')?.value || '',
@@ -32983,9 +33142,17 @@ if (action === 'getDashboardStats') {
           window._isSubmittingEnrollment = false;
           setButtonLoading(btn, false);
 
-          if (res && res.isDuplicate) {
-            showModal('แจ้งเตือน: พบข้อมูลลงทะเบียนซ้ำ!', res.message, '⚠️');
-            showDuplicateWarningBox(res.duplicates || []);
+          if (res && (res.duplicateCitizenId || res.isDuplicate)) {
+            showModal('แจ้งเตือน: เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว!', res.error || res.message, '🚫');
+            if (res.existingStudentId) {
+              applyEnrollAutoDetectedStudent({
+                student_id: res.existingStudentId,
+                full_name: res.existingName || fullName,
+                citizen_id: formData.citizenId
+              });
+            } else {
+              showDuplicateWarningBox(res.duplicates || []);
+            }
             return;
           }
 
@@ -33236,6 +33403,7 @@ if (action === 'getDashboardStats') {
             }
 
             // Handover to Receipts for payment and official single-point email dispatch
+            const wasExistingReuse = !!(res.reusedExisting || window._enrollAutoDetectedStudent || window._enrollStudentMode === 'returning');
             window._pendingEnrollReceiptHandover = {
               studentId: savedStudentId,
               fullName: fullName,
@@ -33245,6 +33413,8 @@ if (action === 'getDashboardStats') {
               course: course,
               schedule: schedule,
               courseFee: calculatedCourseFee,
+              regFee: wasExistingReuse ? 0 : undefined,
+              isExistingReuse: wasExistingReuse,
               isCorporate: isCorporate,
               companyName: companyName,
               companyBranch: companyBranch,
@@ -33255,6 +33425,7 @@ if (action === 'getDashboardStats') {
             clearEnrollSlipUpload();
             const enrollFormEl = document.getElementById('enrollForm');
             if (enrollFormEl) enrollFormEl.reset();
+            if (typeof resetEnrollAutoDetectMode === 'function') resetEnrollAutoDetectMode();
             if (typeof initAcademicYearSelect === 'function') initAcademicYearSelect();
             resetEnrollCameraAndPhotoState();
             calcNextStudentId();
@@ -61122,6 +61293,9 @@ if (action === 'getDashboardStats') {
       if (mobShip) mobShip.style.display = hasUserPermission('shipping') ? '' : 'none';
 
       // ปรับการซ่อน/แสดงเมนูย่อย (Tier-3 Submenus & In-page Tabs) ตามสิทธิ์รายย่อย
+      if (typeof syncDynamicSubmenuPermissions === 'function') {
+        try { syncDynamicSubmenuPermissions(); } catch (_) {}
+      }
       const sysMenus = (typeof OCA_SYSTEM_MENUS !== 'undefined' && Array.isArray(OCA_SYSTEM_MENUS))
         ? OCA_SYSTEM_MENUS
         : (window.OCA_SYSTEM_MENUS || []);
@@ -62986,6 +63160,8 @@ function openForgotPasswordModal() {
         key: 'courses', no: 4, name: 'หลักสูตร/ตารางเรียน (Courses)', desc: 'จัดการวิชา ค่าเรียน และตารางสอน', icon: 'fa-book-open', color: '#f59e0b',
         submenus: [
           { subKey: 'catalog', key: 'courses:catalog', name: 'คอร์สเรียน & หมวดหมู่', sidebarIds: ['sidebarCourseCategoriesContainer'], pillIds: ['btnCourseSubnavCatalog'] },
+          { subKey: 'cat_art', key: 'courses:cat_art', name: 'ศิลป์ (วาดภาพ / เขียนอักษร)', sidebarIds: ['btnSubCoursesArt'], pillIds: [] },
+          { subKey: 'cat_music', key: 'courses:cat_music', name: 'ดนตรี (กู่เจิง / ขลุ่ยจีน / หยางฉิน / เอ้อหู)', sidebarIds: ['btnSubCoursesMusic'], pillIds: [] },
           { subKey: 'schedules', key: 'courses:schedules', name: 'ตารางสอนและรอบเวลา', sidebarIds: ['btnSubCoursesSchedules'], pillIds: ['btnCourseSubnavSchedules'] },
           { subKey: 'classrooms', key: 'courses:classrooms', name: 'จัดการห้องเรียน', sidebarIds: ['btnSubCoursesRooms'], pillIds: ['btnCourseSubnavClassrooms'] },
           { subKey: 'fees', key: 'courses:fees', name: 'ค่าธรรมเนียมและส่วนลด', sidebarIds: ['btnSubCoursesFees'], pillIds: ['btnCourseSubnavFees'] }
@@ -63059,13 +63235,85 @@ function openForgotPasswordModal() {
     }
     window.onSubPermCheckboxChanged = onSubPermCheckboxChanged;
 
+    function syncDynamicSubmenuPermissions() {
+      const sysMenus = (typeof OCA_SYSTEM_MENUS !== 'undefined' && Array.isArray(OCA_SYSTEM_MENUS))
+        ? OCA_SYSTEM_MENUS
+        : (window.OCA_SYSTEM_MENUS || []);
+      const containerMap = {
+        'subcatCourses': 'courses',
+        'sidebarCoursesSubmenu': 'courses',
+        'sidebarCourseCategoriesContainer': 'courses',
+        'subcatFinancial': 'financial',
+        'subcatTextbooks': 'textbooks',
+        'subcatReports': 'report',
+        'sidebarReportSubmenu': 'report',
+        'subcatSettings': 'settings'
+      };
+      const selector = '.oca-sub-item-btn, .oca-sub-btn, [data-perm], #sidebarCourseCategoriesContainer button, #sidebarCoursesSubmenu button, #sidebarReportSubmenu button, #subcatCourses button, #subcatFinancial button, #subcatTextbooks button, #subcatReports button, #subcatSettings button';
+      const nodes = document.querySelectorAll(selector);
+      nodes.forEach(btn => {
+        if (!btn) return;
+        const dataPerm = (btn.getAttribute('data-perm') || '').trim();
+        let parentKey = '';
+        let subKey = '';
+        if (dataPerm && dataPerm.includes(':')) {
+          const parts = dataPerm.split(':');
+          parentKey = parts[0].trim();
+          subKey = parts.slice(1).join(':').trim();
+        } else {
+          const parentBox = btn.closest('#subcatCourses, #sidebarCoursesSubmenu, #sidebarCourseCategoriesContainer, #subcatFinancial, #subcatTextbooks, #subcatReports, #sidebarReportSubmenu, #subcatSettings');
+          if (parentBox && containerMap[parentBox.id]) {
+            parentKey = containerMap[parentBox.id];
+          }
+          const onclickStr = btn.getAttribute('onclick') || '';
+          const matchTab = onclickStr.match(/navigateTo\w+Sub(?:Tab|Course|Category)?\(\s*'([^']+)'/);
+          if (matchTab && matchTab[1]) {
+            subKey = matchTab[1].trim();
+          } else if (btn.dataset && btn.dataset.cat) {
+            const catVal = btn.dataset.cat.trim();
+            if (catVal === 'ทั้งหมด') return;
+            subKey = 'cat_' + (btn.id || catVal).replace(/[^a-zA-Z0-9_]/g, '_');
+          } else if (btn.id) {
+            subKey = btn.id.replace(/^btnSub(?:Courses|Fin|Tb|Report|Settings)?/i, '').toLowerCase();
+          }
+        }
+        if (!parentKey || !subKey) return;
+        // Skip generic course category items already covered by courses:catalog unless explicitly Art/Music or data-perm
+        if (parentKey === 'courses' && btn.closest('#sidebarCourseCategoriesContainer') && !dataPerm && subKey !== 'cat_art' && subKey !== 'cat_music') {
+          return;
+        }
+        const parentMenu = sysMenus.find(m => m.key === parentKey);
+        if (!parentMenu) return;
+        if (!Array.isArray(parentMenu.submenus)) parentMenu.submenus = [];
+        const fullKey = `${parentKey}:${subKey}`;
+        let existingSub = parentMenu.submenus.find(s => s.key === fullKey || s.subKey === subKey || (btn.id && Array.isArray(s.sidebarIds) && s.sidebarIds.includes(btn.id)));
+        if (!existingSub) {
+          const labelText = (btn.textContent || '').replace(/\s+/g, ' ').trim() || subKey;
+          parentMenu.submenus.push({
+            subKey: subKey,
+            key: fullKey,
+            name: labelText,
+            sidebarIds: btn.id ? [btn.id] : [],
+            pillIds: []
+          });
+        } else if (btn.id && Array.isArray(existingSub.sidebarIds) && !existingSub.sidebarIds.includes(btn.id)) {
+          existingSub.sidebarIds.push(btn.id);
+        }
+      });
+    }
+    window.syncDynamicSubmenuPermissions = syncDynamicSubmenuPermissions;
+
     function renderMenuAccessMatrix(activePerms = []) {
       const container = document.getElementById('matrixMenuCheckboxes');
       if (!container) return;
+      if (typeof syncDynamicSubmenuPermissions === 'function') {
+        try { syncDynamicSubmenuPermissions(); } catch (_) {}
+      }
       const titleEl = document.getElementById('lblMatrixMenuTitle');
 
       if (titleEl) {
-        titleEl.textContent = 'กำหนดสิทธิ์เข้าถึงเมนู (12 เมนูหลัก + เมนูย่อย)';
+        const totalSubs = OCA_SYSTEM_MENUS.reduce((acc, m) => acc + (Array.isArray(m.submenus) ? m.submenus.length : 0), 0);
+        titleEl.textContent = `กำหนดสิทธิ์เข้าถึงเมนู (${OCA_SYSTEM_MENUS.length} เมนูหลัก + ${totalSubs} เมนูย่อย)`;
       }
 
       container.innerHTML = OCA_SYSTEM_MENUS.map(m => {
@@ -63148,21 +63396,21 @@ function openForgotPasswordModal() {
      */
 
     function handleRealtimeStaffPermissionsUpdate(userObj) {
-      if (!userObj || !userObj.username) return;
+      if (!userObj || (!userObj.username && !userObj.id)) return;
       const current = getSavedCurrentUser();
-      if (!current) return;
       const targetU = (userObj.username || '').toLowerCase().trim();
-      const currentU = (current.username || '').toLowerCase().trim();
+      const currentU = current ? (current.username || '').toLowerCase().trim() : '';
+      const isSameById = !!(current && current.id && userObj.id && String(current.id) === String(userObj.id));
+      const isSameUser = !!(current && ((currentU && targetU && currentU === targetU) || isSameById));
+
+      let parsedPerms = userObj.permissions;
+      if (typeof parsedPerms === 'string') {
+        try { parsedPerms = JSON.parse(parsedPerms); } catch (_) {}
+      }
 
       // หากผู้ใช้ที่ถูกแก้ไขกำลังล็อกอินใช้งานอยู่ในเบราว์เซอร์นี้
-
-      if (currentU === targetU) {
-        let newPerms = userObj.permissions;
-
-        if (typeof newPerms === 'string') {
-          try { newPerms = JSON.parse(newPerms); } catch(_) {}
-        }
-
+      if (isSameUser) {
+        let newPerms = parsedPerms;
         if (!Array.isArray(newPerms) || newPerms.length === 0) {
           if (typeof getDefaultPermissionsForRole === 'function') {
             newPerms = getDefaultPermissionsForRole(userObj.role, currentU);
@@ -63171,35 +63419,34 @@ function openForgotPasswordModal() {
           }
         }
 
+        const prevPermsJson = JSON.stringify(Array.isArray(current.permissions) ? current.permissions : []);
+        const nextPermsJson = JSON.stringify(newPerms);
+        const permsChanged = prevPermsJson !== nextPermsJson || (userObj.role && userObj.role !== current.role);
+
         const updatedUser = {
           ...current,
-
           fullName: userObj.full_name || userObj.fullName || current.fullName,
-
           role: userObj.role || current.role,
-
           permissions: newPerms
         };
         saveCurrentUser(updatedUser);
         applyUserPermissions(updatedUser);
+        if (typeof renderSidebarCourseCategories === 'function') {
+          try { renderSidebarCourseCategories(); } catch (_) {}
+        }
 
-        if (typeof showToast === 'function') {
+        if (permsChanged && typeof showToast === 'function') {
           showToast(
             'สิทธิ์เมนูอัปเดตแล้ว (Real-time)',
-
             'ผู้ดูแลระบบได้ปรับปรุงสิทธิ์การเข้าถึงเมนูของคุณเรียบร้อยแล้ว',
-
             '🔄'
           );
         }
 
         // หากกำลังเปิดอยู่ในเมนูที่เพิ่งถูกเพิกถอนสิทธิ์ ให้สลับไปยังเมนูแรกที่มีสิทธิ์ทันที
-
         const activeTab = document.querySelector('.oca-view-tab.active');
-
         if (activeTab) {
           const navKey = getNavKeyFromTabId(activeTab.id);
-
           if (navKey && typeof hasUserPermission === 'function' && !hasUserPermission(navKey)) {
             const fallback = (typeof getFirstPermittedNavKey === 'function') ? getFirstPermittedNavKey() : 'dashboard';
             if (typeof switchNav === 'function') switchNav(fallback);
@@ -63207,8 +63454,18 @@ function openForgotPasswordModal() {
         }
       }
 
-      // รีเฟรชตารางผู้ใช้ใน Settings เพื่อสะท้อนสิทธิ์ล่าสุดทันที
+      // หาก Modal จัดการผู้ใช้/สิทธิ์เปิดอยู่ ให้อัปเดตสิทธิ์ใน Modal แบบ Real-time
+      const permModal = document.getElementById('modalUserPermission');
+      if (permModal && permModal.style.display && permModal.style.display !== 'none') {
+        const editingOrigU = (document.getElementById('inpUserOrigUsername')?.value || '').toLowerCase().trim();
+        if (editingOrigU && targetU && editingOrigU === targetU && Array.isArray(parsedPerms)) {
+          if (typeof renderMenuAccessMatrix === 'function') {
+            renderMenuAccessMatrix(parsedPerms);
+          }
+        }
+      }
 
+      // รีเฟรชตารางผู้ใช้ใน Settings เพื่อสะท้อนสิทธิ์ล่าสุดทันที
       if (typeof loadUsersList === 'function') {
         loadUsersList(false, true);
       }
@@ -68087,7 +68344,29 @@ function openPublicRegisterView() {
       if (province) fullAddressParts.push('จ.' + province);
       if (postalCode) fullAddressParts.push(postalCode);
       const combinedAddress = fullAddressParts.join(' ');
-      const cleanCid = citizenRaw.replace(/[^0-9A-Za-z]/g, '').slice(0, 20);
+      const cleanCid = citizenRaw.replace(/[\s-]/g, '').replace(/[^0-9A-Za-z]/g, '').slice(0, 20);
+      if (window._pubStudentMode !== 'returning' && cleanCid && cleanCid.length >= 5 && !/^0+$/.test(cleanCid) && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data: pubDupRows, error: pubDupErr } = await _supabase
+            .from('students')
+            .select('student_id, full_name')
+            .eq('citizen_id', cleanCid)
+            .neq('status', 'DELETED')
+            .limit(1);
+          if (!pubDupErr && pubDupRows && pubDupRows.length > 0) {
+            const ex = pubDupRows[0];
+            window._lastPubSubmitTimestamp = 0;
+            showModal(
+              'เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว',
+              `พบประวัตินักศึกษาในระบบแล้ว (รหัส: ${ex.student_id} - ${ex.full_name})\n\nนักเรียน 1 คนมีได้ 1 รหัสเท่านั้น กรุณากลับไปเลือกโหมด "นักศึกษาเก่า (ต่อคอร์ส)" และใช้รหัสเดิม ${ex.student_id}`,
+              '🚫'
+            );
+            return;
+          }
+        } catch (pubDupCheckErr) {
+          console.warn('[PublicReg Citizen ID Guard] Notice:', pubDupCheckErr);
+        }
+      }
       const btn = document.getElementById('btnSubmitPublicRegister');
 
       if (btn) {
@@ -68127,6 +68406,8 @@ function openPublicRegisterView() {
         status: 'ACTIVE',
 
         blockDuplicateCitizenId: window._pubStudentMode !== 'returning',
+        allowExistingReuse: window._pubStudentMode === 'returning',
+        isCourseRenewal: window._pubStudentMode === 'returning',
 
         course: selCourse,
 
@@ -68180,11 +68461,13 @@ function openPublicRegisterView() {
             btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> <span>${dict.btnSubmit}</span>`;
           }
 
-          if (res && res.isDuplicate) {
+          if (res && (res.duplicateCitizenId || res.isDuplicate)) {
+            window._lastPubSubmitTimestamp = 0;
+            const exSid = res.existingStudentId ? ` (${res.existingStudentId})` : '';
             showModal(
               'พบข้อมูลผู้สมัครในระบบแล้ว / Already Registered',
-              (res.message || 'เลขประจำตัวประชาชนนี้เคยลงทะเบียนในระบบแล้ว') + '\n\nหากท่านเป็นนักศึกษาเก่า กรุณาเลือกโหมด "นักศึกษาเก่า (ต่อคอร์ส / เคยมีรหัสนักศึกษา)" เพื่อดำเนินการต่อคอร์สเรียน',
-              '⚠️'
+              (res.error || res.message || 'เลขประจำตัวประชาชนนี้เคยลงทะเบียนในระบบแล้ว') + `\n\nนักเรียน 1 คนมีได้ 1 รหัสเท่านั้น กรุณาเลือกโหมด "นักศึกษาเก่า (ต่อคอร์ส)" เพื่อใช้รหัสเดิม${exSid}`,
+              '🚫'
             );
             return;
           }
@@ -72956,7 +73239,10 @@ function openPublicRegisterView() {
         "ผูกบัตร RFID สำเร็จ": "RFID 卡绑定成功",
         "เปลี่ยนรหัส PIN สำเร็จ": "安全 PIN 码已更新",
         "อนุมัติสลิปสำเร็จ": "付款凭证已批准",
-        "ปฏิเสธสลิปเรียบร้อยแล้ว": "已拒绝付款凭证"
+        "ปฏิเสธสลิปเรียบร้อยแล้ว": "已拒绝付款凭证",
+        "ระบบตรวจจับอัตโนมัติ: นักศึกษาใหม่ (ออกรหัสใหม่เมื่อไม่พบเลขบัตรฯ ในระบบ)": "自动识别：新生（系统中未找到身份证号时将分配新学号）",
+        "ล้างข้อมูล / เริ่มใหม่": "清空 / 重新开始",
+        "เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว": "该身份证号在系统中已有学号"
       },
       en: {
         "\"(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)\"": "\"(Classroom can be checked on opening day)\"",
@@ -74242,7 +74528,10 @@ function openPublicRegisterView() {
         "ผูกบัตร RFID สำเร็จ": "RFID Card Linked",
         "เปลี่ยนรหัส PIN สำเร็จ": "PIN Updated",
         "อนุมัติสลิปสำเร็จ": "Slip Approved",
-        "ปฏิเสธสลิปเรียบร้อยแล้ว": "Slip Rejected"
+        "ปฏิเสธสลิปเรียบร้อยแล้ว": "Slip Rejected",
+        "ระบบตรวจจับอัตโนมัติ: นักศึกษาใหม่ (ออกรหัสใหม่เมื่อไม่พบเลขบัตรฯ ในระบบ)": "Auto-Detect: New Student (assigns new ID if Citizen ID not found)",
+        "ล้างข้อมูล / เริ่มใหม่": "Reset / Start Over",
+        "เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว": "Citizen ID Already Has a Student ID"
       }
     };
     window.OCA_INNER_CONTENT_I18N = OCA_INNER_CONTENT_I18N;
@@ -82367,7 +82656,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=93';
+      const swPath = basePath + 'sw.js?v=94';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -82376,7 +82665,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (93):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (94):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
