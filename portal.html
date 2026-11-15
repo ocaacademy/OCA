@@ -9291,7 +9291,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '117';
+      var LATEST_VERSION = '118';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -15896,16 +15896,17 @@ body.printing-report #printReportContainer {
                 </div>
               </div>
 
-              <!-- Scrollable Table Container (8 Columns) -->
+              <!-- Scrollable Table Container (9 Columns) -->
               <div id="boxMinistryTableWrap" class="oca-table-scroll-container" style="max-height:580px; overflow-y:auto; overflow-x:auto; border-radius:8px; border:1px solid rgba(215,166,0,0.25); background:rgba(0,0,0,0.2);">
                 <table class="oca-table oca-live-table" style="width:100%; border-collapse:collapse;" id="tableMinistryReport">
                   <thead>
                     <tr style="position:sticky; top:0; z-index:2; background:#042820;">
                       <th style="width:55px; text-align:center; white-space:nowrap; padding:10px 8px;">ลำดับ</th>
                       <th style="width:110px; text-align:center; white-space:nowrap; padding:10px 10px;">รหัสนักศึกษา</th>
-                      <th style="width:145px; text-align:center; white-space:nowrap; padding:10px 10px;">เลขประจำตัวประชาชน</th>
+                      <th style="width:175px; text-align:center; white-space:nowrap; padding:10px 10px;">เลขประจำตัวประชาชน / พาสปอร์ต</th>
                       <th style="width:85px; text-align:center; white-space:nowrap; padding:10px 8px;">คำนำหน้า</th>
                       <th style="text-align:left; min-width:180px; padding:10px 12px;">ชื่อ - สกุล</th>
+                      <th style="width:95px; text-align:center; white-space:nowrap; padding:10px 8px;">เชื้อชาติ</th>
                       <th style="width:105px; text-align:center; white-space:nowrap; padding:10px 8px;">สัญชาติ</th>
                       <th style="text-align:left; min-width:160px; padding:10px 12px;">คอร์สเล่มสุดท้าย</th>
                       <th style="width:115px; text-align:center; white-space:nowrap; padding:10px 8px;">สถานะ</th>
@@ -15913,7 +15914,7 @@ body.printing-report #printReportContainer {
                   </thead>
 
                   <tbody id="tbodyMinistryReport">
-                    <tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-muted);">กรุณากด "ดึงข้อมูลใหม่" เพื่อโหลดรายงานทะเบียนนักศึกษาเสนอหน่วยงานกระทรวง</td></tr>
+                    <tr><td colspan="9" style="text-align:center; padding:30px; color:var(--text-muted);">กรุณากด "ดึงข้อมูลใหม่" เพื่อโหลดรายงานทะเบียนนักศึกษาเสนอหน่วยงานกระทรวง</td></tr>
                   </tbody>
 
                   <tfoot id="tfootMinistryReport" style="background:#02231b; font-weight:800; border-top:2px solid rgba(215,166,0,0.4);">
@@ -56985,6 +56986,11 @@ if (action === 'getDashboardStats') {
 
     let _ministryLoadSeq = 0;
 
+    function isMinistryThaiNationality(nat) {
+      const v = String(nat || '').trim().toLowerCase();
+      return v === 'ไทย' || v === 'thai' || v === '泰' || v === '泰国' || v === 'thailand';
+    }
+
     async function loadMinistryReport(forceRefresh = false) {
       const tbody = document.getElementById('tbodyMinistryReport');
       if (!tbody) return;
@@ -57001,7 +57007,7 @@ if (action === 'getDashboardStats') {
         const pct = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
         tbody.innerHTML = `
           <tr>
-            <td colspan="8" style="text-align:center; padding:36px; color:#94A3B8;">
+            <td colspan="9" style="text-align:center; padding:36px; color:#94A3B8;">
               <i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:var(--color-gold); margin-bottom:12px; display:block;"></i>
               <div style="font-size:14px; font-weight:700; color:#F8FAFC; margin-bottom:8px;">${escapeHtml(phaseMsg)}</div>
               <div style="font-size:12px; color:#38BDF8; margin-bottom:12px;">ดึงข้อมูลแล้ว ${loaded.toLocaleString()} / ${total.toLocaleString()} คน (${pct}%)</div>
@@ -57029,7 +57035,7 @@ if (action === 'getDashboardStats') {
             while (stPageCount < maxMinistryPages) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
               const { data: chunk, error: cErr } = await _supabase.from('students')
-                .select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at')
+                .select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at, notes')
                 .gte('student_id', '6800000')
                 .order('student_id', { ascending: false })
                 .range(offset, offset + pageSize - 1);
@@ -57057,7 +57063,7 @@ if (action === 'getDashboardStats') {
             while (stPageCount < maxMinistryPages) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
               let q = _supabase.from('students')
-                .select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at')
+                .select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at, notes')
                 .neq('status', 'DELETED');
               if (/^\d{4}$/.test(yearFilter)) {
                 const yrPrefix = yearFilter.slice(-2);
@@ -57164,7 +57170,11 @@ if (action === 'getDashboardStats') {
         students.forEach(s => {
           const sid = String(s.student_id || '').trim();
           const cid = String(s.citizen_id || '').trim();
-          const dedupeKey = (cid && cid.length >= 7) ? cid : sid;
+          const ext = (typeof decodeExtProfileFromNotes === 'function') ? (decodeExtProfileFromNotes(s.notes) || {}) : {};
+          const passportNo = String(ext.passport_no || '').trim();
+          const cleanCid = cid.replace(/[^0-9A-Za-z]/g, '');
+          const idNumber = cleanCid || passportNo || '-';
+          const dedupeKey = (cid && cid.length >= 7) ? cid : (passportNo && passportNo.length >= 5 ? passportNo : sid);
           if (!dedupeKey) return;
           const history = studentCoursesMap.get(sid) || [];
           if (s.current_course && !history.includes(s.current_course)) {
@@ -57175,6 +57185,17 @@ if (action === 'getDashboardStats') {
             const existing = personMap.get(dedupeKey);
             existing.allCourses = Array.from(new Set([...existing.allCourses, ...history]));
             if (!existing.terminalCourse && history.length > 0) existing.terminalCourse = history[0];
+            if (existing.idNumber === '-' && idNumber !== '-') {
+              existing.idNumber = idNumber;
+              existing.citizenId = idNumber;
+            }
+            if (!existing.passportNo && passportNo) existing.passportNo = passportNo;
+            if ((!existing.ethnicity || existing.ethnicity === '-') && ext.ethnicity) {
+              existing.ethnicity = String(ext.ethnicity || '').trim() || '-';
+            }
+            if (ext.nationality && (!existing.nationality || existing.nationality === 'ต่างชาติ/จีน')) {
+              existing.nationality = String(ext.nationality || '').trim();
+            }
             if (checkMinistryGraduation(existing.allCourses)) existing.status = 'GRADUATED';
             return;
           }
@@ -57182,9 +57203,10 @@ if (action === 'getDashboardStats') {
           const allCourses = Array.from(new Set(history));
           const isGrad = checkMinistryGraduation(allCourses);
           const terminalCourse = allCourses.length > 0 ? allCourses[0] : (s.current_course || '-');
-          const cleanCid = cid.replace(/[^0-9A-Za-z]/g, '');
           const hasThaiName = /[\u0E00-\u0E7F]/.test(s.full_name || '');
-          const nationality = (cleanCid.length === 13 && /^[1-8]/.test(cleanCid)) ? 'ไทย' : (hasThaiName ? 'ไทย' : 'ต่างชาติ/จีน');
+          const extNationality = String(ext.nationality || '').trim();
+          const nationality = extNationality || ((cleanCid.length === 13 && /^[1-8]/.test(cleanCid)) ? 'ไทย' : (hasThaiName ? 'ไทย' : 'ต่างชาติ/จีน'));
+          const ethnicity = String(ext.ethnicity || '').trim() || '-';
           let cleanFullName = (s.full_name || '').trim();
           const pref = (s.prefix || '').trim();
           if (pref) {
@@ -57201,9 +57223,12 @@ if (action === 'getDashboardStats') {
 
           personMap.set(dedupeKey, {
             studentId: sid,
-            citizenId: cid || '-',
+            citizenId: idNumber,
+            idNumber: idNumber,
+            passportNo: passportNo,
             prefix: pref,
             fullName: cleanFullName,
+            ethnicity: ethnicity,
             nationality: nationality,
             terminalCourse: terminalCourse,
             allCourses: allCourses,
@@ -57218,7 +57243,7 @@ if (action === 'getDashboardStats') {
         _ministryLoadedYear = null;
         console.error('loadMinistryReport error:', err);
         if (tbody) {
-          tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px; color:#ef4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> เกิดข้อผิดพลาดในการดึงข้อมูล: ${err.message || err}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:#ef4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> เกิดข้อผิดพลาดในการดึงข้อมูล: ${err.message || err}</td></tr>`;
         }
       }
     }
@@ -57236,14 +57261,17 @@ if (action === 'getDashboardStats') {
           if (sidYr !== shortTarget) return false;
         }
         if (statusFilter !== 'ALL' && item.status !== statusFilter) return false;
-        if (natFilter === 'THAI' && item.nationality !== 'ไทย') return false;
-        if (natFilter === 'FOREIGN' && item.nationality === 'ไทย') return false;
+        if (natFilter === 'THAI' && !isMinistryThaiNationality(item.nationality)) return false;
+        if (natFilter === 'FOREIGN' && isMinistryThaiNationality(item.nationality)) return false;
         if (query) {
           const matchSid = item.studentId.toLowerCase().includes(query);
-          const matchCid = item.citizenId.toLowerCase().includes(query);
+          const matchCid = (item.idNumber || item.citizenId || '').toLowerCase().includes(query);
+          const matchPassport = (item.passportNo || '').toLowerCase().includes(query);
+          const matchNat = (item.nationality || '').toLowerCase().includes(query);
+          const matchEth = (item.ethnicity || '').toLowerCase().includes(query);
           const matchName = item.fullName.toLowerCase().includes(query);
           const matchCourse = item.terminalCourse.toLowerCase().includes(query);
-          if (!matchSid && !matchCid && !matchName && !matchCourse) return false;
+          if (!matchSid && !matchCid && !matchPassport && !matchNat && !matchEth && !matchName && !matchCourse) return false;
         }
         return true;
       });
@@ -57284,7 +57312,7 @@ if (action === 'getDashboardStats') {
       const total = list.length;
       const gradCount = list.filter(i => i.status === 'GRADUATED').length;
       const activeCount = total - gradCount;
-      const thaiCount = list.filter(i => i.nationality === 'ไทย').length;
+      const thaiCount = list.filter(i => isMinistryThaiNationality(i.nationality)).length;
       const foreignCount = total - thaiCount;
       if (statTotal) statTotal.textContent = Number(total).toLocaleString();
       if (statGrad) statGrad.textContent = Number(gradCount).toLocaleString();
@@ -57292,7 +57320,7 @@ if (action === 'getDashboardStats') {
       if (statNat) statNat.textContent = `${Number(thaiCount).toLocaleString()} / ${Number(foreignCount).toLocaleString()}`;
 
       if (total === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:36px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="font-size:24px; color:var(--color-gold); margin-bottom:10px; display:block;"></i>ไม่พบข้อมูลนักศึกษาที่ตรงกับเงื่อนไขการค้นหา</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:36px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="font-size:24px; color:var(--color-gold); margin-bottom:10px; display:block;"></i>ไม่พบข้อมูลนักศึกษาที่ตรงกับเงื่อนไขการค้นหา</td></tr>';
         if (tfoot) tfoot.innerHTML = '';
         return;
       }
@@ -57303,17 +57331,19 @@ if (action === 'getDashboardStats') {
         const statusBadge = isGrad
           ? '<span style="background:rgba(16,185,129,0.18); border:1px solid #10B981; color:#34D399; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px;">✓ จบการศึกษา</span>'
           : '<span style="background:rgba(56,189,248,0.18); border:1px solid #38BDF8; color:#38BDF8; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px;">⏳ ระหว่างเรียน</span>';
-        const natBadge = item.nationality === 'ไทย'
-          ? '<span style="color:#CBD5E1;">ไทย</span>'
-          : '<span style="color:#F59E0B; font-weight:700;">จีน/ต่างชาติ</span>';
+        const natText = escapeHtml(item.nationality || '-');
+        const natBadge = isMinistryThaiNationality(item.nationality)
+          ? `<span style="color:#CBD5E1;">${natText}</span>`
+          : `<span style="color:#F59E0B; font-weight:700;">${natText}</span>`;
 
         return `
           <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
             <td style="text-align:center; padding:10px 8px; color:var(--text-muted);">${idx + 1}</td>
             <td style="text-align:center; padding:10px 8px;"><strong style="font-family:monospace; color:var(--color-gold);">${escapeHtml(item.studentId)}</strong></td>
-            <td style="text-align:center; padding:10px 8px; font-family:monospace; color:#E2E8F0; letter-spacing:0.5px;">${escapeHtml(item.citizenId)}</td>
+            <td style="text-align:center; padding:10px 8px; font-family:monospace; color:#E2E8F0; letter-spacing:0.5px;">${escapeHtml(item.idNumber || item.citizenId || '-')}</td>
             <td style="text-align:center; padding:10px 8px; color:#CBD5E1;">${escapeHtml(item.prefix || '-')}</td>
             <td style="text-align:left; padding:10px 12px; font-weight:600; color:#F8FAFC;">${escapeHtml(item.fullName)}</td>
+            <td style="text-align:center; padding:10px 8px; color:#CBD5E1;">${escapeHtml(item.ethnicity || '-')}</td>
             <td style="text-align:center; padding:10px 8px;">${natBadge}</td>
             <td style="text-align:left; padding:10px 12px; color:#38BDF8; font-size:12px;">${escapeHtml(item.terminalCourse)}</td>
             <td style="text-align:center; padding:10px 8px;">${statusBadge}</td>
@@ -57323,7 +57353,7 @@ if (action === 'getDashboardStats') {
       if (list.length > visibleLimit) {
         rowsHtml += `
           <tr>
-            <td colspan="8" style="text-align:center; padding:14px; background:rgba(215,166,0,0.06); border-top:1px dashed rgba(215,166,0,0.3);">
+            <td colspan="9" style="text-align:center; padding:14px; background:rgba(215,166,0,0.06); border-top:1px dashed rgba(215,166,0,0.3);">
               <button type="button" class="oca-btn" onclick="renderMinistryReportTable(window._ministryFilteredStudents, ${visibleLimit + 500})" style="padding:6px 16px; font-size:12px; font-weight:700; color:var(--color-gold); background:rgba(215,166,0,0.15); border:1px solid rgba(215,166,0,0.4); border-radius:6px; cursor:pointer; margin-right:8px;">
                 <i class="fa-solid fa-angles-down"></i> แสดงเพิ่มอีก 500 รายชื่อ (แสดงแล้ว ${visibleLimit.toLocaleString()} / ${list.length.toLocaleString()} คน)
               </button>
@@ -57339,9 +57369,16 @@ if (action === 'getDashboardStats') {
       if (tfoot) {
         tfoot.innerHTML = `
           <tr>
-            <td colspan="7" style="text-align:right; padding:10px 14px; color:var(--color-gold); font-size:13px;">รวมนักศึกษาทั้งหมดตามตัวกรอง:</td>
+            <td colspan="8" style="text-align:right; padding:10px 14px; color:var(--color-gold); font-size:13px;">รวมนักศึกษาทั้งหมดตามตัวกรอง:</td>
             <td style="text-align:center; padding:10px 8px; color:#34D399; font-size:14px; font-family:monospace;">${Number(total).toLocaleString()} คน</td>
           </tr>`;
+      }
+      const lang = window._currentSystemLang || 'th';
+      if (lang !== 'th' && typeof translateContainerTree === 'function') {
+        try {
+          translateContainerTree(tbody, lang);
+          if (tfoot) translateContainerTree(tfoot, lang);
+        } catch (_) {}
       }
     }
     window.renderMinistryReportTable = renderMinistryReportTable;
@@ -57355,12 +57392,13 @@ if (action === 'getDashboardStats') {
       const rowsHtml = studentsList.map((s, idx) => `
         <tr style="border-bottom: 0.5pt solid #ccc; font-size: 8.5pt;">
           <td style="text-align:center; padding: 2.5mm 1mm;">${idx + 1}</td>
-          <td style="text-align:center; padding: 2.5mm 1mm; font-family: monospace;">${s.studentId}</td>
-          <td style="text-align:center; padding: 2.5mm 1mm; font-family: monospace;">${s.citizenId}</td>
-          <td style="text-align:center; padding: 2.5mm 1mm;">${s.prefix || '-'}</td>
-          <td style="text-align:left; padding: 2.5mm 2mm; font-weight: 600;">${s.fullName}</td>
-          <td style="text-align:center; padding: 2.5mm 1mm;">${s.nationality}</td>
-          <td style="text-align:left; padding: 2.5mm 2mm;">${s.terminalCourse}</td>
+          <td style="text-align:center; padding: 2.5mm 1mm; font-family: monospace;">${escapeHtml(s.studentId)}</td>
+          <td style="text-align:center; padding: 2.5mm 1mm; font-family: monospace;">${escapeHtml(s.idNumber || s.citizenId || '-')}</td>
+          <td style="text-align:center; padding: 2.5mm 1mm;">${escapeHtml(s.prefix || '-')}</td>
+          <td style="text-align:left; padding: 2.5mm 2mm; font-weight: 600;">${escapeHtml(s.fullName)}</td>
+          <td style="text-align:center; padding: 2.5mm 1mm;">${escapeHtml(s.ethnicity || '-')}</td>
+          <td style="text-align:center; padding: 2.5mm 1mm;">${escapeHtml(s.nationality || '-')}</td>
+          <td style="text-align:left; padding: 2.5mm 2mm;">${escapeHtml(s.terminalCourse)}</td>
           <td style="text-align:center; padding: 2.5mm 1mm; font-weight: bold; color: ${s.status === 'GRADUATED' ? '#047857' : '#0369a1'};">
             ${s.status === 'GRADUATED' ? 'จบการศึกษา' : 'ระหว่างเรียน'}
           </td>
@@ -57368,7 +57406,7 @@ if (action === 'getDashboardStats') {
       `).join('');
 
       return `
-        <div class="oca-ministry-print-page" style="width: 297mm; min-height: 210mm; padding: 5mm; box-sizing: border-box; background: #ffffff; color: #000000; font-family: 'Sarabun', sans-serif;">
+        <div class="oca-ministry-print-page" style="width: 297mm; min-height: 210mm; padding: 6mm; box-sizing: border-box; background: #ffffff; color: #000000; font-family: 'Sarabun', sans-serif;">
           ${buildOfficialOcaPrintHeaderHtml(
             `บัญชีรายชื่อทะเบียนนักศึกษาเพื่อเสนอหน่วยงานกระทรวงศึกษาธิการ (${yearLabel})`,
             `รวมนักศึกษาทั้งหมด: ${total} คน | จบการศึกษา: ${gradCount} คน | ระหว่างเรียน: ${activeCount} คน | วันที่พิมพ์: ${new Date().toLocaleDateString('th-TH')}`
@@ -57376,15 +57414,16 @@ if (action === 'getDashboardStats') {
 
           <table style="width: 100%; border-collapse: collapse; margin-top: 2mm;">
             <thead>
-              <tr style="background: #E6F4EA; border-top: 1.5pt solid #044E39; border-bottom: 1.5pt solid #044E39; font-size: 9pt; font-weight: bold; color: #044E39;">
-                <th style="width: 35px; text-align: center; padding: 2mm 1mm;">ลำดับ</th>
-                <th style="width: 80px; text-align: center; padding: 2mm 1mm;">รหัสนักศึกษา</th>
-                <th style="width: 120px; text-align: center; padding: 2mm 1mm;">เลขประจำตัวประชาชน</th>
-                <th style="width: 65px; text-align: center; padding: 2mm 1mm;">คำนำหน้า</th>
+              <tr style="background: #E6F4EA; border-top: 1.5pt solid #044E39; border-bottom: 1.5pt solid #044E39; font-size: 8.5pt; font-weight: bold; color: #044E39;">
+                <th style="width: 30px; text-align: center; padding: 2mm 1mm;">ลำดับ</th>
+                <th style="width: 72px; text-align: center; padding: 2mm 1mm;">รหัสนักศึกษา</th>
+                <th style="width: 130px; text-align: center; padding: 2mm 1mm;">เลขประจำตัวประชาชน / พาสปอร์ต</th>
+                <th style="width: 58px; text-align: center; padding: 2mm 1mm;">คำนำหน้า</th>
                 <th style="text-align: left; padding: 2mm 2mm;">ชื่อ - สกุล</th>
-                <th style="width: 75px; text-align: center; padding: 2mm 1mm;">สัญชาติ</th>
-                <th style="width: 160px; text-align: left; padding: 2mm 2mm;">คอร์สเล่มสุดท้าย</th>
-                <th style="width: 90px; text-align: center; padding: 2mm 1mm;">สถานะ</th>
+                <th style="width: 65px; text-align: center; padding: 2mm 1mm;">เชื้อชาติ</th>
+                <th style="width: 65px; text-align: center; padding: 2mm 1mm;">สัญชาติ</th>
+                <th style="width: 140px; text-align: left; padding: 2mm 2mm;">คอร์สเล่มสุดท้าย</th>
+                <th style="width: 82px; text-align: center; padding: 2mm 1mm;">สถานะ</th>
               </tr>
             </thead>
             <tbody>
@@ -57577,7 +57616,18 @@ if (action === 'getDashboardStats') {
         return;
       }
 
-      const headers = ['ลำดับ', 'รหัสนักศึกษา', 'เลขประจำตัวประชาชน', 'คำนำหน้า', 'ชื่อ - สกุล', 'สัญชาติ', 'คอร์สเล่มสุดท้าย', 'สถานะ'];
+      const headers = ['ลำดับ', 'รหัสนักศึกษา', 'เลขประจำตัวประชาชน / พาสปอร์ต', 'คำนำหน้า', 'ชื่อ - สกุล', 'เชื้อชาติ', 'สัญชาติ', 'คอร์สเล่มสุดท้าย', 'สถานะ'];
+      const ministrySheetCols = [
+        { wch: 7 },
+        { wch: 14 },
+        { wch: 24 },
+        { wch: 12 },
+        { wch: 28 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 26 },
+        { wch: 16 }
+      ];
 
       function buildSheetArray(items) {
         const rows = [headers];
@@ -57585,9 +57635,10 @@ if (action === 'getDashboardStats') {
           rows.push([
             idx + 1,
             String(item.studentId || ''),
-            String(item.citizenId || ''),
+            String(item.idNumber || item.citizenId || ''),
             item.prefix || '',
             item.fullName || '',
+            item.ethnicity || '-',
             item.nationality || '',
             item.terminalCourse || '',
             item.status === 'GRADUATED' ? 'จบการศึกษา' : 'ระหว่างเรียน'
@@ -57600,6 +57651,7 @@ if (action === 'getDashboardStats') {
 
       // Sheet 1: ข้อมูลนักศึกษา (All)
       const wsAll = window.XLSX.utils.aoa_to_sheet(buildSheetArray(list));
+      wsAll['!cols'] = ministrySheetCols;
       for (let r = 1; r <= list.length; r++) {
         const cellRef = window.XLSX.utils.encode_cell({ r: r, c: 2 });
         if (wsAll[cellRef]) {
@@ -57612,6 +57664,7 @@ if (action === 'getDashboardStats') {
       // Sheet 2: จบการศึกษา
       const gradList = list.filter(i => i.status === 'GRADUATED');
       const wsGrad = window.XLSX.utils.aoa_to_sheet(buildSheetArray(gradList));
+      wsGrad['!cols'] = ministrySheetCols;
       for (let r = 1; r <= gradList.length; r++) {
         const cellRef = window.XLSX.utils.encode_cell({ r: r, c: 2 });
         if (wsGrad[cellRef]) {
@@ -57624,6 +57677,7 @@ if (action === 'getDashboardStats') {
       // Sheet 3: ระหว่างเรียน
       const activeList = list.filter(i => i.status !== 'GRADUATED');
       const wsActive = window.XLSX.utils.aoa_to_sheet(buildSheetArray(activeList));
+      wsActive['!cols'] = ministrySheetCols;
       for (let r = 1; r <= activeList.length; r++) {
         const cellRef = window.XLSX.utils.encode_cell({ r: r, c: 2 });
         if (wsActive[cellRef]) {
@@ -57637,7 +57691,7 @@ if (action === 'getDashboardStats') {
       const total = list.length;
       const gradCount = gradList.length;
       const activeCount = activeList.length;
-      const thaiCount = list.filter(i => i.nationality === 'ไทย').length;
+      const thaiCount = list.filter(i => isMinistryThaiNationality(i.nationality)).length;
       const foreignCount = total - thaiCount;
       const courseCounts = {};
       list.forEach(i => {
@@ -57664,6 +57718,7 @@ if (action === 'getDashboardStats') {
         summaryRows.push([c, cnt]);
       });
       const wsSummary = window.XLSX.utils.aoa_to_sheet(summaryRows);
+      wsSummary['!cols'] = [{ wch: 42 }, { wch: 18 }, { wch: 20 }];
       window.XLSX.utils.book_append_sheet(wb, wsSummary, 'สรุปภาพรวม');
       const fileName = `รายงานเอกสารกระทรวง_OCA_${Date.now()}.xlsx`;
       window.XLSX.writeFile(wb, fileName);
@@ -72261,6 +72316,7 @@ function openPublicRegisterView() {
         "รายงานสรุปข้อมูลนักศึกษารายบุคคล รหัสบัตรประชาชน คอร์สเล่มสุดท้าย และสถานะสำเร็จการศึกษา": "个人学员信息、身份证号、结业课程与学籍状态汇总报告",
         "รีเฟรชคิวสลิป": "刷新凭证队列",
         "เลขประจำตัวประชาชน": "公民身份证号",
+        "เลขประจำตัวประชาชน / พาสปอร์ต": "公民身份证号 / 护照号",
         "สถานะ:": "状态:",
         "สัญชาติ": "国籍",
         "สัญชาติ:": "国籍:",
@@ -75052,6 +75108,7 @@ function openPublicRegisterView() {
         "รายงานสรุปข้อมูลนักศึกษารายบุคคล รหัสบัตรประชาชน คอร์สเล่มสุดท้าย และสถานะสำเร็จการศึกษา": "Individual student registry summary, Citizen ID, final book course, and graduation status",
         "รีเฟรชคิวสลิป": "Refresh Slip Queue",
         "เลขประจำตัวประชาชน": "Citizen ID",
+        "เลขประจำตัวประชาชน / พาสปอร์ต": "Citizen ID / Passport No.",
         "สถานะ:": "Status:",
         "สัญชาติ": "Nationality",
         "สัญชาติ:": "Nationality:",
@@ -83804,7 +83861,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=117';
+      const swPath = basePath + 'sw.js?v=118';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -83813,7 +83870,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (117):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (118):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
