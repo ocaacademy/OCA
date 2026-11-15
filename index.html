@@ -9292,7 +9292,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '102';
+      var LATEST_VERSION = '103';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -10505,10 +10505,14 @@ body.printing-report #printReportContainer {
                     </select>
                   </div>
 
-                  <!-- 1. บัตรประชาชน (13 หลัก) -->
+                  <!-- 1. บัตรประชาชน (13 หลัก) / เลขพาสปอร์ต -->
                   <div class="oca-input-group">
-                    <label class="oca-label" for="citizenId">1. เลขประจำตัวประชาชน (13 หลัก) *</label>
-                    <input type="text" id="citizenId" class="oca-input" placeholder="x-xxxx-xxxxx-xx-x" maxlength="17" oninput="formatCitizen(this); if (typeof onEnrollCitizenIdTyped === 'function') onEnrollCitizenIdTyped(this);" onblur="checkDuplicateOnBlur()" required>
+                    <label class="oca-label" for="citizenId" id="lblEnrollCitizenId">1. เลขประจำตัวประชาชน (13 หลัก) / เลขพาสปอร์ต *</label>
+                    <select id="enrollIdType" class="oca-input" onchange="onEnrollIdTypeChanged()" style="margin-bottom:6px;">
+                      <option value="thai_id">บัตรประชาชน (Thai Citizen ID - 13 หลัก)</option>
+                      <option value="passport">หนังสือเดินทาง / พาสปอร์ต (Passport No.)</option>
+                    </select>
+                    <input type="text" id="citizenId" class="oca-input" placeholder="x-xxxx-xxxxx-xx-x" maxlength="17" oninput="onEnrollCitizenIdInput(this)" onblur="checkDuplicateOnBlur()" required>
                   </div>
 
                   <!-- 2. คำนำหน้า -->
@@ -21190,7 +21194,11 @@ body.printing-report #printReportContainer {
                 <!-- Citizen ID / Passport -->
                 <div style="margin-bottom:14px;">
                   <label class="oca-reg-label" id="lblCitizenId">เลขประจำตัวประชาชน 13 หลัก หรือ เลขหนังสือเดินทาง (Passport) *</label>
-                  <input type="text" id="txtPubCitizenId" class="oca-reg-input" placeholder="กรอกเลขบัตร 13 หลัก หรือเลขพาสปอร์ต" maxlength="25" required onblur="checkAndRestoreExistingStudent()" oninput="onPubCitizenInput(this)">
+                  <select id="pubIdType" class="oca-reg-input" onchange="onPubIdTypeChanged()" style="margin-bottom:6px;">
+                    <option value="thai">บัตรประชาชน (Thai Citizen ID - 13 หลัก)</option>
+                    <option value="passport">หนังสือเดินทาง / พาสปอร์ต (Passport No.)</option>
+                  </select>
+                  <input type="text" id="txtPubCitizenId" class="oca-reg-input" placeholder="กรอกเลขบัตร 13 หลัก หรือเลขพาสปอร์ต" maxlength="20" required onblur="checkAndRestoreExistingStudent()" oninput="onPubCitizenInput(this)">
                 </div>
 
                 <!-- DOB, Age & Gender -->
@@ -25598,15 +25606,17 @@ if (action === 'getDashboardStats') {
         // --- 6. REGISTER STUDENT (WITH CONCURRENCY RETRY & ENHANCED DUP DETECTION) ---
 
         if (action === 'register') {
-          const cleanCid = (params.citizenId || '').toString().replace(/[\s-]/g, '').replace(/[^0-9A-Za-z]/g, '').slice(0, 13);
+          const rawCid = (params.citizenId || '').toString().trim().toUpperCase().replace(/[\s-]/g, '').replace(/[^A-Z0-9]/g, '').slice(0, 20);
+          const isPassportId = /[A-Z]/.test(rawCid) || params.idType === 'passport';
+          const cleanCid = isPassportId ? rawCid : rawCid.slice(0, 13);
           const cleanName = (params.fullName || '').trim();
-          const isValidCidForDupCheck = cleanCid && cleanCid.length >= 5 && !/^0+$/.test(cleanCid);
+          const isValidCidForDupCheck = cleanCid && (isPassportId ? /^[A-Z0-9]{6,20}$/.test(cleanCid) : (cleanCid.length >= 5 && !/^0+$/.test(cleanCid)));
 
           if (isValidCidForDupCheck) {
             const { data: existingCidRows, error: cidLookupErr } = await _supabase
               .from('students')
               .select('student_id, full_name, status, year_be, term, phone_number, address, notes, photo_url')
-              .eq('citizen_id', cleanCid)
+              .ilike('citizen_id', cleanCid)
               .neq('status', 'DELETED')
               .limit(1);
 
@@ -25661,7 +25671,7 @@ if (action === 'getDashboardStats') {
                 };
               }
 
-              const dupCidErrMsg = 'เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว (' + existing.student_id + ' - ' + existing.full_name + ') นักเรียน 1 คนมีได้ 1 รหัสเท่านั้น กรุณาใช้รหัสเดิมต่อคอร์ส';
+              const dupCidErrMsg = 'เลขบัตรประชาชน / เลขพาสปอร์ตนี้มีรหัสนักศึกษาในระบบแล้ว (' + existing.student_id + ' - ' + existing.full_name + ') นักเรียน 1 คนมีได้ 1 รหัสเท่านั้น กรุณาใช้รหัสเดิมต่อคอร์ส';
               return {
                 success: false,
                 isDuplicate: true,
@@ -25896,31 +25906,32 @@ if (action === 'getDashboardStats') {
           const rawQ = (params.query || params.citizenId || params.phone || '').trim();
           const q = rawQ.replace(/[,()"]/g, ' ').trim();
           if (!q) return { success: true, found: false, isDuplicate: false, duplicates: [] };
+          const cleanId = String(params.citizenId || params.query || rawQ).trim().toUpperCase().replace(/[\s-]/g, '').replace(/[^A-Z0-9]/g, '');
           const cleanQ = q.replace(/[^0-9A-Za-z]/g, '');
-          const isDigits = /^\d+$/.test(cleanQ);
+          const isDigits = /^\d+$/.test(cleanId);
+          const isPassport = /[A-Z]/.test(cleanId) || params.idType === 'passport';
           const orList = [];
 
-          if (isDigits) {
-            if (cleanQ.length <= 7 && Number(cleanQ) <= 2147483647) orList.push(`student_id.eq.${cleanQ}`);
-            if (cleanQ.length === 13) orList.push(`citizen_id.eq.${cleanQ}`);
-            if (cleanQ.length >= 9) orList.push(`phone_number.eq.${cleanQ}`);
-            if (cleanQ.length >= 7) orList.push(`smart_card_uid.eq.${cleanQ}`);
+          if (isDigits && !isPassport) {
+            if (cleanId.length <= 7 && Number(cleanId) <= 2147483647) orList.push(`student_id.eq.${cleanId}`);
+            if (cleanId.length === 13) orList.push(`citizen_id.eq.${cleanId}`);
+            if (cleanId.length >= 9) orList.push(`phone_number.eq.${cleanId}`);
+            if (cleanId.length >= 7) orList.push(`smart_card_uid.eq.${cleanId}`);
           } else {
+            if (isPassport && cleanId.length >= 6 && /^[A-Z0-9]{6,20}$/.test(cleanId)) {
+              orList.push(`citizen_id.ilike.${cleanId}`);
+            }
             // Guard against unindexed wildcard ILIKE scans across 94k+ rows (prevents PG 57014 timeout)
             if (action !== 'checkStudentDuplicate' && q.length >= 4) {
               orList.push(`full_name.eq.${q}`);
             }
           }
 
-          if (orList.length === 0) {
-            return { success: true, found: false, isDuplicate: false, duplicates: [] };
-          }
-
           if (action === 'checkStudentDuplicate') {
             try {
               const { data: safeDup, error: safeDupErr } = await _supabase.rpc('check_student_duplicate_safe', {
-                p_citizen_id: (isDigits && cleanQ.length === 13) ? cleanQ : null,
-                p_passport_no: (!isDigits && q) ? q : null
+                p_citizen_id: isPassport ? '' : (cleanId.length === 13 ? cleanId : ''),
+                p_passport_no: isPassport ? cleanId : ''
               });
               if (!safeDupErr && safeDup && safeDup.is_duplicate) {
                 return {
@@ -25946,6 +25957,10 @@ if (action === 'getDashboardStats') {
                 };
               }
             } catch (_) {}
+          }
+
+          if (orList.length === 0) {
+            return { success: true, found: false, isDuplicate: false, duplicates: [] };
           }
 
           const { data: found, error: foundErr } = await _supabase.from('students')
@@ -32590,33 +32605,86 @@ if (action === 'getDashboardStats') {
     }
     window.resetEnrollAutoDetectMode = resetEnrollAutoDetectMode;
 
-    function onEnrollCitizenIdTyped(input) {
+    let _enrollCidDebounceTimer = null;
+
+    function onEnrollIdTypeChanged() {
+      const idType = document.getElementById('enrollIdType')?.value || 'thai_id';
+      const inp = document.getElementById('citizenId');
+      const lbl = document.getElementById('lblEnrollCitizenId');
+      if (inp) {
+        if (idType === 'passport') {
+          inp.maxLength = 20;
+          inp.placeholder = 'เช่น AA1234567 (ตัวอักษรภาษาอังกฤษ/ตัวเลข 6-20 ตัว)';
+          inp.value = String(inp.value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 20);
+        } else {
+          inp.maxLength = 17;
+          inp.placeholder = 'x-xxxx-xxxxx-xx-x';
+          if (typeof formatCitizen === 'function') formatCitizen(inp);
+        }
+      }
+      if (lbl) {
+        lbl.textContent = idType === 'passport'
+          ? '1. เลขพาสปอร์ต (Passport No.) *'
+          : '1. เลขประจำตัวประชาชน (13 หลัก) / เลขพาสปอร์ต *';
+      }
+      if (window._enrollAutoDetectedStudent) resetEnrollAutoDetectMode();
+    }
+    window.onEnrollIdTypeChanged = onEnrollIdTypeChanged;
+
+    function onEnrollCitizenIdInput(input) {
       if (!input) return;
+      const enrollIdType = document.getElementById('enrollIdType')?.value || 'thai_id';
+      if (enrollIdType === 'passport') {
+        input.maxLength = 20;
+        const cleanPass = String(input.value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 20);
+        if (input.value !== cleanPass) input.value = cleanPass;
+        if (cleanPass.length >= 6) {
+          if (_enrollCidDebounceTimer) clearTimeout(_enrollCidDebounceTimer);
+          _enrollCidDebounceTimer = setTimeout(() => {
+            if (window._lastEnrollCheckedCid !== cleanPass) autoDetectStudentByCitizenId();
+          }, 350);
+        } else if (window._enrollAutoDetectedStudent) {
+          resetEnrollAutoDetectMode();
+        }
+        return;
+      }
+      if (typeof formatCitizen === 'function') formatCitizen(input);
       const digits = String(input.value || '').replace(/\D/g, '');
       if (digits.length === 13 && window._lastEnrollCheckedCid !== digits) {
-        checkDuplicateOnBlur();
+        autoDetectStudentByCitizenId();
       } else if (digits.length < 13 && window._enrollAutoDetectedStudent) {
         resetEnrollAutoDetectMode();
       }
     }
+    window.onEnrollCitizenIdInput = onEnrollCitizenIdInput;
+
+    function onEnrollCitizenIdTyped(input) {
+      onEnrollCitizenIdInput(input);
+    }
     window.onEnrollCitizenIdTyped = onEnrollCitizenIdTyped;
 
-    async function checkDuplicateOnBlur() {
+    async function autoDetectStudentByCitizenId() {
+      const enrollIdType = document.getElementById('enrollIdType')?.value || 'thai_id';
       const citizenRaw = document.getElementById('citizenId')?.value.trim() || '';
-      const citizenDigits = citizenRaw.replace(/\D/g, '');
+      const cleanId = enrollIdType === 'passport'
+        ? citizenRaw.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 20)
+        : citizenRaw.replace(/\D/g, '');
       const fullName = document.getElementById('fullName')?.value.trim() || '';
+      const isValidId = enrollIdType === 'passport'
+        ? /^[A-Z0-9]{6,20}$/.test(cleanId)
+        : /^\d{13}$/.test(cleanId);
 
-      if (citizenDigits.length !== 13 && fullName.length < 4) {
+      if (!isValidId && fullName.length < 4) {
         return;
       }
 
-      if (citizenDigits.length === 13 && !/^0+$/.test(citizenDigits) && typeof _supabase !== 'undefined' && _supabase) {
-        window._lastEnrollCheckedCid = citizenDigits;
+      if (isValidId && !/^0+$/.test(cleanId) && typeof _supabase !== 'undefined' && _supabase) {
+        window._lastEnrollCheckedCid = cleanId;
         try {
           const { data: cidRows, error: cidErr } = await _supabase
             .from('students')
             .select('*')
-            .eq('citizen_id', citizenDigits)
+            .ilike('citizen_id', cleanId)
             .neq('status', 'DELETED')
             .limit(1);
           if (!cidErr && cidRows && cidRows.length > 0) {
@@ -32630,15 +32698,15 @@ if (action === 'getDashboardStats') {
             resetEnrollAutoDetectMode();
           }
         } catch (err) {
-          console.warn('checkDuplicateOnBlur citizen lookup error:', err);
+          console.warn('autoDetectStudentByCitizenId lookup error:', err);
         }
       }
 
-      callGasApi('checkStudentDuplicate', { citizenId: citizenDigits, fullName: fullName }, 'GET')
+      callGasApi('checkStudentDuplicate', { query: cleanId, citizenId: cleanId, idType: enrollIdType, fullName: fullName }, 'GET')
         .then(res => {
           if (res && res.success && res.isDuplicate && res.duplicates && res.duplicates.length > 0) {
             const firstDup = res.duplicates[0];
-            if (citizenDigits.length === 13 && firstDup && firstDup.studentId) {
+            if (isValidId && firstDup && firstDup.studentId) {
               applyEnrollAutoDetectedStudent(firstDup);
               if (typeof autoFillStudentProfile === 'function') {
                 autoFillStudentProfile(firstDup);
@@ -32653,6 +32721,11 @@ if (action === 'getDashboardStats') {
         .catch(err => {
           console.warn('checkStudentDuplicate error:', err);
         });
+    }
+    window.autoDetectStudentByCitizenId = autoDetectStudentByCitizenId;
+
+    async function checkDuplicateOnBlur() {
+      return autoDetectStudentByCitizenId();
     }
 
     function showDuplicateWarningBox(duplicates) {
@@ -32732,11 +32805,20 @@ if (action === 'getDashboardStats') {
       }
 
       const citizenEl = document.getElementById('citizenId');
+      const enrollIdTypeEl = document.getElementById('enrollIdType');
       const finalCid = fullProfile.citizenId || fullProfile.citizen_id;
 
       if (citizenEl && finalCid) {
-        citizenEl.value = finalCid;
-        if (typeof formatCitizen === 'function') formatCitizen(citizenEl);
+        const isPassVal = /[A-Za-z]/.test(String(finalCid));
+        if (enrollIdTypeEl) enrollIdTypeEl.value = isPassVal ? 'passport' : 'thai_id';
+        if (isPassVal) {
+          citizenEl.maxLength = 20;
+          citizenEl.value = String(finalCid).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 20);
+        } else {
+          citizenEl.maxLength = 17;
+          citizenEl.value = finalCid;
+          if (typeof formatCitizen === 'function') formatCitizen(citizenEl);
+        }
       }
 
       const phoneEl = document.getElementById('phoneNumber');
@@ -32991,8 +33073,11 @@ if (action === 'getDashboardStats') {
       if (window._isSubmittingEnrollment) return;
       const yearBE = document.getElementById('selYear').value;
       const term = document.getElementById('selTerm').value;
+      const enrollIdType = document.getElementById('enrollIdType')?.value || 'thai_id';
       const citizenRaw = document.getElementById('citizenId').value.trim();
-      const citizenDigits = citizenRaw.replace(/\D/g, '');
+      const citizenDigits = enrollIdType === 'passport'
+        ? citizenRaw.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 20)
+        : citizenRaw.replace(/\D/g, '');
       const prefix = document.getElementById('prefix').value;
       const fullName = sanitizeInputText(document.getElementById('fullName').value);
       const fullNameEn = sanitizeInputText(document.getElementById('fullNameEn')?.value || '');
@@ -33038,7 +33123,12 @@ if (action === 'getDashboardStats') {
         return;
       }
 
-      if (citizenDigits.length !== 13) {
+      if (enrollIdType === 'passport') {
+        if (!/^[A-Z0-9]{6,20}$/.test(citizenDigits)) {
+          showModal('เลขพาสปอร์ตไม่ถูกต้อง', 'เลขพาสปอร์ต (Passport No.) ต้องเป็นตัวอักษรภาษาอังกฤษหรือตัวเลขความยาว 6-20 ตัวอักษร', '⚠️');
+          return;
+        }
+      } else if (citizenDigits.length !== 13) {
         showModal('เลขบัตรประชาชนไม่ถูกต้อง', 'เลขประจำตัวประชาชนต้องครบถ้วน 13 หลัก', '⚠️');
         return;
       }
@@ -33070,7 +33160,7 @@ if (action === 'getDashboardStats') {
 
       // หากตรวจพบข้อมูลนักศึกษาซ้ำเดิม: บล็อกทันทีในโหมดนักศึกษาใหม่
       if (lastDetectedDuplicate && window._enrollStudentMode !== 'returning') {
-        showModal('เลขบัตรประชาชนนี้ลงทะเบียนแล้ว', 'พบประวัตินักศึกษาเดิมในระบบ (รหัส: ' + toArabicDigits(lastDetectedDuplicate.studentId || '-') + ' - ' + (lastDetectedDuplicate.fullName || '') + ')\n\nกรุณาเปลี่ยนไปใช้โหมด "นักศึกษาเก่า (ต่อคอร์ส)" หรือหน้า "ออกใบเสร็จ/ต่อคอร์ส" แทนการสมัครใหม่ซ้ำซ้อน', '🚫');
+        showModal('เลขบัตรประชาชน / เลขพาสปอร์ตนี้ลงทะเบียนแล้ว', 'พบประวัตินักศึกษาเดิมในระบบ (รหัส: ' + toArabicDigits(lastDetectedDuplicate.studentId || '-') + ' - ' + (lastDetectedDuplicate.fullName || '') + ')\n\nกรุณาเปลี่ยนไปใช้โหมด "นักศึกษาเก่า (ต่อคอร์ส)" หรือหน้า "ออกใบเสร็จ/ต่อคอร์ส" แทนการสมัครใหม่ซ้ำซ้อน', '🚫');
         return;
       }
 
@@ -33122,7 +33212,9 @@ if (action === 'getDashboardStats') {
 
         studentId: studentId,
 
-        citizenId: (citizenDigits || citizenRaw.replace(/[^0-9A-Za-z]/g, '')).slice(0, 13),
+        idType: enrollIdType,
+
+        citizenId: enrollIdType === 'passport' ? citizenDigits : citizenDigits.slice(0, 13),
 
         prefix: prefix,
 
@@ -33191,7 +33283,7 @@ if (action === 'getDashboardStats') {
           setButtonLoading(btn, false);
 
           if (res && (res.duplicateCitizenId || res.isDuplicate)) {
-            showModal('แจ้งเตือน: เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว!', res.error || res.message, '🚫');
+            showModal('แจ้งเตือน: เลขบัตรประชาชน / เลขพาสปอร์ตนี้มีรหัสนักศึกษาในระบบแล้ว!', res.error || res.message, '🚫');
             if (res.existingStudentId) {
               applyEnrollAutoDetectedStudent({
                 student_id: res.existingStudentId,
@@ -66405,7 +66497,7 @@ if (action === 'getDashboardStats') {
           localStorage.setItem('oca_public_reg_draft', JSON.stringify(draft));
 
           if (draft.citizenId) {
-            const cleanCid = draft.citizenId.replace(/[^0-9A-Za-z]/g, '');
+            const cleanCid = draft.citizenId.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
             if (cleanCid) localStorage.setItem('oca_reg_cache_' + cleanCid, JSON.stringify(draft));
           }
 
@@ -66597,14 +66689,37 @@ if (action === 'getDashboardStats') {
       }
     }
 
+    let _pubCidDebounceTimer = null;
+
+    function onPubIdTypeChanged() {
+      const pubIdType = document.getElementById('pubIdType')?.value || 'thai';
+      const cidInput = document.getElementById('txtPubCitizenId');
+      if (cidInput) {
+        if (pubIdType === 'passport') {
+          cidInput.maxLength = 20;
+          cidInput.placeholder = 'กรอกเลขพาสปอร์ต (เช่น AA1234567)';
+          cidInput.value = String(cidInput.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
+        } else {
+          cidInput.maxLength = 17;
+          cidInput.placeholder = 'กรอกเลขบัตร 13 หลัก หรือเลขพาสปอร์ต';
+        }
+      }
+      savePublicRegisterDraft();
+    }
+    window.onPubIdTypeChanged = onPubIdTypeChanged;
+
     async function checkAndRestoreExistingStudent() {
+      const pubIdType = document.getElementById('pubIdType')?.value || 'thai';
       const cidInput = document.getElementById('txtPubCitizenId');
       const nameInput = document.getElementById('txtPubFullName');
       const rawCid = (cidInput?.value || '').trim();
       const rawName = (nameInput?.value || '').trim();
-      const cleanCid = rawCid.replace(/[^0-9A-Za-z]/g, '');
+      const isPassport = pubIdType === 'passport' || /[A-Za-z]/.test(rawCid);
+      const cleanCid = isPassport
+        ? rawCid.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20)
+        : rawCid.replace(/\D/g, '');
 
-      // 1. Check local cache by citizen ID
+      // 1. Check local cache by citizen ID / passport
 
       if (cleanCid) {
         try {
@@ -66643,7 +66758,7 @@ if (action === 'getDashboardStats') {
       if (cleanCid && Array.isArray(cachedSearchStudentsData) && cachedSearchStudentsData.length > 0) {
         const match = cachedSearchStudentsData.find(s =>
 
-          (s.citizenId && s.citizenId.replace(/[^0-9A-Za-z]/g, '') === cleanCid) ||
+          (s.citizenId && s.citizenId.replace(/[^0-9A-Za-z]/g, '').toUpperCase() === cleanCid) ||
 
           (s.fullName && rawName && s.fullName.trim() === rawName)
         );
@@ -66659,11 +66774,14 @@ if (action === 'getDashboardStats') {
         }
       }
 
-      // 4. Check via backend API (Citizen ID only - 13 digits)
-      if (!cleanCid || cleanCid.length !== 13) return;
+      // 4. Check via backend API (Thai ID 13 digits OR Passport >= 6 alphanumeric chars)
+      const isValidForBackend = isPassport
+        ? (cleanCid.length >= 6 && /^[A-Z0-9]{6,20}$/.test(cleanCid))
+        : (cleanCid.length === 13);
+      if (!cleanCid || !isValidForBackend) return;
 
       try {
-        const res = await callGasApi('checkStudentDuplicate', { query: cleanCid, citizenId: cleanCid }, 'POST');
+        const res = await callGasApi('checkStudentDuplicate', { query: cleanCid, citizenId: cleanCid, idType: pubIdType }, 'POST');
 
         if (res && res.found && res.student) {
           window._pubStudentMode = 'returning';
@@ -66679,9 +66797,22 @@ if (action === 'getDashboardStats') {
     }
 
     function onPubCitizenInput(el) {
+      const pubIdType = document.getElementById('pubIdType')?.value || 'thai';
+      if (pubIdType === 'passport') {
+        const cleanPass = String(el.value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 20);
+        if (el.value !== cleanPass) el.value = cleanPass;
+        savePublicRegisterDraft();
+        if (cleanPass.length >= 6) {
+          if (_pubCidDebounceTimer) clearTimeout(_pubCidDebounceTimer);
+          _pubCidDebounceTimer = setTimeout(() => {
+            checkAndRestoreExistingStudent();
+          }, 350);
+        }
+        return;
+      }
       savePublicRegisterDraft();
       const val = (el.value || '').trim();
-      const digits = val.replace(/[^0-9A-Za-z]/g, '');
+      const digits = val.replace(/\D/g, '');
 
       if (digits.length === 13) {
         checkAndRestoreExistingStudent();
@@ -67840,20 +67971,24 @@ function openPublicRegisterView() {
       if (province) fullAddressParts.push('จ.' + province);
       if (postalCode) fullAddressParts.push(postalCode);
       const combinedAddress = fullAddressParts.join(' ');
-      const cleanCid = citizenRaw.replace(/[\s-]/g, '').replace(/[^0-9A-Za-z]/g, '').slice(0, 20);
-      if (window._pubStudentMode !== 'returning' && cleanCid && cleanCid.length >= 5 && !/^0+$/.test(cleanCid) && typeof _supabase !== 'undefined' && _supabase) {
+      const pubIdType = document.getElementById('pubIdType')?.value || 'thai';
+      const isPassportPub = pubIdType === 'passport' || /[A-Za-z]/.test(citizenRaw);
+      const cleanCid = isPassportPub
+        ? citizenRaw.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20)
+        : citizenRaw.replace(/\D/g, '').slice(0, 13);
+      if (window._pubStudentMode !== 'returning' && cleanCid && cleanCid.length >= 6 && !/^0+$/.test(cleanCid) && typeof _supabase !== 'undefined' && _supabase) {
         try {
           const { data: pubDupRows, error: pubDupErr } = await _supabase
             .from('students')
             .select('student_id, full_name')
-            .eq('citizen_id', cleanCid)
+            .ilike('citizen_id', cleanCid)
             .neq('status', 'DELETED')
             .limit(1);
           if (!pubDupErr && pubDupRows && pubDupRows.length > 0) {
             const ex = pubDupRows[0];
             window._lastPubSubmitTimestamp = 0;
             showModal(
-              'เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว',
+              'เลขบัตรประชาชน / เลขพาสปอร์ตนี้มีรหัสนักศึกษาในระบบแล้ว',
               `พบประวัตินักศึกษาในระบบแล้ว (รหัส: ${ex.student_id} - ${ex.full_name})\n\nนักเรียน 1 คนมีได้ 1 รหัสเท่านั้น กรุณากลับไปเลือกโหมด "นักศึกษาเก่า (ต่อคอร์ส)" และใช้รหัสเดิม ${ex.student_id}`,
               '🚫'
             );
@@ -67882,6 +68017,8 @@ function openPublicRegisterView() {
       }
 
       const payload = {
+        idType: pubIdType,
+
         citizenId: cleanCid,
 
         prefix: prefix,
@@ -72478,6 +72615,9 @@ function openPublicRegisterView() {
         "เลือกไฟล์รูปถ่ายจากคอมพิวเตอร์หรือโทรศัพท์": "从电脑或手机中选择照片文件",
         "เลื่อน Scroll Bar เพื่อดูประวัติย้อนหลัง": "滚动滚动条以查阅历史档案",
         "เลื่อนกลับไปบนสุดของตาราง": "返回表格顶部",
+        "1. เลขประจำตัวประชาชน (13 หลัก) / เลขพาสปอร์ต *": "1. 13位泰国身份证号 / 护照号码 *",
+        "บัตรประชาชน (Thai Citizen ID - 13 หลัก)": "13位泰国身份证",
+        "หนังสือเดินทาง / พาสปอร์ต (Passport No.)": "护照号码",
         "เวลา": "时间",
         "เวลาที่เปิดสอน (Class Schedules)": "已排定授课时段",
         "เวลาเปิดสอน": "开课时间",
@@ -82308,7 +82448,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=102';
+      const swPath = basePath + 'sw.js?v=103';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -82317,7 +82457,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (102):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (103):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
