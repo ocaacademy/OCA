@@ -9291,7 +9291,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '108';
+      var LATEST_VERSION = '109';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -25309,22 +25309,39 @@ if (action === 'getDashboardStats') {
         // --- 3. FINANCIAL SUMMARY (YEARLY, TERM, DAILY WITH CALENDAR DRILLDOWN) ---
 
         if (action === 'getFinancialSummary') {
-          const queryYearParam = params.filterYear || '';
-          let minRNo = '5000000';
-          let maxRNo = '9999999';
-          if (queryYearParam && queryYearParam !== 'all' && queryYearParam !== 'ALL') {
-            const yr = String(queryYearParam).slice(-2);
-            minRNo = yr + '00000';
-            maxRNo = String(Number(yr) + 1).padStart(2, '0') + '00000';
+          const queryYearParam = params && params.filterYear ? String(params.filterYear).trim() : '';
+          const parsedFilterYear = (queryYearParam && queryYearParam !== 'all' && queryYearParam !== 'ALL' && /^\d{4}$/.test(queryYearParam))
+            ? Number(queryYearParam)
+            : null;
+          try {
+            const { data: rpcData, error: rpcErr } = await _supabase.rpc('get_financial_summary_v109', {
+              p_filter_year: parsedFilterYear
+            });
+            if (!rpcErr && rpcData && rpcData.success) {
+              return rpcData;
+            }
+            if (rpcErr) {
+              console.warn('get_financial_summary_v109 RPC fallback:', rpcErr.message || rpcErr);
+            }
+          } catch (rpcCatchErr) {
+            console.warn('get_financial_summary_v109 RPC exception fallback:', rpcCatchErr && rpcCatchErr.message ? rpcCatchErr.message : rpcCatchErr);
           }
           const rcpts = [];
           const chunkSize = 1000;
+          const maxFallbackPages = 25;
           let offset = 0;
-          while (true) {
-            const { data: chunk, error: rcptErr } = await _supabase.from('receipts')
-              .select('receipt_no, buyer_name, grand_total, base_amount, reg_fee, card_fee, other_reg_fee, discount_normal, discount_other, payment_method, receipt_type, year_be, term, created_at, claim_status')
-              .gte('receipt_no', minRNo)
-              .lt('receipt_no', maxRNo)
+          let pageCount = 0;
+          let isFallbackPartial = false;
+          while (pageCount < maxFallbackPages) {
+            let q = _supabase.from('receipts')
+              .select('receipt_no, buyer_name, grand_total, base_amount, reg_fee, card_fee, other_reg_fee, discount_normal, discount_other, payment_method, receipt_type, year_be, term, created_at, claim_status');
+            if (parsedFilterYear) {
+              q = q.eq('year_be', parsedFilterYear);
+            } else {
+              q = q.gte('receipt_no', '6800000');
+              isFallbackPartial = true;
+            }
+            const { data: chunk, error: rcptErr } = await q
               .order('receipt_no', { ascending: false })
               .range(offset, offset + chunkSize - 1);
             if (rcptErr) {
@@ -25333,8 +25350,12 @@ if (action === 'getDashboardStats') {
             }
             if (!chunk || chunk.length === 0) break;
             rcpts.push(...chunk.filter(r => /^\d{7,}$/.test(String(r.receipt_no || '').trim()) && String(r.claim_status || '').toUpperCase() !== 'VOIDED'));
+            pageCount += 1;
             if (chunk.length < chunkSize) break;
             offset += chunkSize;
+          }
+          if (pageCount >= maxFallbackPages) {
+            isFallbackPartial = true;
           }
           const currentThaiYear = new Date().getFullYear() + 543;
           const minValidYearBE = 2550;
@@ -25346,13 +25367,11 @@ if (action === 'getDashboardStats') {
           let totalDisc = 0;
           const yearMap = {};
           const liveYearsReset = new Set();
-
           if (window.OCA_ANNUAL_REVENUE_REGISTRY) {
             Object.keys(window.OCA_ANNUAL_REVENUE_REGISTRY).forEach(y => {
               const yrNum = Number(y);
               if (!Number.isFinite(yrNum) || yrNum < minValidYearBE || yrNum > maxValidYearBE) return;
               const regItem = window.OCA_ANNUAL_REVENUE_REGISTRY[y];
-
               yearMap[yrNum] = {
                 yearBE: yrNum,
                 receiptCount: Number(regItem.receiptCount || 0),
@@ -25362,42 +25381,6 @@ if (action === 'getDashboardStats') {
                 grandTotal: Number(regItem.grandTotal || 0)
               };
             });
-          }
-
-          // Full paginated aggregation across ALL receipts (no 1,000-row cap, minimal columns)
-          const yrChunkSize = 1000;
-          let yrOffset = 0;
-          while (true) {
-            const { data: yrChunk, error: yrErr } = await _supabase.from('receipts')
-              .select('year_be, grand_total, receipt_no')
-              .or('claim_status.is.null,claim_status.neq.VOIDED')
-              .order('receipt_no', { ascending: true })
-              .range(yrOffset, yrOffset + yrChunkSize - 1);
-            if (yrErr) {
-              throw yrErr;
-            }
-            if (!yrChunk || yrChunk.length === 0) break;
-            yrChunk.forEach(r => {
-              const rcNoStr = String(r.receipt_no || '').trim();
-              if (!/^\d{7,}$/.test(rcNoStr)) return;
-              let yBe = Number(r.year_be || 0);
-              if (!yBe && rcNoStr) {
-                const prefix2 = parseInt(rcNoStr.slice(0, 2), 10);
-                if (Number.isFinite(prefix2)) yBe = 2500 + prefix2;
-              }
-              if (yBe > 0 && yBe < 2400) yBe += 543;
-              if (!Number.isFinite(yBe) || yBe < minValidYearBE || yBe > maxValidYearBE) return;
-              if (!liveYearsReset.has(yBe)) {
-                liveYearsReset.add(yBe);
-                yearMap[yBe] = { yearBE: yBe, receiptCount: 0, tuitionTotal: 0, otherFeesTotal: 0, discountTotal: 0, grandTotal: 0 };
-              }
-              const gt = Math.max(0, Number(r.grand_total || 0));
-              yearMap[yBe].receiptCount += 1;
-              yearMap[yBe].grandTotal += gt;
-              yearMap[yBe].tuitionTotal += gt;
-            });
-            if (yrChunk.length < yrChunkSize) break;
-            yrOffset += yrChunkSize;
           }
 
           const termMap = {};
@@ -25472,9 +25455,10 @@ if (action === 'getDashboardStats') {
                 }
               }
 
-              // 1. Group by Year (already aggregated across all receipts via yrChunk; skip out-of-range years)
-              if (Number.isFinite(yBe) && yBe >= minValidYearBE && yBe <= maxValidYearBE && !liveYearsReset.has(yBe)) {
-                if (!yearMap[yBe]) {
+              // 1. Group by Year (reset registry seed once for live years present in rcpts)
+              if (Number.isFinite(yBe) && yBe >= minValidYearBE && yBe <= maxValidYearBE) {
+                if (!liveYearsReset.has(yBe)) {
+                  liveYearsReset.add(yBe);
                   yearMap[yBe] = { yearBE: yBe, receiptCount: 0, tuitionTotal: 0, otherFeesTotal: 0, discountTotal: 0, grandTotal: 0 };
                 }
                 yearMap[yBe].receiptCount += 1;
@@ -25587,27 +25571,18 @@ if (action === 'getDashboardStats') {
 
           return {
             success: true,
-
+            isFallbackPartial: isFallbackPartial,
             kpis: finKpis,
-
             summary: finKpis,
-
             breakdown: {
               tuition: totalTuition,
-
               registration: totalReg,
-
               smartCard: totalCard,
-
               discount: totalDisc,
-
               net: totalRev
             },
-
             yearlySummary: yearlySummary,
-
             termSummary: termSummary,
-
             dailySummary: dailySummary
           };
         }
@@ -56852,10 +56827,12 @@ if (action === 'getDashboardStats') {
 
         if (typeof _supabase !== 'undefined' && _supabase) {
           const pageSize = 1000;
+          const maxMinistryPages = 50;
           let offset = 0;
+          let stPageCount = 0;
           if (yearFilter === 'ALL') {
             totalStudents = Object.values(window.OCA_ACADEMIC_YEARS_REGISTRY || {}).reduce((acc, y) => acc + (Number(y.total) || 0), 0);
-            while (true) {
+            while (stPageCount < maxMinistryPages) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
               const { data: chunk, error: cErr } = await _supabase.from('students')
                 .select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at')
@@ -56867,6 +56844,7 @@ if (action === 'getDashboardStats') {
               const activeRows = chunk.filter(s => s.status !== 'DELETED');
               students.push(...activeRows);
               offset += chunk.length;
+              stPageCount += 1;
               renderProgress(students.length, totalStudents, 'กำลังดึงข้อมูลทะเบียนนักศึกษาปัจจุบัน...');
               if (chunk.length < pageSize) break;
             }
@@ -56882,7 +56860,7 @@ if (action === 'getDashboardStats') {
             const countRes = await qCount;
             if (countRes.error) console.warn('[Ministry Report] count warning:', countRes.error);
             totalStudents = countRes.count || 0;
-            while (true) {
+            while (stPageCount < maxMinistryPages) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
               let q = _supabase.from('students')
                 .select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at')
@@ -56898,18 +56876,19 @@ if (action === 'getDashboardStats') {
               if (!chunk || chunk.length === 0) break;
               students.push(...chunk);
               offset += chunk.length;
+              stPageCount += 1;
               renderProgress(students.length, totalStudents || students.length, 'กำลังดึงข้อมูลทะเบียนนักศึกษา...');
               if (chunk.length < pageSize) break;
             }
           }
-
           if (yearFilter !== 'ALL' && /^\d{4}$/.test(yearFilter)) {
             const yrPrefix = yearFilter.slice(-2);
             const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
             const minId = yrPrefix + '00000';
             const maxId = nextPrefix + '00000';
             let rcOffset = 0;
-            while (true) {
+            let rcPageCount = 0;
+            while (rcPageCount < maxMinistryPages) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
               const { data: rcChunk, error: rcErr } = await _supabase.from('receipts')
                 .select('student_id, item_name, receipt_no, created_at')
@@ -56921,6 +56900,7 @@ if (action === 'getDashboardStats') {
               if (!rcChunk || rcChunk.length === 0) break;
               receipts.push(...rcChunk);
               rcOffset += rcChunk.length;
+              rcPageCount += 1;
               if (rcChunk.length < 1000) break;
             }
           } else {
@@ -56958,9 +56938,9 @@ if (action === 'getDashboardStats') {
               }));
               renderProgress(students.length, totalStudents, `กำลังโหลดประวัติวิชาการย้อนหลัง (${Math.min(i + batchSize, shardYears.length)}/${shardYears.length})...`);
             }
-
             let rcOffset = 0;
-            while (true) {
+            let rcPageCount = 0;
+            while (rcPageCount < maxMinistryPages) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
               const { data: rcChunk, error: rcErr } = await _supabase.from('receipts')
                 .select('student_id, item_name, receipt_no, created_at')
@@ -56971,6 +56951,7 @@ if (action === 'getDashboardStats') {
               if (!rcChunk || rcChunk.length === 0) break;
               receipts.push(...rcChunk);
               rcOffset += rcChunk.length;
+              rcPageCount += 1;
               if (rcChunk.length < 1000) break;
             }
           }
@@ -57661,44 +57642,43 @@ if (action === 'getDashboardStats') {
       isFinanceTermLoading = true;
       const targetYear = (yearVal !== undefined && yearVal !== null) ? String(yearVal) : (document.getElementById('selFinanceFilterYearTerm')?.value || 'ALL');
       const selYear = document.getElementById('selFinanceFilterYearTerm');
-
       if (selYear && selYear.value !== targetYear) {
         selYear.value = targetYear;
       }
-
       const tbodyT = document.getElementById('tbodyFinanceTerm');
-
+      const renderTermErr = (msg) => {
+        if (tbodyT) {
+          const safeMsg = typeof escapeHtml === 'function' ? escapeHtml(msg || 'ไม่สามารถดึงข้อมูลสรุปรายเทอมได้') : (msg || 'ไม่สามารถดึงข้อมูลสรุปรายเทอมได้');
+          tbodyT.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:#EF4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> ${safeMsg} <button type="button" class="btn-secondary" style="margin-left:10px; padding:4px 12px; font-size:0.85em;" onclick="loadFinancialTermReport('${String(targetYear).replace(/'/g, '')}', false)"><i class="fa-solid fa-rotate-right"></i> ลองใหม่</button></td></tr>`;
+        }
+      };
       if (tbodyT) {
         tbodyT.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปปี พ.ศ. ' + toArabicDigits(targetYear === 'ALL' ? 'ทุกปี' : targetYear) + '...</td></tr>';
       }
-
       callGasApi('getFinancialSummary', { filterYear: targetYear })
-
         .then(res => {
-          isFinanceTermLoading = false;
-
           if (!res || !res.success) {
-            if (!isSilent && typeof showToast === 'function') showToast('ไม่สามารถดึงข้อมูลสรุปรายเทอมได้', (res && res.error) || '', '❌');
+            const errMsg = (res && res.error) || 'ไม่สามารถดึงข้อมูลสรุปรายเทอมได้';
+            renderTermErr(errMsg);
+            if (!isSilent && typeof showToast === 'function') showToast('ไม่สามารถดึงข้อมูลสรุปรายเทอมได้', errMsg, '❌');
             return;
           }
-
           renderFinancialTermTable(res.termSummary, res.kpis?.totalRevenue);
         })
-
         .catch(err => {
+          const errMsg = (err && err.message) ? err.message : 'เกิดข้อผิดพลาดในการโหลดรายงานรายเทอม';
+          renderTermErr(errMsg);
+          if (!isSilent && typeof showToast === 'function') showToast('เกิดข้อผิดพลาดในการโหลดรายงานรายเทอม', errMsg, '❌');
+        })
+        .finally(() => {
           isFinanceTermLoading = false;
-          if (!isSilent && typeof showToast === 'function') showToast('เกิดข้อผิดพลาดในการโหลดรายงานรายเทอม', err.message || '', '❌');
         });
     }
 
     /**
-
      * โหลดข้อมูลสรุปยอดเงินรายเดือนและรายปีจาก Backend
-
      * @param {boolean} forceRefresh
-
      */
-
     function loadFinancialReport(forceRefresh = false, isSilent = false) {
       if (isFinanceReportLoading && !forceRefresh) return;
       isFinanceReportLoading = true;
@@ -57707,30 +57687,39 @@ if (action === 'getDashboardStats') {
       const tbodyY = document.getElementById('tbodyFinanceYearly');
       const tbodyT = document.getElementById('tbodyFinanceTerm');
       const tbodyD = document.getElementById('tbodyFinanceDaily');
-
+      const renderFinErr = (msg) => {
+        const safeMsg = typeof escapeHtml === 'function' ? escapeHtml(msg || 'ไม่สามารถดึงข้อมูลสรุปยอดเงินได้') : (msg || 'ไม่สามารถดึงข้อมูลสรุปยอดเงินได้');
+        const retryBtn = `<button type="button" class="btn-secondary" style="margin-left:10px; padding:4px 12px; font-size:0.85em;" onclick="loadFinancialReport(true, false)"><i class="fa-solid fa-rotate-right"></i> ลองใหม่</button>`;
+        if (tbodyY) tbodyY.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:#EF4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> ${safeMsg} ${retryBtn}</td></tr>`;
+        if (tbodyT) tbodyT.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:24px; color:#EF4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> ${safeMsg} ${retryBtn}</td></tr>`;
+        if (tbodyD) tbodyD.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:24px; color:#EF4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> ${safeMsg} ${retryBtn}</td></tr>`;
+      };
       if (forceRefresh || (!isSilent && !cachedFinancialSummary)) {
         if (tbodyY && !cachedFinancialSummary) tbodyY.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปรายปี...</td></tr>';
         if (tbodyT) tbodyT.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปปี พ.ศ. ' + toArabicDigits(filterYear === 'ALL' ? 'ทุกปี' : filterYear) + '...</td></tr>';
         if (tbodyD && !cachedFinancialSummary) tbodyD.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลสรุปรายวัน...</td></tr>';
       }
-
       callGasApi('getFinancialSummary', { filterYear: filterYear })
-
         .then(res => {
-          isFinanceReportLoading = false;
-
           if (!res || !res.success) {
-            if (!isSilent) showToast('ไม่สามารถดึงข้อมูลสรุปยอดเงินได้', (res && res.error) || '', '❌');
+            const errMsg = (res && res.error) || 'ไม่สามารถดึงข้อมูลสรุปยอดเงินได้';
+            renderFinErr(errMsg);
+            if (!isSilent && typeof showToast === 'function') showToast('ไม่สามารถดึงข้อมูลสรุปยอดเงินได้', errMsg, '❌');
             return;
           }
-
           cachedFinancialSummary = res;
           renderFinancialReport(res);
+          if (res.isFallbackPartial && !isSilent && typeof showToast === 'function') {
+            showToast('โหมดสำรองข้อมูลล่าสุด (ปี 2568+)', 'กรุณาติดตั้ง RPC get_financial_summary_v109 เพื่อแสดงประวัติครบทุกปีอย่างรวดเร็ว', 'ℹ️');
+          }
         })
-
         .catch(err => {
+          const errMsg = (err && err.message) ? err.message : 'เกิดข้อผิดพลาดในการโหลดรายงานการเงิน';
+          renderFinErr(errMsg);
+          if (!isSilent && typeof showToast === 'function') showToast('เกิดข้อผิดพลาดในการโหลดรายงานการเงิน', errMsg, '❌');
+        })
+        .finally(() => {
           isFinanceReportLoading = false;
-          if (!isSilent) showToast('เกิดข้อผิดพลาดในการโหลดรายงานการเงิน', err.message || '', '❌');
         });
     }
 
@@ -58460,20 +58449,21 @@ if (action === 'getDashboardStats') {
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
           const allReceipts = [];
-          const chunkSize = 1000;
-          let offset = 0;
-          while (true) {
-            const { data: chunk, error } = await _supabase
-              .from('receipts')
-              .select('*')
-              .order('created_at', { ascending: false })
-              .range(offset, offset + chunkSize - 1);
+          const chunkSize = 1000, maxPages = 25;
+          let offset = 0, pageCount = 0;
+          const targetYear = String((document.getElementById('selFinanceFilterYearTerm') || document.getElementById('selScheduleConfigYear'))?.value || '').trim();
+          const cols = 'receipt_no,student_id,buyer_name,citizen_id,phone_number,email,delivery_address,receipt_type,year_be,term,item_code,item_name,schedule,base_amount,reg_fee,card_fee,other_reg_fee,discount_normal,discount_other,grand_total,payment_method,claim_status,created_at';
+          while (pageCount < maxPages) {
+            let q = _supabase.from('receipts').select(cols);
+            q = /^\d{4}$/.test(targetYear) ? q.eq('year_be', Number(targetYear)) : q.gte('receipt_no', '6800000');
+            const { data: chunk, error } = await q.order('created_at', { ascending: false }).range(offset, offset + chunkSize - 1);
             if (error) {
               console.error('fetchReceiptsForFinancePrint pagination error:', error);
               break;
             }
             if (!chunk || chunk.length === 0) break;
             allReceipts.push(...chunk);
+            pageCount += 1;
             if (chunk.length < chunkSize) break;
             offset += chunkSize;
           }
@@ -80212,18 +80202,15 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const docSub = document.getElementById('lblAttTrackDocSub');
       const spin = document.getElementById('spinAttTrackRealtime');
       if (!tbody) return;
-
       if (!isBackgroundSync) {
         tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:24px; color:#94A3B8;"><i class="fa-solid fa-spinner fa-spin" style="margin-right:6px; color:#F59E0B;"></i>กำลังรวบรวมประวัติการเช็คชื่อเข้าเรียน Real-time...</td></tr>';
       }
-
       if (spin) spin.classList.add('fa-spin');
-
-      // Ensure courses dropdown is populated with enrolled courses
-
-      if (selCourse && selCourse.options.length <= 1) {
-        await populateAttTrackCourses(false);
-      }
+      try {
+        // Ensure courses dropdown is populated with enrolled courses
+        if (selCourse && selCourse.options.length <= 1) {
+          await populateAttTrackCourses(false);
+        }
 
       const schedFilter = selSched ? selSched.value : 'ALL';
       const courseFilter = selCourse ? selCourse.value : 'ALL';
@@ -80674,12 +80661,19 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       _attTrackFilteredCache = studentStats;
 
       // Filter and render immediately
-
       filterAttTrackStudentRealtime();
-      if (spin) spin.classList.remove('fa-spin');
       const timeStr = new Date().toLocaleTimeString('th-TH');
       const lbl = document.getElementById('lblAttTrackRealtimeStatus');
       if (lbl) lbl.textContent = `✓ เชื่อมต่อสด (${timeStr})`;
+      } catch (attErr) {
+        console.error('[AttTrack] loadCourseAttendanceTrackingReport error:', attErr);
+        if (!isBackgroundSync && tbody) {
+          const safeMsg = typeof escapeHtml === 'function' ? escapeHtml(attErr && attErr.message ? attErr.message : 'ไม่สามารถโหลดข้อมูลการเช็คชื่อได้') : 'ไม่สามารถโหลดข้อมูลการเช็คชื่อได้';
+          tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding:24px; color:#EF4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> ${safeMsg} <button type="button" class="btn-secondary" style="margin-left:10px; padding:4px 12px; font-size:0.85em;" onclick="loadCourseAttendanceTrackingReport(false)"><i class="fa-solid fa-rotate-right"></i> ลองใหม่</button></td></tr>`;
+        }
+      } finally {
+        if (spin) spin.classList.remove('fa-spin');
+      }
     }
 
     window.loadCourseAttendanceTrackingReport = loadCourseAttendanceTrackingReport;
@@ -83186,7 +83180,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=108';
+      const swPath = basePath + 'sw.js?v=109';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -83195,7 +83189,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (108):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (109):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
