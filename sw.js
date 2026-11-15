@@ -1,4 +1,4 @@
-const CACHE_NAME = '117';
+const CACHE_NAME = '118';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
