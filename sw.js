@@ -1,4 +1,4 @@
-const CACHE_NAME = '124';
+const CACHE_NAME = '125';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -12,6 +12,7 @@ const ASSETS_TO_CACHE = [
   './favicon.png',
   './favicon.ico',
   './oca_logo.png',
+  './assets/images/oca_bamboo_cranes.jpg',
   './assets/images/oca_gold_card_template.jpg',
   './assets/images/oca_gold_card_template.png',
   './assets/data/thai_address_compact.json',
