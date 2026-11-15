@@ -9291,7 +9291,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '112';
+      var LATEST_VERSION = '113';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -23029,7 +23029,7 @@ body.printing-report #printReportContainer {
 
       if (!u) {
         try {
-          const stored = localStorage.getItem('oca_current_user');
+          const stored = sessionStorage.getItem('oca_current_user');
           if (stored) u = JSON.parse(stored);
         } catch (_) {}
       }
@@ -23431,10 +23431,8 @@ body.printing-report #printReportContainer {
 
         try {
           const curUser = (typeof getSavedCurrentUser === 'function')
-
             ? getSavedCurrentUser()
-
-            : JSON.parse(localStorage.getItem('oca_user') || '{}');
+            : JSON.parse(sessionStorage.getItem('oca_current_user') || '{}');
 
           if (curUser && curUser.username && typeof _supabase !== 'undefined' && _supabase) {
             const { data: rpcUser } = await _supabase.rpc('verify_staff_login', {
@@ -47677,10 +47675,7 @@ if (action === 'getDashboardStats') {
 
     try {
       const myDevId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
-      const mySessId = localStorage.getItem('oca_active_session_id') ||
-
-        sessionStorage.getItem('oca_active_session_id') ||
-
+      const mySessId = sessionStorage.getItem('oca_active_session_id') ||
         (currentUser && currentUser.sessionId) || '';
 
       if (currentUser && currentUser.username && typeof registerStaffActiveSession === 'function') {
@@ -52529,7 +52524,7 @@ if (action === 'getDashboardStats') {
 
       if (!user) {
         try {
-          const stored = localStorage.getItem('oca_current_user');
+          const stored = sessionStorage.getItem('oca_current_user');
           if (stored) user = JSON.parse(stored);
         } catch (_) {}
       }
@@ -54088,8 +54083,11 @@ if (action === 'getDashboardStats') {
         if (window.history && window.history.replaceState) {
           window.history.replaceState({}, document.title, window.location.pathname);
         }
-
-        showWelcomeScreen();
+        document.body.classList.remove('portal-active');
+        document.documentElement.classList.remove('portal-active');
+        if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('oca_entered_dashboard');
+        if (typeof openSplitScreenLogin === 'function') openSplitScreenLogin();
+        else showWelcomeScreen();
         return;
       }
 
@@ -54124,7 +54122,14 @@ if (action === 'getDashboardStats') {
 
       switchNav(savedNav);
     } else {
-      showWelcomeScreen();
+      document.body.classList.remove('portal-active');
+      document.documentElement.classList.remove('portal-active');
+      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('oca_entered_dashboard');
+      if (!currentUser && typeof openSplitScreenLogin === 'function') {
+        openSplitScreenLogin();
+      } else {
+        showWelcomeScreen();
+      }
     }
       } catch (e) {
         console.warn('[OCA Router Warning]:', e);
@@ -60651,7 +60656,7 @@ if (action === 'getDashboardStats') {
         return _cachedCurrentUserObj;
       }
       try {
-        const stored = localStorage.getItem('oca_current_user');
+        const stored = sessionStorage.getItem('oca_current_user');
 
         if (!stored) {
           _cachedCurrentUserObj = null;
@@ -60670,14 +60675,14 @@ if (action === 'getDashboardStats') {
         // Verify session signature against tampering in DevTools
 
         const sessSig = sessionStorage.getItem('oca_sess_sig');
-        const persistSig = localStorage.getItem('oca_sess_sig_persist');
-        const activeSig = sessSig || persistSig;
+        const activeSig = sessSig;
         const expectedSig = generateSessionSignature(parsed);
 
         if (!activeSig || !expectedSig || activeSig !== expectedSig) {
           console.warn('[Security Guard] Unauthorized session tampering detected! Revoking session.');
           _cachedCurrentUserObj = null;
           _cachedCurrentUserExp = 0;
+          sessionStorage.removeItem('oca_current_user');
           localStorage.removeItem('oca_current_user');
           sessionStorage.removeItem('oca_sess_sig');
           localStorage.removeItem('oca_sess_sig_persist');
@@ -60697,7 +60702,7 @@ if (action === 'getDashboardStats') {
 
                 device_info: navigator ? navigator.userAgent : 'Unknown',
 
-                details: 'ตรวจพบการดัดแปลงข้อมูล Session ใน LocalStorage โดยไม่ได้รับอนุญาต',
+                details: 'ตรวจพบการดัดแปลงข้อมูล Session ใน SessionStorage โดยไม่ได้รับอนุญาต',
 
                 records: 1,
 
@@ -60707,10 +60712,6 @@ if (action === 'getDashboardStats') {
           }
 
           return null;
-        }
-
-        if (!sessSig && persistSig === expectedSig) {
-          sessionStorage.setItem('oca_sess_sig', expectedSig);
         }
 
         const frozen = Object.freeze(parsed);
@@ -60823,17 +60824,13 @@ if (action === 'getDashboardStats') {
       if (data.timestamp && Math.abs(Date.now() - Number(data.timestamp)) > 3600000) return;
       const myDeviceId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
       const incomingDeviceId = String(data.deviceId || '').trim();
-      const mySessionId = localStorage.getItem('oca_active_session_id') || 
-
-                          sessionStorage.getItem('oca_active_session_id') || 
-
+      const mySessionId = sessionStorage.getItem('oca_active_session_id') || 
                           (currentUser && currentUser.sessionId) || '';
 
       // 0. ป้องกันไม่ให้เครื่องปัจจุบันเตะตัวเองออกเมื่อได้รับ Event จากตัวเอง (Self-Event Guard)
 
       if (incomingDeviceId && myDeviceId && incomingDeviceId === myDeviceId) {
         if (data.sessionId && data.sessionId !== mySessionId) {
-          localStorage.setItem('oca_active_session_id', data.sessionId);
           sessionStorage.setItem('oca_active_session_id', data.sessionId);
         }
 
@@ -60977,10 +60974,7 @@ if (action === 'getDashboardStats') {
             .maybeSingle();
 
           if (!error && data && data.name) {
-            const mySessionId = localStorage.getItem('oca_active_session_id') || 
-
-                                sessionStorage.getItem('oca_active_session_id') || 
-
+            const mySessionId = sessionStorage.getItem('oca_active_session_id') || 
                                 (user && user.sessionId) || '';
             const myDeviceId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
             const cloudDeviceId = String(data.mode || '').trim();
@@ -60989,7 +60983,6 @@ if (action === 'getDashboardStats') {
 
             if (cloudDeviceId && myDeviceId && cloudDeviceId === myDeviceId) {
               if (data.name && data.name !== mySessionId) {
-                localStorage.setItem('oca_active_session_id', data.name);
                 sessionStorage.setItem('oca_active_session_id', data.name);
               }
 
@@ -61042,9 +61035,15 @@ if (action === 'getDashboardStats') {
         else { _cachedCurrentUserObj = null; _cachedCurrentUserExp = 0; }
         if (!user) {
           window.currentUser = null;
+          sessionStorage.removeItem('oca_current_user');
           localStorage.removeItem('oca_current_user');
+          localStorage.removeItem('oca_user');
           sessionStorage.removeItem('oca_sess_sig');
           localStorage.removeItem('oca_sess_sig_persist');
+          localStorage.removeItem('oca_active_session_id');
+          localStorage.removeItem('oca_session_start_time');
+          sessionStorage.removeItem('oca_active_session_id');
+          sessionStorage.removeItem('oca_session_start_time');
           sessionStorage.removeItem('oca_entered_dashboard');
           sessionStorage.removeItem('oca_security_unlocked');
           sessionStorage.removeItem('oca_session_alive');
@@ -61052,14 +61051,16 @@ if (action === 'getDashboardStats') {
           const frozenUser = Object.freeze({ ...user });
           window.currentUser = frozenUser;
           const sig = generateSessionSignature(user);
-          localStorage.setItem('oca_current_user', JSON.stringify(user));
+          sessionStorage.setItem('oca_current_user', JSON.stringify(user));
           sessionStorage.setItem('oca_sess_sig', sig);
-          localStorage.setItem('oca_sess_sig_persist', sig);
           sessionStorage.setItem('oca_session_alive', '1');
+          localStorage.removeItem('oca_current_user');
+          localStorage.removeItem('oca_user');
+          localStorage.removeItem('oca_sess_sig_persist');
           resetSecurityIdleTimer(true);
         }
       } catch (e) {
-        console.warn('Unable to save user to localStorage:', e);
+        console.warn('Unable to save user to sessionStorage:', e);
       }
     }
 
@@ -61766,7 +61767,6 @@ if (action === 'getDashboardStats') {
       }
 
       const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-      localStorage.setItem('oca_active_session_id', newSessionId);
       sessionStorage.setItem('oca_active_session_id', newSessionId);
 
       if (btnSubmit) {
@@ -61804,12 +61804,12 @@ if (action === 'getDashboardStats') {
 
         const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
         const nowTs = String(Date.now());
-        localStorage.setItem('oca_active_session_id', newSessionId);
         sessionStorage.setItem('oca_active_session_id', newSessionId);
-        localStorage.setItem('oca_session_start_time', nowTs);
         sessionStorage.setItem('oca_session_start_time', nowTs);
         sessionStorage.setItem('oca_entered_dashboard', 'true');
         sessionStorage.setItem('oca_session_alive', '1');
+        localStorage.removeItem('oca_active_session_id');
+        localStorage.removeItem('oca_session_start_time');
           if (usernameInput) usernameInput.value = '';
         if (passwordInput) passwordInput.value = '';
         saveCurrentUser(res.user);
@@ -61926,9 +61926,14 @@ if (action === 'getDashboardStats') {
       }
 
       try {
+        localStorage.removeItem('oca_current_user');
+        localStorage.removeItem('oca_user');
+        localStorage.removeItem('oca_sess_sig_persist');
         localStorage.removeItem('oca_active_session_id');
-        sessionStorage.removeItem('oca_active_session_id');
         localStorage.removeItem('oca_session_start_time');
+        sessionStorage.removeItem('oca_current_user');
+        sessionStorage.removeItem('oca_sess_sig');
+        sessionStorage.removeItem('oca_active_session_id');
         sessionStorage.removeItem('oca_session_start_time');
         sessionStorage.removeItem('oca_entered_dashboard');
         sessionStorage.removeItem('oca_session_alive');
@@ -64689,17 +64694,12 @@ if (action === 'getDashboardStats') {
       if (user) {
         // Ensure local session timestamps and ID exist on startup so they are never 0
 
-        if (!localStorage.getItem('oca_session_start_time')) {
-          localStorage.setItem('oca_session_start_time', String(Date.now()));
-        }
-
         if (!sessionStorage.getItem('oca_session_start_time')) {
           sessionStorage.setItem('oca_session_start_time', String(Date.now()));
         }
 
-        if (!localStorage.getItem('oca_active_session_id')) {
+        if (!sessionStorage.getItem('oca_active_session_id')) {
           const sid = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-          localStorage.setItem('oca_active_session_id', sid);
           sessionStorage.setItem('oca_active_session_id', sid);
         }
 
@@ -65296,40 +65296,49 @@ if (action === 'getDashboardStats') {
 
       if (typeof restoreSidebarAccordionState === 'function') restoreSidebarAccordionState();
       if (typeof renderSidebarCourseCategories === 'function') renderSidebarCourseCategories();
+
+      // Clear legacy localStorage staff session keys BEFORE routing so fresh tabs/browsers always show Login screen
+      if (typeof isPublicRegistrationRoute !== 'function' || !isPublicRegistrationRoute()) {
+        try {
+          const legacyRaw = localStorage.getItem('oca_current_user');
+          if (legacyRaw) {
+            const legacyUser = JSON.parse(legacyRaw);
+            if (legacyUser && legacyUser.username && typeof _supabase !== 'undefined' && _supabase && sessionStorage.getItem('oca_session_alive') !== '1') {
+              const uKey = String(legacyUser.username).toLowerCase().trim();
+              _supabase.from('fee_settings').delete().eq('key', 'session:' + uKey).then(null, () => {});
+            }
+          }
+        } catch (_) {}
+        try {
+          localStorage.removeItem('oca_current_user');
+          localStorage.removeItem('oca_user');
+          localStorage.removeItem('oca_sess_sig_persist');
+          localStorage.removeItem('oca_active_session_id');
+          localStorage.removeItem('oca_session_start_time');
+        } catch (_) {}
+
+        // Auto-Logout on PC Shutdown / Browser Close / New Tab (sessionStorage is wiped on close/new tab, preserved on F5)
+        if (sessionStorage.getItem('oca_session_alive') !== '1' || !sessionStorage.getItem('oca_current_user')) {
+          try {
+            sessionStorage.removeItem('oca_current_user');
+            sessionStorage.removeItem('oca_sess_sig');
+            sessionStorage.removeItem('oca_active_session_id');
+            sessionStorage.removeItem('oca_session_start_time');
+            sessionStorage.removeItem('oca_entered_dashboard');
+            sessionStorage.removeItem('oca_security_unlocked');
+            sessionStorage.removeItem('oca_session_alive');
+          } catch (_) {}
+          if (typeof invalidateCurrentUserCache === 'function') invalidateCurrentUserCache();
+          window.currentUser = null;
+        }
+      }
+
       checkInitialRoute();
       syncAllTermDropdownsWithOpenDates();
       if (typeof loadThaiAddressData === 'function') loadThaiAddressData();
 
       // Single-Device Session Listeners & Staff Auth Boot (Skipped on Public Registration Route)
       if (typeof isPublicRegistrationRoute !== 'function' || !isPublicRegistrationRoute()) {
-        // Auto-Logout on PC Shutdown / Browser Close (sessionStorage is wiped on close/shutdown, preserved on F5)
-        if (localStorage.getItem('oca_current_user') && sessionStorage.getItem('oca_session_alive') !== '1') {
-          try {
-            const staleRaw = localStorage.getItem('oca_current_user');
-            const staleUser = staleRaw ? JSON.parse(staleRaw) : null;
-            if (staleUser && staleUser.username && typeof _supabase !== 'undefined' && _supabase) {
-              const uKey = String(staleUser.username).toLowerCase().trim();
-              _supabase.from('fee_settings').delete().eq('key', 'session:' + uKey).then(null, () => {});
-            }
-          } catch (_) {}
-          try {
-            localStorage.removeItem('oca_current_user');
-            localStorage.removeItem('oca_sess_sig_persist');
-            localStorage.removeItem('oca_active_session_id');
-            localStorage.removeItem('oca_session_start_time');
-            sessionStorage.removeItem('oca_sess_sig');
-            sessionStorage.removeItem('oca_active_session_id');
-            sessionStorage.removeItem('oca_session_start_time');
-            sessionStorage.removeItem('oca_entered_dashboard');
-            sessionStorage.removeItem('oca_security_unlocked');
-          } catch (_) {}
-          if (typeof invalidateCurrentUserCache === 'function') invalidateCurrentUserCache();
-          window.currentUser = null;
-          const splitView = document.getElementById('viewLoginSplit');
-          if (splitView) splitView.style.display = 'flex';
-          document.body.classList.remove('portal-active');
-          document.documentElement.classList.remove('portal-active');
-        }
         try { initStaffAvatarsCloud(); } catch(_) {}
         window.addEventListener('focus', () => { if (typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); });
         document.addEventListener('visibilitychange', () => { if (!document.hidden && typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); });
@@ -83186,7 +83195,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=112';
+      const swPath = basePath + 'sw.js?v=113';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -83195,7 +83204,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (112):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (113):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
