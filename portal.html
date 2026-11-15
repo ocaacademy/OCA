@@ -9276,7 +9276,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '94';
+      var LATEST_VERSION = '95';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -41108,6 +41108,202 @@ if (action === 'getDashboardStats') {
 
     window.getCourseSchedulesBadgesHtml = getCourseSchedulesBadgesHtml;
 
+    let _ocaCourseSchedPopoverTimer = null;
+    let _ocaCourseSchedActiveCode = '';
+    let _ocaCourseSchedPinned = false;
+
+    function getCourseScheduleRowsData(courseCode, termVal, yearVal) {
+      const cCode = String(courseCode || '').trim().toUpperCase();
+      const curY = yearVal || document.getElementById('selScheduleConfigYear')?.value || window._activeTermYear || '2569';
+      const curT = termVal || document.getElementById('selScheduleConfigTerm')?.value || window._activeTerm || '5';
+      const matchedScheds = [];
+      const map = window._ocaScheduleCoursesMap || (typeof getScheduleCoursesMapForTerm === 'function' ? getScheduleCoursesMapForTerm() : {});
+
+      if (cCode && map && typeof map === 'object') {
+        Object.keys(map).forEach(sId => {
+          const arr = Array.isArray(map[sId]) ? map[sId] : [];
+          if (arr.some(c => String(c).toUpperCase() === cCode) && !matchedScheds.includes(sId)) {
+            matchedScheds.push(sId);
+          }
+        });
+      }
+
+      if (cCode && matchedScheds.length === 0 && typeof DEFAULT_SCHEDULE_COURSES_MAP !== 'undefined' && DEFAULT_SCHEDULE_COURSES_MAP) {
+        Object.keys(DEFAULT_SCHEDULE_COURSES_MAP).forEach(sId => {
+          const arr = Array.isArray(DEFAULT_SCHEDULE_COURSES_MAP[sId]) ? DEFAULT_SCHEDULE_COURSES_MAP[sId] : [];
+          if (arr.some(c => String(c).toUpperCase() === cCode) && !matchedScheds.includes(sId)) {
+            matchedScheds.push(sId);
+          }
+        });
+      }
+
+      matchedScheds.sort();
+      const rows = [];
+      matchedScheds.forEach(sId => {
+        const schedObj = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList) ? cachedSchedulesList.find(x => x.id === sId) : null) ||
+                         (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES) ? OFFICIAL_DEFAULT_SCHEDULES.find(x => x.id === sId) : null);
+        const schedName = schedObj ? (schedObj.name || schedObj.day_time || sId) : sId;
+        const groups = (typeof getCourseGroupInstructorList === 'function')
+          ? getCourseGroupInstructorList(cCode, sId, curT, curY)
+          : [{ section: 'A', lecturerName: '', room: '' }];
+
+        if (!Array.isArray(groups) || groups.length === 0) {
+          rows.push({ schedId: sId, schedName, section: 'A', lecturerName: 'ไม่ระบุ', room: '-' });
+        } else {
+          groups.forEach(g => {
+            rows.push({
+              schedId: sId,
+              schedName,
+              section: g.section || 'A',
+              lecturerName: (g.lecturerName && String(g.lecturerName).trim()) ? String(g.lecturerName).trim() : 'ไม่ระบุ',
+              room: (g.room && String(g.room).trim()) ? String(g.room).trim() : '-'
+            });
+          });
+        }
+      });
+
+      return { schedCount: matchedScheds.length, groupCount: rows.length, rows, term: curT, year: curY };
+    }
+
+    window.getCourseScheduleRowsData = getCourseScheduleRowsData;
+
+    function getCourseScheduleCompactPillHtml(courseCode) {
+      if (!courseCode) return '<span style="color:var(--text-muted); font-size:11px;">-</span>';
+      const info = getCourseScheduleRowsData(courseCode);
+      if (info.schedCount === 0) {
+        return '<span class="oca-course-sched-pill-empty" style="display:inline-flex; align-items:center; gap:5px; font-size:11.5px; padding:4px 10px; border-radius:999px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); color:var(--text-muted); white-space:nowrap;">ยังไม่เปิดรอบสอน</span>';
+      }
+      const safeCode = escapeHtml(String(courseCode));
+      return (
+        '<button type="button" class="oca-course-sched-pill" data-course-code="' + safeCode + '" ' +
+        'onmouseenter="showCourseSchedPopover(this, \'' + safeCode + '\', event)" ' +
+        'onmouseleave="scheduleHideCourseSchedPopover()" ' +
+        'onclick="toggleCourseSchedPopover(this, \'' + safeCode + '\', event)" ' +
+        'style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:5px 12px; border-radius:999px; background:linear-gradient(135deg, rgba(16,185,129,0.16) 0%, rgba(5,150,105,0.22) 100%); border:1px solid rgba(245,158,11,0.42); color:#FAF0D7; cursor:pointer; white-space:nowrap; transition:all 0.15s ease;">' +
+        '<span>📅</span>' +
+        '<span>' + toArabicDigits(info.schedCount) + ' รอบเวลา</span>' +
+        '<span style="color:rgba(245,158,11,0.75);">·</span>' +
+        '<span style="color:#34d399;">' + toArabicDigits(info.groupCount) + ' กลุ่มเรียน</span>' +
+        '<i class="fa-solid fa-chevron-down" style="font-size:10px; color:#FBBF24; opacity:0.85;"></i>' +
+        '</button>'
+      );
+    }
+
+    window.getCourseScheduleCompactPillHtml = getCourseScheduleCompactPillHtml;
+
+    function cancelHideCourseSchedPopover() {
+      if (_ocaCourseSchedPopoverTimer) {
+        clearTimeout(_ocaCourseSchedPopoverTimer);
+        _ocaCourseSchedPopoverTimer = null;
+      }
+    }
+
+    window.cancelHideCourseSchedPopover = cancelHideCourseSchedPopover;
+
+    function hideCourseSchedPopover() {
+      cancelHideCourseSchedPopover();
+      const pop = document.getElementById('ocaCourseSchedPopover');
+      if (pop) pop.style.display = 'none';
+      _ocaCourseSchedActiveCode = '';
+      _ocaCourseSchedPinned = false;
+    }
+
+    window.hideCourseSchedPopover = hideCourseSchedPopover;
+
+    function scheduleHideCourseSchedPopover() {
+      if (_ocaCourseSchedPinned) return;
+      cancelHideCourseSchedPopover();
+      _ocaCourseSchedPopoverTimer = setTimeout(() => {
+        hideCourseSchedPopover();
+      }, 180);
+    }
+
+    window.scheduleHideCourseSchedPopover = scheduleHideCourseSchedPopover;
+
+    function showCourseSchedPopover(triggerEl, courseCode, event) {
+      cancelHideCourseSchedPopover();
+      const pop = document.getElementById('ocaCourseSchedPopover');
+      const headerEl = document.getElementById('ocaCourseSchedPopoverTitle');
+      const bodyEl = document.getElementById('ocaCourseSchedPopoverBody');
+      if (!pop || !bodyEl) return;
+
+      const cCode = String(courseCode || '').trim();
+      const courseObj = Array.isArray(cachedCoursesList) ? cachedCoursesList.find(x => (x.id || x.code) === cCode || x.code === cCode) : null;
+      const cName = courseObj && courseObj.name ? courseObj.name : '';
+      const info = getCourseScheduleRowsData(cCode);
+
+      if (headerEl) {
+        headerEl.innerHTML = '<span style="color:#FBBF24; font-weight:800;">' + escapeHtml(cCode) + '</span>' +
+          (cName ? (' <span style="color:#E5E7EB; font-weight:600;">· ' + escapeHtml(cName) + '</span>') : '') +
+          ' <span style="font-size:11px; color:#9CA3AF; font-weight:500;">(เทอม ' + escapeHtml(toArabicDigits(info.term)) + '/' + escapeHtml(toArabicDigits(info.year)) + ')</span>';
+      }
+
+      if (info.rows.length === 0) {
+        bodyEl.innerHTML = '<tr><td colspan="4" style="padding:18px 12px; text-align:center; color:#9CA3AF;">ยังไม่เปิดรอบสอนในภาคเรียนนี้</td></tr>';
+      } else {
+        bodyEl.innerHTML = info.rows.map(r => (
+          '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">' +
+          '  <td style="padding:9px 12px; color:#38BDF8; font-weight:600;"><i class="fa-solid fa-clock" style="font-size:10.5px; margin-right:5px; opacity:0.85;"></i>' + escapeHtml(r.schedName) + '</td>' +
+          '  <td style="padding:9px 10px; text-align:center;"><span style="display:inline-block; padding:2px 8px; border-radius:6px; background:rgba(16,185,129,0.16); border:1px solid rgba(16,185,129,0.35); color:#34D399; font-weight:700;">' + escapeHtml(r.section) + '</span></td>' +
+          '  <td style="padding:9px 12px; color:#F3F4F6;">' + escapeHtml(r.lecturerName) + '</td>' +
+          '  <td style="padding:9px 10px; text-align:center; color:#FCD34D; font-weight:600; white-space:nowrap;">' + escapeHtml(r.room) + '</td>' +
+          '</tr>'
+        )).join('');
+      }
+
+      _ocaCourseSchedActiveCode = cCode;
+      pop.style.display = 'block';
+
+      if (triggerEl && typeof triggerEl.getBoundingClientRect === 'function') {
+        const rect = triggerEl.getBoundingClientRect();
+        const popRect = pop.getBoundingClientRect();
+        const vw = window.innerWidth || document.documentElement.clientWidth || 1280;
+        const vh = window.innerHeight || document.documentElement.clientHeight || 800;
+        let left = rect.left;
+        if (left + popRect.width > vw - 12) left = vw - popRect.width - 12;
+        if (left < 12) left = 12;
+        let top = rect.bottom + 8;
+        if (top + popRect.height > vh - 12 && rect.top - popRect.height - 8 > 12) {
+          top = rect.top - popRect.height - 8;
+        }
+        if (top < 12) top = 12;
+        pop.style.left = Math.round(left) + 'px';
+        pop.style.top = Math.round(top) + 'px';
+      } else {
+        pop.style.left = '24px';
+        pop.style.top = '80px';
+      }
+    }
+
+    window.showCourseSchedPopover = showCourseSchedPopover;
+
+    function toggleCourseSchedPopover(triggerEl, courseCode, event) {
+      if (event && typeof event.stopPropagation === 'function') event.stopPropagation();
+      const pop = document.getElementById('ocaCourseSchedPopover');
+      const cCode = String(courseCode || '').trim();
+      if (pop && pop.style.display === 'block' && _ocaCourseSchedPinned && _ocaCourseSchedActiveCode === cCode) {
+        hideCourseSchedPopover();
+        return;
+      }
+      _ocaCourseSchedPinned = true;
+      showCourseSchedPopover(triggerEl, cCode, event);
+    }
+
+    window.toggleCourseSchedPopover = toggleCourseSchedPopover;
+
+    if (!window._ocaCourseSchedListenersBound) {
+      window._ocaCourseSchedListenersBound = true;
+      document.addEventListener('click', (e) => {
+        const pop = document.getElementById('ocaCourseSchedPopover');
+        if (!pop || pop.style.display === 'none') return;
+        if (pop.contains(e.target) || (e.target && e.target.closest && e.target.closest('.oca-course-sched-pill'))) return;
+        hideCourseSchedPopover();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') hideCourseSchedPopover();
+      });
+    }
+
     function renderCoursesTable(courses = null, searchQuery = '') {
       const tbody = document.getElementById('tbodyCourses');
       const badge = document.getElementById('coursesCountBadge');
@@ -41227,9 +41423,7 @@ if (action === 'getDashboardStats') {
 
           '  <td style="width:285px; vertical-align:middle; padding:14px 16px !important;">' +
 
-          (typeof getCourseSchedulesBadgesHtml === 'function' ? getCourseSchedulesBadgesHtml(cId) : '<span style="font-size:11px; color:var(--text-muted);">-</span>') +
-
-          (typeof getCourseGroupSummaryBadgeHtml === 'function' ? getCourseGroupSummaryBadgeHtml(cId) : '') +
+          (typeof getCourseScheduleCompactPillHtml === 'function' ? getCourseScheduleCompactPillHtml(cId) : '<span style="font-size:11px; color:var(--text-muted);">-</span>') +
 
           '  </td>' +
 
@@ -73242,7 +73436,10 @@ function openPublicRegisterView() {
         "ปฏิเสธสลิปเรียบร้อยแล้ว": "已拒绝付款凭证",
         "ระบบตรวจจับอัตโนมัติ: นักศึกษาใหม่ (ออกรหัสใหม่เมื่อไม่พบเลขบัตรฯ ในระบบ)": "自动识别：新生（系统中未找到身份证号时将分配新学号）",
         "ล้างข้อมูล / เริ่มใหม่": "清空 / 重新开始",
-        "เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว": "该身份证号在系统中已有学号"
+        "เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว": "该身份证号在系统中已有学号",
+        "รอบเวลา": "时间段",
+        "กลุ่มเรียน": "学习班组",
+        "ยังไม่เปิดรอบสอน": "暂未开放时间段"
       },
       en: {
         "\"(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)\"": "\"(Classroom can be checked on opening day)\"",
@@ -74531,7 +74728,10 @@ function openPublicRegisterView() {
         "ปฏิเสธสลิปเรียบร้อยแล้ว": "Slip Rejected",
         "ระบบตรวจจับอัตโนมัติ: นักศึกษาใหม่ (ออกรหัสใหม่เมื่อไม่พบเลขบัตรฯ ในระบบ)": "Auto-Detect: New Student (assigns new ID if Citizen ID not found)",
         "ล้างข้อมูล / เริ่มใหม่": "Reset / Start Over",
-        "เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว": "Citizen ID Already Has a Student ID"
+        "เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว": "Citizen ID Already Has a Student ID",
+        "รอบเวลา": "Schedule(s)",
+        "กลุ่มเรียน": "Group(s)",
+        "ยังไม่เปิดรอบสอน": "Not Yet Scheduled"
       }
     };
     window.OCA_INNER_CONTENT_I18N = OCA_INNER_CONTENT_I18N;
@@ -82656,7 +82856,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=94';
+      const swPath = basePath + 'sw.js?v=95';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -82665,7 +82865,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (94):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (95):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
@@ -82967,6 +83167,29 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
   <div id="modalZoomSlip" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:100000; align-items:center; justify-content:center; padding:20px;" onclick="closeZoomSlipModal()">
     <img id="imgZoomSlipFull" src="" alt="Full Slip" style="max-height:90vh; max-width:90vw; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.8);" />
 
+  </div>
+
+  <!-- Course Schedule & Group Instructor Hover/Click Popover -->
+  <div id="ocaCourseSchedPopover" style="display:none; position:fixed; z-index:99999; width:min(640px, calc(100vw - 24px)); background:linear-gradient(145deg, #06251c 0%, #041913 100%); border:1px solid rgba(245,158,11,0.55); border-radius:12px; box-shadow:0 18px 45px rgba(0,0,0,0.75), 0 0 0 1px rgba(16,185,129,0.2); color:#F3F4F6; overflow:hidden;" onmouseenter="cancelHideCourseSchedPopover()" onmouseleave="scheduleHideCourseSchedPopover()">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; background:rgba(0,0,0,0.28); border-bottom:1px solid rgba(245,158,11,0.25);">
+      <div id="ocaCourseSchedPopoverTitle" style="font-size:13px; line-height:1.35;"></div>
+      <button type="button" onclick="hideCourseSchedPopover()" aria-label="Close" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.16); color:#D1D5DB; border-radius:6px; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:12px; flex-shrink:0;">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="oca-table-scroll-container oca-custom-scrollbar" style="max-height:360px; overflow-y:auto; overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+        <thead style="position:sticky; top:0; z-index:2; background:#031d16;">
+          <tr>
+            <th style="padding:10px 12px; text-align:left; color:#FBBF24; font-weight:700; border-bottom:1px solid rgba(245,158,11,0.28); white-space:nowrap;">รอบเวลาที่เปิดสอน</th>
+            <th style="padding:10px 10px; text-align:center; color:#FBBF24; font-weight:700; border-bottom:1px solid rgba(245,158,11,0.28); white-space:nowrap;">กลุ่ม</th>
+            <th style="padding:10px 12px; text-align:left; color:#FBBF24; font-weight:700; border-bottom:1px solid rgba(245,158,11,0.28); white-space:nowrap;">อาจารย์ผู้สอน</th>
+            <th style="padding:10px 10px; text-align:center; color:#FBBF24; font-weight:700; border-bottom:1px solid rgba(245,158,11,0.28); white-space:nowrap;">ห้องเรียน</th>
+          </tr>
+        </thead>
+        <tbody id="ocaCourseSchedPopoverBody"></tbody>
+      </table>
+    </div>
   </div>
 </body>
 </html>
