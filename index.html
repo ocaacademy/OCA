@@ -9291,7 +9291,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '105';
+      var LATEST_VERSION = '106';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -13838,6 +13838,9 @@ body.printing-report #printReportContainer {
 
                 <!-- Search Box for Receipt History (Citizen ID, Student ID, Name) -->
                 <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                  <button type="button" id="btnOpenDailyShiftClosingReceipts" class="oca-btn" onclick="openDailyShiftClosingModal()" style="height:38px; padding:0 14px; font-size:12.5px; font-weight:700; background:linear-gradient(135deg, rgba(215,166,0,0.22), rgba(180,83,9,0.28)); border:1px solid var(--color-gold); color:#FCD34D; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:7px; white-space:nowrap;">
+                    <i class="fa-solid fa-cash-register"></i> <span>ปิดยอดแคชเชียร์ประจำวัน (Daily Shift Closing)</span>
+                  </button>
                   <div style="position:relative; width:280px; max-width:100%; flex-shrink:0;">
                     <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:13px;"></i>
                     <input type="text" id="inpRcptHistSearch" class="oca-input" style="padding-left:36px; padding-right:32px; height:38px; font-size:13px;" placeholder="ค้นหาเลขบัตร, เลขนักเรียน, ชื่อ..." oninput="filterReceiptHistoryTable()">
@@ -13923,6 +13926,11 @@ body.printing-report #printReportContainer {
               <p style="font-size:12px; color:var(--color-gold); font-weight:700; margin:0 0 2px 0; text-transform:uppercase; letter-spacing:1px;">การเงินและบัญชี • OCA FINANCIAL HUB</p>
               <h2 id="txtFinancialHubTitle" style="font-size:20px; font-weight:700; color:var(--text-main); margin:0;">ศูนย์การเงิน (Financial Hub)</h2>
               <div id="txtFinancialHubSub" style="font-size:13px; color:var(--text-muted); margin-top:2px;">ตรวจสอบและอนุมัติสลิปโอนเงิน สรุปยอดรายรับและรายงานการเงินสถาบัน</div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+              <button type="button" id="btnOpenDailyShiftClosingFin" class="oca-btn" onclick="openDailyShiftClosingModal()" style="height:38px; padding:0 16px; font-size:13px; font-weight:700; background:linear-gradient(135deg, rgba(215,166,0,0.25), rgba(180,83,9,0.32)); border:1px solid var(--color-gold); color:#FCD34D; border-radius:10px; cursor:pointer; display:inline-flex; align-items:center; gap:8px; white-space:nowrap;">
+                <i class="fa-solid fa-cash-register"></i> <span>ปิดยอดแคชเชียร์ประจำวัน (Daily Shift Closing)</span>
+              </button>
             </div>
           </div>
 
@@ -16387,13 +16395,55 @@ body.printing-report #printReportContainer {
 
                   <div style="display:flex; justify-content:space-between; font-size:12.5px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:6px;">
                     <span style="color:var(--text-muted);">การเชื่อมต่อ API:</span>
-                    <span style="font-weight:700; color:#10b981;">● Online (GAS & REST Ready)</span>
+                    <span id="lblSettingsApiConnStatus" style="font-weight:700; color:#10b981;">● Online (Supabase REST Ready)</span>
                   </div>
 
                   <div style="display:flex; justify-content:space-between; font-size:12.5px;">
                     <span style="color:var(--text-muted);">นโยบายจัดเก็บ Audit:</span>
                     <span style="font-weight:700; color:var(--color-gold);">90 วัน (3 เดือน) Auto-Pruned</span>
                   </div>
+                </div>
+              </div>
+
+              <!-- Admin Tools & Diagnostics Card -->
+              <div style="background:var(--bg-card); border:1px solid var(--border-soft); border-radius:14px; padding:20px; grid-column:1 / -1;">
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="width:44px; height:44px; border-radius:12px; background:rgba(56,189,248,0.18); border:1px solid #38bdf8; display:flex; align-items:center; justify-content:center; color:#38bdf8; font-size:20px;">
+                      <i class="fa-solid fa-toolbox"></i>
+                    </div>
+                    <div>
+                      <h3 style="font-size:16px; font-weight:700; color:#ffffff; margin:0;">เครื่องมือผู้ดูแลระบบและสำรองข้อมูล (Admin Tools & Diagnostics)</h3>
+                      <div style="font-size:12px; color:var(--text-muted);">ตรวจสอบความเร็วเซิร์ฟเวอร์ สำรองข้อมูลฐานข้อมูล ล้างแคช PWA และตั้งค่ารหัส PIN</div>
+                    </div>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <span id="lblSettingsServerPingResult" style="font-size:12.5px; font-weight:700; color:#94a3b8; background:rgba(255,255,255,0.06); padding:6px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.1);">ยังไม่ได้ทดสอบ Ping</span>
+                    <button type="button" id="btnSettingsServerPing" onclick="runSettingsServerPing()" class="oca-btn-secondary" style="height:36px; padding:0 14px; font-size:12.5px; border-color:rgba(56,189,248,0.45); color:#38bdf8;">
+                      <i class="fa-solid fa-signal"></i> ทดสอบ Server Ping
+                    </button>
+                  </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                  <button type="button" id="btnExportBackupStudentsJson" onclick="exportBackupPaginated('students', 'json')" class="oca-btn-secondary" style="height:42px; justify-content:center; border-color:rgba(16,185,129,0.4); color:#34d399; font-size:12.5px; font-weight:700;">
+                    <i class="fa-solid fa-file-code"></i> สำรองข้อมูลนักศึกษา (JSON)
+                  </button>
+                  <button type="button" id="btnExportBackupStudentsCsv" onclick="exportBackupPaginated('students', 'csv')" class="oca-btn-secondary" style="height:42px; justify-content:center; border-color:rgba(16,185,129,0.4); color:#34d399; font-size:12.5px; font-weight:700;">
+                    <i class="fa-solid fa-file-csv"></i> สำรองข้อมูลนักศึกษา (CSV)
+                  </button>
+                  <button type="button" id="btnExportBackupReceiptsJson" onclick="exportBackupPaginated('receipts', 'json')" class="oca-btn-secondary" style="height:42px; justify-content:center; border-color:rgba(215,166,0,0.4); color:#FCD34D; font-size:12.5px; font-weight:700;">
+                    <i class="fa-solid fa-file-code"></i> สำรองข้อมูลใบเสร็จ (JSON)
+                  </button>
+                  <button type="button" id="btnExportBackupReceiptsCsv" onclick="exportBackupPaginated('receipts', 'csv')" class="oca-btn-secondary" style="height:42px; justify-content:center; border-color:rgba(215,166,0,0.4); color:#FCD34D; font-size:12.5px; font-weight:700;">
+                    <i class="fa-solid fa-file-csv"></i> สำรองข้อมูลใบเสร็จ (CSV)
+                  </button>
+                  <button type="button" id="btnClearPwaCacheReload" onclick="clearOcaPwaCacheAndReload()" class="oca-btn-secondary" style="height:42px; justify-content:center; border-color:rgba(245,158,11,0.45); color:#FBBF24; font-size:12.5px; font-weight:700;">
+                    <i class="fa-solid fa-broom"></i> ล้างแคช PWA และโหลดใหม่
+                  </button>
+                  <button type="button" id="btnOpenChangeSecurityPin" onclick="openChangeSecurityPinModal()" class="oca-btn-secondary" style="height:42px; justify-content:center; border-color:rgba(239,68,68,0.45); color:#F87171; font-size:12.5px; font-weight:700;">
+                    <i class="fa-solid fa-key"></i> เปลี่ยนรหัส PIN ความปลอดภัย
+                  </button>
                 </div>
               </div>
             </div>
@@ -16405,6 +16455,125 @@ body.printing-report #printReportContainer {
              MODAL: SEND RECEIPT EMAIL (SYSTEM POPUP)
 
              =================================================================== -->
+
+        <!-- MODAL: SOFT-VOID RECEIPT -->
+        <div id="modalVoidReceipt" class="oca-custom-modal-backdrop" onclick="if(event.target===this)closeVoidReceiptModal()" style="display:none; padding:20px;">
+          <div class="oca-custom-modal-box" style="max-width:480px; width:100%; border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1px solid rgba(239,68,68,0.55); background:#01241d; color:#FAF0D7;">
+            <div style="padding:16px 20px; border-bottom:1px solid rgba(239,68,68,0.28); display:flex; justify-content:space-between; align-items:center; background:rgba(127,29,29,0.35);">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <i class="fa-solid fa-ban" style="color:#f87171; font-size:18px;"></i>
+                <h3 style="margin:0; font-size:16px; font-weight:700; color:#fecaca;">ยกเลิกใบเสร็จรับเงิน (Soft-Void Receipt)</h3>
+              </div>
+              <button type="button" onclick="closeVoidReceiptModal()" style="background:none; border:none; color:#9ca3af; font-size:18px; cursor:pointer; padding:4px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div style="padding:20px;">
+              <input type="hidden" id="hdnVoidReceiptNo" value="" />
+              <div style="font-size:13px; color:#e2e8f0; margin-bottom:12px; line-height:1.55;">
+                ท่านกำลังจะยกเลิก (VOID) ใบเสร็จเลขที่ <strong id="lblVoidReceiptNoText" style="color:#FCD34D; font-family:monospace;">-</strong><br>
+                <span style="font-size:12px; color:#fca5a5;">ระบบจะรักษาเลขที่ใบเสร็จไว้ตามลำดับบัญชี และไม่นับรวมยอดเงินในรายงานรายรับ</span>
+              </div>
+              <label for="inpVoidReceiptReason" style="display:block; font-size:12.5px; font-weight:700; color:#FCD34D; margin-bottom:6px;">เหตุผลการยกเลิกใบเสร็จ (จำเป็น) <span style="color:#f87171;">*</span></label>
+              <textarea id="inpVoidReceiptReason" class="oca-input" rows="3" style="width:100%; padding:10px 12px; font-size:13px; resize:vertical;" placeholder="ระบุเหตุผลการยกเลิกใบเสร็จ เช่น พิมพ์ชื่อผู้ชำระเงินผิด, เปลี่ยนคอร์สเรียน..."></textarea>
+              <div id="lblVoidReceiptReasonErr" style="display:none; font-size:12px; color:#f87171; margin-top:6px; font-weight:600;">กรุณาระบุเหตุผลการยกเลิกใบเสร็จก่อนยืนยัน</div>
+              <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+                <button type="button" onclick="closeVoidReceiptModal()" class="oca-btn-secondary" style="height:38px; padding:0 16px;">ยกเลิก</button>
+                <button type="button" id="btnConfirmVoidReceipt" onclick="submitVoidReceipt()" style="height:38px; padding:0 18px; border-radius:9px; border:1px solid #ef4444; background:linear-gradient(135deg, #ef4444, #b91c1c); color:#ffffff; font-weight:700; font-size:13px; cursor:pointer;">ยืนยันยกเลิก (VOID)</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODAL: DAILY CASHIER SHIFT CLOSING -->
+        <div id="modalDailyShiftClosing" class="oca-custom-modal-backdrop" onclick="if(event.target===this)closeDailyShiftClosingModal()" style="display:none; padding:20px;">
+          <div class="oca-custom-modal-box" style="max-width:640px; width:100%; border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1px solid rgba(215,166,0,0.55); background:#01241d; color:#FAF0D7;">
+            <div style="padding:16px 20px; border-bottom:1px solid rgba(215,166,0,0.28); display:flex; justify-content:space-between; align-items:center; background:rgba(0,18,14,0.7);">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <i class="fa-solid fa-cash-register" style="color:var(--color-gold); font-size:18px;"></i>
+                <div>
+                  <h3 style="margin:0; font-size:16px; font-weight:700; color:#FAF0D7;">ปิดยอดแคชเชียร์ประจำวัน (Daily Shift Closing)</h3>
+                  <div id="lblShiftCloseDateSub" style="font-size:12px; color:var(--text-muted);">ประจำวันที่ -</div>
+                </div>
+              </div>
+              <button type="button" onclick="closeDailyShiftClosingModal()" style="background:none; border:none; color:#9ca3af; font-size:18px; cursor:pointer; padding:4px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div style="padding:20px; max-height:78vh; overflow-y:auto;">
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-bottom:16px;">
+                <div style="background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); border-radius:10px; padding:12px;">
+                  <div style="font-size:11.5px; color:#a7f3d0;">ยอดเงินสดในระบบ (Cash)</div>
+                  <div id="lblShiftCashTotal" style="font-size:18px; font-weight:800; color:#34d399; font-family:monospace; margin-top:4px;">฿0.00</div>
+                </div>
+                <div style="background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.35); border-radius:10px; padding:12px;">
+                  <div style="font-size:11.5px; color:#bae6fd;">ยอดโอน / QR (Transfer)</div>
+                  <div id="lblShiftTransferTotal" style="font-size:18px; font-weight:800; color:#38bdf8; font-family:monospace; margin-top:4px;">฿0.00</div>
+                </div>
+                <div style="background:rgba(215,166,0,0.14); border:1px solid rgba(215,166,0,0.4); border-radius:10px; padding:12px;">
+                  <div style="font-size:11.5px; color:#fde68a;">รายรับสุทธิวันนี้ (Net)</div>
+                  <div id="lblShiftNetRevenue" style="font-size:18px; font-weight:800; color:#FCD34D; font-family:monospace; margin-top:4px;">฿0.00</div>
+                </div>
+                <div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:10px; padding:12px;">
+                  <div style="font-size:11.5px; color:#fecaca;">บิลยกเลิก (VOID)</div>
+                  <div id="lblShiftVoidSummary" style="font-size:15px; font-weight:800; color:#f87171; font-family:monospace; margin-top:4px;">0 ฉบับ (฿0.00)</div>
+                </div>
+              </div>
+
+              <div style="background:rgba(0,0,0,0.28); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:14px; margin-bottom:14px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:end;">
+                  <div>
+                    <label for="inpShiftPhysicalCash" style="display:block; font-size:12.5px; font-weight:700; color:#FCD34D; margin-bottom:6px;">เงินสดที่นับได้จริงในลิ้นชัก (บาท)</label>
+                    <input type="number" id="inpShiftPhysicalCash" class="oca-input" step="0.01" min="0" placeholder="0.00" oninput="calculateShiftClosingVariance()" style="width:100%; height:40px; font-family:monospace; font-size:15px; font-weight:700;" />
+                  </div>
+                  <div>
+                    <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">ผลต่างเงินสด (ขาด / เกิน):</div>
+                    <div id="lblShiftCashVariance" style="height:40px; display:flex; align-items:center; padding:0 12px; border-radius:8px; background:rgba(255,255,255,0.06); font-family:monospace; font-size:15px; font-weight:800; color:#94a3b8;">฿0.00 (ตรงยอด)</div>
+                  </div>
+                </div>
+                <div style="margin-top:12px;">
+                  <label for="inpShiftClosingNote" style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">หมายเหตุการปิดยอด (ถ้ามี)</label>
+                  <input type="text" id="inpShiftClosingNote" class="oca-input" style="width:100%; height:36px; font-size:12.5px;" placeholder="ระบุหมายเหตุ เช่น เงินทอนยกยอด..." />
+                </div>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <button type="button" onclick="printDailyShiftClosing()" class="oca-btn-secondary" style="height:40px; padding:0 16px; border-color:rgba(56,189,248,0.45); color:#38bdf8; font-weight:700;">
+                  <i class="fa-solid fa-print"></i> พิมพ์ใบปิดยอด (A4)
+                </button>
+                <div style="display:flex; gap:10px;">
+                  <button type="button" onclick="closeDailyShiftClosingModal()" class="oca-btn-secondary" style="height:40px; padding:0 16px;">ปิด</button>
+                  <button type="button" id="btnSaveDailyShiftClosing" onclick="saveDailyShiftClosing()" style="height:40px; padding:0 18px; border-radius:10px; border:1px solid var(--color-gold); background:linear-gradient(135deg, #047857, #065F46); color:#ffffff; font-weight:700; font-size:13px; cursor:pointer;">
+                    <i class="fa-solid fa-floppy-disk"></i> บันทึกปิดยอดประจำวัน
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODAL: CHANGE SECURITY PIN -->
+        <div id="modalChangeSecurityPin" class="oca-custom-modal-backdrop" onclick="if(event.target===this)closeChangeSecurityPinModal()" style="display:none; padding:20px;">
+          <div class="oca-custom-modal-box" style="max-width:440px; width:100%; border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1px solid rgba(215,166,0,0.5); background:#01241d; color:#FAF0D7;">
+            <div style="padding:16px 20px; border-bottom:1px solid rgba(215,166,0,0.25); display:flex; justify-content:space-between; align-items:center; background:rgba(0,18,14,0.6);">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <i class="fa-solid fa-key" style="color:var(--color-gold); font-size:17px;"></i>
+                <h3 style="margin:0; font-size:16px; font-weight:700; color:#FAF0D7;">เปลี่ยนรหัส PIN ความปลอดภัย</h3>
+              </div>
+              <button type="button" onclick="closeChangeSecurityPinModal()" style="background:none; border:none; color:#9ca3af; font-size:18px; cursor:pointer; padding:4px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div style="padding:20px; display:flex; flex-direction:column; gap:12px;">
+              <div>
+                <label for="inpNewSecurityPin" style="display:block; font-size:12.5px; font-weight:700; color:#FCD34D; margin-bottom:6px;">รหัส PIN ใหม่ (อย่างน้อย 4 หลัก)</label>
+                <input type="password" id="inpNewSecurityPin" class="oca-input" minlength="4" placeholder="กรอกรหัส PIN ใหม่..." style="width:100%; height:40px;" />
+              </div>
+              <div>
+                <label for="inpConfirmSecurityPin" style="display:block; font-size:12.5px; font-weight:700; color:#FCD34D; margin-bottom:6px;">ยืนยันรหัส PIN ใหม่</label>
+                <input type="password" id="inpConfirmSecurityPin" class="oca-input" minlength="4" placeholder="กรอกรหัส PIN ใหม่อีกครั้ง..." style="width:100%; height:40px;" />
+              </div>
+              <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:6px;">
+                <button type="button" onclick="closeChangeSecurityPinModal()" class="oca-btn-secondary" style="height:38px; padding:0 16px;">ยกเลิก</button>
+                <button type="button" id="btnSubmitChangeSecurityPin" onclick="submitChangeSecurityPin()" style="height:38px; padding:0 18px; border-radius:9px; border:1px solid var(--color-gold); background:linear-gradient(135deg, #047857, #065F46); color:#ffffff; font-weight:700; font-size:13px; cursor:pointer;">บันทึกรหัส PIN</button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- ===================================================================
 
@@ -21410,6 +21579,14 @@ body.printing-report #printReportContainer {
                 </div>
               </div>
 
+              <!-- PDPA Consent Checkbox -->
+              <div id="boxPubPdpaConsent" style="background:#F0FDF4; border:1.5px solid #86EFAC; border-radius:12px; padding:14px 16px; margin-top:18px; display:flex; align-items:flex-start; gap:12px;">
+                <input type="checkbox" id="chkPubPdpaConsent" required style="width:20px; height:20px; margin-top:2px; accent-color:#047857; cursor:pointer; flex-shrink:0;" />
+                <label for="chkPubPdpaConsent" id="lblPubPdpaConsentText" style="font-size:13px; color:#1E293B; line-height:1.55; cursor:pointer;">
+                  <strong>ยินยอมนโยบายคุ้มครองข้อมูลส่วนบุคคล (PDPA Consent):</strong> ข้าพเจ้ายินยอมให้โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (OCA) เก็บรวบรวม ใช้ และประมวลผลข้อมูลส่วนบุคคลเพื่อวัตถุประสงค์ในการสมัครเรียน การออกเอกสารทางการศึกษา และติดต่อประสานงานตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล (I consent to OCA collecting and processing my personal data for enrollment and academic administration under PDPA / 本人同意东方文化书院依据《个人数据保护法》(PDPA) 收集及处理个人资料用于入学登记与教务管理。)
+                </label>
+              </div>
+
               <!-- Submit & Reset Action Area -->
               <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px; flex-wrap:wrap; gap:12px; padding-top:16px; border-top:1px solid #E5E7EB;">
                 <button type="button" onclick="goToPubRegStep(2)" style="background:#FFFFFF; color:#374151; border:1.5px solid #D1D5DB; border-radius:10px; padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
@@ -22987,6 +23164,7 @@ body.printing-report #printReportContainer {
         copy.discountOther = Number(r.discountOther !== undefined ? r.discountOther : (r.discount_other || 0));
         copy.grandTotal = Number(r.grandTotal !== undefined ? r.grandTotal : (r.grand_total || 0));
         copy.paymentMethod = String(r.paymentMethod || r.payment_method || 'โอนเงิน');
+        copy.paymentRef = String(r.paymentRef || r.payment_ref || '');
         copy.claimToken = String(r.claimToken || r.claim_token || '');
         copy.claimStatus = String(r.claimStatus || r.claim_status || 'PENDING');
         copy.materialType = String(r.materialType || r.material_type || 'หนังสือและสมุด');
@@ -23199,12 +23377,24 @@ body.printing-report #printReportContainer {
 
       if (action === 'updateSecurityPin') {
         const newPin = String(params.newPin || '').trim();
-
         if (!newPin || newPin.length < 4) {
           return { success: false, message: 'รหัส PIN ใหม่ต้องมีอย่างน้อย 4 หลัก' };
         }
-
         localStorage.setItem('oca_custom_pin', newPin);
+        try {
+          if (typeof _supabase !== 'undefined' && _supabase && window.crypto && window.crypto.subtle) {
+            const msgUint8 = new window.TextEncoder().encode('OCA_PIN_SALT:' + newPin);
+            const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgUint8);
+            const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+            const { error: pinErr } = await _supabase
+              .from('fee_settings')
+              .upsert([{ key: 'security_pin_hash', name: hashHex.slice(0, 90), amount: 0, mode: 'SYSTEM_PIN', updated_at: new Date().toISOString() }], { onConflict: 'key' });
+            if (pinErr) throw pinErr;
+          }
+        } catch (pinSyncErr) {
+          console.warn('updateSecurityPin Supabase sync error:', pinSyncErr);
+          return { success: false, message: 'บันทึกรหัส PIN ลงฐานข้อมูลไม่สำเร็จ: ' + (pinSyncErr.message || '') };
+        }
         return { success: true, message: 'เปลี่ยนรหัส PIN ความปลอดภัยเรียบร้อยแล้ว' };
       }
 
@@ -23217,6 +23407,23 @@ body.printing-report #printReportContainer {
         if (customPin && pin === customPin) {
           return { success: true };
         }
+
+        // 1.5 Verify against cross-device hashed PIN in fee_settings
+        try {
+          if (typeof _supabase !== 'undefined' && _supabase && window.crypto && window.crypto.subtle) {
+            const msgUint8 = new window.TextEncoder().encode('OCA_PIN_SALT:' + pin);
+            const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgUint8);
+            const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 90);
+            const { data: pinRow, error: pinRowErr } = await _supabase
+              .from('fee_settings')
+              .select('name')
+              .eq('key', 'security_pin_hash')
+              .limit(1);
+            if (!pinRowErr && pinRow && pinRow.length > 0 && pinRow[0].name === hashHex) {
+              return { success: true };
+            }
+          }
+        } catch (_) {}
 
         // 2. Verify against active logged-in staff credentials via secure RPC
 
@@ -25113,7 +25320,7 @@ if (action === 'getDashboardStats') {
           let offset = 0;
           while (true) {
             const { data: chunk, error: rcptErr } = await _supabase.from('receipts')
-              .select('receipt_no, buyer_name, grand_total, base_amount, reg_fee, card_fee, other_reg_fee, discount_normal, discount_other, payment_method, receipt_type, year_be, term, created_at')
+              .select('receipt_no, buyer_name, grand_total, base_amount, reg_fee, card_fee, other_reg_fee, discount_normal, discount_other, payment_method, receipt_type, year_be, term, created_at, claim_status')
               .gte('receipt_no', minRNo)
               .lt('receipt_no', maxRNo)
               .order('receipt_no', { ascending: false })
@@ -25123,7 +25330,7 @@ if (action === 'getDashboardStats') {
               break;
             }
             if (!chunk || chunk.length === 0) break;
-            rcpts.push(...chunk.filter(r => /^\d{7,}$/.test(String(r.receipt_no || '').trim())));
+            rcpts.push(...chunk.filter(r => /^\d{7,}$/.test(String(r.receipt_no || '').trim()) && String(r.claim_status || '').toUpperCase() !== 'VOIDED'));
             if (chunk.length < chunkSize) break;
             offset += chunkSize;
           }
@@ -25161,6 +25368,7 @@ if (action === 'getDashboardStats') {
           while (true) {
             const { data: yrChunk, error: yrErr } = await _supabase.from('receipts')
               .select('year_be, grand_total, receipt_no')
+              .or('claim_status.is.null,claim_status.neq.VOIDED')
               .order('receipt_no', { ascending: true })
               .range(yrOffset, yrOffset + yrChunkSize - 1);
             if (yrErr) {
@@ -28348,14 +28556,16 @@ if (action === 'getDashboardStats') {
           };
         }
 
-        // --- 15.6 DELETE RECEIPT DIRECTLY ---
+        // --- 15.6 SOFT-VOID RECEIPT WITH MANDATORY REASON ---
 
         if (action === 'deleteReceipt') {
           const rawRc = (params.receiptNo || params.id || '').toString().trim();
           const cleanRc = extractCleanId(rawRc) || rawRc;
+          const voidReason = String(params.reason || params.voidReason || '').trim();
           if (!cleanRc) return { success: false, message: 'กรุณาระบุเลขที่ใบเสร็จ' };
+          if (!voidReason) return { success: false, message: 'กรุณาระบุเหตุผลการยกเลิกใบเสร็จ' };
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanRc);
-          let query = _supabase.from('receipts').select('id, receipt_no, buyer_name, grand_total, student_id');
+          let query = _supabase.from('receipts').select('id, receipt_no, buyer_name, grand_total, student_id, claim_status, payment_ref');
 
           if (isUuid) {
             query = query.or(`receipt_no.eq.${cleanRc},id.eq.${cleanRc}`);
@@ -28371,45 +28581,44 @@ if (action === 'getDashboardStats') {
           }
 
           const target = foundRc[0];
-          const { error: delErr } = await _supabase.from('receipts')
+          if (String(target.claim_status || '').toUpperCase() === 'VOIDED') {
+            return { success: false, message: `ใบเสร็จเลขที่ ${target.receipt_no} ถูกยกเลิก (VOID) ไปแล้ว` };
+          }
 
-            .delete()
+          const actor = getAuditActor();
+          const staffLabel = actor.username || actor.fullName || 'staff';
+          const existingRef = String(target.payment_ref || '').trim();
+          const voidTag = `[VOIDED: ${voidReason} | ${staffLabel}]`;
+          const newPaymentRef = existingRef ? `${existingRef} ${voidTag}` : voidTag;
 
+          const { error: voidErr } = await _supabase
+            .from('receipts')
+            .update({ claim_status: 'VOIDED', payment_ref: newPaymentRef })
             .eq('id', target.id);
-          if (delErr) throw delErr;
+          if (voidErr) throw voidErr;
 
           try {
-            const actor = getAuditActor();
-
-            await _supabase.from('security_audit_logs').insert([{
-              action: 'DELETE_RECEIPT',
-
+            const { error: auditErr } = await _supabase.from('security_audit_logs').insert([{
+              action: 'VOID_RECEIPT',
               username: actor.username,
-
               full_name: actor.fullName,
-
               role: actor.role,
-
               device_id: actor.deviceId,
-
               device_info: actor.deviceInfo,
-
-              details: `ลบใบเสร็จรับเงินเลขที่ ${target.receipt_no} (ผู้ซื้อ: ${target.buyer_name || '-'}, จำนวนเงิน: ฿${target.grand_total})`,
-
+              details: `ยกเลิกใบเสร็จ (VOID) เลขที่ ${target.receipt_no} (ผู้ซื้อ: ${target.buyer_name || '-'}, จำนวนเงิน: ฿${target.grand_total}, เหตุผล: ${voidReason})`,
               records: 1,
-
               status: 'SUCCESS'
             }]);
+            if (auditErr) console.warn('voidReceipt audit log error:', auditErr);
           } catch (auditErr) {
-            console.warn('deleteReceipt audit log error:', auditErr);
+            console.warn('voidReceipt audit log error:', auditErr);
           }
 
           return {
             success: true,
-
+            voided: true,
             receiptNo: target.receipt_no,
-
-            message: `ลบใบเสร็จเลขที่ ${target.receipt_no} เรียบร้อยแล้ว`
+            message: `ยกเลิกใบเสร็จ (VOID) เลขที่ ${target.receipt_no} เรียบร้อยแล้ว`
           };
         }
 
@@ -28947,7 +29156,14 @@ if (action === 'getDashboardStats') {
         }
 
         if (action === 'pruneAuditLogs') {
-          return { success: true };
+          const days = Math.max(30, Number(params.days || 90));
+          const cutoffIso = new Date(Date.now() - days * 86400000).toISOString();
+          const { error: pruneErr } = await _supabase
+            .from('security_audit_logs')
+            .delete()
+            .lt('created_at', cutoffIso);
+          if (pruneErr) throw pruneErr;
+          return { success: true, message: `ล้างประวัติ Audit Log ที่เก่ากว่า ${days} วันเรียบร้อยแล้ว` };
         }
 
         // --- 17.8 GET RECEIPT REVISIONS (AUDIT TRAIL & PRE-EDIT SNAPSHOTS) ---
@@ -36307,49 +36523,355 @@ if (action === 'getDashboardStats') {
 
     function confirmDeleteReceipt(receiptNo) {
       if (!receiptNo) return;
+      const modal = document.getElementById('modalVoidReceipt');
+      const hdn = document.getElementById('hdnVoidReceiptNo');
+      const lbl = document.getElementById('lblVoidReceiptNoText');
+      const inp = document.getElementById('inpVoidReceiptReason');
+      const err = document.getElementById('lblVoidReceiptReasonErr');
+      if (hdn) hdn.value = receiptNo;
+      if (lbl) lbl.textContent = toArabicDigits(receiptNo);
+      if (inp) inp.value = '';
+      if (err) err.style.display = 'none';
+      if (modal) {
+        modal.style.display = 'flex';
+        setTimeout(() => { try { inp?.focus(); } catch(_) {} }, 50);
+      }
+    }
 
-      showConfirmModal({
-        title: 'ยืนยันการลบใบเสร็จรับเงิน',
+    function closeVoidReceiptModal() {
+      const modal = document.getElementById('modalVoidReceipt');
+      if (modal) modal.style.display = 'none';
+    }
 
-        message: 'ท่านต้องการลบใบเสร็จรับเงินเลขที่ ' + toArabicDigits(receiptNo) + ' ออกจากระบบอย่างถาวรหรือไม่?\n\n⚠️ ข้อมูลใบเสร็จและประวัติการออกใบเสร็จจะถูกลบอย่างถาวร ไม่สามารถย้อนกลับได้',
-
-        icon: 'fa-trash-can',
-
-        iconColor: '#ef4444',
-
-        iconBg: 'rgba(239,68,68,0.18)',
-
-        iconBorder: '#ef4444',
-
-        confirmText: 'ลบใบเสร็จ',
-
-        cancelText: 'ยกเลิก',
-
-        confirmBg: 'linear-gradient(135deg, #ef4444, #b91c1c)',
-
-        confirmBorder: '#ef4444',
-
-        onConfirm: () => {
-          callGasApi('deleteReceipt', { receiptNo: receiptNo })
-
-            .then(res => {
-              if (res && res.success) {
-                showToast('ลบใบเสร็จสำเร็จ', res.message || 'ลบใบเสร็จเรียบร้อยแล้ว', '✓');
-                loadReceiptsHistoryTable();
-
-                try { loadFinancialReport(); } catch(_) {}
-
-                try { loadDashData(); } catch(_) {}
-              } else {
-                showModal('ลบไม่สำเร็จ', (res && res.message) || 'ระบบไม่สามารถลบใบเสร็จได้', '❌');
-              }
-            })
-
-            .catch(err => {
-              showModal('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถลบใบเสร็จได้', '❌');
-            });
+    async function submitVoidReceipt() {
+      const receiptNo = (document.getElementById('hdnVoidReceiptNo')?.value || '').trim();
+      const reasonEl = document.getElementById('inpVoidReceiptReason');
+      const errEl = document.getElementById('lblVoidReceiptReasonErr');
+      const btn = document.getElementById('btnConfirmVoidReceipt');
+      const reason = (reasonEl?.value || '').trim();
+      if (!receiptNo) return;
+      if (!reason) {
+        if (errEl) errEl.style.display = 'block';
+        reasonEl?.focus();
+        return;
+      }
+      if (errEl) errEl.style.display = 'none';
+      if (btn) btn.disabled = true;
+      try {
+        const res = await callGasApi('deleteReceipt', { receiptNo, reason });
+        if (res && res.success) {
+          closeVoidReceiptModal();
+          showToast('ยกเลิกใบเสร็จสำเร็จ', res.message || 'ยกเลิกใบเสร็จ (VOID) เรียบร้อยแล้ว', '✓');
+          loadReceiptsHistoryTable(true);
+          try { loadFinancialReport(true); } catch(_) {}
+          try { loadDashData(); } catch(_) {}
+        } else {
+          showModal('ยกเลิกไม่สำเร็จ', (res && res.message) || 'ระบบไม่สามารถยกเลิกใบเสร็จได้', '❌');
         }
-      });
+      } catch (err) {
+        showModal('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถยกเลิกใบเสร็จได้', '❌');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // =========================================================================
+    // DAILY CASHIER SHIFT CLOSING & SETTINGS ADMIN TOOLS (v106)
+    // =========================================================================
+    window._ocaShiftClosingState = null;
+
+    async function openDailyShiftClosingModal() {
+      const modal = document.getElementById('modalDailyShiftClosing');
+      if (!modal) return;
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const todayIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const yyyymmdd = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+      const subEl = document.getElementById('lblShiftCloseDateSub');
+      if (subEl) subEl.textContent = `ประจำวันที่ ${todayIso} (${now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })})`;
+      modal.style.display = 'flex';
+
+      let cashTotal = 0;
+      let transferTotal = 0;
+      let voidCount = 0;
+      let voidAmount = 0;
+      let activeCount = 0;
+
+      try {
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          const startLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
+          const { data: rows, error } = await _supabase
+            .from('receipts')
+            .select('receipt_no, grand_total, payment_method, claim_status, created_at')
+            .gte('created_at', startLocal)
+            .order('receipt_no', { ascending: false })
+            .limit(1000);
+          if (error) throw error;
+          (rows || []).forEach(r => {
+            if (!r.created_at) return;
+            const d = new Date(r.created_at);
+            const dIso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+            if (dIso !== todayIso) return;
+            const amt = Math.max(0, Number(r.grand_total || 0));
+            if (String(r.claim_status || '').toUpperCase() === 'VOIDED') {
+              voidCount += 1;
+              voidAmount += amt;
+              return;
+            }
+            activeCount += 1;
+            const pm = String(r.payment_method || '').toLowerCase();
+            if (pm.includes('สด') || pm.includes('cash')) {
+              cashTotal += amt;
+            } else {
+              transferTotal += amt;
+            }
+          });
+        }
+      } catch (err) {
+        console.error('openDailyShiftClosingModal error:', err);
+        showToast('โหลดยอดปิดกะไม่สำเร็จ', err.message || '', '❌');
+      }
+
+      const netRevenue = cashTotal + transferTotal;
+      window._ocaShiftClosingState = { todayIso, yyyymmdd, cashTotal, transferTotal, netRevenue, voidCount, voidAmount, activeCount };
+      const fmt = (n) => '฿' + toArabicDigits(Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      const elCash = document.getElementById('lblShiftCashTotal');
+      const elTrans = document.getElementById('lblShiftTransferTotal');
+      const elNet = document.getElementById('lblShiftNetRevenue');
+      const elVoid = document.getElementById('lblShiftVoidSummary');
+      const inpPhys = document.getElementById('inpShiftPhysicalCash');
+      if (elCash) elCash.textContent = fmt(cashTotal);
+      if (elTrans) elTrans.textContent = fmt(transferTotal);
+      if (elNet) elNet.textContent = fmt(netRevenue);
+      if (elVoid) elVoid.textContent = `${toArabicDigits(voidCount)} ฉบับ (${fmt(voidAmount)})`;
+      if (inpPhys) inpPhys.value = cashTotal.toFixed(2);
+      calculateShiftClosingVariance();
+    }
+
+    function closeDailyShiftClosingModal() {
+      const modal = document.getElementById('modalDailyShiftClosing');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function calculateShiftClosingVariance() {
+      const st = window._ocaShiftClosingState || { cashTotal: 0 };
+      const inpPhys = document.getElementById('inpShiftPhysicalCash');
+      const lblVar = document.getElementById('lblShiftCashVariance');
+      const physicalCash = Number(inpPhys?.value || 0);
+      const variance = physicalCash - Number(st.cashTotal || 0);
+      if (!lblVar) return variance;
+      const absFmt = '฿' + toArabicDigits(Math.abs(variance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      if (Math.abs(variance) < 0.01) {
+        lblVar.style.color = '#34d399';
+        lblVar.textContent = '฿0.00 (ตรงยอด)';
+      } else if (variance > 0) {
+        lblVar.style.color = '#38bdf8';
+        lblVar.textContent = `+${absFmt} (เกิน)`;
+      } else {
+        lblVar.style.color = '#f87171';
+        lblVar.textContent = `-${absFmt} (ขาด)`;
+      }
+      return variance;
+    }
+
+    async function saveDailyShiftClosing() {
+      const st = window._ocaShiftClosingState;
+      if (!st) return;
+      const btn = document.getElementById('btnSaveDailyShiftClosing');
+      const physicalCash = Number(document.getElementById('inpShiftPhysicalCash')?.value || 0);
+      const note = (document.getElementById('inpShiftClosingNote')?.value || '').trim();
+      const variance = physicalCash - st.cashTotal;
+      const shiftKey = `shift_close_${st.yyyymmdd}`;
+      const summaryName = `Cash:${st.cashTotal}|QR:${st.transferTotal}|Net:${st.netRevenue}|Act:${physicalCash}|Var:${variance}`.slice(0, 90);
+      if (btn) btn.disabled = true;
+      try {
+        if (typeof _supabase === 'undefined' || !_supabase) throw new Error('ไม่พบการเชื่อมต่อฐานข้อมูล');
+        const { error: upsertErr } = await _supabase
+          .from('fee_settings')
+          .upsert([{ key: shiftKey, name: summaryName, amount: st.netRevenue, mode: 'SHIFT_CLOSE', updated_at: new Date().toISOString() }], { onConflict: 'key' });
+        if (upsertErr) throw upsertErr;
+
+        const actor = getAuditActor();
+        const { error: auditErr } = await _supabase.from('security_audit_logs').insert([{
+          action: 'SHIFT_CLOSING',
+          username: actor.username,
+          full_name: actor.fullName,
+          role: actor.role,
+          device_id: actor.deviceId,
+          device_info: actor.deviceInfo,
+          details: JSON.stringify({ date: st.todayIso, cashTotal: st.cashTotal, transferTotal: st.transferTotal, netRevenue: st.netRevenue, voidCount: st.voidCount, voidAmount: st.voidAmount, physicalCash, variance, note }),
+          records: st.activeCount,
+          status: 'SUCCESS'
+        }]);
+        if (auditErr) throw auditErr;
+        showToast('บันทึกปิดยอดสำเร็จ', `บันทึกยอดปิดกะประจำวันที่ ${st.todayIso} เรียบร้อยแล้ว`, '✓');
+      } catch (err) {
+        console.error('saveDailyShiftClosing error:', err);
+        showModal('บันทึกปิดยอดไม่สำเร็จ', err.message || 'เกิดข้อผิดพลาดในการบันทึก', '❌');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    function printDailyShiftClosing() {
+      const st = window._ocaShiftClosingState;
+      if (!st) return;
+      const physicalCash = Number(document.getElementById('inpShiftPhysicalCash')?.value || 0);
+      const note = (document.getElementById('inpShiftClosingNote')?.value || '').trim();
+      const variance = physicalCash - st.cashTotal;
+      const actor = (typeof getAuditActor === 'function') ? getAuditActor() : { fullName: 'Cashier' };
+      const fmt = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const win = window.open('', '_blank', 'width=860,height=720');
+      if (!win) {
+        showToast('Pop-up ถูกบล็อก', 'กรุณาอนุญาต Pop-up เพื่อพิมพ์ใบปิดยอด', '⚠️');
+        return;
+      }
+      const headerHtml = buildOfficialOcaPrintHeaderHtml(
+        'รายงานปิดยอดแคชเชียร์ประจำวัน (Daily Cashier Shift Closing)',
+        `ประจำวันที่ ${st.todayIso} | ผู้ปิดยอด: ${actor.fullName || actor.username || '-'}`
+      );
+      const varLabel = Math.abs(variance) < 0.01 ? '0.00 (ตรงยอด)' : (variance > 0 ? `+${fmt(variance)} (เกิน)` : `-${fmt(Math.abs(variance))} (ขาด)`);
+      win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>ปิดยอดแคชเชียร์ ${st.todayIso} - OCA</title><style>@page{size:A4 portrait;margin:5mm;}body{font-family:'Sarabun','Prompt',sans-serif;color:#111;margin:0;padding:4mm;font-size:13px;}table{width:100%;border-collapse:collapse;margin-top:10px;}th,td{border:1px solid #333;padding:7px 10px;}th{background:#f1f5f9;text-align:left;}td.num{text-align:right;font-family:monospace;font-weight:700;}.sig-grid{display:flex;justify-content:space-between;margin-top:36px;font-size:12.5px;}@media print{body{-webkit-print-color-adjust:exact;}}</style></head><body onload="try{window.print();}catch(_){}">${headerHtml}<table><tbody><tr><th>รายการ (Description)</th><th style="text-align:right;">จำนวนเงิน (บาท)</th></tr><tr><td>ยอดรับเงินสดในระบบ (Cash Total)</td><td class="num">฿${fmt(st.cashTotal)}</td></tr><tr><td>ยอดรับโอนเงิน / QR Code (Transfer / QR Total)</td><td class="num">฿${fmt(st.transferTotal)}</td></tr><tr><td><strong>รายรับสุทธิรวม (Net Revenue - ${st.activeCount} ฉบับ)</strong></td><td class="num"><strong>฿${fmt(st.netRevenue)}</strong></td></tr><tr><td>บิลยกเลิก (VOID) วันนี้ (${st.voidCount} ฉบับ)</td><td class="num">฿${fmt(st.voidAmount)}</td></tr><tr><td>เงินสดที่นับได้จริงในลิ้นชัก (Physical Cash Counted)</td><td class="num">฿${fmt(physicalCash)}</td></tr><tr><td>ผลต่างเงินสด (Variance: ขาด/เกิน)</td><td class="num">${varLabel}</td></tr><tr><td>หมายเหตุ (Note)</td><td>${escapeHtml(note || '-')}</td></tr></tbody></table><div class="sig-grid"><div>ลงชื่อ ....................................................<br>(${escapeHtml(actor.fullName || 'แคชเชียร์ผู้ปิดยอด')})<br>ผู้ส่งยอด / Cashier</div><div style="text-align:right;">ลงชื่อ ....................................................<br>(....................................................)<br>ผู้ตรวจสอบ / Manager</div></div></body></html>`);
+      win.document.close();
+    }
+
+    async function runSettingsServerPing() {
+      const lbl = document.getElementById('lblSettingsServerPingResult');
+      const connLbl = document.getElementById('lblSettingsApiConnStatus');
+      const btn = document.getElementById('btnSettingsServerPing');
+      if (btn) btn.disabled = true;
+      if (lbl) lbl.textContent = 'กำลังทดสอบ...';
+      try {
+        if (typeof _supabase === 'undefined' || !_supabase) throw new Error('No Supabase Client');
+        const t0 = performance.now();
+        const { error } = await _supabase.from('fee_settings').select('key').limit(1);
+        if (error) throw error;
+        const ms = Math.round(performance.now() - t0);
+        if (lbl) {
+          lbl.style.color = '#34d399';
+          lbl.textContent = `● Online (${ms} ms)`;
+        }
+        if (connLbl) {
+          connLbl.style.color = '#10b981';
+          connLbl.textContent = `● Online (${ms} ms)`;
+        }
+      } catch (err) {
+        if (lbl) {
+          lbl.style.color = '#f87171';
+          lbl.textContent = `● Error: ${err.message || 'Timeout'}`;
+        }
+        if (connLbl) {
+          connLbl.style.color = '#ef4444';
+          connLbl.textContent = '● Offline / Error';
+        }
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function exportBackupPaginated(tableName, format) {
+      try {
+        if (typeof _supabase === 'undefined' || !_supabase) throw new Error('ไม่พบการเชื่อมต่อฐานข้อมูล');
+        showToast('กำลังสำรองข้อมูล', `กำลังดึงข้อมูลตาราง ${tableName}...`, '⏳');
+        const allRows = [];
+        const chunkSize = 1000;
+        let offset = 0;
+        while (true) {
+          const { data: chunk, error } = await _supabase
+            .from(tableName)
+            .select('*')
+            .range(offset, offset + chunkSize - 1);
+          if (error) throw error;
+          if (!chunk || chunk.length === 0) break;
+          allRows.push(...chunk);
+          if (chunk.length < chunkSize) break;
+          offset += chunkSize;
+        }
+        const dateTag = new Date().toISOString().slice(0, 10);
+        let blob;
+        let filename;
+        if (format === 'csv') {
+          const keys = allRows.length > 0 ? Object.keys(allRows[0]) : [];
+          const escCsv = (v) => `"${String(v === null || v === undefined ? '' : (typeof v === 'object' ? JSON.stringify(v) : v)).replace(/"/g, '""')}"`;
+          const lines = [keys.join(','), ...allRows.map(r => keys.map(k => escCsv(r[k])).join(','))];
+          blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+          filename = `oca_backup_${tableName}_${dateTag}.csv`;
+        } else {
+          blob = new Blob([JSON.stringify(allRows, null, 2)], { type: 'application/json;charset=utf-8;' });
+          filename = `oca_backup_${tableName}_${dateTag}.json`;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('สำรองข้อมูลสำเร็จ', `ส่งออก ${tableName} จำนวน ${allRows.length} รายการเรียบร้อยแล้ว`, '✓');
+      } catch (err) {
+        console.error('exportBackupPaginated error:', err);
+        showModal('สำรองข้อมูลไม่สำเร็จ', err.message || 'เกิดข้อผิดพลาด', '❌');
+      }
+    }
+
+    async function clearOcaPwaCacheAndReload() {
+      try {
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+        if ('caches' in window && window.caches) {
+          const keys = await window.caches.keys();
+          await Promise.all(keys.map(k => window.caches.delete(k)));
+        }
+        showToast('ล้างแคชสำเร็จ', 'กำลังโหลดระบบใหม่...', '✓');
+        setTimeout(() => window.location.reload(true), 400);
+      } catch (err) {
+        showModal('ล้างแคชไม่สำเร็จ', err.message || '', '❌');
+      }
+    }
+
+    function openChangeSecurityPinModal() {
+      const modal = document.getElementById('modalChangeSecurityPin');
+      const inp1 = document.getElementById('inpNewSecurityPin');
+      const inp2 = document.getElementById('inpConfirmSecurityPin');
+      if (inp1) inp1.value = '';
+      if (inp2) inp2.value = '';
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeChangeSecurityPinModal() {
+      const modal = document.getElementById('modalChangeSecurityPin');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function submitChangeSecurityPin() {
+      const p1 = (document.getElementById('inpNewSecurityPin')?.value || '').trim();
+      const p2 = (document.getElementById('inpConfirmSecurityPin')?.value || '').trim();
+      const btn = document.getElementById('btnSubmitChangeSecurityPin');
+      if (!p1 || p1.length < 4) {
+        showModal('รหัส PIN ไม่ถูกต้อง', 'รหัส PIN ใหม่ต้องมีอย่างน้อย 4 หลัก', '⚠️');
+        return;
+      }
+      if (p1 !== p2) {
+        showModal('รหัส PIN ไม่ตรงกัน', 'กรุณากรอกรหัส PIN ใหม่และยืนยันให้ตรงกัน', '⚠️');
+        return;
+      }
+      if (btn) btn.disabled = true;
+      try {
+        const res = await callGasApi('updateSecurityPin', { newPin: p1 });
+        if (res && res.success) {
+          closeChangeSecurityPinModal();
+          showToast('เปลี่ยนรหัส PIN สำเร็จ', res.message || 'บันทึกรหัส PIN ใหม่เรียบร้อยแล้ว', '✓');
+        } else {
+          showModal('เปลี่ยนรหัส PIN ไม่สำเร็จ', (res && res.message) || 'เกิดข้อผิดพลาด', '❌');
+        }
+      } catch (err) {
+        showModal('เกิดข้อผิดพลาด', err.message || '', '❌');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
     }
 
     /**
@@ -50990,10 +51512,14 @@ if (action === 'getDashboardStats') {
     function createReceiptHistoryRow(row, citizenMap, lang) {
       const tr = document.createElement('tr');
       const isDelivery = row.deliveryMethod === 'ส่งไปตามที่อยู่' || row.deliveryMethod === 'ส่งตำรา';
-      const isClaimed = row.claimStatus === 'CLAIMED';
+      const isVoided = String(row.claimStatus || row.claim_status || '').toUpperCase() === 'VOIDED';
+      const isClaimed = !isVoided && row.claimStatus === 'CLAIMED';
+      if (isVoided) tr.style.opacity = '0.72';
       let statusBadge = '';
 
-      if (isDelivery) {
+      if (isVoided) {
+        statusBadge = '<span style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#f87171; padding:3px 10px; border-radius:10px; font-weight:800; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-ban"></i> ยกเลิก (VOID)</span>';
+      } else if (isDelivery) {
         statusBadge = '<span style="background:rgba(59,130,246,0.18); border:1px solid rgba(59,130,246,0.35); color:#93c5fd; padding:3px 10px; border-radius:10px; font-weight:700; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-truck"></i> จัดส่งตามที่อยู่</span>';
       } else if (isClaimed) {
         const claimTime = formatClaimTimestamp(row.claimedAt);
@@ -51128,11 +51654,11 @@ if (action === 'getDashboardStats') {
 
             '</button>' +
 
-            '<button class="oca-btn-action-edit" style="background:rgba(239,68,68,0.15); color:#f87171; border-color:#dc2626;" onclick="confirmDeleteReceipt(\'' + escapeHtml(row.receiptNo) + '\')">' +
+            (!isVoided ? ('<button class="oca-btn-action-edit" style="background:rgba(239,68,68,0.15); color:#f87171; border-color:#dc2626;" onclick="confirmDeleteReceipt(\'' + escapeHtml(row.receiptNo) + '\')">' +
 
-              '<i class="fa-solid fa-trash-can" style="margin-right:3px;"></i> ลบ' +
+              '<i class="fa-solid fa-ban" style="margin-right:3px;"></i> ยกเลิก' +
 
-            '</button>' +
+            '</button>') : '') +
 
           '</div>' +
 
@@ -67940,6 +68466,13 @@ function openPublicRegisterView() {
           console.warn('[PublicReg Citizen ID Guard] Notice:', pubDupCheckErr);
         }
       }
+      const pdpaChk = document.getElementById('chkPubPdpaConsent');
+      if (!pdpaChk || !pdpaChk.checked) {
+        window._lastPubSubmitTimestamp = 0;
+        showModal('กรุณายืนยันความยินยอม (PDPA)', 'กรุณาติ๊กเครื่องหมายถูกเพื่อยินยอมนโยบายคุ้มครองข้อมูลส่วนบุคคล (PDPA) ก่อนส่งใบสมัครเรียน', '⚠️');
+        pdpaChk?.focus();
+        return;
+      }
       const btn = document.getElementById('btnSubmitPublicRegister');
       const selGroupRaw = (document.getElementById('selPubGroupInstructor')?.value || '').trim();
       let selGroupInfo = null;
@@ -68028,16 +68561,20 @@ function openPublicRegisterView() {
 
         companyAddress: typeof sanitizeInputText === 'function' ? sanitizeInputText(companyAddress) : companyAddress,
 
-        notes: (typeof encodeExtProfileToNotes === 'function') ? encodeExtProfileToNotes(`สมัครเรียนออนไลน์แบบ OCA (${currentRegLanguage.toUpperCase()})${pubGroupNoteTag}`, {
-          ethnicity: document.getElementById('txtPubEthnicity')?.value || '',
-          nationality: document.getElementById('txtPubNationality')?.value || '',
-          birth_date: document.getElementById('txtPubDob')?.value || '',
-          age: document.getElementById('txtPubAge')?.value || '',
-          passport_no: document.getElementById('txtPubPassportNo')?.value || '',
-          emergency_name: document.getElementById('txtPubEmergencyName')?.value || '',
-          emergency_relation: document.getElementById('txtPubEmergencyRelation')?.value || '',
-          emergency_phone: emergencyPhone || ''
-        }) : `สมัครเรียนออนไลน์แบบ OCA (${currentRegLanguage.toUpperCase()})${pubGroupNoteTag}`
+        notes: (() => {
+          const pdpaTag = ` [PDPA_CONSENT: ${new Date().toISOString()}]`;
+          const basePubNote = `สมัครเรียนออนไลน์แบบ OCA (${currentRegLanguage.toUpperCase()})${pubGroupNoteTag}${pdpaTag}`;
+          return (typeof encodeExtProfileToNotes === 'function') ? encodeExtProfileToNotes(basePubNote, {
+            ethnicity: document.getElementById('txtPubEthnicity')?.value || '',
+            nationality: document.getElementById('txtPubNationality')?.value || '',
+            birth_date: document.getElementById('txtPubDob')?.value || '',
+            age: document.getElementById('txtPubAge')?.value || '',
+            passport_no: document.getElementById('txtPubPassportNo')?.value || '',
+            emergency_name: document.getElementById('txtPubEmergencyName')?.value || '',
+            emergency_relation: document.getElementById('txtPubEmergencyRelation')?.value || '',
+            emergency_phone: emergencyPhone || ''
+          }) : basePubNote;
+        })()
       };
 
       callGasApi('register', payload, 'POST')
@@ -72821,7 +73358,31 @@ function openPublicRegisterView() {
         "เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว": "该身份证号在系统中已有学号",
         "รอบเวลา": "时间段",
         "กลุ่มเรียน": "学习班组",
-        "ยังไม่เปิดรอบสอน": "暂未开放时间段"
+        "ยังไม่เปิดรอบสอน": "暂未开放时间段",
+        "ยกเลิก (VOID)": "已作废",
+        "ยกเลิกใบเสร็จรับเงิน (Soft-Void Receipt)": "作废收据",
+        "เหตุผลการยกเลิกใบเสร็จ (จำเป็น)": "作废原因（必填）",
+        "ยืนยันยกเลิก (VOID)": "确认作废",
+        "ปิดยอดแคชเชียร์ประจำวัน (Daily Shift Closing)": "每日收银交班结账",
+        "ยอดเงินสดในระบบ (Cash)": "系统现金总额",
+        "ยอดโอน / QR (Transfer)": "转账与扫码总额",
+        "รายรับสุทธิวันนี้ (Net)": "今日净收入",
+        "บิลยกเลิก (VOID)": "已作废单据",
+        "เงินสดที่นับได้จริงในลิ้นชัก (บาท)": "钱箱实点现金（泰铢）",
+        "ผลต่างเงินสด (ขาด / เกิน):": "现金差异（短少 / 溢出）：",
+        "พิมพ์ใบปิดยอด (A4)": "打印结账单",
+        "บันทึกปิดยอดประจำวัน": "保存每日结账记录",
+        "เครื่องมือผู้ดูแลระบบและสำรองข้อมูล (Admin Tools & Diagnostics)": "管理员工具与数据备份",
+        "ทดสอบ Server Ping": "测试服务器延迟",
+        "สำรองข้อมูลนักศึกษา (JSON)": "备份学生数据 JSON",
+        "สำรองข้อมูลนักศึกษา (CSV)": "备份学生数据 CSV",
+        "สำรองข้อมูลใบเสร็จ (JSON)": "备份收据数据 JSON",
+        "สำรองข้อมูลใบเสร็จ (CSV)": "备份收据数据 CSV",
+        "ล้างแคช PWA และโหลดใหม่": "清除缓存并刷新",
+        "เปลี่ยนรหัส PIN ความปลอดภัย": "修改安全PIN码",
+        "ลงเวลาแบบไม่ผ่านสแกนนิ้ว": "未使用指纹验证打卡",
+        "ตรวจสอบความเร็วเซิร์ฟเวอร์ สำรองข้อมูลฐานข้อมูล ล้างแคช PWA และตั้งค่ารหัส PIN": "检测服务器延迟、备份数据库、清除缓存及设置安全PIN码",
+        "ยังไม่ได้ทดสอบ Ping": "尚未测试延迟"
       },
       en: {
         "\"(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)\"": "\"(Classroom can be checked on opening day)\"",
@@ -75969,7 +76530,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
     window.enrollTeacherBiometric = enrollTeacherBiometric;
 
+    let _teacherCheckInBusy = false;
+
     async function performTeacherCheckInWithType(checkType) {
+      if (_teacherCheckInBusy) return;
       const user = getSavedCurrentUser();
 
       if (!user) {
@@ -75977,146 +76541,177 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         return;
       }
 
-      // Check GPS geofence with office Wi-Fi tolerance
-
-      const acc = _teacherCurrentAccuracy || 20;
-      const rawDist = _teacherCurrentDistance;
-      const isInside = isTeacherInsideGeofence(rawDist, acc);
-
-      if (!isInside) {
-        const d = (rawDist !== null && rawDist < 99999) ? Math.round(rawDist) : '--';
-
-        if (typeof showModal === 'function') {
-          showModal(
-            'ไม่อนุญาตให้ลงเวลาเด็ดขาด',
-
-            `คุณอยู่นอกพื้นที่สถาบัน OCA (ห่าง ${d} เมตร) เกินรัศมีสำนักงาน ระบบไม่อนุญาตให้บันทึกเวลาโดยเด็ดขาด!`,
-
-            '🚫'
-          );
-        }
-
-        return;
-      }
-
-      const isEnrolled = await checkTeacherBiometricEnrollment();
-
-      if (!isEnrolled) {
-        if (typeof showModal === 'function') {
-          showModal('กรุณาลงทะเบียนลายนิ้วมือก่อน', 'คุณยังไม่ได้ลงทะเบียนลายนิ้วมือ กรุณากดปุ่มลงทะเบียนครั้งแรกก่อนสแกนเวลาเข้างาน', '⚠️');
-        }
-
-        return;
-      }
-
-      let verified = false;
-
-      if (window.PublicKeyCredential && typeof navigator.credentials?.get === 'function') {
-        try {
-          const challenge = new window.Uint8Array(32);
-          window.crypto.getRandomValues(challenge);
-          const assertion = await navigator.credentials.get({
-            publicKey: {
-              challenge: challenge,
-
-              timeout: 60000,
-
-              userVerification: "required"
-            }
-          });
-          if (assertion) verified = true;
-        } catch (e) {
-          console.warn('[WebAuthn Verify] platform fallback:', e);
-          verified = true;
-        }
-      } else {
-        verified = true;
-      }
-
-      const now = new Date(Date.now() + _teacherClockOffsetMs);
-      const isoTime = now.toISOString();
-      const payload = {
-        username: user.username,
-
-        teacher_name: user.fullName || user.username,
-
-        check_type: checkType,
-
-        latitude: _teacherCurrentPosition?.lat || OCA_GEOFENCE_TARGET.lat,
-
-        longitude: _teacherCurrentPosition?.lng || OCA_GEOFENCE_TARGET.lng,
-
-        distance_meters: Math.round(_teacherCurrentDistance || 0),
-
-        biometric_verified: verified,
-
-        thai_time_stamp: isoTime,
-
-        created_at: isoTime
-      };
-
-      if (typeof _supabase !== 'undefined' && _supabase) {
-        // Safe cross-device persistence via security_audit_logs (100% available table)
-
-        try {
-          await _supabase.from('security_audit_logs').insert([{
-            action: checkType === 'IN' ? 'TEACHER_CLOCK_IN' : 'TEACHER_CLOCK_OUT',
-
-            username: user.username,
-
-            details: JSON.stringify(payload),
-
-            ip_address: 'GEOLOCATION_CHECKIN'
-          }]);
-        } catch (_) {}
-
-        if (window.OCA_ENABLE_DB_TIMESHEET_TABLE) {
-          try {
-            await _supabase.from('teacher_checkins').insert([payload]);
-          } catch (err) {
-            console.warn('[Teacher Check-in] insert fallback:', err);
-          }
-        }
-      }
+      const btnIn = document.getElementById('btnClockInAction');
+      const btnOut = document.getElementById('btnClockOutAction');
+      _teacherCheckInBusy = true;
+      if (btnIn) btnIn.disabled = true;
+      if (btnOut) btnOut.disabled = true;
 
       try {
-        const rawHistory = localStorage.getItem(`oca_checkins_${user.username}`) || '[]';
-        const list = JSON.parse(rawHistory);
-        list.unshift(payload);
-        if (list.length > 50) list.pop();
-        localStorage.setItem(`oca_checkins_${user.username}`, JSON.stringify(list));
-      } catch(_) {}
-
-      renderTeacherMyHistory();
-      const dict = TEACHER_I18N[_teacherCurrentLanguage] || TEACHER_I18N.th;
-
-      if (typeof showToast === 'function') {
-        const typeTxt = checkType === 'IN' ? dict.btnClockInText : dict.btnClockOutText;
-
-        if (typeof logTeacherActivity === 'function') {
-        const typeTxt = checkType === 'IN' ? 'เข้างาน' : 'ออกงาน';
-        const tName = user.fullName || user.username || 'ครูผู้สอน';
-
-        logTeacherActivity(
-          checkType === 'IN' ? 'TEACHER_TIMESHEET_CHECKIN' : 'TEACHER_TIMESHEET_CHECKOUT',
-
-          `อาจารย์ ${tName} ลงเวลา${typeTxt} (สแกนนิ้วสำเร็จ, พิกัด ${Math.round(_teacherCurrentDistance || 0)} ม.)`,
-
-          {
-            check_type: checkType,
-
-            distance_meters: Math.round(_teacherCurrentDistance || 0)
+        // Require real GPS coordinates (never fall back to hardcoded office coordinates)
+        if (!_teacherCurrentPosition || typeof _teacherCurrentPosition.lat !== 'number' || typeof _teacherCurrentPosition.lng !== 'number') {
+          if (typeof showModal === 'function') {
+            showModal('ไม่พบพิกัด GPS จริง', 'กรุณาเปิด GPS และรอให้ระบบจับตำแหน่งปัจจุบันของคุณก่อนลงเวลา (ไม่อนุญาตให้ใช้พิกัดจำลอง)', '📍');
           }
-        );
-      }
+          return;
+        }
 
-      showToast(
-          `${typeTxt} สำเร็จ!`,
+        // Check GPS geofence with office Wi-Fi tolerance
+        const acc = _teacherCurrentAccuracy || 20;
+        const rawDist = _teacherCurrentDistance;
+        const isInside = isTeacherInsideGeofence(rawDist, acc);
 
-          `เวลา ${now.toLocaleTimeString('th-TH')} น. | รัศมี OCA ${Math.round(_teacherCurrentDistance || 0)} ม.`,
+        if (!isInside) {
+          const d = (rawDist !== null && rawDist < 99999) ? Math.round(rawDist) : '--';
+          if (typeof showModal === 'function') {
+            showModal(
+              'ไม่อนุญาตให้ลงเวลาเด็ดขาด',
+              `คุณอยู่นอกพื้นที่สถาบัน OCA (ห่าง ${d} เมตร) เกินรัศมีสำนักงาน ระบบไม่อนุญาตให้บันทึกเวลาโดยเด็ดขาด!`,
+              '🚫'
+            );
+          }
+          return;
+        }
 
-          '✅'
-        );
+        // Sequence & Cooldown Guard (prevent duplicate IN within 5 mins, or OUT without prior IN today)
+        let localHistory = [];
+        try {
+          localHistory = JSON.parse(localStorage.getItem(`oca_checkins_${user.username}`) || '[]');
+          if (!Array.isArray(localHistory)) localHistory = [];
+        } catch (_) { localHistory = []; }
+
+        const nowLocal = new Date();
+        const todayStr = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, '0')}-${String(nowLocal.getDate()).padStart(2, '0')}`;
+        const toLocalDay = (ts) => {
+          const dt = new Date(ts);
+          return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+        };
+
+        if (checkType === 'IN') {
+          const recentIn = localHistory.find(item => item.check_type === 'IN' && item.thai_time_stamp && (Date.now() - new Date(item.thai_time_stamp).getTime() < 5 * 60 * 1000));
+          if (recentIn) {
+            if (typeof showModal === 'function') {
+              showModal('ลงเวลาเข้างานซ้ำเร็วเกินไป', 'คุณเพิ่งลงเวลาเข้างานไปแล้ว กรุณารออย่างน้อย 5 นาทีก่อนลงเวลาใหม่อีกครั้ง', '⏳');
+            }
+            return;
+          }
+        } else if (checkType === 'OUT') {
+          const hasInToday = localHistory.some(item => item.check_type === 'IN' && item.thai_time_stamp && toLocalDay(item.thai_time_stamp) === todayStr);
+          if (!hasInToday) {
+            if (typeof showModal === 'function') {
+              showModal('ไม่พบประวัติเข้างานวันนี้', 'กรุณาลงเวลาเข้างาน (Clock In) ก่อนลงเวลาออกงาน (Clock Out)', '⚠️');
+            }
+            return;
+          }
+        }
+
+        const isEnrolled = await checkTeacherBiometricEnrollment();
+        if (!isEnrolled) {
+          if (typeof showModal === 'function') {
+            showModal('กรุณาลงทะเบียนลายนิ้วมือก่อน', 'คุณยังไม่ได้ลงทะเบียนลายนิ้วมือ กรุณากดปุ่มลงทะเบียนครั้งแรกก่อนสแกนเวลาเข้างาน', '⚠️');
+          }
+          return;
+        }
+
+        let verified = false;
+        if (window.PublicKeyCredential && typeof navigator.credentials?.get === 'function') {
+          try {
+            const challenge = new window.Uint8Array(32);
+            window.crypto.getRandomValues(challenge);
+            const assertion = await navigator.credentials.get({
+              publicKey: {
+                challenge: challenge,
+                timeout: 60000,
+                userVerification: "required"
+              }
+            });
+            if (assertion) verified = true;
+          } catch (e) {
+            console.warn('[WebAuthn Verify] failed/cancelled:', e);
+            verified = false;
+          }
+        } else {
+          verified = false;
+        }
+
+        if (!verified) {
+          const allowFallback = confirm('ไม่สามารถยืนยันลายนิ้วมือได้ (WebAuthn ไม่พร้อมใช้งานหรือถูกยกเลิก)\n\nต้องการ "ลงเวลาแบบไม่ผ่านสแกนนิ้ว" หรือไม่? (ระบบจะบันทึกสถานะ biometric_verified: false ในประวัติตรวจสอบ)');
+          if (!allowFallback) {
+            return;
+          }
+        }
+
+        const now = new Date(Date.now() + _teacherClockOffsetMs);
+        const isoTime = now.toISOString();
+        const payload = {
+          username: user.username,
+          teacher_name: user.fullName || user.username,
+          check_type: checkType,
+          latitude: _teacherCurrentPosition.lat,
+          longitude: _teacherCurrentPosition.lng,
+          distance_meters: Math.round(_teacherCurrentDistance || 0),
+          biometric_verified: verified,
+          auth_note: verified ? 'WEBAUTHN_VERIFIED' : 'ลงเวลาแบบไม่ผ่านสแกนนิ้ว',
+          thai_time_stamp: isoTime
+        };
+
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          const { error: auditErr } = await _supabase.from('security_audit_logs').insert([{
+            action: checkType === 'IN' ? 'TEACHER_CLOCK_IN' : 'TEACHER_CLOCK_OUT',
+            username: user.username,
+            details: JSON.stringify(payload),
+            ip_address: 'GEOLOCATION_CHECKIN'
+          }]);
+          if (auditErr) throw auditErr;
+
+          if (window.OCA_ENABLE_DB_TIMESHEET_TABLE) {
+            const { error: tsErr } = await _supabase.from('teacher_checkins').insert([payload]);
+            if (tsErr) throw tsErr;
+          }
+        }
+
+        try {
+          localHistory.unshift(payload);
+          if (localHistory.length > 50) localHistory.pop();
+          localStorage.setItem(`oca_checkins_${user.username}`, JSON.stringify(localHistory));
+        } catch(_) {}
+
+        renderTeacherMyHistory();
+        const dict = TEACHER_I18N[_teacherCurrentLanguage] || TEACHER_I18N.th;
+
+        if (typeof showToast === 'function') {
+          const typeTxt = checkType === 'IN' ? dict.btnClockInText : dict.btnClockOutText;
+          const bioStatusLabel = verified ? 'สแกนนิ้วสำเร็จ' : 'ลงเวลาแบบไม่ผ่านสแกนนิ้ว';
+
+          if (typeof logTeacherActivity === 'function') {
+            const actTxt = checkType === 'IN' ? 'เข้างาน' : 'ออกงาน';
+            const tName = user.fullName || user.username || 'ครูผู้สอน';
+            logTeacherActivity(
+              checkType === 'IN' ? 'TEACHER_TIMESHEET_CHECKIN' : 'TEACHER_TIMESHEET_CHECKOUT',
+              `อาจารย์ ${tName} ลงเวลา${actTxt} (${bioStatusLabel}, พิกัด ${Math.round(_teacherCurrentDistance || 0)} ม.)`,
+              {
+                check_type: checkType,
+                biometric_verified: verified,
+                distance_meters: Math.round(_teacherCurrentDistance || 0)
+              }
+            );
+          }
+
+          showToast(
+            `${typeTxt} สำเร็จ!`,
+            `เวลา ${now.toLocaleTimeString('th-TH')} น. | ${bioStatusLabel} | รัศมี OCA ${Math.round(_teacherCurrentDistance || 0)} ม.`,
+            verified ? '✅' : '⚠️'
+          );
+        }
+      } catch (dbErr) {
+        console.error('[Teacher Check-in] DB error:', dbErr);
+        if (typeof showModal === 'function') {
+          showModal('บันทึกเวลาไม่สำเร็จ', 'ไม่สามารถบันทึกข้อมูลลงฐานข้อมูลได้: ' + (dbErr?.message || 'Unknown error'), '❌');
+        }
+      } finally {
+        _teacherCheckInBusy = false;
+        if (btnIn) btnIn.disabled = false;
+        if (btnOut) btnOut.disabled = false;
       }
     }
 
@@ -82395,7 +82990,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=105';
+      const swPath = basePath + 'sw.js?v=106';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -82404,7 +82999,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (105):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (106):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
