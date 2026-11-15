@@ -25178,7 +25178,7 @@ if (action === 'getDashboardStats') {
 
         if (action === 'getFinancialSummary') {
           const queryYearParam = params.filterYear || '';
-          let minRNo = '6900000';
+          let minRNo = '5000000';
           let maxRNo = '9999999';
           if (queryYearParam && queryYearParam !== 'all' && queryYearParam !== 'ALL') {
             const yr = String(queryYearParam).slice(-2);
@@ -25200,7 +25200,7 @@ if (action === 'getDashboardStats') {
               break;
             }
             if (!chunk || chunk.length === 0) break;
-            rcpts.push(...chunk);
+            rcpts.push(...chunk.filter(r => /^\d{7,}$/.test(String(r.receipt_no || '').trim())));
             if (chunk.length < chunkSize) break;
             offset += chunkSize;
           }
@@ -25245,9 +25245,11 @@ if (action === 'getDashboardStats') {
             }
             if (!yrChunk || yrChunk.length === 0) break;
             yrChunk.forEach(r => {
+              const rcNoStr = String(r.receipt_no || '').trim();
+              if (!/^\d{7,}$/.test(rcNoStr)) return;
               let yBe = Number(r.year_be || 0);
-              if (!yBe && r.receipt_no) {
-                const prefix2 = parseInt(String(r.receipt_no).slice(0, 2), 10);
+              if (!yBe && rcNoStr) {
+                const prefix2 = parseInt(rcNoStr.slice(0, 2), 10);
                 if (Number.isFinite(prefix2)) yBe = 2500 + prefix2;
               }
               if (yBe > 0 && yBe < 2400) yBe += 543;
