@@ -9291,7 +9291,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '114';
+      var LATEST_VERSION = '115';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -20732,6 +20732,12 @@ body.printing-report #printReportContainer {
 
         <!-- RIGHT SIDE: CANVA CLEAN & LUXURY AUTHENTICATION CARD (40%) -->
         <div style="flex:0.95 1 360px; background:#FAF7F2; padding:32px 30px; display:flex; flex-direction:column; justify-content:center; position:relative; color:#1f2937;">
+          <!-- 3-Language Switcher (TH / EN / ZH) -->
+          <div style="position:absolute; top:16px; left:20px; display:inline-flex; align-items:center; gap:4px; background:#FFFFFF; border:1px solid rgba(215,166,0,0.4); border-radius:999px; padding:3px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+            <button type="button" id="btnLoginLangTH" onclick="setSystemLanguage('th')" style="border:none; background:transparent; color:#374151; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; cursor:pointer; transition:all 0.15s;">ไทย</button>
+            <button type="button" id="btnLoginLangEN" onclick="setSystemLanguage('en')" style="border:none; background:transparent; color:#374151; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; cursor:pointer; transition:all 0.15s;">EN</button>
+            <button type="button" id="btnLoginLangZH" onclick="setSystemLanguage('zh')" style="border:none; background:transparent; color:#374151; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; cursor:pointer; transition:all 0.15s;">中文</button>
+          </div>
           <!-- Close Button -->
           <button type="button" onclick="backToWelcomeScreen()" style="position:absolute; top:16px; right:16px; background:transparent; border:none; color:#9ca3af; font-size:18px; cursor:pointer; padding:6px; line-height:1; transition:color 0.15s; border-radius:50%;" onmouseover="this.style.color='#111827'" onmouseout="this.style.color='#9ca3af'" title="ปิด / กลับหน้าต้อนรับ">
             <i class="fa-solid fa-xmark"></i>
@@ -32176,6 +32182,9 @@ if (action === 'getDashboardStats') {
           htmlSchedule += `<option value="${safeEscape(val)}" data-schedule-id="${safeEscape(s.id || '')}">${safeEscape(label)}</option>`;
         });
         selSchedule.innerHTML = htmlSchedule;
+        if (typeof translateContainerTree === 'function') {
+          translateContainerTree(selSchedule, currentRegLanguage);
+        }
 
         if (currentScheduleVal) {
           for (let opt of selSchedule.options) {
@@ -36557,9 +36566,17 @@ if (action === 'getDashboardStats') {
       const pad = (n) => String(n).padStart(2, '0');
       const todayIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
       const yyyymmdd = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+      const curLang = window._currentSystemLang || 'th';
       const subEl = document.getElementById('lblShiftCloseDateSub');
-      if (subEl) subEl.textContent = `ประจำวันที่ ${todayIso} (${now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })})`;
+      if (subEl) {
+        const locale = curLang === 'zh' ? 'zh-CN' : (curLang === 'en' ? 'en-US' : 'th-TH');
+        const dateLabel = now.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
+        subEl.textContent = curLang === 'zh'
+          ? `日期 ${todayIso} (${dateLabel})`
+          : (curLang === 'en' ? `Date: ${todayIso} (${dateLabel})` : `ประจำวันที่ ${todayIso} (${dateLabel})`);
+      }
       modal.style.display = 'flex';
+      if (typeof translateContainerTree === 'function') translateContainerTree(modal, curLang);
 
       let cashTotal = 0;
       let transferTotal = 0;
@@ -36613,9 +36630,14 @@ if (action === 'getDashboardStats') {
       if (elCash) elCash.textContent = fmt(cashTotal);
       if (elTrans) elTrans.textContent = fmt(transferTotal);
       if (elNet) elNet.textContent = fmt(netRevenue);
-      if (elVoid) elVoid.textContent = `${toArabicDigits(voidCount)} ฉบับ (${fmt(voidAmount)})`;
+      if (elVoid) {
+        const curLang2 = window._currentSystemLang || 'th';
+        const unit = curLang2 === 'zh' ? '份' : (curLang2 === 'en' ? 'receipt(s)' : 'ฉบับ');
+        elVoid.textContent = `${toArabicDigits(voidCount)} ${unit} (${fmt(voidAmount)})`;
+      }
       if (inpPhys) inpPhys.value = cashTotal.toFixed(2);
       calculateShiftClosingVariance();
+      if (typeof translateContainerTree === 'function') translateContainerTree(modal, window._currentSystemLang || 'th');
     }
 
     function closeDailyShiftClosingModal() {
@@ -36631,15 +36653,16 @@ if (action === 'getDashboardStats') {
       const variance = physicalCash - Number(st.cashTotal || 0);
       if (!lblVar) return variance;
       const absFmt = '฿' + toArabicDigits(Math.abs(variance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      const lang = window._currentSystemLang || 'th';
       if (Math.abs(variance) < 0.01) {
         lblVar.style.color = '#34d399';
-        lblVar.textContent = '฿0.00 (ตรงยอด)';
+        lblVar.textContent = lang === 'zh' ? '฿0.00 (账实相符)' : (lang === 'en' ? '฿0.00 (Balanced)' : '฿0.00 (ตรงยอด)');
       } else if (variance > 0) {
         lblVar.style.color = '#38bdf8';
-        lblVar.textContent = `+${absFmt} (เกิน)`;
+        lblVar.textContent = lang === 'zh' ? `+${absFmt} (溢余)` : (lang === 'en' ? `+${absFmt} (Over)` : `+${absFmt} (เกิน)`);
       } else {
         lblVar.style.color = '#f87171';
-        lblVar.textContent = `-${absFmt} (ขาด)`;
+        lblVar.textContent = lang === 'zh' ? `-${absFmt} (短少)` : (lang === 'en' ? `-${absFmt} (Short)` : `-${absFmt} (ขาด)`);
       }
       return variance;
     }
@@ -40494,10 +40517,8 @@ if (action === 'getDashboardStats') {
       if (selGlobalT && selGlobalT.querySelector(`option[value="${activeTermStr}"]`)) selGlobalT.value = activeTermStr;
 
       // Refresh Persistent Active Term Header Banner (#ocaGlobalActiveTermBanner)
-      const txtBanner = document.getElementById('txtGlobalActiveTermBanner');
-      if (txtBanner) {
-        const yy = activeYearStr.slice(-2);
-        txtBanner.textContent = `กำลังเปิดรับสมัคร: เทอม ${activeTermStr} / ${activeYearStr} (รหัส น.ศ. ${yy}${activeTermStr}XXXX)`;
+      if (typeof updateGlobalActiveTermBannerText === 'function') {
+        updateGlobalActiveTermBannerText(activeTermStr, activeYearStr);
       }
 
       // ซิงค์สถานะภาคเรียนปัจจุบันบน Status Badge
@@ -56776,6 +56797,9 @@ if (action === 'getDashboardStats') {
         }
         html += `</div>`;
         container.innerHTML = html;
+        if (typeof translateContainerTree === 'function') {
+          translateContainerTree(container, window._currentSystemLang || 'th');
+        }
       } catch (err) {
         console.warn('renderFinancialEmbeddedSlipsQueue error:', err);
         container.innerHTML = `<div style="text-align:center; padding:20px; color:#EF4444;">ไม่สามารถโหลดคิวสลิปได้: ${err.message || ''}</div>`;
@@ -59832,11 +59856,18 @@ if (action === 'getDashboardStats') {
         const countBadge = document.getElementById('lblShippingCountBadge');
 
         if (countBadge) {
-          countBadge.textContent = (statusFilter !== 'ALL' || q) ? 
-
-            ('พบ ' + toArabicDigits(filtered.length) + ' จาก ' + toArabicDigits(cachedShippingOrders.length) + ' รายการ') : 
-
-            ('ทั้งหมด ' + toArabicDigits(cachedShippingOrders.length) + ' รายการ');
+          const curLang = window._currentSystemLang || 'th';
+          const fLen = toArabicDigits(filtered.length);
+          const tLen = toArabicDigits(cachedShippingOrders.length);
+          if (statusFilter !== 'ALL' || q) {
+            countBadge.textContent = curLang === 'zh'
+              ? `找到 ${fLen} / ${tLen} 项`
+              : (curLang === 'en' ? `Found ${fLen} of ${tLen} items` : `พบ ${fLen} จาก ${tLen} รายการ`);
+          } else {
+            countBadge.textContent = curLang === 'zh'
+              ? `共 ${tLen} 项`
+              : (curLang === 'en' ? `Total ${tLen} items` : `ทั้งหมด ${tLen} รายการ`);
+          }
         }
 
         renderShippingOrdersTable(filtered);
@@ -66891,6 +66922,12 @@ if (action === 'getDashboardStats') {
     }
 
     setTxt('lblPublicRegFooterContact', dict.footerContact);
+    if (typeof syncPublicRegFeeLabels === 'function') syncPublicRegFeeLabels();
+    if (typeof syncPublicModeSelectorUI === 'function') syncPublicModeSelectorUI();
+    const pubRegRoot = document.getElementById('viewPublicRegister');
+    if (pubRegRoot && typeof translateContainerTree === 'function') {
+      translateContainerTree(pubRegRoot, currentRegLanguage);
+    }
   }
 
     let isPubRegAutoSaveInited = false;
@@ -67865,17 +67902,38 @@ function openPublicRegisterView() {
 
     function syncPublicRegFeeLabels() {
       const regFeeVal = getEffectivePublicRegFee();
+      const lang = (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
       const step0Note = document.getElementById('lblPubStep0RegFeeNote');
       if (step0Note) {
-        step0Note.textContent = regFeeVal > 0
-          ? `มีค่าลงทะเบียนแรกเข้า ${regFeeVal.toLocaleString()} บาท`
-          : 'ไม่มีค่าลงทะเบียนแรกเข้า (0 บาท)';
+        if (lang === 'zh') {
+          step0Note.textContent = regFeeVal > 0
+            ? `需缴纳新生注册费 ${regFeeVal.toLocaleString()} 泰铢`
+            : '免收新生注册费（0 泰铢）';
+        } else if (lang === 'en') {
+          step0Note.textContent = regFeeVal > 0
+            ? `One-time registration fee: ${regFeeVal.toLocaleString()} THB`
+            : 'No registration fee (0 THB)';
+        } else {
+          step0Note.textContent = regFeeVal > 0
+            ? `มีค่าลงทะเบียนแรกเข้า ${regFeeVal.toLocaleString()} บาท`
+            : 'ไม่มีค่าลงทะเบียนแรกเข้า (0 บาท)';
+        }
       }
       const modeLbl = document.getElementById('lblPubActiveModeText');
       if (modeLbl && window._pubStudentMode !== 'returning') {
-        modeLbl.textContent = regFeeVal > 0
-          ? `โหมด: นักศึกษาใหม่ (สมัครเรียนครั้งแรก — รวมค่าแรกเข้า ${regFeeVal.toLocaleString()} บาท)`
-          : 'โหมด: นักศึกษาใหม่ (สมัครเรียนครั้งแรก — ไม่มีค่าแรกเข้า 0 บาท)';
+        if (lang === 'zh') {
+          modeLbl.textContent = regFeeVal > 0
+            ? `当前模式：新生（首次报名 — 含注册费 ${regFeeVal.toLocaleString()} 泰铢）`
+            : '当前模式：新生（首次报名 — 免收注册费 0 泰铢）';
+        } else if (lang === 'en') {
+          modeLbl.textContent = regFeeVal > 0
+            ? `Mode: New Student (First Enrollment — incl. ${regFeeVal.toLocaleString()} THB reg. fee)`
+            : 'Mode: New Student (First Enrollment — 0 THB reg. fee)';
+        } else {
+          modeLbl.textContent = regFeeVal > 0
+            ? `โหมด: นักศึกษาใหม่ (สมัครเรียนครั้งแรก — รวมค่าแรกเข้า ${regFeeVal.toLocaleString()} บาท)`
+            : 'โหมด: นักศึกษาใหม่ (สมัครเรียนครั้งแรก — ไม่มีค่าแรกเข้า 0 บาท)';
+        }
       }
     }
 
@@ -68049,6 +68107,9 @@ function openPublicRegisterView() {
           htmlSchedule += `<option value="${safeEscape(val)}" data-schedule-id="${safeEscape(s.id || '')}">${safeEscape(label)}</option>`;
         });
         selSchedule.innerHTML = htmlSchedule;
+        if (typeof translateContainerTree === 'function') {
+          translateContainerTree(selSchedule, currentRegLanguage);
+        }
 
         if (currentScheduleVal) {
           for (let opt of selSchedule.options) {
@@ -68218,15 +68279,33 @@ function openPublicRegisterView() {
       }
       if (lbl) {
         const regFeeVal = typeof getEffectivePublicRegFee === 'function' ? getEffectivePublicRegFee() : 300;
-        const sidSuffix = (isReturning && window._pubExistingStudentId) ? ` | รหัสเดิม ${toArabicDigits(window._pubExistingStudentId)}` : '';
+        const lang = (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
+        const sidNum = (isReturning && window._pubExistingStudentId) ? toArabicDigits(window._pubExistingStudentId) : '';
         lbl.style.background = isReturning ? '#EFF6FF' : '#ECFDF5';
         lbl.style.color = isReturning ? '#1E40AF' : '#065F46';
         lbl.style.borderColor = isReturning ? '#BFDBFE' : '#A7F3D0';
-        lbl.textContent = isReturning
-          ? `โหมด: ต่อคอร์ส — นักศึกษาเก่า (ยกเว้นค่าแรกเข้า 0 บาท${sidSuffix})`
-          : (regFeeVal > 0
-            ? `โหมด: นักศึกษาใหม่ (สมัครเรียนครั้งแรก — รวมค่าแรกเข้า ${regFeeVal.toLocaleString()} บาท)`
-            : 'โหมด: นักศึกษาใหม่ (สมัครเรียนครั้งแรก — ไม่มีค่าแรกเข้า 0 บาท)');
+        if (lang === 'zh') {
+          const sidSuffix = sidNum ? ` | 原学号 ${sidNum}` : '';
+          lbl.textContent = isReturning
+            ? `当前模式：老生续报（免收注册费 0 泰铢${sidSuffix}）`
+            : (regFeeVal > 0
+              ? `当前模式：新生（首次报名 — 含注册费 ${regFeeVal.toLocaleString()} 泰铢）`
+              : '当前模式：新生（首次报名 — 免收注册费 0 泰铢）');
+        } else if (lang === 'en') {
+          const sidSuffix = sidNum ? ` | Existing ID ${sidNum}` : '';
+          lbl.textContent = isReturning
+            ? `Mode: Course Renewal — Returning Student (0 THB reg. fee${sidSuffix})`
+            : (regFeeVal > 0
+              ? `Mode: New Student (First Enrollment — incl. ${regFeeVal.toLocaleString()} THB reg. fee)`
+              : 'Mode: New Student (First Enrollment — 0 THB reg. fee)');
+        } else {
+          const sidSuffix = sidNum ? ` | รหัสเดิม ${sidNum}` : '';
+          lbl.textContent = isReturning
+            ? `โหมด: ต่อคอร์ส — นักศึกษาเก่า (ยกเว้นค่าแรกเข้า 0 บาท${sidSuffix})`
+            : (regFeeVal > 0
+              ? `โหมด: นักศึกษาใหม่ (สมัครเรียนครั้งแรก — รวมค่าแรกเข้า ${regFeeVal.toLocaleString()} บาท)`
+              : 'โหมด: นักศึกษาใหม่ (สมัครเรียนครั้งแรก — ไม่มีค่าแรกเข้า 0 บาท)');
+        }
       }
     }
 
@@ -73409,7 +73488,79 @@ function openPublicRegisterView() {
         "เปลี่ยนรหัส PIN ความปลอดภัย": "修改安全PIN码",
         "ลงเวลาแบบไม่ผ่านสแกนนิ้ว": "未使用指纹验证打卡",
         "ตรวจสอบความเร็วเซิร์ฟเวอร์ สำรองข้อมูลฐานข้อมูล ล้างแคช PWA และตั้งค่ารหัส PIN": "检测服务器延迟、备份数据库、清除缓存及设置安全PIN码",
-        "ยังไม่ได้ทดสอบ Ping": "尚未测试延迟"
+        "ยังไม่ได้ทดสอบ Ping": "尚未测试延迟",
+        "ค้นหาชื่อหรือรหัสนักเรียนเพื่อพิมพ์บัตร...": "搜索姓名或学号以打印学员卡...",
+        "ค้นหาเลขที่ใบเสร็จ หรือชื่อผู้ชำระเงิน...": "搜索收据编号或付款人姓名...",
+        "การแจ้งเตือนระบบ": "系统通知",
+        "|  ห้องเรียน:": "|  教室:",
+        "|  ห้องเรียน:": "|  教室:",
+        "ท่านกำลังจะยกเลิก (VOID) ใบเสร็จเลขที่": "您即将作废收据编号",
+        "ระบบจะรักษาเลขที่ใบเสร็จไว้ตามลำดับบัญชี และไม่นับรวมยอดเงินในรายงานรายรับ": "系统将按财务流水保留收据编号，且不计入收入报表总额",
+        "ระบุเหตุผลการยกเลิกใบเสร็จ เช่น พิมพ์ชื่อผู้ชำระเงินผิด, เปลี่ยนคอร์สเรียน...": "请填写作废原因，例如：付款人姓名有误、更换课程...",
+        "กรุณาระบุเหตุผลการยกเลิกใบเสร็จก่อนยืนยัน": "请先填写作废原因再确认",
+        "ยกเลิก": "取消",
+        "ประจำวันที่ -": "日期 -",
+        "0 ฉบับ (฿0.00)": "0 份 (0.00 泰铢)",
+        "฿0.00 (ตรงยอด)": "0.00 泰铢 (账实相符)",
+        "หมายเหตุการปิดยอด (ถ้ามี)": "结账备注（选填）",
+        "ระบุหมายเหตุ เช่น เงินทอนยกยอด...": "填写备注，例如：结转备用金...",
+        "รหัส PIN ใหม่ (อย่างน้อย 4 หลัก)": "新安全 PIN 码（至少 4 位）",
+        "กรอกรหัส PIN ใหม่...": "请输入新 PIN 码...",
+        "ยืนยันรหัส PIN ใหม่": "确认新安全 PIN 码",
+        "กรอกรหัส PIN ใหม่อีกครั้ง...": "请再次输入新 PIN 码...",
+        "บันทึกรหัส PIN": "保存 PIN 码",
+        "ภาคเรียนที่": "当前学期",
+        "คลิกเพื่อรีเฟรชข้อมูลสดทันที": "点击立即刷新实时数据",
+        "นักศึกษารวม (ปี": "学员总数（",
+        "Student Enrollment Analytics (ปี": "学员报名统计（",
+        "คอร์ส": "门课程",
+        "● ภาคเรียนปัจจุบัน": "● 当前学期",
+        "ปิด / กลับหน้าต้อนรับ": "关闭 / 返回欢迎页",
+        "เข้าสู่ระบบบุคลากรสถาบัน": "教职员工工作台登录",
+        "ชื่อผู้ใช้งาน หรือ อีเมล (Username / Email)": "用户名或电子邮箱",
+        "admin, registrar, cashier ฯลฯ": "admin, registrar, cashier 等",
+        "รหัสผ่าน (Password)": "登录密码",
+        "กรอกรหัสผ่านของคุณ": "请输入您的密码",
+        "แสดง/ซ่อนรหัสผ่าน": "显示/隐藏密码",
+        "กรณีลืมรหัสผ่าน กรุณาแจ้งผู้ดูแลระบบ (Admin) เพื่อรีเซ็ตรหัสผ่านเท่านั้น": "如忘记密码，请联系系统管理员进行重置",
+        "[ เข้าสู่ระบบ (Sign In) → ]": "[ 登录系统 → ]",
+        "หมายเหตุความปลอดภัย:": "安全提示：",
+        "กำหนดให้ 1 บัญชีผู้ใช้งานสามารถเข้าสู่ระบบได้พร้อมกันเพียง": "每个账号同一时间仅限登录",
+        "1 เครื่องเท่านั้น": "1 台设备",
+        "หากมีการเข้าใช้งานจากเครื่องใหม่ เครื่องเดิมจะถูกออกจากระบบโดยอัตโนมัติทันที": "，若在新设备登录，原设备将自动退出。",
+        "เทอม": "学期",
+        "8. เอกสารกระทรวง": "8. 教育部名册",
+        "9. น.ศ. เลื่อนภาคเรียน": "9. 延期学生统计",
+        "กรุณาเลือกประเภทผู้สมัครเรียน": "请选择报名学员类型",
+        "เลือกสถานะของคุณเพื่อคำนวณค่าลงทะเบียนและดึงข้อมูลอย่างถูกต้อง": "选择您的身份以便准确计算费用并读取档案",
+        "นักศึกษาใหม่ (สมัครเรียนครั้งแรก)": "新生（首次报名）",
+        "ยังไม่เคยมีรหัสนักศึกษา OCA": "尚未拥有 OCA 学号",
+        "• กรอกข้อมูลประวัติส่วนตัวและอัปโหลดรูปถ่าย": "• 填写个人资料并上传照片",
+        "นักศึกษาเก่า (ต่อคอร์ส / เคยมีรหัสนักศึกษา)": "老生（续报课程 / 已有学号）",
+        "เคยเรียนกับ OCA แล้ว ต้องการลงทะเบียนเทอมใหม่": "曾在 OCA 就读，需报名新学期课程",
+        "• ค้นหาประวัติเดิมด้วยเลขบัตรประชาชนหรือรหัสนักศึกษา": "• 通过身份证号或学号检索历史档案",
+        "• ยกเว้นค่าลงทะเบียนแรกเข้า (0 บาท)": "• 免收新生注册费（0 泰铢）",
+        "สมัครเรียนใหม่ (New Student)": "新生报名",
+        "ต่อคอร์ส — นักศึกษาเก่า (Course Renewal)": "老生续报",
+        "เปลี่ยนประเภทนักศึกษา": "更换学员类型",
+        "แจ้งขอบเขตการให้บริการลงทะเบียนออนไลน์ (Online Registration Policy)": "在线报名服务范围说明",
+        "หมายเหตุสำคัญ:": "重要提示：",
+        "1. รอบเวลาเรียนที่สะดวก *": "1. 选择方便的上课时间段 *",
+        "2. หลักสูตรที่ต้องการสมัคร *": "2. 选择报名课程 *",
+        "3. กลุ่มเรียน และอาจารย์ผู้สอน (Course Group & Instructor)": "3. 班级组别与授课教师",
+        "-- กรุณาเลือกรอบเวลาเรียน --": "-- 请选择上课时间段 --",
+        "-- กรุณาเลือกรอบเวลาเรียนก่อน (Please select schedule first) --": "-- 请先选择上课时间段 --",
+        "-- ให้สถาบันจัดกลุ่ม / ไม่ระบุอาจารย์ --": "-- 由学院统一分班 / 不指定教师 --",
+        "เลือกกลุ่มและอาจารย์ที่ต้องการเรียน (เช่น ตามไปเรียนกับอาจารย์ท่านเดิม)": "选择希望就读的班级与教师（如跟随原任课教师续读）",
+        "ยินยอมนโยบายคุ้มครองข้อมูลส่วนบุคคล (PDPA Consent):": "个人数据保护政策同意书：",
+        "คำแนะนำการสลับแอปไปโอนเงินในมือถือ (ข้อมูลไม่สูญหาย):": "手机切换银行应用转账指南（已填资料自动保留）：",
+        "1. ท่านสามารถ": "1. 您可以",
+        "แคปหน้าจอ (Screenshot) ภาพ QR Code": "截图保存上方收款二维码",
+        "หรือกดคัดลอกรหัสร้านค้าด้านบน": "或点击复制商户编号",
+        "2. สลับไปเปิดแอปธนาคารของท่านเพื่อสแกนชำระเงิน": "2. 切换至手机银行应用扫码完成转账",
+        "3. ": "3. ",
+        "เมื่อสลับกลับมาหน้านี้ ข้อมูลทั้งหมดที่ท่านกรอกไว้จะยังคงอยู่ครบถ้วน 100%": "返回本页面后，您填写的所有信息将 100% 完整保留",
+        "(ระบบบันทึกอัตโนมัติ) เพื่อให้ท่านแนบสลิปโอนเงินต่อได้ทันที": "（系统自动保存），方便您直接上传转账凭证"
       },
       en: {
         "\"(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)\"": "\"(Classroom can be checked on opening day)\"",
@@ -74701,7 +74852,216 @@ function openPublicRegisterView() {
         "เลขบัตรประชาชนนี้มีรหัสนักศึกษาในระบบแล้ว": "Citizen ID Already Has a Student ID",
         "รอบเวลา": "Schedule(s)",
         "กลุ่มเรียน": "Group(s)",
-        "ยังไม่เปิดรอบสอน": "Not Yet Scheduled"
+        "ยังไม่เปิดรอบสอน": "Not Yet Scheduled",
+        "ภาคเรียนปัจจุบัน & คอร์สที่เปิดสอน": "Current Term & Active Courses",
+        "นักศึกษารวม": "Total Students",
+        "ภาพรวมสถิติสถาบัน (Executive Analytics)": "Executive Analytics",
+        "สัดส่วนรูปแบบการเรียน": "Learning Modality Breakdown",
+        "ภาคเรียนปัจจุบัน": "Current Term",
+        "เพิ่ม/แก้ไข": "Add / Edit",
+        "ลบ/รีเซ็ต": "Delete / Reset",
+        "เพิ่มค่าธรรมเนียมเพิ่มเติม": "Add Additional Fee",
+        "เพิ่มกฎส่วนลด": "Add Discount Rule",
+        "🔒 กฎหลัก": "🔒 Core Rule",
+        "เตรียมพิมพ์คนถัดไป": "Prepare Next Student",
+        "ล้างข้อมูลและเตรียมพิมพ์บัตรนักศึกษาคนถัดไป": "Clear data and prepare next student card",
+        "8. รายงานทะเบียนนักศึกษาเสนอหน่วยงานกระทรวงศึกษาธิการ": "8. Ministry of Education Student Registry Report",
+        "กรุณากด \"ดึงข้อมูลใหม่\" เพื่อโหลดรายงานทะเบียนนักศึกษาเสนอหน่วยงานกระทรวง": "Please click \"Refresh Data\" to load the Ministry of Education Student Registry Report",
+        "กำลังศึกษาต่อเนื่อง": "Continuing Study",
+        "กำลังโหลดคิวสลิปการเงิน...": "Loading financial slip queue...",
+        "คน (รายบุคคลไม่ซ้ำ)": "person(s) (Unique)",
+        "ค้นหา รหัสนักศึกษา, ชื่อ, บัตร ปชช., หรือคอร์ส...": "Search Student ID, Name, Citizen ID, or Course...",
+        "คอร์สเล่มสุดท้าย": "Final Book Course",
+        "คำนำหน้า": "Title / Prefix",
+        "จีน / ต่างชาติ": "Chinese / Foreign",
+        "จบการศึกษา": "Graduated",
+        "จบการศึกษา (Graduated)": "Graduated",
+        "ชื่อ - สกุล": "Full Name",
+        "พิมพ์ A4 แนวนอน (6มม.)": "Print A4 Landscape (6mm)",
+        "ผ่านคอร์สเล่มสุดท้าย": "Completed Final Book",
+        "รวมนักศึกษาทั้งหมด": "Total Students",
+        "ระหว่างเรียน": "Active",
+        "ระหว่างเรียน (Active)": "Active",
+        "รายงานสรุปข้อมูลนักศึกษารายบุคคล รหัสบัตรประชาชน คอร์สเล่มสุดท้าย และสถานะสำเร็จการศึกษา": "Individual student registry summary, Citizen ID, final book course, and graduation status",
+        "รีเฟรชคิวสลิป": "Refresh Slip Queue",
+        "เลขประจำตัวประชาชน": "Citizen ID",
+        "สถานะ:": "Status:",
+        "สัญชาติ": "Nationality",
+        "สัญชาติ:": "Nationality:",
+        "สัญชาติไทย / ต่างชาติ": "Thai / Foreign Nationality",
+        "ส่งออก Excel (4 ชีต)": "Export Excel (4 Sheets)",
+        "ส่งออก PDF": "Export PDF",
+        "ไทย": "Thai",
+        "ไทย / จีนและต่างชาติ": "Thai / Chinese & Foreign",
+        "1. เลขประจำตัวประชาชน (13 หลัก) / เลขพาสปอร์ต *": "1. 13-Digit Thai Citizen ID / Passport No. *",
+        "บัตรประชาชน (Thai Citizen ID - 13 หลัก)": "Thai Citizen ID (13 digits)",
+        "หนังสือเดินทาง / พาสปอร์ต (Passport No.)": "Passport No.",
+        "โหมดปัจจุบัน: นักศึกษาใหม่ (สมัครเรียนครั้งแรก)": "Current Mode: New Student (First Enrollment)",
+        "นักศึกษาเก่า (ต่อคอร์ส)": "Returning Student (Renewal)",
+        "เชื้อชาติ": "Ethnicity",
+        "เช่น ไทย, จีน": "e.g. Thai, Chinese",
+        "เช่น ไทย": "e.g. Thai",
+        "วัน/เดือน/ปีเกิด": "Date of Birth",
+        "อายุ (ปี - คำนวณอัตโนมัติ)": "Age (Years - Auto-calculated)",
+        "คำนวณอัตโนมัติ": "Auto-calculated",
+        "เลขพาสปอร์ต (Passport No.)": "Passport No.",
+        "กรณีชาวต่างชาติ (ถ้ามี)": "For foreign nationals (if any)",
+        "ชื่อผู้ติดต่อฉุกเฉิน": "Emergency Contact Name",
+        "ชื่อ-นามสกุล ผู้ติดต่อฉุกเฉิน": "Emergency Contact Full Name",
+        "ความสัมพันธ์ (ผู้ติดต่อฉุกเฉิน)": "Relationship (Emergency Contact)",
+        "เช่น บิดา, มารดา, คู่สมรส": "e.g. Father, Mother, Spouse",
+        "0 คอร์ส": "0 Courses",
+        "พิมพ์รายงานสรุปคอร์สที่เปิดสอนประจำเทอม (A4)": "Print Term Active Courses Summary (A4)",
+        "พิมพ์รายงานคอร์สที่เปิดสอนประจำเทอม": "Print Term Active Courses Report",
+        "กำหนดวันเปิดเรียนรายรอบ (SCH-01 – SCH-08) สำหรับดึงอัตโนมัติในใบเสร็จ": "Configure per-schedule start dates (SCH-01 – SCH-08) for automatic receipt insertion",
+        "บันทึกวันเปิดรายรอบ": "Save Schedule Start Dates",
+        "ปีการศึกษา / ภาคเรียนที่เปิดรับสมัครปัจจุบัน (Active Registration Term)": "Active Registration Academic Year / Term",
+        "ล็อกปีและภาคเรียนกลางสำหรับหน้าลงทะเบียนนักศึกษาใหม่ แคชเชียร์ออกใบเสร็จ และหน้าสมัครเรียนออนไลน์": "Lock central academic year and term for enrollment, cashier receipts, and online registration",
+        "บันทึกเทอมปัจจุบัน": "Save Current Term",
+        "เช่น 300 หรือ 0": "e.g. 300 or 0",
+        "6. ค่าจัดส่งตำราเรียน": "6. Textbook Shipping Fee",
+        "คิดเพิ่มอัตโนมัติเมื่อเลือก \"ส่งตำรา\" ในหน้าแคชเชียร์": "Automatically added when \"Ship Textbook\" is selected at cashier",
+        "เพิ่มตำรา": "Add Textbook",
+        "ที่อยู่ / Address:": "Address:",
+        "ค่าจัดส่งตำราเรียน (พัสดุ)": "Textbook Shipping Fee (Parcel)",
+        "เช่น 1 พ.ย. - 20 ธ.ค.": "e.g. Nov 1 - Dec 20",
+        "9. รายงานสรุปจำนวน น.ศ. ที่เลื่อนภาคเรียน": "9. Deferred & Term-Transferred Students Summary",
+        "สรุปรายชื่อและจำนวนนักศึกษาที่ขอเลื่อนไปเรียนเทอมถัดไป (Status: DROPPED / เลื่อน) และประวัติย้ายเทอม": "Summary of students who deferred to next term (Status: DROPPED / Deferred) and term transfer history",
+        "ทุกปี พ.ศ.": "All Years",
+        "ทุกเทอม": "All Terms",
+        "พิมพ์รายงาน": "Print Report",
+        "รวมทั้งหมด (ราย)": "Total (Students)",
+        "ขอเลื่อนเรียน (DROPPED)": "Deferred (DROPPED)",
+        "ย้ายเทอม / โอนสิทธิ์": "Term Transfer / Credit Transfer",
+        "รหัส น.ศ.": "Student ID",
+        "หมายเหตุการเลื่อน / ย้ายเทอม": "Deferral / Transfer Note",
+        "กำลังโหลดข้อมูล...": "Loading data...",
+        "0 ครั้ง (ปกติ)": "0 times (Normal)",
+        "ปีการศึกษา 2568": "Academic Year 2568",
+        "ปีการศึกษา 2565": "Academic Year 2565",
+        "ปีการศึกษา 2562": "Academic Year 2562",
+        "ปีการศึกษา 2559": "Academic Year 2559",
+        "ปีการศึกษา 2556": "Academic Year 2556",
+        "ปีการศึกษา 2553": "Academic Year 2553",
+        "ปีการศึกษา 2550": "Academic Year 2550",
+        "ปีการศึกษา 2547": "Academic Year 2547",
+        "ปีการศึกษา 2544": "Academic Year 2544",
+        "ปีการศึกษา 2541": "Academic Year 2541",
+        "ปีการศึกษา 2538": "Academic Year 2538",
+        "ปี 2571": "Year 2571",
+        "ปี 2566": "Year 2566",
+        "ปี 2562": "Year 2562",
+        "ปี 2558": "Year 2558",
+        "ปี 2554": "Year 2554",
+        "ปี 2550": "Year 2550",
+        "ปี 2546": "Year 2546",
+        "ปี 2542": "Year 2542",
+        "ปี 2538": "Year 2538",
+        "ภาคเรียนที่ 5/2571": "Term 5/2571",
+        "ภาคเรียนที่ 5/2570": "Term 5/2570",
+        "ภาคเรียนที่ 5/2569": "Term 5/2569",
+        "ภาคการศึกษา 5/2568": "Term 5/2568",
+        "ภาคการศึกษา 5/2567": "Term 5/2567",
+        "ปีการศึกษา 2571 / เทอม 5": "Academic Year 2571 / Term 5",
+        "ปีการศึกษา 2570 / เทอม 5": "Academic Year 2570 / Term 5",
+        "ปีการศึกษา 2569 / เทอม 5": "Academic Year 2569 / Term 5",
+        "กำลังเปิดรับสมัคร: เทอม 5 / 2569 (รหัส น.ศ. 695XXXX)": "Open for Registration: Term 5 / 2569 (Student ID 695XXXX)",
+        "ยกเลิก (VOID)": "Voided (VOID)",
+        "ยกเลิกใบเสร็จรับเงิน (Soft-Void Receipt)": "Void Receipt (Soft-Void)",
+        "เหตุผลการยกเลิกใบเสร็จ (จำเป็น)": "Reason for Voiding Receipt (Required)",
+        "ยืนยันยกเลิก (VOID)": "Confirm Void (VOID)",
+        "ปิดยอดแคชเชียร์ประจำวัน (Daily Shift Closing)": "Daily Cashier Shift Closing",
+        "ยอดเงินสดในระบบ (Cash)": "System Cash Total",
+        "ยอดโอน / QR (Transfer)": "Transfer / QR Total",
+        "รายรับสุทธิวันนี้ (Net)": "Today's Net Revenue",
+        "บิลยกเลิก (VOID)": "Voided Receipts (VOID)",
+        "เงินสดที่นับได้จริงในลิ้นชัก (บาท)": "Actual Cash Counted in Drawer (THB)",
+        "ผลต่างเงินสด (ขาด / เกิน):": "Cash Variance (Short / Over):",
+        "พิมพ์ใบปิดยอด (A4)": "Print Shift Closing (A4)",
+        "บันทึกปิดยอดประจำวัน": "Save Daily Shift Closing",
+        "เครื่องมือผู้ดูแลระบบและสำรองข้อมูล (Admin Tools & Diagnostics)": "Admin Tools & Diagnostics",
+        "ทดสอบ Server Ping": "Test Server Ping",
+        "สำรองข้อมูลนักศึกษา (JSON)": "Backup Students (JSON)",
+        "สำรองข้อมูลนักศึกษา (CSV)": "Backup Students (CSV)",
+        "สำรองข้อมูลใบเสร็จ (JSON)": "Backup Receipts (JSON)",
+        "สำรองข้อมูลใบเสร็จ (CSV)": "Backup Receipts (CSV)",
+        "ล้างแคช PWA และโหลดใหม่": "Clear PWA Cache & Reload",
+        "เปลี่ยนรหัส PIN ความปลอดภัย": "Change Security PIN",
+        "ลงเวลาแบบไม่ผ่านสแกนนิ้ว": "Clock-in without Fingerprint",
+        "ตรวจสอบความเร็วเซิร์ฟเวอร์ สำรองข้อมูลฐานข้อมูล ล้างแคช PWA และตั้งค่ารหัส PIN": "Test server latency, backup database, clear PWA cache, and configure Security PIN",
+        "ยังไม่ได้ทดสอบ Ping": "Ping not tested yet",
+        "ค้นหาชื่อหรือรหัสนักเรียนเพื่อพิมพ์บัตร...": "Search name or ID to print student card...",
+        "ค้นหาเลขที่ใบเสร็จ หรือชื่อผู้ชำระเงิน...": "Search receipt number or payer name...",
+        "การแจ้งเตือนระบบ": "System Notifications",
+        "|  ห้องเรียน:": "|  Room:",
+        "|  ห้องเรียน:": "|  Room:",
+        "ท่านกำลังจะยกเลิก (VOID) ใบเสร็จเลขที่": "You are about to VOID receipt no.",
+        "ระบบจะรักษาเลขที่ใบเสร็จไว้ตามลำดับบัญชี และไม่นับรวมยอดเงินในรายงานรายรับ": "The receipt number will be preserved in sequence and excluded from revenue reports",
+        "ระบุเหตุผลการยกเลิกใบเสร็จ เช่น พิมพ์ชื่อผู้ชำระเงินผิด, เปลี่ยนคอร์สเรียน...": "Enter reason for voiding, e.g. wrong payer name, course change...",
+        "กรุณาระบุเหตุผลการยกเลิกใบเสร็จก่อนยืนยัน": "Please enter a reason before confirming",
+        "ยกเลิก": "Cancel",
+        "ประจำวันที่ -": "Date: -",
+        "0 ฉบับ (฿0.00)": "0 receipt(s) (฿0.00)",
+        "฿0.00 (ตรงยอด)": "฿0.00 (Balanced)",
+        "หมายเหตุการปิดยอด (ถ้ามี)": "Shift Closing Note (Optional)",
+        "ระบุหมายเหตุ เช่น เงินทอนยกยอด...": "Enter note, e.g. petty cash carry-forward...",
+        "รหัส PIN ใหม่ (อย่างน้อย 4 หลัก)": "New Security PIN (at least 4 digits)",
+        "กรอกรหัส PIN ใหม่...": "Enter new PIN...",
+        "ยืนยันรหัส PIN ใหม่": "Confirm New Security PIN",
+        "กรอกรหัส PIN ใหม่อีกครั้ง...": "Re-enter new PIN...",
+        "บันทึกรหัส PIN": "Save PIN",
+        "ภาคเรียนที่": "Term",
+        "คลิกเพื่อรีเฟรชข้อมูลสดทันที": "Click to refresh live data",
+        "นักศึกษารวม (ปี": "Total Students (Year",
+        "Student Enrollment Analytics (ปี": "Student Enrollment Analytics (Year",
+        "คอร์ส": "Courses",
+        "● ภาคเรียนปัจจุบัน": "● Current Term",
+        "ปิด / กลับหน้าต้อนรับ": "Close / Back to Welcome",
+        "เข้าสู่ระบบบุคลากรสถาบัน": "Staff Workspace Sign In",
+        "ชื่อผู้ใช้งาน หรือ อีเมล (Username / Email)": "Username or Email",
+        "admin, registrar, cashier ฯลฯ": "admin, registrar, cashier, etc.",
+        "รหัสผ่าน (Password)": "Password",
+        "กรอกรหัสผ่านของคุณ": "Enter your password",
+        "แสดง/ซ่อนรหัสผ่าน": "Show/Hide password",
+        "กรณีลืมรหัสผ่าน กรุณาแจ้งผู้ดูแลระบบ (Admin) เพื่อรีเซ็ตรหัสผ่านเท่านั้น": "If you forgot your password, please contact System Admin to reset it",
+        "[ เข้าสู่ระบบ (Sign In) → ]": "[ Sign In → ]",
+        "หมายเหตุความปลอดภัย:": "Security Notice:",
+        "กำหนดให้ 1 บัญชีผู้ใช้งานสามารถเข้าสู่ระบบได้พร้อมกันเพียง": "Each user account is limited to",
+        "1 เครื่องเท่านั้น": "1 active device",
+        "หากมีการเข้าใช้งานจากเครื่องใหม่ เครื่องเดิมจะถูกออกจากระบบโดยอัตโนมัติทันที": ". Signing in on a new device will automatically sign out the previous session.",
+        "เทอม": "Term",
+        "8. เอกสารกระทรวง": "8. Ministry Report",
+        "9. น.ศ. เลื่อนภาคเรียน": "9. Deferred Students",
+        "กรุณาเลือกประเภทผู้สมัครเรียน": "Please Select Applicant Type",
+        "เลือกสถานะของคุณเพื่อคำนวณค่าลงทะเบียนและดึงข้อมูลอย่างถูกต้อง": "Select your status to calculate registration fees and load records accurately",
+        "นักศึกษาใหม่ (สมัครเรียนครั้งแรก)": "New Student (First Enrollment)",
+        "ยังไม่เคยมีรหัสนักศึกษา OCA": "Never had an OCA Student ID",
+        "• กรอกข้อมูลประวัติส่วนตัวและอัปโหลดรูปถ่าย": "• Fill in personal details and upload photo",
+        "นักศึกษาเก่า (ต่อคอร์ส / เคยมีรหัสนักศึกษา)": "Returning Student (Course Renewal)",
+        "เคยเรียนกับ OCA แล้ว ต้องการลงทะเบียนเทอมใหม่": "Previously studied at OCA and enrolling for a new term",
+        "• ค้นหาประวัติเดิมด้วยเลขบัตรประชาชนหรือรหัสนักศึกษา": "• Look up existing profile by Citizen ID or Student ID",
+        "• ยกเว้นค่าลงทะเบียนแรกเข้า (0 บาท)": "• Registration fee waived (0 THB)",
+        "สมัครเรียนใหม่ (New Student)": "New Student",
+        "ต่อคอร์ส — นักศึกษาเก่า (Course Renewal)": "Returning Student (Renewal)",
+        "เปลี่ยนประเภทนักศึกษา": "Change Applicant Type",
+        "แจ้งขอบเขตการให้บริการลงทะเบียนออนไลน์ (Online Registration Policy)": "Online Registration Service Policy",
+        "หมายเหตุสำคัญ:": "Important Notice:",
+        "1. รอบเวลาเรียนที่สะดวก *": "1. Preferred Class Schedule *",
+        "2. หลักสูตรที่ต้องการสมัคร *": "2. Select Course *",
+        "3. กลุ่มเรียน และอาจารย์ผู้สอน (Course Group & Instructor)": "3. Course Group & Instructor",
+        "-- กรุณาเลือกรอบเวลาเรียน --": "-- Please select class schedule --",
+        "-- กรุณาเลือกรอบเวลาเรียนก่อน (Please select schedule first) --": "-- Please select schedule first --",
+        "-- ให้สถาบันจัดกลุ่ม / ไม่ระบุอาจารย์ --": "-- Assign by Academy / Any Instructor --",
+        "เลือกกลุ่มและอาจารย์ที่ต้องการเรียน (เช่น ตามไปเรียนกับอาจารย์ท่านเดิม)": "Select preferred group and instructor (e.g., continue with your previous teacher)",
+        "ยินยอมนโยบายคุ้มครองข้อมูลส่วนบุคคล (PDPA Consent):": "PDPA Consent:",
+        "คำแนะนำการสลับแอปไปโอนเงินในมือถือ (ข้อมูลไม่สูญหาย):": "Mobile Banking Transfer Guide (Your Data Is Saved):",
+        "1. ท่านสามารถ": "1. You can",
+        "แคปหน้าจอ (Screenshot) ภาพ QR Code": "take a screenshot of the QR Code",
+        "หรือกดคัดลอกรหัสร้านค้าด้านบน": "or copy the Merchant ID above",
+        "2. สลับไปเปิดแอปธนาคารของท่านเพื่อสแกนชำระเงิน": "2. Switch to your banking app to scan and pay",
+        "3. ": "3. ",
+        "เมื่อสลับกลับมาหน้านี้ ข้อมูลทั้งหมดที่ท่านกรอกไว้จะยังคงอยู่ครบถ้วน 100%": "When you return to this page, all your entered data will remain 100% intact",
+        "(ระบบบันทึกอัตโนมัติ) เพื่อให้ท่านแนบสลิปโอนเงินต่อได้ทันที": "(auto-saved) so you can upload your transfer slip right away"
       }
     };
     window.OCA_INNER_CONTENT_I18N = OCA_INNER_CONTENT_I18N;
@@ -74761,6 +75121,12 @@ function openPublicRegisterView() {
       res = res.replace(/^([0-9,]+)\s*courses$/, '$1 คอร์ส');
       res = res.replace(/^([0-9,]+)\s*个班级$/, '$1 กลุ่ม');
       res = res.replace(/^([0-9,]+)\s*sections$/, '$1 กลุ่ม');
+      res = res.replace(/^⏳\s*待审核项目\s*\(([0-9,]+)\)$/, '⏳ รายการรอตรวจสอบ ($1)');
+      res = res.replace(/^⏳\s*Pending Verification\s*\(([0-9,]+)\)$/, '⏳ รายการรอตรวจสอบ ($1)');
+      res = res.replace(/^✓\s*已核验凭证\s*\(([0-9,]+)\)$/, '✓ สลิปที่ตรวจแล้ว ($1)');
+      res = res.replace(/^✓\s*Verified Slips\s*\(([0-9,]+)\)$/, '✓ สลิปที่ตรวจแล้ว ($1)');
+      res = res.replace(/^编号\s+(.+)$/, 'เลขที่ $1');
+      res = res.replace(/^Receipt No\.\s+(.+)$/, 'เลขที่ $1');
 
       if (res !== trimmed) {
         return str.replace(trimmed, res);
@@ -74827,6 +75193,9 @@ function openPublicRegisterView() {
         res = res.replace(/^([0-9,]+)\s*คอร์ส$/, (m, n) => (lang === 'zh' ? `${n} 门课程` : `${n} courses`));
         res = res.replace(/^([0-9,]+)\s*กลุ่ม$/, (m, n) => (lang === 'zh' ? `${n} 个班级` : `${n} sections`));
         res = res.replace(/^([0-9,]+)\s*ครั้ง\s*\(ปกติ\)$/, (m, n) => (lang === 'zh' ? `${n} 次（正常）` : `${n} times (Normal)`));
+        res = res.replace(/^⏳\s*รายการรอตรวจสอบ\s*\(([0-9,]+)\)$/, (m, n) => (lang === 'zh' ? `⏳ 待审核项目 (${n})` : `⏳ Pending Verification (${n})`));
+        res = res.replace(/^✓\s*สลิปที่ตรวจแล้ว\s*\(([0-9,]+)\)$/, (m, n) => (lang === 'zh' ? `✓ 已核验凭证 (${n})` : `✓ Verified Slips (${n})`));
+        res = res.replace(/^เลขที่\s+(.+)$/, (m, r) => (lang === 'zh' ? `编号 ${r}` : `Receipt No. ${r}`));
 
         if (res !== trimmed) {
           return str.replace(trimmed, res);
@@ -75326,6 +75695,25 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
     window.renderSystemManualLanguage = renderSystemManualLanguage;
 
+    function updateGlobalActiveTermBannerText(termVal, yearVal) {
+      const txtBanner = document.getElementById('txtGlobalActiveTermBanner');
+      if (!txtBanner) return;
+      const curTerm = String(termVal || txtBanner.getAttribute('data-active-term') || (window.OCA_ACTIVE_TERM && window.OCA_ACTIVE_TERM.term) || '5');
+      const curYear = String(yearVal || txtBanner.getAttribute('data-active-year') || (window.OCA_ACTIVE_TERM && window.OCA_ACTIVE_TERM.yearBE) || '2569');
+      txtBanner.setAttribute('data-active-term', curTerm);
+      txtBanner.setAttribute('data-active-year', curYear);
+      const yy = curYear.slice(-2);
+      const lang = window._currentSystemLang || 'th';
+      if (lang === 'zh') {
+        txtBanner.textContent = `当前开放报名：第 ${curTerm} 学期 / ${curYear} (学号 ${yy}${curTerm}XXXX)`;
+      } else if (lang === 'en') {
+        txtBanner.textContent = `Open for Registration: Term ${curTerm} / ${curYear} (Student ID ${yy}${curTerm}XXXX)`;
+      } else {
+        txtBanner.textContent = `กำลังเปิดรับสมัคร: เทอม ${curTerm} / ${curYear} (รหัส น.ศ. ${yy}${curTerm}XXXX)`;
+      }
+    }
+    window.updateGlobalActiveTermBannerText = updateGlobalActiveTermBannerText;
+
     function setSystemLanguage(lang) {
       if (!['th', 'zh', 'en'].includes(lang)) lang = 'th';
       _currentSystemLang = lang;
@@ -75350,18 +75738,37 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const el = document.getElementById(id);
         if (el) el.classList.toggle('active', id === 'btnLang' + lang.toUpperCase());
       });
+      ['btnLoginLangTH', 'btnLoginLangEN', 'btnLoginLangZH'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          const isAct = id === 'btnLoginLang' + lang.toUpperCase();
+          el.classList.toggle('active', isAct);
+          el.style.background = isAct ? 'linear-gradient(135deg, #E8C88B 0%, #D4A349 100%)' : 'transparent';
+          el.style.color = isAct ? '#01231C' : '#374151';
+        }
+      });
       const topDict = (typeof SYSTEM_TOPBAR_I18N !== 'undefined') ? SYSTEM_TOPBAR_I18N[lang] : null;
+      const topThDict = (typeof SYSTEM_TOPBAR_I18N !== 'undefined') ? SYSTEM_TOPBAR_I18N.th : null;
       if (topDict) {
         const txtWelcome = document.getElementById('txtTopbarWelcome');
         if (txtWelcome) txtWelcome.textContent = topDict.welcomeBtn;
         const btnWelcome = document.querySelector('.oca-btn-welcome');
-        if (btnWelcome) btnWelcome.title = topDict.welcomeTitle;
+        if (btnWelcome) {
+          if (topThDict && topThDict.welcomeTitle) btnWelcome.setAttribute('data-i18n-orig-title', topThDict.welcomeTitle);
+          btnWelcome.title = topDict.welcomeTitle;
+        }
         const txtLogout = document.getElementById('txtTopbarLogout');
         if (txtLogout) txtLogout.textContent = topDict.logoutBtn;
         const btnLogout = document.getElementById('btnTopbarLogout');
-        if (btnLogout) btnLogout.title = topDict.logoutTitle;
+        if (btnLogout) {
+          if (topThDict && topThDict.logoutTitle) btnLogout.setAttribute('data-i18n-orig-title', topThDict.logoutTitle);
+          btnLogout.title = topDict.logoutTitle;
+        }
         const btnNotif = document.getElementById('btnTopbarNotification');
-        if (btnNotif) btnNotif.title = topDict.notifTitle;
+        if (btnNotif) {
+          if (topThDict && topThDict.notifTitle) btnNotif.setAttribute('data-i18n-orig-title', topThDict.notifTitle);
+          btnNotif.title = topDict.notifTitle;
+        }
         const txtPwa = document.getElementById('txtPwaStatusLabel');
         if (txtPwa) txtPwa.textContent = topDict.offlineStatus;
 
@@ -75730,6 +76137,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       Object.keys(searchPlaceholders).forEach(id => {
         const el = document.getElementById(id);
         if (el && searchPlaceholders[id][lang]) {
+          if (searchPlaceholders[id].th) {
+            el.setAttribute('data-i18n-orig-placeholder', searchPlaceholders[id].th);
+          }
           el.placeholder = searchPlaceholders[id][lang];
         }
       });
@@ -75822,7 +76232,36 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         try { renderCourseCategoryFilterPills(); } catch(_) {}
       }
       if (typeof filterShippingOrders === 'function') {
-        try { filterShippingOrders(); } catch(_) {}
+        try { filterShippingOrders(true); } catch(_) {}
+      }
+
+      // Dynamic Global Active Term Banner (#ocaGlobalActiveTermBanner)
+      updateGlobalActiveTermBannerText();
+
+      // Reactive Daily Shift Closing Modal if open
+      const shiftModal = document.getElementById('modalDailyShiftClosing');
+      if (shiftModal && shiftModal.style.display !== 'none') {
+        if (typeof calculateShiftClosingVariance === 'function') {
+          try { calculateShiftClosingVariance(); } catch(_) {}
+        }
+        const st = window._ocaShiftClosingState;
+        if (st) {
+          const subEl = document.getElementById('lblShiftCloseDateSub');
+          if (subEl) {
+            const now = new Date();
+            const locale = lang === 'zh' ? 'zh-CN' : (lang === 'en' ? 'en-US' : 'th-TH');
+            const dateLabel = now.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
+            subEl.textContent = lang === 'zh'
+              ? `日期 ${st.todayIso} (${dateLabel})`
+              : (lang === 'en' ? `Date: ${st.todayIso} (${dateLabel})` : `ประจำวันที่ ${st.todayIso} (${dateLabel})`);
+          }
+          const elVoid = document.getElementById('lblShiftVoidSummary');
+          if (elVoid) {
+            const fmt = (n) => '฿' + toArabicDigits(Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            const unit = lang === 'zh' ? '份' : (lang === 'en' ? 'receipt(s)' : 'ฉบับ');
+            elVoid.textContent = `${toArabicDigits(st.voidCount)} ${unit} (${fmt(st.voidAmount)})`;
+          }
+        }
       }
 
       // Reactive DOM Inner Content Translation across all 15 views
@@ -83195,7 +83634,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=114';
+      const swPath = basePath + 'sw.js?v=115';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -83204,7 +83643,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (114):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (115):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
