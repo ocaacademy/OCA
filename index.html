@@ -9291,7 +9291,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '106';
+      var LATEST_VERSION = '107';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -76365,56 +76365,104 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       }
     }
 
-    window.updateGeofenceUiState = updateGeofenceUiState;async function checkTeacherBiometricEnrollment() {
+    window.updateGeofenceUiState = updateGeofenceUiState;
+
+    function _ocaB64UrlToUint8Array(b64url) {
+      const norm = String(b64url || '').replace(/-/g, '+').replace(/_/g, '/');
+      const pad = (4 - (norm.length % 4)) % 4;
+      const bin = atob(norm + '='.repeat(pad));
+      const out = new window.Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+
+    function _ocaArrayBufferToB64Url(buf) {
+      const bytes = new window.Uint8Array(buf);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function _isEdgeFnNotDeployedError(err, data) {
+      const msg = String(err?.message || data?.error || '').toLowerCase();
+      const status = err?.context?.status || err?.status || 0;
+      return status === 404 || msg.includes('404') || msg.includes('not found') || msg.includes('failed to send a request to the edge function');
+    }
+
+    async function checkTeacherBiometricEnrollment() {
       const user = getSavedCurrentUser();
       const stateNot = document.getElementById('stateBiometricNotEnrolled');
       const stateEn = document.getElementById('stateBiometricEnrolled');
       if (!user) return false;
       let isEnrolled = false;
       let enrolledAt = null;
+      let serverCredId = null;
+      let serverChecked = false;
 
-              // 1. Check biometric credentials from local device storage (schema safe)
+      // 1. Authoritative server-side check via get_staff_biometric_status RPC (cross-device binding)
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data: rpcData, error: rpcErr } = await _supabase.rpc('get_staff_biometric_status', {
+            p_username: user.username
+          });
+          if (!rpcErr && rpcData) {
+            serverChecked = true;
+            isEnrolled = Boolean(rpcData.enrolled && rpcData.credential_id);
+            serverCredId = rpcData.credential_id || null;
+            enrolledAt = rpcData.enrolled_at || null;
+          } else {
+            const { data: rowData, error: rowErr } = await _supabase
+              .from('staff_users')
+              .select('biometric_credential_id, biometric_enrolled_at')
+              .eq('username', user.username)
+              .maybeSingle();
+            if (!rowErr && rowData) {
+              serverChecked = true;
+              isEnrolled = Boolean(rowData.biometric_credential_id);
+              serverCredId = rowData.biometric_credential_id || null;
+              enrolledAt = rowData.biometric_enrolled_at || null;
+            }
+          }
+        } catch (e) {
+          console.warn('[Teacher Bio Check] server check error:', e);
+        }
+      }
 
+      if (serverChecked) {
+        try {
+          if (isEnrolled && serverCredId) {
+            localStorage.setItem(`oca_bio_${user.username}`, JSON.stringify({
+              credentialId: serverCredId,
+              enrolledAt: enrolledAt
+            }));
+          } else {
+            localStorage.removeItem(`oca_bio_${user.username}`);
+          }
+        } catch (_) {}
+      } else {
+        // Offline fallback only when server is unreachable
         try {
           const localBio = localStorage.getItem(`oca_bio_${user.username}`);
-
           if (localBio) {
             const parsed = JSON.parse(localBio);
-
-            if (parsed && parsed.credentialId) {
+            if (parsed && parsed.credentialId && !String(parsed.credentialId).startsWith('BIO-')) {
               isEnrolled = true;
               enrolledAt = parsed.enrolledAt;
             }
           }
         } catch (e) {
-          console.warn('[Teacher Bio Check] error:', e);
+          console.warn('[Teacher Bio Check] local fallback error:', e);
         }
-
-      // 2. Local device fallback check
-
-      if (!isEnrolled) {
-        try {
-          const local = localStorage.getItem(`oca_bio_${user.username}`);
-
-          if (local) {
-            isEnrolled = true;
-            const parsed = JSON.parse(local);
-            enrolledAt = parsed.enrolledAt;
-          }
-        } catch (_) {}
       }
 
       // STRICT RULE: If enrolled, BUTTON MUST NOT APPEAR AT ALL!
-
       // Only appears if NOT enrolled, or if Admin revoked/deleted it!
-
       if (stateNot && stateEn) {
         if (isEnrolled) {
           stateNot.style.display = 'none';
           stateEn.style.display = 'block';
           const detailsEl = document.getElementById('txtBioEnrolledDetails');
           const dict = TEACHER_I18N[_teacherCurrentLanguage] || TEACHER_I18N.th;
-
           if (detailsEl) {
             if (enrolledAt) {
               const dt = new Date(enrolledAt);
@@ -76434,85 +76482,121 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
     async function enrollTeacherBiometric() {
       const user = getSavedCurrentUser();
-
       if (!user) {
         if (typeof showToast === 'function') showToast('กรุณาเข้าสู่ระบบ', 'ไม่พบข้อมูลผู้สอนในระบบ', '⚠️');
         return;
       }
 
       const isAlready = await checkTeacherBiometricEnrollment();
-
       if (isAlready) {
         if (typeof showModal === 'function') {
           showModal('ไม่อนุญาตให้บันทึกซ้ำ', 'คุณได้ลงทะเบียนลายนิ้วมือเรียบร้อยแล้ว บันทึกได้เพียงครั้งเดียวเท่านั้น หากต้องการเปลี่ยนต้องแจ้ง Admin ให้ลบลายนิ้วมือเดิมก่อน', '🔒');
         }
+        return;
+      }
 
+      if (!window.PublicKeyCredential || typeof navigator.credentials?.create !== 'function') {
+        if (typeof showModal === 'function') {
+          showModal('อุปกรณ์ไม่รองรับ WebAuthn', 'เบราว์เซอร์หรืออุปกรณ์นี้ไม่รองรับการสแกนลายนิ้วมือ/Passkey กรุณาใช้อุปกรณ์ที่รองรับ WebAuthn', '⚠️');
+        }
         return;
       }
 
       try {
-        let credId = 'BIO-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-
-        if (window.PublicKeyCredential && typeof navigator.credentials?.create === 'function') {
-          try {
-            const challenge = new window.Uint8Array(32);
-            window.crypto.getRandomValues(challenge);
-            const credential = await navigator.credentials.create({
-              publicKey: {
-                challenge: challenge,
-
-                rp: { name: "Oriental Culture Academy (OCA)" },
-
-                user: {
-                  id: new window.TextEncoder().encode(user.username),
-
-                  name: user.username,
-
-                  displayName: user.fullName || user.username
-                },
-
-                pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
-
-                authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
-
-                timeout: 60000
-              }
-            });
-
-            if (credential && credential.id) {
-              credId = credential.id;
-            }
-          } catch (webauthnErr) {
-            console.warn('[WebAuthn Biometric Enroll] Platform fallback:', webauthnErr);
-            const ok = confirm('ยืนยันการบันทึกสแกนลายนิ้วมืออุปกรณ์ของคุณสำหรับบัญชีนี้? (บันทึกได้เพียงครั้งเดียว ไม่สามารถแก้ไขได้)');
-            if (!ok) return;
-          }
-        }
-
-        const nowIso = new Date().toISOString();
+        let credId = '';
+        let enrolledAt = new Date().toISOString();
+        let useFallbackDirectBind = false;
+        let optData = null;
 
         if (typeof _supabase !== 'undefined' && _supabase) {
-          try {
-            await _supabase.from('staff_users')
+          const { data: fnOpt, error: fnOptErr } = await _supabase.functions.invoke('webauthn-checkin', {
+            body: { action: 'enroll-options', username: user.username }
+          });
 
-              .update({
-                biometric_credential_id: credId,
-
-                biometric_enrolled_at: nowIso,
-
-                biometric_device_name: navigator.userAgent.substring(0, 80)
-              })
-
-              .eq('username', user.username);
-          } catch (err) {
-            console.warn('[Biometric Save DB] error:', err);
+          if (fnOptErr || fnOpt?.error) {
+            if (_isEdgeFnNotDeployedError(fnOptErr, fnOpt)) {
+              useFallbackDirectBind = true;
+            } else {
+              throw new Error(fnOpt?.error || fnOptErr?.message || 'ไม่สามารถขอ WebAuthn challenge จากเซิร์ฟเวอร์ได้');
+            }
+          } else {
+            optData = fnOpt;
           }
+        } else {
+          throw new Error('ไม่พบการเชื่อมต่อฐานข้อมูล Supabase');
+        }
+
+        const challengeBytes = optData?.challenge
+          ? _ocaB64UrlToUint8Array(optData.challenge)
+          : window.crypto.getRandomValues(new window.Uint8Array(32));
+        const userIdBytes = optData?.user?.id
+          ? _ocaB64UrlToUint8Array(optData.user.id)
+          : new window.TextEncoder().encode(user.username);
+
+        const credential = await navigator.credentials.create({
+          publicKey: {
+            challenge: challengeBytes,
+            rp: optData?.rp || { name: 'Oriental Culture Academy (OCA)' },
+            user: {
+              id: userIdBytes,
+              name: optData?.user?.name || user.username,
+              displayName: optData?.user?.displayName || user.fullName || user.username
+            },
+            pubKeyCredParams: optData?.pubKeyCredParams || [
+              { alg: -7, type: 'public-key' },
+              { alg: -257, type: 'public-key' }
+            ],
+            authenticatorSelection: optData?.authenticatorSelection || {
+              authenticatorAttachment: 'platform',
+              userVerification: 'required'
+            },
+            timeout: optData?.timeout || 60000
+          }
+        });
+
+        if (!credential || !credential.id) {
+          throw new Error('ไม่ได้รับข้อมูล Credential จากอุปกรณ์');
+        }
+        credId = credential.id;
+        const publicKeySpki = typeof credential.response?.getPublicKey === 'function' && credential.response.getPublicKey()
+          ? _ocaArrayBufferToB64Url(credential.response.getPublicKey())
+          : '';
+        const deviceName = navigator.userAgent.substring(0, 80);
+
+        if (!useFallbackDirectBind) {
+          const { data: verData, error: verErr } = await _supabase.functions.invoke('webauthn-checkin', {
+            body: {
+              action: 'enroll-verify',
+              username: user.username,
+              credentialId: credId,
+              publicKeySpki,
+              clientDataJSON: _ocaArrayBufferToB64Url(credential.response.clientDataJSON),
+              attestationObject: _ocaArrayBufferToB64Url(credential.response.attestationObject),
+              deviceName
+            }
+          });
+          if (verErr || verData?.error || !verData?.verified) {
+            throw new Error(verData?.error || verErr?.message || 'การยืนยันการลงทะเบียน WebAuthn ไม่สำเร็จ');
+          }
+          enrolledAt = verData.enrolledAt || enrolledAt;
+        } else {
+          // Edge Function not yet deployed (404): bind real WebAuthn credential directly with strict { error } check
+          console.warn('[WebAuthn] Edge Function webauthn-checkin not deployed (404); using direct staff_users binding. Deploy scratch/supabase_edge_webauthn.ts for full server verification.');
+          const { error: updErr } = await _supabase
+            .from('staff_users')
+            .update({
+              biometric_credential_id: credId,
+              biometric_public_key: publicKeySpki || null,
+              biometric_enrolled_at: enrolledAt,
+              biometric_device_name: deviceName
+            })
+            .eq('username', user.username);
+          if (updErr) throw updErr;
         }
 
         localStorage.setItem(`oca_bio_${user.username}`, JSON.stringify({
           credentialId: credId,
-
-          enrolledAt: nowIso
+          enrolledAt
         }));
         await checkTeacherBiometricEnrollment();
 
@@ -76521,7 +76605,6 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       } catch (err) {
         console.error('Biometric enroll failure:', err);
-
         if (typeof showModal === 'function') {
           showModal('เกิดข้อผิดพลาดในการลงทะเบียน', err.message || 'ไม่สามารถลงทะเบียนลายนิ้วมือได้', '❌');
         }
@@ -76535,7 +76618,6 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     async function performTeacherCheckInWithType(checkType) {
       if (_teacherCheckInBusy) return;
       const user = getSavedCurrentUser();
-
       if (!user) {
         if (typeof showToast === 'function') showToast('กรุณาเข้าสู่ระบบ', 'ไม่พบข้อมูลบัญชีครูผู้สอน', '⚠️');
         return;
@@ -76560,7 +76642,6 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const acc = _teacherCurrentAccuracy || 20;
         const rawDist = _teacherCurrentDistance;
         const isInside = isTeacherInsideGeofence(rawDist, acc);
-
         if (!isInside) {
           const d = (rawDist !== null && rawDist < 99999) ? Math.round(rawDist) : '--';
           if (typeof showModal === 'function') {
@@ -76614,18 +76695,80 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
 
         let verified = false;
+        let edgeCheckinRecorded = false;
+        let serverIsoTime = null;
+
         if (window.PublicKeyCredential && typeof navigator.credentials?.get === 'function') {
           try {
-            const challenge = new window.Uint8Array(32);
-            window.crypto.getRandomValues(challenge);
-            const assertion = await navigator.credentials.get({
-              publicKey: {
-                challenge: challenge,
-                timeout: 60000,
-                userVerification: "required"
+            let useEdgeVerify = false;
+            let authChallenge = null;
+            let allowCredentials = undefined;
+
+            if (typeof _supabase !== 'undefined' && _supabase) {
+              const { data: authOpt, error: authOptErr } = await _supabase.functions.invoke('webauthn-checkin', {
+                body: { action: 'auth-options', username: user.username }
+              });
+              if (!authOptErr && authOpt && !authOpt.error && authOpt.challenge) {
+                useEdgeVerify = true;
+                authChallenge = _ocaB64UrlToUint8Array(authOpt.challenge);
+                if (Array.isArray(authOpt.allowCredentials) && authOpt.allowCredentials.length > 0) {
+                  allowCredentials = authOpt.allowCredentials.map((c) => ({
+                    id: _ocaB64UrlToUint8Array(c.id),
+                    type: c.type || 'public-key'
+                  }));
+                }
+              } else if (!_isEdgeFnNotDeployedError(authOptErr, authOpt)) {
+                console.warn('[WebAuthn auth-options] error:', authOpt?.error || authOptErr?.message);
               }
-            });
-            if (assertion) verified = true;
+            }
+
+            if (!authChallenge) {
+              authChallenge = window.crypto.getRandomValues(new window.Uint8Array(32));
+              try {
+                const cachedBio = JSON.parse(localStorage.getItem(`oca_bio_${user.username}`) || '{}');
+                if (cachedBio?.credentialId && !String(cachedBio.credentialId).startsWith('BIO-')) {
+                  allowCredentials = [{ id: _ocaB64UrlToUint8Array(cachedBio.credentialId), type: 'public-key' }];
+                }
+              } catch (_) {}
+            }
+
+            const publicKeyOpts = {
+              challenge: authChallenge,
+              timeout: 60000,
+              userVerification: 'required'
+            };
+            if (allowCredentials) {
+              publicKeyOpts.allowCredentials = allowCredentials;
+            }
+
+            const assertion = await navigator.credentials.get({ publicKey: publicKeyOpts });
+            if (assertion && useEdgeVerify) {
+              const { data: verData, error: verErr } = await _supabase.functions.invoke('webauthn-checkin', {
+                body: {
+                  action: 'auth-verify',
+                  username: user.username,
+                  credentialId: assertion.id,
+                  clientDataJSON: _ocaArrayBufferToB64Url(assertion.response.clientDataJSON),
+                  authenticatorData: _ocaArrayBufferToB64Url(assertion.response.authenticatorData),
+                  signature: _ocaArrayBufferToB64Url(assertion.response.signature),
+                  checkType,
+                  latitude: _teacherCurrentPosition.lat,
+                  longitude: _teacherCurrentPosition.lng,
+                  distance_meters: Math.round(_teacherCurrentDistance || 0),
+                  writeTimesheetTable: Boolean(window.OCA_ENABLE_DB_TIMESHEET_TABLE)
+                }
+              });
+              if (!verErr && verData?.verified) {
+                verified = true;
+                edgeCheckinRecorded = true;
+                serverIsoTime = verData.serverTimestamp || null;
+              } else {
+                console.warn('[WebAuthn auth-verify] rejected:', verData?.error || verErr?.message);
+                verified = false;
+              }
+            } else if (assertion) {
+              verified = true;
+            }
           } catch (e) {
             console.warn('[WebAuthn Verify] failed/cancelled:', e);
             verified = false;
@@ -76641,8 +76784,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           }
         }
 
-        const now = new Date(Date.now() + _teacherClockOffsetMs);
-        const isoTime = now.toISOString();
+        const now = serverIsoTime ? new Date(serverIsoTime) : new Date(Date.now() + _teacherClockOffsetMs);
+        const isoTime = serverIsoTime || now.toISOString();
         const payload = {
           username: user.username,
           teacher_name: user.fullName || user.username,
@@ -76651,11 +76794,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           longitude: _teacherCurrentPosition.lng,
           distance_meters: Math.round(_teacherCurrentDistance || 0),
           biometric_verified: verified,
-          auth_note: verified ? 'WEBAUTHN_VERIFIED' : 'ลงเวลาแบบไม่ผ่านสแกนนิ้ว',
+          auth_note: verified ? (edgeCheckinRecorded ? 'WEBAUTHN_EDGE_VERIFIED' : 'WEBAUTHN_VERIFIED') : 'ลงเวลาแบบไม่ผ่านสแกนนิ้ว',
           thai_time_stamp: isoTime
         };
 
-        if (typeof _supabase !== 'undefined' && _supabase) {
+        if (!edgeCheckinRecorded && typeof _supabase !== 'undefined' && _supabase) {
           const { error: auditErr } = await _supabase.from('security_audit_logs').insert([{
             action: checkType === 'IN' ? 'TEACHER_CLOCK_IN' : 'TEACHER_CLOCK_OUT',
             username: user.username,
@@ -76678,7 +76821,6 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
         renderTeacherMyHistory();
         const dict = TEACHER_I18N[_teacherCurrentLanguage] || TEACHER_I18N.th;
-
         if (typeof showToast === 'function') {
           const typeTxt = checkType === 'IN' ? dict.btnClockInText : dict.btnClockOutText;
           const bioStatusLabel = verified ? 'สแกนนิ้วสำเร็จ' : 'ลงเวลาแบบไม่ผ่านสแกนนิ้ว';
@@ -77524,23 +77666,32 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     window.autoSaveTeacherAttendance = autoSaveTeacherAttendance;
     window.saveTeacherAttendance = autoSaveTeacherAttendance;
 
-    function revokeTeacherFingerprint(username) {
+    async function revokeTeacherFingerprint(username) {
       if (!username) return;
-
-      if (!confirm(`ยืนยันการลบลบลายนิ้วมือของครู "${username}" หรือไม่? (หลังจากลบ ครูจะสามารถลงทะเบียนลายนิ้วมือใหม่ได้อีกครั้ง)`)) {
+      if (!confirm(`ยืนยันการลบลายนิ้วมือของครู "${username}" หรือไม่? (หลังจากลบ ครูจะสามารถลงทะเบียนลายนิ้วมือใหม่ได้อีกครั้ง)`)) {
         return;
       }
 
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          _supabase.from('staff_users')
-
-            .update({ biometric_credential_id: null, biometric_enrolled_at: null, biometric_device_name: null })
-
-            .eq('username', username)
-
-            .then(() => {});
-        } catch (_) {}
+          const { error: revokeErr } = await _supabase
+            .from('staff_users')
+            .update({
+              biometric_credential_id: null,
+              biometric_public_key: null,
+              biometric_sign_count: 0,
+              biometric_enrolled_at: null,
+              biometric_device_name: null
+            })
+            .eq('username', username);
+          if (revokeErr) throw revokeErr;
+        } catch (err) {
+          console.error('[Revoke Biometric] DB error:', err);
+          if (typeof showToast === 'function') {
+            showToast('ลบลายนิ้วมือไม่สำเร็จ', err?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล', '❌');
+          }
+          return;
+        }
       }
 
       try {
@@ -77548,7 +77699,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       } catch(_) {}
 
       if (typeof showToast === 'function') {
-        showToast('ลบลบลายนิ้วมือสำเร็จ', `ปลดล็อคให้ครู "${username}" ลงทะเบียนลายนิ้วมือใหม่ได้แล้ว`, '🗑️');
+        showToast('ลบลายนิ้วมือสำเร็จ', `ปลดล็อคให้ครู "${username}" ลงทะเบียนลายนิ้วมือใหม่ได้แล้ว`, '🗑️');
       }
 
       if (typeof window.renderStaffSettingsTable === 'function') window.renderStaffSettingsTable();
@@ -82990,7 +83141,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=106';
+      const swPath = basePath + 'sw.js?v=107';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -82999,7 +83150,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (106):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (107):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
