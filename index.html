@@ -9291,7 +9291,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '111';
+      var LATEST_VERSION = '112';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -23943,9 +23943,8 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
 </body>
 </html>`;
 
-        // Try Supabase Edge Function 'send-email' first, with graceful client-side Brevo fallback
+        // Dispatch receipt email strictly through Supabase Edge Function 'send-email'
         let isBrevoSent = false;
-        let useClientFallback = true;
         const _curStaffEmail = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
         const _staffEmailUsername = (_curStaffEmail && _curStaffEmail.username) ? String(_curStaffEmail.username).trim() : '';
 
@@ -23964,42 +23963,12 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
             });
             if (!fnErr && fnData && fnData.success) {
               isBrevoSent = true;
-              useClientFallback = false;
               if (typeof refreshBrevoQuota === 'function') setTimeout(() => refreshBrevoQuota(true), 1500);
-            } else if (typeof _isEdgeFnNotDeployedError === 'function' && !_isEdgeFnNotDeployedError(fnErr, fnData)) {
+            } else {
               console.warn('Edge send-email notice:', fnErr || fnData);
             }
           } catch (edgeErr) {
-            console.warn('Edge send-email fallback:', edgeErr);
-          }
-        }
-
-        if (useClientFallback) {
-          // Direct Brevo API Call (Fallback when Edge Function is not deployed)
-          const BREVO_KEY = [82,65,79,83,89,67,72,7,73,79,76,25,73,28,79,18,19,79,18,27,25,73,75,26,75,28,28,75,78,30,78,18,73,25,25,28,27,25,76,30,78,25,18,26,78,28,78,73,30,26,18,26,26,29,18,28,18,30,73,72,31,75,26,24,72,76,72,73,79,24,19,72,7,94,102,95,100,121,31,108,68,108,124,28,124,108,65,109,24].map(b => String.fromCharCode(b ^ 42)).join('');
-
-          try {
-            const resBrevo = await fetch('https://api.brevo.com/v3/smtp/email', {
-              method: 'POST',
-              headers: {
-                'api-key': BREVO_KEY,
-                'content-type': 'application/json',
-                'accept': 'application/json'
-              },
-              body: JSON.stringify({
-                sender: { name: 'Oriental Culture Academy (東方文化書院)', email: 'ocacademy1992@gmail.com' },
-                to: [{ email: targetEmail, name: buyerName }],
-                subject: subject,
-                htmlContent: htmlReceipt
-              })
-            });
-
-            if (resBrevo.ok) {
-              isBrevoSent = true;
-              if (typeof refreshBrevoQuota === 'function') setTimeout(() => refreshBrevoQuota(true), 1500);
-            }
-          } catch(brvErr) {
-            console.warn('Brevo dispatch notice:', brvErr);
+            console.warn('Edge send-email error:', edgeErr);
           }
         }
 
@@ -37194,7 +37163,6 @@ if (action === 'getDashboardStats') {
 
       try {
         let data = null;
-        let useClientQuotaFallback = true;
         const _curStaffQuota = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
         const _staffQuotaUsername = (_curStaffQuota && _curStaffQuota.username) ? String(_curStaffQuota.username).trim() : '';
 
@@ -37208,41 +37176,32 @@ if (action === 'getDashboardStats') {
             });
             if (!fnErr && fnData && fnData.success && fnData.account) {
               data = fnData.account;
-              useClientQuotaFallback = false;
-            } else if (typeof _isEdgeFnNotDeployedError === 'function' && !_isEdgeFnNotDeployedError(fnErr, fnData)) {
+            } else {
               console.warn('Edge checkQuota notice:', fnErr || fnData);
             }
           } catch (edgeErr) {
-            console.warn('Edge checkQuota fallback:', edgeErr);
+            console.warn('Edge checkQuota error:', edgeErr);
           }
         }
 
-        if (useClientQuotaFallback) {
-          const BREVO_KEY = [82,65,79,83,89,67,72,7,73,79,76,25,73,28,79,18,19,79,18,27,25,73,75,26,75,28,28,75,78,30,78,18,73,25,25,28,27,25,76,30,78,25,18,26,78,28,78,73,30,26,18,26,26,29,18,28,18,30,73,72,31,75,26,24,72,76,72,73,79,24,19,72,7,94,102,95,100,121,31,108,68,108,124,28,124,108,65,109,24].map(b => String.fromCharCode(b ^ 42)).join('');
-          const res = await fetch('https://api.brevo.com/v3/account', {
-            method: 'GET',
-            headers: {
-              'api-key': BREVO_KEY,
-              'accept': 'application/json'
-            }
-          });
-
-          if (!res.ok) {
-            if (res.status >= 500) {
-              window._brevoServerBackoffUntil = Date.now() + 600000;
-              window._ocaBackgroundTelemetry = window._ocaBackgroundTelemetry || [];
-              window._ocaBackgroundTelemetry.push({
-                module: 'brevo',
-                status: res.status,
-                time: new Date().toISOString()
-              });
-              return;
-            }
-
-            throw new Error('HTTP ' + res.status);
+        if (!data) {
+          const elBadge = document.getElementById('dashBrevoPlanBadge');
+          const elStatus = document.getElementById('dashBrevoStatusText');
+          const elCount = document.getElementById('dashBrevoCreditsCount');
+          const elPillCount = document.getElementById('dashBrevoPillCount');
+          if (elBadge) {
+            elBadge.textContent = 'UNAVAILABLE';
+            elBadge.style.background = 'rgba(148,163,184,0.18)';
+            elBadge.style.color = '#94a3b8';
+            elBadge.style.border = '1px solid rgba(148,163,184,0.35)';
           }
-
-          data = await res.json();
+          if (elStatus) {
+            elStatus.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> ไม่สามารถตรวจสอบโควตาได้ (Edge Function)';
+            elStatus.style.color = '#94a3b8';
+          }
+          if (elCount && (!elCount.textContent || elCount.textContent === '...')) elCount.textContent = '--';
+          if (elPillCount && (!elPillCount.textContent || elPillCount.textContent === '...')) elPillCount.textContent = '--';
+          return;
         }
         const plans = Array.isArray(data.plan) ? data.plan : [];
 
@@ -83227,7 +83186,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=111';
+      const swPath = basePath + 'sw.js?v=112';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -83236,7 +83195,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (111):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (112):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
