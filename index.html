@@ -81082,7 +81082,29 @@ function openPublicRegisterView() {
     window.translateContainerTree = translateContainerTree;
     window.translateSingleString = translateSingleString;
 
+    function isOcaRootModalElement(el) {
+      if (!el || el.nodeType !== 1) return false;
+      if (el.id === 'modalZoomSlip' || el.id === 'ocaCourseSchedPopover') return false;
+      if (el.classList && el.classList.contains('oca-no-brand-strip')) return false;
+      if (
+        el.classList &&
+        (el.classList.contains('oca-custom-modal-box') ||
+          el.classList.contains('oca-modal-split-wrap') ||
+          el.classList.contains('oca-modal-bamboo-panel') ||
+          el.classList.contains('oca-modal-content-panel'))
+      ) {
+        return false;
+      }
+      const matchesModal = (el.classList && el.classList.contains('oca-custom-modal-backdrop')) || (el.id && el.id.startsWith('modal'));
+      if (!matchesModal) return false;
+      if (el.parentElement && el.parentElement.closest('.oca-custom-modal-backdrop, .oca-custom-modal-box, [id^="modal"]')) {
+        return false;
+      }
+      return true;
+    }
+
     function installOcaFormalModalEnhancer() {
+      const enhancedModals = (window._ocaEnhancedModals = window._ocaEnhancedModals || (typeof window !== 'undefined' && window.WeakSet ? new window.WeakSet() : new Set()));
       const brandStripHtml = '<div class="oca-modal-brand-strip" data-i18n-locked="true" style="display:none;">' +
         '<div class="brand-left">' +
           '<img src="./oca_logo.png" onerror="this.onerror=null; this.src=\'https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-kJVDLKednw7P\';" alt="OCA Logo" class="oca-modal-logo">' +
@@ -81103,7 +81125,7 @@ function openPublicRegisterView() {
       ]);
 
       function enhanceModal(modal) {
-        if (!modal || modal.id === 'modalZoomSlip' || modal.id === 'ocaCourseSchedPopover' || modal.classList.contains('oca-no-brand-strip')) return;
+        if (!isOcaRootModalElement(modal) || enhancedModals.has(modal)) return;
         const isSplitDialog = OCA_SPLIT_DIALOG_IDS.has(modal.id);
         modal.classList.add('oca-formal-modal');
         if (isSplitDialog) {
@@ -81141,6 +81163,7 @@ function openPublicRegisterView() {
           box.style.overflowY = 'auto';
           box.style.overflowX = 'hidden';
           box.style.maxHeight = '92dvh';
+          enhancedModals.add(modal);
           return;
         }
 
@@ -81151,6 +81174,7 @@ function openPublicRegisterView() {
             bamboo.innerHTML = '';
             bamboo.setAttribute('aria-hidden', 'true');
           }
+          enhancedModals.add(modal);
           return;
         }
 
@@ -81193,6 +81217,7 @@ function openPublicRegisterView() {
         box.appendChild(newSplitWrap);
         box.style.padding = '0';
         box.style.overflow = 'hidden';
+        enhancedModals.add(modal);
       }
 
       document.querySelectorAll('.oca-custom-modal-backdrop, [id^="modal"]').forEach(enhanceModal);
@@ -81204,9 +81229,11 @@ function openPublicRegisterView() {
       window._ocaModalAutoTranslatorInstalled = true;
 
       const enhanceModal = typeof installOcaFormalModalEnhancer === 'function' ? installOcaFormalModalEnhancer() : null;
+      const observerConfig = { attributes: true, subtree: true, attributeFilter: ['style', 'class'], childList: true };
+      let isMutating = false;
 
       function onModalTriggered(modal) {
-        if (!modal || modal.id === 'modalZoomSlip' || modal.id === 'ocaCourseSchedPopover') return;
+        if (!isOcaRootModalElement(modal)) return;
         if (enhanceModal) enhanceModal(modal);
         const curL = window._currentSystemLang || 'th';
         if (typeof translateContainerTree === 'function') {
@@ -81215,30 +81242,44 @@ function openPublicRegisterView() {
       }
 
       const observer = new MutationObserver(mutations => {
+        if (isMutating) return;
+        const triggeredModals = new Set();
         for (const m of mutations) {
           if (m.type === 'attributes' && (m.attributeName === 'style' || m.attributeName === 'class')) {
             const el = m.target;
-            if (el && (el.classList.contains('oca-custom-modal-backdrop') || (el.id && el.id.startsWith('modal')))) {
-              if (el.id === 'modalZoomSlip' || el.id === 'ocaCourseSchedPopover') continue;
+            if (isOcaRootModalElement(el)) {
               const disp = window.getComputedStyle(el).display;
               if (disp !== 'none') {
-                onModalTriggered(el);
+                triggeredModals.add(el);
               }
             }
           } else if (m.type === 'childList') {
             for (const node of m.addedNodes) {
-              if (node.nodeType === 1) {
-                if (node.classList && (node.classList.contains('oca-custom-modal-backdrop') || (node.id && node.id.startsWith('modal')))) {
-                  onModalTriggered(node);
-                }
+              if (isOcaRootModalElement(node)) {
+                triggeredModals.add(node);
               }
             }
+          }
+        }
+        if (triggeredModals.size === 0) return;
+
+        isMutating = true;
+        observer.disconnect();
+        try {
+          for (const modal of triggeredModals) {
+            onModalTriggered(modal);
+          }
+        } finally {
+          observer.takeRecords();
+          isMutating = false;
+          if (document.body) {
+            observer.observe(document.body, observerConfig);
           }
         }
       });
 
       if (document.body) {
-        observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['style', 'class'], childList: true });
+        observer.observe(document.body, observerConfig);
       }
       window._ocaModalObserver = observer;
     }
