@@ -12920,7 +12920,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '144';
+      var LATEST_VERSION = '145';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -25963,36 +25963,74 @@ body.printing-report #printReportContainer {
 
           .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
             console.log('[Realtime DB Event] Students updated:', payload.eventType);
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
             handleRealtimeBroadcast('students', payload);
           })
 
           .on('postgres_changes', { event: '*', schema: 'public', table: 'receipts' }, (payload) => {
             console.log('[Realtime DB Event] Receipts updated:', payload.eventType);
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('receipts');
             handleRealtimeBroadcast('receipts', payload);
           })
 
           .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, (payload) => {
             console.log('[Realtime DB Event] Courses updated:', payload.eventType);
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('courses');
             handleRealtimeBroadcast('courses', payload);
           })
 
           .on('postgres_changes', { event: '*', schema: 'public', table: 'fee_settings' }, (payload) => {
             console.log('[Realtime DB Event] Fee / Textbooks updated:', payload.eventType);
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('fee_settings');
             handleRealtimeBroadcast('fee_settings', payload);
           })
 
           .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, (payload) => {
             console.log('[Realtime DB Event] Schedules updated:', payload.eventType);
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('schedules');
             handleRealtimeBroadcast('schedules', payload);
+          })
+
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'classrooms' }, (payload) => {
+            console.log('[Realtime DB Event] Classrooms updated:', payload.eventType);
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('classrooms');
+            handleRealtimeBroadcast('classrooms', payload);
+          })
+
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'course_offerings' }, (payload) => {
+            console.log('[Realtime DB Event] Course offerings updated:', payload.eventType);
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('course_offerings');
+            const tabCourses = document.getElementById('tabCourses');
+            const tabEnroll = document.getElementById('tabEnroll');
+            if ((tabCourses && tabCourses.classList.contains('active')) || (tabEnroll && tabEnroll.classList.contains('active'))) {
+              if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
+            }
+            handleRealtimeBroadcast('course_offerings', payload);
+          })
+
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'textbooks' }, (payload) => {
+            console.log('[Realtime DB Event] Textbooks updated:', payload.eventType);
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('textbooks');
+            handleRealtimeBroadcast('textbooks', payload);
+          })
+
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'teacher_attendance' }, (payload) => {
+            console.log('[Realtime DB Event] Teacher attendance updated:', payload.eventType);
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('teacher_attendance');
+            handleRealtimeBroadcast('teacher_attendance', payload);
           })
 
           .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_users' }, (payload) => {
             console.log('[Realtime DB Event] Staff users updated:', payload);
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('staff_users');
             handleRealtimeBroadcast('staff_users', payload);
           })
 
           .on('postgres_changes', { event: '*', schema: 'public', table: 'security_audit_logs' }, (payload) => {
             console.log('[Realtime DB Event] Security audit logs updated:', payload.eventType);
+            if (payload && payload.new && payload.new.action && payload.new.action.startsWith('TEACHER_')) {
+              if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('security_audit_logs');
+            }
             handleRealtimeBroadcast('security_audit_logs', payload);
           })
 
@@ -26141,6 +26179,212 @@ body.printing-report #printReportContainer {
      * @param {boolean} isSilent โหมดอัปเดตแบบเบื้องหลังไม่กวนหน้าจอ
 
      */
+
+    // =========================================================================
+    // OCA V145 UNIFIED REALTIME & POST-MUTATION REPORT SYNC ENGINE
+    // =========================================================================
+    window._ocaDirtyReports = window._ocaDirtyReports || new Set();
+    window._ocaCoreCacheDirty = window._ocaCoreCacheDirty || {
+      courses: false,
+      schedules: false,
+      classrooms: false,
+      fee_settings: false,
+      students: false,
+      receipts: false,
+      offerings: false
+    };
+
+    let _ocaReportRefreshDebounceTimer = null;
+
+    function getActiveReportSubtabKey() {
+      let activeSubtab = 'classroom';
+      try {
+        const savedSub = localStorage.getItem('oca_last_active_report_subtab');
+        if (savedSub) activeSubtab = savedSub;
+      } catch (_) {}
+
+      const viewMap = [
+        ['subviewReportTeacher', 'teacher-timesheet'],
+        ['subviewReportChecker', 'checker'],
+        ['subviewReportAttTrack', 'course-attendance'],
+        ['subviewReportTeacherTracker', 'teacher-activity'],
+        ['subviewReportTermTimetable', 'term-timetable'],
+        ['subviewReportCourseBreakdown', 'course-breakdown'],
+        ['subviewReportMinistry', 'ministry-report'],
+        ['subviewReportDeferral', 'deferral'],
+        ['subviewReportClassroom', 'student-list']
+      ];
+      for (const [elId, key] of viewMap) {
+        const el = document.getElementById(elId);
+        if (el && el.style.display !== 'none') {
+          activeSubtab = key;
+          break;
+        }
+      }
+      return activeSubtab;
+    }
+
+    function refreshCurrentActiveReport() {
+      const tabReport = document.getElementById('tabReport');
+      const tabFinancial = document.getElementById('tabFinancial');
+      const tabDashboard = document.getElementById('tabDashboard');
+
+      if (tabFinancial && tabFinancial.classList.contains('active')) {
+        window._ocaDirtyReports.delete('financial');
+        if (typeof loadFinancialReport === 'function') loadFinancialReport(true, true);
+      }
+
+      if (tabDashboard && tabDashboard.classList.contains('active')) {
+        window._ocaDirtyReports.delete('dashboard');
+        if (typeof loadDashData === 'function') loadDashData();
+      }
+
+      if (!tabReport || !tabReport.classList.contains('active')) return;
+
+      const activeKey = getActiveReportSubtabKey();
+      window._ocaDirtyReports.delete(activeKey);
+
+      if (activeKey === 'student-list' || activeKey === 'classroom' || activeKey === 'roster') {
+        window._ocaDirtyReports.delete('student-list');
+        if (typeof initCourseClassroomView === 'function') initCourseClassroomView();
+        if (typeof onRosterFilterChanged === 'function') onRosterFilterChanged();
+        if (typeof loadStudentReport === 'function') loadStudentReport(true, true);
+      } else if (activeKey === 'course-breakdown') {
+        if (typeof loadCourseBreakdownReport === 'function') loadCourseBreakdownReport();
+      } else if (activeKey === 'ministry-report' || activeKey === 'ministry') {
+        window._ocaDirtyReports.delete('ministry-report');
+        if (typeof loadMinistryReport === 'function') loadMinistryReport(true);
+      } else if (activeKey === 'deferral') {
+        if (typeof loadDeferralReport === 'function') loadDeferralReport();
+      } else if (activeKey === 'term-timetable' || activeKey === 'termtimetable') {
+        window._ocaDirtyReports.delete('term-timetable');
+        if (typeof loadTermTimetableReport === 'function') loadTermTimetableReport();
+      } else if (activeKey === 'teacher-timesheet' || activeKey === 'teacher') {
+        window._ocaDirtyReports.delete('teacher-timesheet');
+        if (typeof loadTeacherTimesheetReport === 'function') loadTeacherTimesheetReport();
+      } else if (activeKey === 'course-attendance' || activeKey === 'attendance-tracking') {
+        window._ocaDirtyReports.delete('course-attendance');
+        if (typeof loadCourseAttendanceTrackingReport === 'function') loadCourseAttendanceTrackingReport(true);
+      } else if (activeKey === 'teacher-activity' || activeKey === 'teacher-tracker') {
+        window._ocaDirtyReports.delete('teacher-activity');
+        if (typeof loadTeacherActivityTrackerReport === 'function') loadTeacherActivityTrackerReport();
+      } else if (activeKey === 'checker') {
+        const inpChecker = document.getElementById('inpClassroomSearch');
+        if (inpChecker && inpChecker.value.trim() && typeof searchStudentClassroomNow === 'function') {
+          searchStudentClassroomNow();
+        }
+      }
+    }
+
+    function refreshActiveReportIfVisible() {
+      const tabReport = document.getElementById('tabReport');
+      const tabFinancial = document.getElementById('tabFinancial');
+      const tabDashboard = document.getElementById('tabDashboard');
+      const isAnyVisible =
+        (tabReport && tabReport.classList.contains('active')) ||
+        (tabFinancial && tabFinancial.classList.contains('active')) ||
+        (tabDashboard && tabDashboard.classList.contains('active'));
+      if (!isAnyVisible) return;
+
+      if (_ocaReportRefreshDebounceTimer) clearTimeout(_ocaReportRefreshDebounceTimer);
+      _ocaReportRefreshDebounceTimer = setTimeout(() => {
+        _ocaReportRefreshDebounceTimer = null;
+        refreshCurrentActiveReport();
+      }, 300);
+    }
+
+    function invalidateOcaReportCaches(sourceTable = '*') {
+      const src = String(sourceTable || '*').toLowerCase().trim();
+      const allReports = [
+        'student-list', 'course-breakdown', 'ministry-report', 'deferral',
+        'term-timetable', 'teacher-timesheet', 'course-attendance',
+        'teacher-activity', 'financial', 'dashboard'
+      ];
+
+      const tableMap = {
+        students: {
+          core: ['students'],
+          reports: ['student-list', 'course-breakdown', 'ministry-report', 'deferral', 'course-attendance', 'dashboard']
+        },
+        receipts: {
+          core: ['receipts'],
+          reports: ['student-list', 'course-breakdown', 'ministry-report', 'course-attendance', 'financial', 'dashboard']
+        },
+        courses: {
+          core: ['courses', 'offerings'],
+          reports: ['student-list', 'course-breakdown', 'ministry-report', 'term-timetable', 'course-attendance', 'dashboard']
+        },
+        schedules: {
+          core: ['schedules', 'offerings'],
+          reports: ['student-list', 'course-breakdown', 'term-timetable', 'course-attendance', 'dashboard']
+        },
+        classrooms: {
+          core: ['classrooms'],
+          reports: ['student-list', 'term-timetable', 'course-attendance']
+        },
+        course_offerings: {
+          core: ['offerings', 'courses', 'schedules'],
+          reports: ['student-list', 'course-breakdown', 'term-timetable', 'course-attendance', 'dashboard']
+        },
+        fee_settings: {
+          core: ['fee_settings'],
+          reports: ['student-list', 'course-breakdown', 'ministry-report', 'term-timetable', 'financial', 'dashboard']
+        },
+        textbooks: {
+          core: ['fee_settings'],
+          reports: ['financial', 'dashboard']
+        },
+        teacher_attendance: {
+          core: [],
+          reports: ['teacher-timesheet', 'teacher-activity', 'course-attendance', 'dashboard']
+        },
+        teacher_checkins: {
+          core: [],
+          reports: ['teacher-timesheet', 'teacher-activity', 'dashboard']
+        },
+        security_audit_logs: {
+          core: [],
+          reports: ['teacher-activity']
+        },
+        staff_users: {
+          core: [],
+          reports: ['teacher-timesheet', 'teacher-activity']
+        }
+      };
+
+      const entry = tableMap[src];
+      if (src === '*' || src === 'all' || !entry) {
+        Object.keys(window._ocaCoreCacheDirty).forEach(k => { window._ocaCoreCacheDirty[k] = true; });
+        allReports.forEach(r => window._ocaDirtyReports.add(r));
+      } else {
+        entry.core.forEach(k => {
+          if (k in window._ocaCoreCacheDirty) window._ocaCoreCacheDirty[k] = true;
+        });
+        entry.reports.forEach(r => window._ocaDirtyReports.add(r));
+      }
+
+      if (window._ocaCoreCacheDirty.students && typeof cachedStudentReportData !== 'undefined') {
+        cachedStudentReportData = [];
+      }
+      if (window._ocaCoreCacheDirty.receipts && typeof cachedFinancialSummary !== 'undefined') {
+        cachedFinancialSummary = null;
+      }
+      if (window._ocaDirtyReports.has('ministry-report')) {
+        window._ministryReportLoaded = false;
+      }
+      if (window._ocaDirtyReports.has('course-breakdown')) {
+        window._courseBreakdownLoaded = false;
+      }
+      if (window._ocaDirtyReports.has('term-timetable') && typeof _termTimetableInitialized !== 'undefined') {
+        _termTimetableInitialized = false;
+        if (typeof _termTimetableState === 'object' && _termTimetableState) _termTimetableState.data = null;
+      }
+
+      refreshActiveReportIfVisible();
+    }
+
+    window.invalidateOcaReportCaches = invalidateOcaReportCaches;
+    window.refreshActiveReportIfVisible = refreshActiveReportIfVisible;
 
     function refreshReportsModuleRealtime(sourceTable = 'all', isSilent = true) {
       if (!isSilent) {
@@ -26454,6 +26698,7 @@ body.printing-report #printReportContainer {
         // Handled via debounced refresh
       }
 
+      if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches(table);
       _realtimePendingTables.add(table);
       triggerDebouncedRealtimeRefresh();
     }
@@ -26513,6 +26758,7 @@ body.printing-report #printReportContainer {
         if (typeof loadTextbookClaimLogs === 'function') loadTextbookClaimLogs();
       } else if (tabId === 'tabReceipts') {
         if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable();
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('receipts');
         if (typeof fetchNextReceiptNumber === 'function') fetchNextReceiptNumber();
       } else if (tabId === 'tabShipping') {
         if (typeof loadShippingOrders === 'function') loadShippingOrders(true, true);
@@ -34047,7 +34293,15 @@ if (action === 'getDashboardStats') {
         activate('tabReport');
         activate('btnNavReport');
         activate('mobNavReport');
-        if (typeof refreshReportsModuleRealtime === 'function') refreshReportsModuleRealtime('all', true);
+        if (window._ocaDirtyReports && window._ocaDirtyReports.size > 0) {
+          if (window._ocaDirtyReports.has('student-list') && typeof loadStudentReport === 'function') {
+            window._ocaDirtyReports.delete('student-list');
+            loadStudentReport(true, true);
+          }
+          if (typeof refreshCurrentActiveReport === 'function') refreshCurrentActiveReport();
+        } else if (typeof refreshReportsModuleRealtime === 'function') {
+          refreshReportsModuleRealtime('all', true);
+        }
 
         if (typeof switchReportSubTab === 'function') {
           const validReportSubTabs = ['classroom', 'teacher', 'checker', 'attendance-tracking', 'teacher-tracker', 'termtimetable', 'course-breakdown', 'ministry'];
@@ -39613,6 +39867,7 @@ if (action === 'getDashboardStats') {
           closeTransferCourseModal();
           const rcptSuffix = res.receiptNo ? (' (ใบเสร็จ: ' + res.receiptNo + ')') : '';
           showToast('ย้ายคอร์สเรียนสำเร็จ', newCourse + rcptSuffix, '🎓');
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
           if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('ย้ายคอร์สเรียนสำเร็จ', newCourse + rcptSuffix, '🎓');
         })
 
@@ -39717,6 +39972,7 @@ if (action === 'getDashboardStats') {
 
         closeDropStudentModal();
         showToast('ดรอปเรียนเรียบร้อย', `${sName} เปลี่ยนสถานะเป็น DROPPED`, 'success');
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
         if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('ดรอปเรียนเรียบร้อย', `${sName} เปลี่ยนสถานะเป็น DROPPED แล้ว`, '✅');
 
         if (typeof filterAndRenderSearchStudents === 'function') {
@@ -40132,6 +40388,7 @@ if (action === 'getDashboardStats') {
             .then(res => {
               if (res && res.success) {
                 showToast('ลบข้อมูลเรียบร้อย', res.message || '', '✅');
+          if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
                 closeEditStudentModal();
                 closeStudentDetailCard();
                 cachedSearchStudentsData = (cachedSearchStudentsData || []).filter(s => s && s.studentId !== studentId && s.id !== studentId);
@@ -40217,6 +40474,7 @@ if (action === 'getDashboardStats') {
         if (res && res.success) {
           closeVoidReceiptModal();
           showToast('ยกเลิกใบเสร็จสำเร็จ', res.message || 'ยกเลิกใบเสร็จ (VOID) เรียบร้อยแล้ว', '✓');
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('receipts');
           loadReceiptsHistoryTable(true);
           try { loadFinancialReport(true); } catch(_) {}
           try { loadDashData(); } catch(_) {}
@@ -40708,6 +40966,7 @@ if (action === 'getDashboardStats') {
 
           filterAndRenderSearchStudents();
           showToast('บันทึกสำเร็จ!', 'อัปเดตข้อมูลนักศึกษารหัส ' + toArabicDigits(studentId) + ' เรียบร้อยแล้ว', '✓');
+          if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
           if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('บันทึกข้อมูลนักศึกษาสำเร็จ', 'อัปเดตข้อมูลนักศึกษารหัส ' + toArabicDigits(studentId) + ' เรียบร้อยแล้ว', '✅');
         })
 
@@ -42541,6 +42800,7 @@ if (action === 'getDashboardStats') {
           logConfigAuditEvent('เพิ่มกฎส่วนลดใหม่', `${ruleName.trim().slice(0, 90)} (฿${amt})`);
         }
         if (typeof showToast === 'function') showToast('เพิ่มกฎส่วนลดสำเร็จ', `${ruleName.trim().slice(0, 90)} (฿${amt})`, '✅', 3000);
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('fee_settings');
         await loadCustomDiscountRules();
       } catch (err) {
         if (typeof showModal === 'function') showModal('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถเพิ่มกฎส่วนลดได้', '❌');
@@ -42570,6 +42830,7 @@ if (action === 'getDashboardStats') {
           logConfigAuditEvent('แก้ไขกฎส่วนลด', `${newName.trim().slice(0, 90)} (฿${amt})`);
         }
         if (typeof showToast === 'function') showToast('แก้ไขกฎส่วนลดสำเร็จ', `${newName.trim().slice(0, 90)} (฿${amt})`, '✅', 3000);
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('fee_settings');
         await loadCustomDiscountRules();
       } catch (err) {
         if (typeof showModal === 'function') showModal('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถแก้ไขกฎส่วนลดได้', '❌');
@@ -42590,6 +42851,7 @@ if (action === 'getDashboardStats') {
           logConfigAuditEvent('ลบกฎส่วนลด', `รหัสกฎ: ${ruleKey}`);
         }
         if (typeof showToast === 'function') showToast('ลบกฎส่วนลดสำเร็จ', 'ลบกฎส่วนลดเพิ่มเติมออกจากระบบแล้ว', '✅', 2500);
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('fee_settings');
         await loadCustomDiscountRules();
       } catch (err) {
         if (typeof showModal === 'function') showModal('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถลบกฎส่วนลดได้', '❌');
@@ -42896,6 +43158,7 @@ if (action === 'getDashboardStats') {
             );
           }
           toast('สำเร็จ', 'บันทึกอัตราค่าธรรมเนียมและส่วนลดเรียบร้อยแล้ว', '✓');
+          if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('fee_settings');
           if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('บันทึกค่าธรรมเนียมสำเร็จ', 'บันทึกอัตราค่าธรรมเนียมและส่วนลดเรียบร้อยแล้ว', '✅');
         })
 
@@ -43342,6 +43605,7 @@ if (action === 'getDashboardStats') {
         }
 
         renderFeeCourseDiscountMatrix(document.getElementById('inpFeeMatrixSearch')?.value || '');
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('fee_settings');
 
         showModal(
           'บันทึกสำเร็จ',
@@ -43585,6 +43849,7 @@ if (action === 'getDashboardStats') {
       updateClassroomDatalists();
       closeClassroomModal();
       showToast('บันทึกสำเร็จ', `ห้องเรียน ${roomNo} บันทึกเรียบร้อยแล้ว`, '✓');
+      if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('classrooms');
     }
 
     async function deleteClassroomItem(roomNo) {
@@ -43615,6 +43880,7 @@ if (action === 'getDashboardStats') {
         renderClassroomsTable();
         updateClassroomDatalists();
         showToast('ลบสำเร็จ', `ลบห้องเรียน ${roomNo} เรียบร้อยแล้ว`, '✓');
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('classrooms');
       } catch (err) {
         console.error('deleteClassroomItem error:', err);
         showModal('ข้อผิดพลาด', 'ไม่สามารถลบห้องเรียนได้: ' + (err.message || ''), '❌');
@@ -44187,6 +44453,7 @@ if (action === 'getDashboardStats') {
         if (typeof initTermTimetableDropdowns === 'function') initTermTimetableDropdowns();
         if (typeof loadLoginAnalytics === 'function') loadLoginAnalytics(true);
         if (typeof logConfigAuditEvent === 'function') await logConfigAuditEvent('เปลี่ยนเทอมเปิดรับสมัครกลาง', seedDetail);
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('fee_settings');
       } catch (err) {
         console.error('[ActiveGlobalTerm] Save failed:', err);
         if (typeof showModal === 'function') showModal('ข้อผิดพลาด', 'ไม่สามารถบันทึกภาคเรียนปัจจุบันได้: ' + (err.message || ''), '❌');
@@ -45168,6 +45435,7 @@ if (action === 'getDashboardStats') {
               logConfigAuditEvent('บันทึกวันเปิด-ปิดเรียน', `ปี พ.ศ. ${selectedYear} (5 ภาคเรียน)`);
             }
             showToast('บันทึกสำเร็จ!', 'อัปเดตวันเปิด-ปิดเรียนประจำภาคเรียนเรียบร้อยแล้ว', '✓');
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('fee_settings');
             if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('บันทึกวันเปิด-ปิดเรียนสำเร็จ', 'อัปเดตวันเปิด-ปิดเรียนประจำภาคเรียนเรียบร้อยแล้ว', '✅');
           } else {
             showModal('เกิดข้อผิดพลาด', (res && res.message) || 'ไม่สามารถบันทึกวันเปิดเรียนได้', '❌');
@@ -45377,6 +45645,7 @@ if (action === 'getDashboardStats') {
           logConfigAuditEvent('บันทึกวันเปิดรายรอบ', `เทอม ${term}/${year}`);
         }
         if (typeof showToast === 'function') showToast('บันทึกสำเร็จ', `บันทึกวันเปิดเรียนรายรอบ เทอม ${term}/${year} แล้ว`, '✓');
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('fee_settings');
         if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('บันทึกวันเปิดเรียนรายรอบสำเร็จ', `บันทึกวันเปิดเรียนรายรอบ เทอม ${term}/${year} เรียบร้อยแล้ว`, '✅');
       } catch (err) {
         console.error('[RoundOpenDates] Save error:', err);
@@ -47099,6 +47368,7 @@ if (action === 'getDashboardStats') {
       if (typeof toast === 'function') {
         toast('มอบหมายครูสำเร็จ', 'มอบหมายครู "' + teacher + '" ให้กับ ' + checkedBoxes.length + ' คอร์สเรียน (' + totalUpdatedGroups + ' กลุ่ม) เรียบร้อยแล้ว', '✓');
       }
+      if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('course_offerings');
       if (typeof showActivitySuccessPopup === 'function') {
         showActivitySuccessPopup('มอบหมายครูสำเร็จ', 'มอบหมายครู "' + teacher + '" ให้กับ ' + checkedBoxes.length + ' คอร์สเรียน (' + totalUpdatedGroups + ' กลุ่ม) เรียบร้อยแล้ว', '✅');
       }
@@ -47613,6 +47883,7 @@ if (action === 'getDashboardStats') {
             toast('สำเร็จ', 'บันทึกคอร์ส ' + name + ' เรียบร้อย', '✓');
             if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('บันทึกคอร์สเรียนสำเร็จ', 'บันทึกข้อมูลคอร์ส ' + name + ' เรียบร้อยแล้ว', '✅');
             loadCoursesManager();
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('courses');
             if (typeof renderSchedulesTable === 'function') renderSchedulesTable(cachedSchedulesList);
             if (typeof loadReceiptCoursesDropdown === 'function') loadReceiptCoursesDropdown();
             if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
@@ -47656,6 +47927,7 @@ if (action === 'getDashboardStats') {
             .then(res => {
               toast('สำเร็จ', 'ลบคอร์ส ' + name + ' เรียบร้อยแล้ว', '✓');
               loadCoursesManager();
+              if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('courses');
             })
 
             .catch(err => {
@@ -48542,6 +48814,7 @@ if (action === 'getDashboardStats') {
         }
 
         toast('บันทึกสำเร็จ', `บันทึกผังกลุ่มเรียนและอาจารย์ผู้สอนประจำเทอม ${t}/${y} เรียบร้อยแล้ว`, '✓');
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('course_offerings');
         closeCourseGroupInstructorManagerModal();
         if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('บันทึกผังกลุ่มเรียนสำเร็จ', `บันทึกผังกลุ่มเรียนและอาจารย์ผู้สอนประจำเทอม ${t}/${y} เรียบร้อยแล้ว`, '✅');
       } catch (err) {
@@ -50068,6 +50341,7 @@ if (action === 'getDashboardStats') {
             closeScheduleModal();
             toast('สำเร็จ', 'บันทึกรอบเวลา ' + name + ' เรียบร้อย', '✓');
             loadCoursesManager();
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('schedules');
             if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
             if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
           } else {
@@ -50123,6 +50397,7 @@ if (action === 'getDashboardStats') {
             .then(res => {
               toast('สำเร็จ', 'ลบรอบเวลา ' + name + ' เรียบร้อยแล้ว', '✓');
               loadCoursesManager();
+              if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('schedules');
             })
 
             .catch(err => {
@@ -54356,6 +54631,7 @@ if (action === 'getDashboardStats') {
             window._frozenReceiptHtml = rcptPreviewEl ? rcptPreviewEl.innerHTML : '';
             resetReceiptFormAfterSuccess(res.receiptNo);
             loadReceiptsHistoryTable();
+          if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('receipts');
             loadTextbookClaimLogs();
 
             try { loadDashData(); } catch(_) {}
@@ -55067,6 +55343,7 @@ if (action === 'getDashboardStats') {
             closeSendReceiptEmailModal();
             showToast('ส่งอีเมลสำเร็จ!', res.message || ('ส่งใบเสร็จรับเงิน ' + toArabicDigits(rcptNo) + ' เข้าอีเมล ' + email + ' สำเร็จแล้ว'), '🎉');
             loadReceiptsHistoryTable();
+          if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('receipts');
           } else {
             if (boxAlert) {
               boxAlert.textContent = (res && res.message) || 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
@@ -55854,9 +56131,11 @@ if (action === 'getDashboardStats') {
         .then(res => {
           if (res && res.success) {
             showToast('แก้ไขใบเสร็จสำเร็จ!', res.message, '✅');
+          if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('receipts');
             closeEditReceiptModal();
             if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('แก้ไขใบเสร็จสำเร็จ', res.message || 'บันทึกการแก้ไขใบเสร็จเรียบร้อยแล้ว', '✅');
             loadReceiptsHistoryTable();
+          if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('receipts');
 
             if (currentReceiptStudent && currentReceiptStudent.profile) {
               selectReceiptStudent(currentReceiptStudent.profile.studentId);
@@ -56890,6 +57169,7 @@ if (action === 'getDashboardStats') {
         .then(res => {
           if (res && res.success) {
             showToast('บันทึกสำเร็จ!', title, '✅');
+          if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('textbooks');
             closeTextbookModal();
             loadTextbooksData();
             loadReceiptBooksDropdown();
@@ -56925,6 +57205,7 @@ if (action === 'getDashboardStats') {
             .then(res => {
               if (res && res.success) {
                 showToast('ลบตำราเรียนเรียบร้อย', '', '✅');
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('textbooks');
                 loadTextbooksData();
                 loadReceiptBooksDropdown();
               } else {
@@ -57934,6 +58215,7 @@ if (action === 'getDashboardStats') {
             loadTextbookClaimLogs();
             loadTextbooksData();
             loadReceiptsHistoryTable();
+          if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('receipts');
             const parsedSucc = parseCourseMaterialItems(res.materialType, res.itemTitle);
             const succItemsHtml = parsedSucc.items.map((it) => '<div style="padding:2px 0;">• ' + escapeHtml(it) + '</div>').join('');
             const successModalBody =
@@ -58822,6 +59104,10 @@ if (action === 'getDashboardStats') {
     }
 
     function loadStudentReport(forceRefresh = false, isSilent = false) {
+      if (window._ocaCoreCacheDirty && (window._ocaCoreCacheDirty.students || window._ocaCoreCacheDirty.receipts || window._ocaCoreCacheDirty.courses)) {
+        forceRefresh = true;
+        window._ocaCoreCacheDirty.students = false;
+      }
       if (forceRefresh && window._lastRenderedSignatures) {
         delete window._lastRenderedSignatures['studentReportData'];
       }
@@ -60804,6 +61090,11 @@ if (action === 'getDashboardStats') {
       const tbody = document.getElementById('tbodyMinistryReport');
       if (!tbody) return;
       const yearFilter = document.getElementById('selMinistryYear')?.value || getResolvedActiveYearTerm().yearBE;
+      if (window._ocaCoreCacheDirty && (window._ocaCoreCacheDirty.students || window._ocaCoreCacheDirty.receipts || window._ocaCoreCacheDirty.courses || window._ocaCoreCacheDirty.fee_settings)) {
+        forceRefresh = true;
+        window._ocaCoreCacheDirty.students = false;
+        window._ocaCoreCacheDirty.receipts = false;
+      }
       if (!forceRefresh && _ministryRawStudents.length > 0 && _ministryLoadedYear === yearFilter) {
         filterMinistryReportTable();
         return;
@@ -61305,6 +61596,9 @@ if (action === 'getDashboardStats') {
     window.printMinistryReport = printMinistryReport;
 
     async function loadDeferralReport() {
+      if (window._ocaCoreCacheDirty && window._ocaCoreCacheDirty.students) {
+        window._ocaCoreCacheDirty.students = false;
+      }
       const tbody = document.getElementById('tbodyReportDeferral');
       const elTotal = document.getElementById('kpiDeferralTotal');
       const elDropped = document.getElementById('kpiDeferralDropped');
@@ -61577,6 +61871,7 @@ if (action === 'getDashboardStats') {
           const view = document.getElementById('subviewReportDeferral');
           if (btn) btn.classList.add('active');
           if (view) view.style.display = 'block';
+          if (window._ocaDirtyReports) window._ocaDirtyReports.delete('deferral');
           if (typeof loadDeferralReport === 'function') loadDeferralReport();
         } else if (subTab === 'ministry') {
           const btn = document.getElementById('btnReportSubnavMinistry');
@@ -61584,9 +61879,10 @@ if (action === 'getDashboardStats') {
           if (btn) btn.classList.add('active');
           if (view) view.style.display = 'block';
 
-          if (!window._ministryReportLoaded) {
+          if (!window._ministryReportLoaded || (window._ocaDirtyReports && window._ocaDirtyReports.has('ministry-report'))) {
             window._ministryReportLoaded = true;
-            if (typeof loadMinistryReport === 'function') loadMinistryReport();
+            if (window._ocaDirtyReports) window._ocaDirtyReports.delete('ministry-report');
+            if (typeof loadMinistryReport === 'function') loadMinistryReport(true);
           }
         } else if (subTab === 'course-breakdown') {
           const btn = document.getElementById('btnReportSubnavCourseBreakdown');
@@ -61594,8 +61890,9 @@ if (action === 'getDashboardStats') {
           if (btn) btn.classList.add('active');
           if (view) view.style.display = 'block';
 
-          if (!window._courseBreakdownLoaded) {
+          if (!window._courseBreakdownLoaded || (window._ocaDirtyReports && window._ocaDirtyReports.has('course-breakdown'))) {
             window._courseBreakdownLoaded = true;
+            if (window._ocaDirtyReports) window._ocaDirtyReports.delete('course-breakdown');
             if (typeof loadCourseBreakdownReport === 'function') loadCourseBreakdownReport();
           }
         } else if (subTab === 'termtimetable') {
@@ -61604,27 +61901,32 @@ if (action === 'getDashboardStats') {
           if (btn) btn.classList.add('active');
           if (view) view.style.display = 'block';
 
-          if (!_termTimetableState.data && !_termTimetableInitialized) {
+          if ((!_termTimetableState.data && !_termTimetableInitialized) || (window._ocaDirtyReports && window._ocaDirtyReports.has('term-timetable'))) {
             _termTimetableInitialized = true;
+            if (window._ocaDirtyReports) window._ocaDirtyReports.delete('term-timetable');
             if (typeof initTermTimetableDropdowns === 'function') initTermTimetableDropdowns();
+            if (typeof loadTermTimetableReport === 'function') loadTermTimetableReport();
           }
         } else if (subTab === 'classroom') {
           const btn = document.getElementById('btnReportSubnavClassroom');
           const view = document.getElementById('subviewReportClassroom');
           if (btn) btn.classList.add('active');
           if (view) view.style.display = 'block';
+          if (window._ocaDirtyReports) window._ocaDirtyReports.delete('student-list');
           if (typeof initCourseClassroomView === 'function') initCourseClassroomView();
         } else if (subTab === 'teacher') {
           const btn = document.getElementById('btnReportSubnavTeacher');
           const view = document.getElementById('subviewReportTeacher');
           if (btn) btn.classList.add('active');
           if (view) view.style.display = 'block';
+          if (window._ocaDirtyReports) window._ocaDirtyReports.delete('teacher-timesheet');
           if (typeof loadTeacherTimesheetReport === 'function') loadTeacherTimesheetReport();
         } else if (subTab === 'attendance-tracking') {
           const btn = document.getElementById('btnReportSubnavAttTrack');
           const view = document.getElementById('subviewReportAttTrack');
           if (btn) btn.classList.add('active');
           if (view) view.style.display = 'block';
+          if (window._ocaDirtyReports) window._ocaDirtyReports.delete('course-attendance');
           if (typeof initCourseAttendanceRealtimeListener === 'function') initCourseAttendanceRealtimeListener();
           if (typeof loadCourseAttendanceTrackingReport === 'function') loadCourseAttendanceTrackingReport();
         } else if (subTab === 'teacher-tracker') {
@@ -61632,6 +61934,7 @@ if (action === 'getDashboardStats') {
           const view = document.getElementById('subviewReportTeacherTracker');
           if (btn) btn.classList.add('active');
           if (view) view.style.display = 'block';
+          if (window._ocaDirtyReports) window._ocaDirtyReports.delete('teacher-activity');
           if (typeof loadTeacherActivityTrackerReport === 'function') loadTeacherActivityTrackerReport();
         } else if (subTab === 'checker') {
           const btn = document.getElementById('btnReportSubnavChecker');
@@ -63338,6 +63641,15 @@ if (action === 'getDashboardStats') {
     window.onTermTimetableFilterChange = onTermTimetableFilterChange;
 
     async function loadTermTimetableReport() {
+      if (window._ocaCoreCacheDirty && (window._ocaCoreCacheDirty.courses || window._ocaCoreCacheDirty.schedules || window._ocaCoreCacheDirty.classrooms || window._ocaCoreCacheDirty.offerings)) {
+        if (typeof loadCoursesManager === 'function') {
+          try { await loadCoursesManager(false, true); } catch (_) {}
+        }
+        window._ocaCoreCacheDirty.courses = false;
+        window._ocaCoreCacheDirty.schedules = false;
+        window._ocaCoreCacheDirty.classrooms = false;
+        window._ocaCoreCacheDirty.offerings = false;
+      }
       const curTerm = (typeof resolveCurrentAcademicTerm === 'function') ? resolveCurrentAcademicTerm() : { yearBE: 2569, term: 5 };
       const year = parseInt(document.getElementById('selTermTimetableYear')?.value || String(curTerm.yearBE || 2569), 10);
       const term = parseInt(document.getElementById('selTermTimetableTerm')?.value || String(curTerm.term || 5), 10);
@@ -63405,6 +63717,15 @@ if (action === 'getDashboardStats') {
           renderTermTimetableReport(timetableData);
         } else {
           // Dynamic timetable generation from Course Group & Instructor Settings
+          if (window._ocaCoreCacheDirty && (window._ocaCoreCacheDirty.courses || window._ocaCoreCacheDirty.schedules || window._ocaCoreCacheDirty.classrooms || window._ocaCoreCacheDirty.offerings)) {
+            if (typeof loadCoursesManager === 'function') {
+              try { await loadCoursesManager(false, true); } catch (_) {}
+            }
+            window._ocaCoreCacheDirty.courses = false;
+            window._ocaCoreCacheDirty.schedules = false;
+            window._ocaCoreCacheDirty.classrooms = false;
+            window._ocaCoreCacheDirty.offerings = false;
+          }
 
           const allCourses = Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0 ? cachedCoursesList : [];
           const slotClasses = [];
@@ -74628,6 +74949,7 @@ function openPublicRegisterView() {
 
         closeQuickEditRoomModal();
         showToast('เปลี่ยนห้องเรียนสำเร็จ', 'รหัส ' + sid + ' เป็นห้อง ' + newRoom, '✅');
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
         if (typeof filterAndRenderSearchStudents === 'function') filterAndRenderSearchStudents();
 
         if (typeof loadDashData === 'function') { try { loadDashData(); } catch(_) {} }
@@ -84932,8 +85254,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       // 2. Fetch authoritative registered teachers safely using getAuthorizedTeachersList()
 
       let teachers = (typeof getAuthorizedTeachersList === 'function') ? getAuthorizedTeachersList() : [];
+      const trackerCacheDirty = window._ocaCoreCacheDirty && (window._ocaCoreCacheDirty.courses || window._ocaCoreCacheDirty.schedules || window._ocaCoreCacheDirty.students);
 
-      if (teachers.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
+      if ((teachers.length === 0 || trackerCacheDirty) && typeof _supabase !== 'undefined' && _supabase) {
         try {
           const { data: rpcUsers } = await _supabase.rpc('get_safe_staff_users');
 
@@ -84945,6 +85268,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
               role: d.role || 'Teacher'
             }));
+          }
+          if (window._ocaCoreCacheDirty) {
+            window._ocaCoreCacheDirty.courses = false;
+            window._ocaCoreCacheDirty.schedules = false;
           }
         } catch (_) {}
       }
@@ -86511,8 +86838,14 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       if (spin) spin.classList.add('fa-spin');
       try {
         // Ensure courses dropdown is populated with enrolled courses
-        if (selCourse && selCourse.options.length <= 1) {
+        const attCacheDirty = window._ocaCoreCacheDirty && (window._ocaCoreCacheDirty.courses || window._ocaCoreCacheDirty.schedules || window._ocaCoreCacheDirty.offerings || window._ocaCoreCacheDirty.students || window._ocaCoreCacheDirty.receipts);
+        if ((selCourse && selCourse.options.length <= 1) || attCacheDirty) {
           await populateAttTrackCourses(false);
+          if (window._ocaCoreCacheDirty) {
+            window._ocaCoreCacheDirty.courses = false;
+            window._ocaCoreCacheDirty.schedules = false;
+            window._ocaCoreCacheDirty.offerings = false;
+          }
         }
 
       const schedFilter = selSched ? selSched.value : 'ALL';
@@ -87157,8 +87490,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       // 2. Fetch authoritative registered teachers safely using getAuthorizedTeachersList()
 
       let teachers = (typeof getAuthorizedTeachersList === 'function') ? getAuthorizedTeachersList() : [];
+      const trackerCacheDirty = window._ocaCoreCacheDirty && (window._ocaCoreCacheDirty.courses || window._ocaCoreCacheDirty.schedules || window._ocaCoreCacheDirty.students);
 
-      if (teachers.length === 0 && typeof _supabase !== 'undefined' && _supabase) {
+      if ((teachers.length === 0 || trackerCacheDirty) && typeof _supabase !== 'undefined' && _supabase) {
         try {
           const { data: rpcUsers } = await _supabase.rpc('get_safe_staff_users');
 
@@ -87170,6 +87504,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
               role: d.role || 'Teacher'
             }));
+          }
+          if (window._ocaCoreCacheDirty) {
+            window._ocaCoreCacheDirty.courses = false;
+            window._ocaCoreCacheDirty.schedules = false;
           }
         } catch (_) {}
       }
@@ -89125,6 +89463,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         loadPendingSlipsQueue();
         if (typeof renderFinancialEmbeddedSlipsQueue === 'function') renderFinancialEmbeddedSlipsQueue();
         if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable();
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('receipts');
       } catch (err) {
         console.error('approvePendingSlip error:', err);
         if (typeof showToast === 'function') showToast('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถอนุมัติได้', '❌', 4000);
@@ -89268,6 +89607,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         if (modal) modal.style.display = 'none';
         if (typeof showToast === 'function') {
           showToast('ปฏิเสธสลิปเรียบร้อยแล้ว', `รหัส ${studentId}: ${rejectReason}`, '🚫', 3500);
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
         }
         if (typeof showActivitySuccessPopup === 'function') {
           showActivitySuccessPopup('ปฏิเสธสลิปเรียบร้อยแล้ว', `ปฏิเสธสลิปนักศึกษารหัส ${studentId}\nเหตุผล: ${rejectReason}`, '🚫');
@@ -89483,7 +89823,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=144';
+      const swPath = basePath + 'sw.js?v=145';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -89492,7 +89832,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (144):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (145):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
