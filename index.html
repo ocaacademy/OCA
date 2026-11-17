@@ -13674,7 +13674,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '162';
+      var LATEST_VERSION = '163';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -26877,6 +26877,10 @@ body.printing-report #printReportContainer {
 
     function initOcaRealtimeEngine() {
       if (!_supabase || _ocaRealtimeChannel || _isConnectingRealtime) return;
+      if (window._activeOcaChannel && window._activeOcaChannel !== _ocaRealtimeChannel) {
+        try { _supabase.removeChannel(window._activeOcaChannel); } catch (_) {}
+        window._activeOcaChannel = null;
+      }
       _isConnectingRealtime = true;
 
       try {
@@ -27149,6 +27153,8 @@ body.printing-report #printReportContainer {
         console.warn('Realtime Engine init warning:', err);
       }
     }
+    window.initOcaRealtimeEngine = initOcaRealtimeEngine;
+    window.initRealtimeSubscription = initOcaRealtimeEngine;
 
     /**
 
@@ -27492,6 +27498,19 @@ body.printing-report #printReportContainer {
           if (typeof loadSecurityAuditLogs === 'function') loadSecurityAuditLogs(true, true);
         }
 
+        if (tables.has('classrooms')) {
+          if (typeof loadClassroomsManager === 'function') loadClassroomsManager();
+          if (typeof populateGlobalLecturerAndRoomDatalists === 'function') populateGlobalLecturerAndRoomDatalists();
+          if (typeof updateClassroomDatalists === 'function') updateClassroomDatalists();
+        }
+
+        if (tables.has('registrations')) {
+          if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus('silent');
+          if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable(true);
+          if (typeof window.loadPendingSlipsQueue === 'function') window.loadPendingSlipsQueue();
+          if (typeof refreshReportsModuleRealtime === 'function') refreshReportsModuleRealtime('students', true);
+        }
+
         const loginView = document.getElementById('viewLoginSplit');
         if (loginView && loginView.style.display !== 'none' && (tables.has('students') || tables.has('receipts') || tables.has('courses') || tables.has('fee_settings'))) {
           if (typeof loadLoginAnalytics === 'function') loadLoginAnalytics(true);
@@ -27738,9 +27757,26 @@ body.printing-report #printReportContainer {
         }
       } else if (table === 'students') {
         if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
+        if (typeof cachedStudentReportData !== 'undefined') cachedStudentReportData = [];
+        if (typeof cachedSearchStudentsData !== 'undefined') cachedSearchStudentsData = null;
+        if (typeof _cachedStudentCitizenMap !== 'undefined') _cachedStudentCitizenMap = null;
+        if (typeof _batchTransferStudentsCache !== 'undefined') _batchTransferStudentsCache = [];
+        if (typeof window.studentsCache !== 'undefined' && window.studentsCache) {
+          if (typeof window.studentsCache.clear === 'function') window.studentsCache.clear();
+          else window.studentsCache = null;
+        }
         if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus('silent');
         if (typeof filterAndRenderSearchStudents === 'function') filterAndRenderSearchStudents();
         if (typeof loadRecentStudentsForCard === 'function') loadRecentStudentsForCard();
+      } else if (table === 'classrooms') {
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('classrooms');
+        if (typeof loadClassroomsManager === 'function') loadClassroomsManager();
+        if (typeof populateGlobalLecturerAndRoomDatalists === 'function') populateGlobalLecturerAndRoomDatalists();
+      } else if (table === 'registrations') {
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
+        if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus('silent');
+        if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable(true);
+        if (typeof window.loadPendingSlipsQueue === 'function') window.loadPendingSlipsQueue();
       } else if (table === 'staff_users') {
         if (payload && (payload.new || payload.record)) {
           const userObj = payload.new || payload.record;
@@ -33638,16 +33674,13 @@ if (action === 'getDashboardStats') {
 
               if (bId) {
                 const fullKey = bId.startsWith('tb:') ? bId : ('tb:' + bId);
-                const title = (params.title || bId).toString().trim();
+                const title = (params.title || bId).toString().trim().slice(0, 90);
                 const price = Number(params.price) || 0;
-                const stock = String(params.stock !== undefined ? params.stock : 0);
+                const stock = String(params.stock !== undefined ? params.stock : 0).slice(0, 90);
                 const { error: insErr } = await _supabase.from('fee_settings').upsert({
                   key: fullKey,
-
                   name: title,
-
                   amount: price,
-
                   mode: stock,
 
                   start_date: null,
@@ -38695,13 +38728,9 @@ if (action === 'getDashboardStats') {
                     await _supabase.from('fee_settings').upsert([
                       {
                         key: 'student_slip:' + savedStudentId,
-
-                        name: toRelativeStoragePath(uploadedSlipUrl),
-
+                        name: toRelativeStoragePath(uploadedSlipUrl).slice(0, 90),
                         amount: calculatedCourseFee || 0,
-
                         mode: 'ENROLLED_SLIP',
-
                         updated_at: new Date().toISOString()
                       }
                     ]);
@@ -67629,27 +67658,41 @@ if (action === 'getDashboardStats') {
         localStorage.removeItem('oca_sess_sig_persist');
         localStorage.removeItem('oca_active_session_id');
         localStorage.removeItem('oca_session_start_time');
+        localStorage.removeItem('oca_last_active_nav');
+        localStorage.removeItem('oca_last_active_course_subview');
+        localStorage.removeItem('oca_last_active_report_subtab');
         sessionStorage.removeItem('oca_current_user');
         sessionStorage.removeItem('oca_sess_sig');
         sessionStorage.removeItem('oca_active_session_id');
         sessionStorage.removeItem('oca_session_start_time');
         sessionStorage.removeItem('oca_entered_dashboard');
         sessionStorage.removeItem('oca_session_alive');
+        sessionStorage.removeItem('oca_security_unlocked');
       } catch (_) {}
 
       const txtLogoutU = document.getElementById('txtLoginUsername');
       const txtLogoutP = document.getElementById('txtLoginPassword');
       if (txtLogoutU) txtLogoutU.value = '';
       if (txtLogoutP) txtLogoutP.value = '';
+      const sInp = document.getElementById('inpSearchKeyword');
+      if (sInp) sInp.value = '';
+      const cInp = document.getElementById('inpClassroomSearch');
+      if (cInp) cInp.value = '';
+      const atInp = document.getElementById('inpAttTrackSearchQuery');
+      if (atInp) atInp.value = '';
+
       saveCurrentUser(null);
+      if (typeof applyUserPermissions === 'function') applyUserPermissions(null);
       _lastCoursesManagerLoadedAt = 0;
       cachedCoursesList = [];
+      if (typeof cachedStudentReportData !== 'undefined') cachedStudentReportData = [];
+      if (typeof cachedFinancialSummary !== 'undefined') cachedFinancialSummary = null;
+      if (typeof cachedSearchStudentsData !== 'undefined') cachedSearchStudentsData = null;
+      if (typeof _cachedStudentCitizenMap !== 'undefined') _cachedStudentCitizenMap = null;
+      if (typeof _batchTransferStudentsCache !== 'undefined') _batchTransferStudentsCache = [];
+      if (typeof receiptHistoryCachedLogs !== 'undefined') receiptHistoryCachedLogs = [];
       window._ocaScheduleCoursesByTermMap = {};
       window._courseGroupInstructorByTermMap = {};
-
-      try {
-        sessionStorage.removeItem('oca_security_unlocked');
-      } catch (_) {}
 
       // นำทางกลับหน้า Split-Screen Login
 
@@ -78455,9 +78498,7 @@ function openPublicRegisterView() {
 
           await _supabase.from('fee_settings').upsert({
             key: settingKey,
-
-            name: (instructor || 'อาจารย์ประจำกลุ่มเรียน').slice(0, 100),
-
+            name: (instructor || 'อาจารย์ประจำกลุ่มเรียน').slice(0, 90),
             mode: (roomNo || '').slice(0, 50),
 
             start_date: null,
@@ -93657,7 +93698,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=162';
+      const swPath = basePath + 'sw.js?v=163';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -93666,7 +93707,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (162):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (163):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
