@@ -73426,9 +73426,10 @@ function openPublicRegisterView() {
       if (typeof _supabase !== 'undefined' && _supabase && (safeQ || cleanDigits || cleanAlpha)) {
         try {
           const isNumeric = /^\d+$/.test(cleanDigits);
+          const isCardScan = queryOverride !== undefined;
           if (isNumeric) {
             // 1. Fast indexed lookup by Student ID (4-8 digits)
-            if (cleanDigits.length >= 4 && cleanDigits.length <= 8 && Number(cleanDigits) <= 2147483647) {
+            if (!isCardScan && cleanDigits.length >= 4 && cleanDigits.length <= 8 && Number(cleanDigits) <= 2147483647) {
               const { data: dExact, error: dErr } = await _supabase
                 .from('students')
                 .select('*')
@@ -73438,7 +73439,7 @@ function openPublicRegisterView() {
               else matches = filterValidRows(dExact);
             }
             // 2. Fast indexed lookup by 13-digit Citizen ID
-            if (matches.length === 0 && cleanDigits.length === 13) {
+            if (!isCardScan && matches.length === 0 && cleanDigits.length === 13) {
               const { data: cData, error: cErr } = await _supabase
                 .from('students')
                 .select('*')
@@ -73448,7 +73449,7 @@ function openPublicRegisterView() {
               else matches = filterValidRows(cData);
             }
             // 3. Fast indexed lookup by 9-10 digit Phone Number
-            if (matches.length === 0 && cleanDigits.length >= 9 && cleanDigits.length <= 10) {
+            if (!isCardScan && matches.length === 0 && cleanDigits.length >= 9 && cleanDigits.length <= 10) {
               const { data: pData, error: pErr } = await _supabase
                 .from('students')
                 .select('*')
@@ -73457,8 +73458,8 @@ function openPublicRegisterView() {
               if (pErr) console.warn('[searchKioskReturningStudent] phone_number query error:', pErr);
               else matches = filterValidRows(pData);
             }
-            // 4. Fast indexed lookup by numeric/hex Smart Card UID
-            if (matches.length === 0) {
+            // 4. Smart Card UID lookup (strictly for card scan mode to avoid unindexed scan on Citizen ID / Phone)
+            if (isCardScan && matches.length === 0) {
               const { data: uData, error: uErr } = await _supabase
                 .from('students')
                 .select('*')
@@ -73482,8 +73483,8 @@ function openPublicRegisterView() {
               }
             }
           } else {
-            // 5. Fast indexed lookup by alphanumeric Smart Card UID
-            if (safeQ && /^[0-9A-Za-z:-]{4,32}$/.test(safeQ)) {
+            // 5. Smart Card UID lookup (card scan mode or explicit hex UID with colons/length >= 8)
+            if ((isCardScan || /^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){3,7}$/.test(safeQ) || /^[0-9A-Fa-f]{8,16}$/.test(safeQ)) && /^[0-9A-Za-z:-]{4,32}$/.test(safeQ)) {
               const { data: uData, error: uErr } = await _supabase
                 .from('students')
                 .select('*')
