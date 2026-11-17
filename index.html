@@ -13131,7 +13131,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '152';
+      var LATEST_VERSION = '153';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -73369,7 +73369,8 @@ function openPublicRegisterView() {
         recommendedStarterTitle: '★ คอร์สเริ่มต้นแนะนำสำหรับคุณ',
         halfBookChip: '✂️ แบ่งเรียนครึ่งเล่ม',
         halfBookFilterBanner: 'กำลังแสดงคอร์สแบ่งครึ่งเล่มของหนังสือ',
-        showAllCoursesBtn: 'แสดงคอร์สทั้งหมด',
+        showAllCoursesBtn: '← กลับไปดูคอร์สทั้งหมด',
+        noCoursesFound: 'ไม่พบคอร์สเรียนในหมวดหมู่นี้',
         catAll: 'ทั้งหมด',
         catKids: 'คอร์สเด็ก',
         catBeginner: 'คอร์สขั้นต้น',
@@ -73425,7 +73426,8 @@ function openPublicRegisterView() {
         recommendedStarterTitle: '★ Recommended Starter Courses',
         halfBookChip: '✂️ Half-Book',
         halfBookFilterBanner: 'Showing half-book courses for book',
-        showAllCoursesBtn: 'Show All Courses',
+        showAllCoursesBtn: '← Back to All Courses',
+        noCoursesFound: 'No courses found in this category',
         catAll: 'All Courses',
         catKids: 'Kids Courses',
         catBeginner: 'Beginner',
@@ -73481,7 +73483,8 @@ function openPublicRegisterView() {
         recommendedStarterTitle: '★ 推荐入门课程',
         halfBookChip: '✂️ 分半册学习',
         halfBookFilterBanner: '正在显示教材的半册课程',
-        showAllCoursesBtn: '显示全部课程',
+        showAllCoursesBtn: '← 返回查看全部课程',
+        noCoursesFound: '未找到该分类下的课程',
         catAll: '全部课程',
         catKids: '少儿课程',
         catBeginner: '初级课程',
@@ -73806,18 +73809,85 @@ function openPublicRegisterView() {
         : Object.values(OCA_BOOK_CURRICULUM_MAP)
             .filter(x => x.bookKey === bookKey && (x.part === 'half1' || x.part === 'half2'))
             .map(x => x.code);
+      const inpF = document.getElementById('inpKioskCourseFilter');
+      if (inpF) inpF.value = '';
       window._pubKioskContext.halfBookFilter = { bookKey, sourceCode, codes };
       window._pubKioskContext.selectedCategory = 'ทั้งหมด';
       renderKioskCourseCategories();
       renderKioskCourseGrid('ทั้งหมด');
     }
     window.filterKioskHalfBooks = filterKioskHalfBooks;
+    window.filterKioskHalfBook = filterKioskHalfBooks;
 
     function clearKioskHalfBookFilter() {
-      if (window._pubKioskContext) window._pubKioskContext.halfBookFilter = null;
-      renderKioskCourseGrid();
+      resetKioskCourseFilters();
     }
     window.clearKioskHalfBookFilter = clearKioskHalfBookFilter;
+
+    function resetKioskCourseFilters() {
+      if (!window._pubKioskContext) window._pubKioskContext = { mode: window._pubStudentMode || 'new' };
+      window._pubKioskContext.halfBookFilter = null;
+      window._pubKioskContext.selectedCategory = 'ทั้งหมด';
+      const inpF = document.getElementById('inpKioskCourseFilter');
+      if (inpF) inpF.value = '';
+      renderKioskCourseCategories();
+      renderKioskCourseGrid('ทั้งหมด');
+    }
+    window.resetKioskCourseFilters = resetKioskCourseFilters;
+
+    function findRelatedHalfCourses(course, allCourses) {
+      if (!course) return [];
+      const courses = Array.isArray(allCourses) ? allCourses : getKioskActiveCourses();
+      const normCode = extractKioskCourseCode(course);
+      const cMeta = OCA_BOOK_CURRICULUM_MAP[normCode];
+      if (!cMeta || cMeta.part !== 'full') return [];
+
+      const isOnlineParent = normCode.startsWith('OC') || /online/i.test(course.name || '') || /online/i.test(course.code || '');
+      const halfCodes = Array.isArray(cMeta.halfCodes) ? cMeta.halfCodes : [];
+
+      const matched = [];
+      const seenIds = new Set();
+
+      for (const hc of halfCodes) {
+        const isOnlineChild = hc.startsWith('OE') || /online/i.test(hc);
+        if (isOnlineParent && !isOnlineChild && halfCodes.some(x => x.startsWith('OE'))) continue;
+        if (!isOnlineParent && isOnlineChild && halfCodes.some(x => x.startsWith('CE'))) continue;
+
+        for (const item of courses) {
+          if (!item || seenIds.has(item.id || item.code)) continue;
+          const itemNorm = extractKioskCourseCode(item);
+          const rawCode = String(item.code || '').trim().toUpperCase();
+          const rawId = String(item.id || '').trim().toUpperCase();
+          if (itemNorm === hc || rawCode === hc || rawId === hc) {
+            seenIds.add(item.id || item.code);
+            matched.push(item);
+          }
+        }
+      }
+
+      if (cMeta.bookKey) {
+        for (const item of courses) {
+          if (!item || seenIds.has(item.id || item.code)) continue;
+          const itemNorm = extractKioskCourseCode(item);
+          const iMeta = OCA_BOOK_CURRICULUM_MAP[itemNorm];
+          if (iMeta && iMeta.bookKey === cMeta.bookKey && iMeta.part && iMeta.part !== 'full') {
+            const isOnlineChild = itemNorm.startsWith('OE') || /online/i.test(item.name || '') || /online/i.test(item.code || '');
+            if (isOnlineParent && !isOnlineChild) continue;
+            if (!isOnlineParent && isOnlineChild) continue;
+            seenIds.add(item.id || item.code);
+            matched.push(item);
+          }
+        }
+      }
+
+      return matched;
+    }
+    window.findRelatedHalfCourses = findRelatedHalfCourses;
+
+    function selectKioskHalfCourseByCode(code) {
+      selectKioskCourse(code);
+    }
+    window.selectKioskHalfCourseByCode = selectKioskHalfCourseByCode;
 
     function computeKioskCoursePricing(course, schedId, mode, studentHistory) {
       const basePrice = (course && course.price && !isNaN(Number(course.price))) ? Number(course.price) : 2200;
@@ -74633,6 +74703,7 @@ function openPublicRegisterView() {
 
     function selectKioskCategory(cat) {
       if (!window._pubKioskContext) window._pubKioskContext = { mode: window._pubStudentMode || 'new' };
+      window._pubKioskContext.halfBookFilter = null;
       window._pubKioskContext.selectedCategory = cat || 'ทั้งหมด';
       renderKioskCourseCategories();
       renderKioskCourseGrid(cat);
@@ -74700,26 +74771,38 @@ function openPublicRegisterView() {
           ? `${d.returningBadge} • ${d.freeRegFee}`
           : `${d.newRegFeePrefix}${regFeeVal.toLocaleString()}`;
       }
-      if (filtered.length === 0) {
-        grid.innerHTML = `<div style="grid-column:1/-1; padding:24px; text-align:center; background:#F8FAFC; border:1px dashed #CBD5E1; border-radius:12px; color:#475569; font-weight:700;">ไม่พบคอร์สเรียนในหมวดหมู่นี้</div>`;
-        return;
-      }
-      window._pubKioskRenderedCourses = filtered;
       const halfFilterBannerHtml = halfFilter
         ? `<div style="grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; background:#EFF6FF; border:1.5px solid #3B82F6; border-radius:10px; padding:10px 14px;">
             <div style="font-size:13px; font-weight:700; color:#1E40AF;">✂️ ${escapeHtml(d.halfBookFilterBanner || 'กำลังแสดงคอร์สแบ่งครึ่งเล่มของหนังสือ')} <strong>${escapeHtml(halfFilter.bookKey)}</strong> (${escapeHtml(halfFilter.codes.join(', '))})</div>
-            <button type="button" onclick="clearKioskHalfBookFilter()" style="background:#FFFFFF; color:#1E40AF; border:1px solid #93C5FD; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:700; cursor:pointer;">${escapeHtml(d.showAllCoursesBtn || 'แสดงคอร์สทั้งหมด')}</button>
+            <button type="button" onclick="resetKioskCourseFilters()" style="background:#FFFFFF; color:#1E40AF; border:1px solid #93C5FD; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:700; cursor:pointer;">${escapeHtml(d.showAllCoursesBtn || '← กลับไปดูคอร์สทั้งหมด')}</button>
           </div>`
         : '';
+      if (filtered.length === 0) {
+        grid.innerHTML = halfFilterBannerHtml + `<div style="grid-column:1/-1; padding:32px 20px; text-align:center; background:#F8FAFC; border:1.5px dashed #CBD5E1; border-radius:12px; color:#475569; font-weight:700; display:flex; flex-direction:column; align-items:center; gap:12px;">
+          <div style="font-size:15px; color:#334155;">${escapeHtml(d.noCoursesFound || 'ไม่พบคอร์สเรียนในหมวดหมู่นี้')}</div>
+          <button type="button" onclick="resetKioskCourseFilters()" style="background:#047857; color:#FFFFFF; border:none; border-radius:8px; padding:8px 18px; font-size:13px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 4px rgba(4,120,87,0.2);">
+            ${escapeHtml(d.showAllCoursesBtn || '← กลับไปดูคอร์สทั้งหมด')}
+          </button>
+        </div>`;
+        return;
+      }
+      window._pubKioskRenderedCourses = filtered;
       grid.innerHTML = halfFilterBannerHtml + filtered.map((c, idx) => {
         const cat = (typeof detectCourseLevel === 'function') ? detectCourseLevel(c) : (c.level || '');
         const art = getKioskCourseSvgIllustration(cat, c);
         const codeStr = c.code || c.id || 'OCA';
-        const normCode = extractKioskCourseCode(c);
-        const cMeta = OCA_BOOK_CURRICULUM_MAP[normCode];
-        const hasHalfBooks = Boolean(cMeta && cMeta.part === 'full' && Array.isArray(cMeta.halfCodes) && cMeta.halfCodes.length > 0 && /^(C100[1-5]|C20(?:0[1-9]|10)|OC10[1-5])$/.test(normCode));
-        const halfBtnHtml = hasHalfBooks
-          ? `<button type="button" class="oca-kiosk-half-btn" onclick="event.stopPropagation(); filterKioskHalfBooks('${escapeHtml(cMeta.bookKey)}', '${escapeHtml(normCode)}')" style="align-self:flex-start; background:#EFF6FF; color:#1D4ED8; border:1px solid #93C5FD; border-radius:8px; padding:4px 9px; font-size:11px; font-weight:700; cursor:pointer; margin-top:4px;">${escapeHtml(d.halfBookChip || '✂️ แบ่งเรียนครึ่งเล่ม')}</button>`
+        const matchingHalfCourses = (typeof findRelatedHalfCourses === 'function')
+          ? findRelatedHalfCourses(c, courses)
+          : [];
+        const halfBtnHtml = matchingHalfCourses.length > 0
+          ? `<div class="oca-kiosk-half-list" style="display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;">
+              ${matchingHalfCourses.map(hc => {
+                const hcCode = hc.code || hc.id || extractKioskCourseCode(hc);
+                const hcPricing = computeKioskCoursePricing(hc, '', mode, ctx);
+                const hcTarget = String(hc.id || hcCode).replace(/'/g, "\\'");
+                return `<button type="button" class="oca-kiosk-half-btn" onclick="event.stopPropagation(); selectKioskCourse('${escapeHtml(hcTarget)}');" onkeydown="if(event.key==='Enter'||event.key===' '){event.stopPropagation(); selectKioskCourse('${escapeHtml(hcTarget)}');}" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #93C5FD; border-radius:8px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(29,78,216,0.08); transition:all 0.15s ease;" onmouseover="this.style.background='#DBEAFE'" onmouseout="this.style.background='#EFF6FF'" title="เลือกเรียน ${escapeHtml(hc.name || hcCode)}"><span>✂️ ${escapeHtml(hcCode)}</span><span style="color:#047857; font-weight:800;">฿${hcPricing.netTuition.toLocaleString()}</span></button>`;
+              }).join('')}
+            </div>`
           : '';
         const titleStr = (lang === 'zh' && c.id && typeof OCA_COURSE_ZH !== 'undefined' && OCA_COURSE_ZH[c.id])
           ? OCA_COURSE_ZH[c.id]
@@ -74764,23 +74847,9 @@ function openPublicRegisterView() {
     window.renderKioskCourseGrid = renderKioskCourseGrid;
 
     function handleKioskCourseSelection(course) {
-      if (!course) return;
-      const ctx = window._pubKioskContext || {};
-      const mode = window._pubStudentMode === 'returning' ? 'returning' : 'new';
-      const overlapReason = mode === 'returning' ? getKioskCourseOverlapReason(course, ctx) : '';
-      if (mode === 'returning' && overlapReason) {
-        window._pendingKioskDuplicateCourse = course;
-        const modal = document.getElementById('modalPubKioskDuplicateCourseWarn');
-        const lblC = document.getElementById('lblKioskDupModalCourse');
-        const lblB = document.getElementById('lblKioskDupModalBody');
-        const d = getKioskI18nDict();
-        if (lblC) lblC.textContent = `[${course.code || course.id}] ${course.name}`;
-        if (lblB) lblB.textContent = `${overlapReason} — ${d.dupModalBody}`;
-        if (modal) modal.style.display = 'flex';
-        return;
-      }
       selectKioskCourse(course);
     }
+    window.handleKioskCourseSelection = handleKioskCourseSelection;
 
     function onKioskCourseCardClick(idx) {
       const list = window._pubKioskRenderedCourses || [];
@@ -74804,12 +74873,47 @@ function openPublicRegisterView() {
     function confirmKioskDuplicateCourse() {
       const c = window._pendingKioskDuplicateCourse;
       closeKioskDuplicateCourseModal();
-      if (c) selectKioskCourse(c);
+      if (c) {
+        if (!window._pubKioskContext) window._pubKioskContext = { mode: window._pubStudentMode || 'new' };
+        window._pubKioskContext.selectedCourse = c;
+        window._pubKioskContext.selectedScheduleId = '';
+        window._pubKioskContext.selectedScheduleName = '';
+        window._pubKioskContext.selectedGroupJson = null;
+        window._pubKioskContext.selectedLearningMode = '';
+        const selLm = document.getElementById('selPubLearningMode');
+        if (selLm) selLm.value = '';
+        goToKioskStep(3);
+      }
     }
     window.confirmKioskDuplicateCourse = confirmKioskDuplicateCourse;
 
-    function selectKioskCourse(course) {
-      if (!course) return;
+    function selectKioskCourse(courseOrId) {
+      if (!courseOrId) return;
+      let course = courseOrId;
+      if (typeof courseOrId === 'string') {
+        const courses = getKioskActiveCourses();
+        const target = courseOrId.trim().toUpperCase();
+        const found = courses.find(item =>
+          String(item.id || '').trim().toUpperCase() === target ||
+          String(item.code || '').trim().toUpperCase() === target ||
+          extractKioskCourseCode(item) === target
+        );
+        course = found || { id: courseOrId, code: courseOrId, name: courseOrId };
+      }
+      const ctx = window._pubKioskContext || {};
+      const mode = window._pubStudentMode === 'returning' ? 'returning' : 'new';
+      const overlapReason = mode === 'returning' ? getKioskCourseOverlapReason(course, ctx) : '';
+      if (mode === 'returning' && overlapReason) {
+        window._pendingKioskDuplicateCourse = course;
+        const modal = document.getElementById('modalPubKioskDuplicateCourseWarn');
+        const lblC = document.getElementById('lblKioskDupModalCourse');
+        const lblB = document.getElementById('lblKioskDupModalBody');
+        const d = getKioskI18nDict();
+        if (lblC) lblC.textContent = `[${course.code || course.id}] ${course.name}`;
+        if (lblB) lblB.textContent = `${overlapReason} — ${d.dupModalBody}`;
+        if (modal) modal.style.display = 'flex';
+        return;
+      }
       if (!window._pubKioskContext) window._pubKioskContext = { mode: window._pubStudentMode || 'new' };
       window._pubKioskContext.selectedCourse = course;
       window._pubKioskContext.selectedScheduleId = '';
@@ -92311,7 +92415,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=152';
+      const swPath = basePath + 'sw.js?v=153';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -92320,7 +92424,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (152):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (153):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
