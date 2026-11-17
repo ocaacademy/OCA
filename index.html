@@ -8775,9 +8775,16 @@ body.printing-report #printReportContainer {
       border-color: #065F46;
       box-shadow: 0 4px 10px rgba(4, 120, 87, 0.25);
     }
+    .oca-pub-reg-shell {
+      width: 100%;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      box-sizing: border-box;
+    }
     .oca-kiosk-course-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
       gap: 14px;
       width: 100%;
     }
@@ -14561,7 +14568,7 @@ body.printing-report #printReportContainer {
                     <span>หลักสูตรและรอบเวลาเรียน (Course & Schedule)</span>
                   </div>
 
-                  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; margin-bottom:12px;">
+                  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-bottom:12px;">
                     <div>
                       <label for="selEnrollSchedule" class="oca-label" style="font-size:12.5px; margin-bottom:4px;">1. รอบเวลาเรียน *</label>
                       <select id="selEnrollSchedule" class="oca-input" required onchange="onEnrollScheduleChanged()">
@@ -14573,6 +14580,15 @@ body.printing-report #printReportContainer {
                       <label for="selEnrollCourse" class="oca-label" style="font-size:12.5px; margin-bottom:4px;">2. หลักสูตรที่ลงทะเบียนเรียน *</label>
                       <select id="selEnrollCourse" class="oca-input" required onchange="onEnrollCourseChangedFilterSchedules(); updateEnrollCourseFeeDisplay()">
                         <option value="">-- กรุณาเลือกรอบเวลาเรียนก่อน --</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label for="selEnrollLearningMode" class="oca-label" style="font-size:12.5px; margin-bottom:4px;">3. รูปแบบการเรียน *</label>
+                      <select id="selEnrollLearningMode" class="oca-input" required>
+                        <option value="Online">1. ONLINE (เรียนออนไลน์)</option>
+                        <option value="Onsite" selected>2. ONSITE (เรียนที่สถาบัน)</option>
+                        <option value="Hybrid">3. HYBRID (ผสมผสาน)</option>
                       </select>
                     </div>
                   </div>
@@ -17266,11 +17282,13 @@ body.printing-report #printReportContainer {
                     </div>
                   </div>
 
-                  <!-- Hidden compatibility inputs for card fee and transfer fee -->
+                  <!-- Hidden compatibility inputs for card fee, transfer fee, and shipping fee -->
                   <input type="checkbox" id="chkRcptApplyCardFee" onchange="toggleReceiptFee('cardFee')" style="display:none;">
                   <input type="hidden" id="inpRcptCardFee" value="0">
                   <input type="checkbox" id="chkRcptApplyTransferFee" onchange="toggleReceiptFee('transferFee')" style="display:none;">
                   <input type="hidden" id="inpRcptTransferFee" value="0">
+                  <input type="checkbox" id="chkRcptApplyShippingFee" onchange="calcReceiptTotals()" style="display:none;">
+                  <input type="hidden" id="inpRcptShippingFee" value="0">
                 </div>
 
                 <!-- Net Total Summary Bar -->
@@ -24694,7 +24712,7 @@ body.printing-report #printReportContainer {
 
          ========================================================================= -->
 
-    <div id="viewPublicRegister" style="display:none; position:fixed; inset:0; z-index:99995; background:linear-gradient(170deg, #EAF7EE 0%, #DCFCE7 45%, #F0FDF4 100%); overflow-y:auto; padding:24px 14px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans Thai',sans-serif; color:#1F2937;">
+    <div id="viewPublicRegister" style="display:none; position:fixed; inset:0; z-index:99995; background:linear-gradient(170deg, #EAF7EE 0%, #DCFCE7 45%, #F0FDF4 100%); overflow-y:auto; padding:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans Thai',sans-serif; color:#1F2937;">
       <style>
 
         .oca-lang-flag-btn {
@@ -24773,6 +24791,9 @@ body.printing-report #printReportContainer {
         }
 
         @media (max-width: 640px) {
+          .oca-pub-reg-shell {
+            padding: 10px 8px !important;
+          }
           .oca-reg-grid-2, .oca-reg-grid-3, .oca-reg-grid-prefix-name {
             grid-template-columns: 1fr !important;
             gap: 10px !important;
@@ -24791,7 +24812,7 @@ body.printing-report #printReportContainer {
 
       </style>
 
-      <div style="max-width:820px; margin:0 auto;">
+      <div class="oca-pub-reg-shell">
         <!-- Top Toolbar: Language Selector with Flag Buttons (Pure Registration Mode) -->
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
           <button type="button" id="btnTopClearPublicRegister" onclick="clearPublicRegisterForm()" style="background:rgba(239,68,68,0.08); border:1.5px solid #FCA5A5; color:#DC2626; padding:7px 16px; border-radius:20px; font-size:12.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.06); transition:all 0.2s;" onmouseover="this.style.background='#DC2626'; this.style.color='#FFFFFF'; this.style.borderColor='#DC2626';" onmouseout="this.style.background='rgba(239,68,68,0.08)'; this.style.color='#DC2626'; this.style.borderColor='#FCA5A5';">
@@ -24963,37 +24984,66 @@ body.printing-report #printReportContainer {
                   </div>
                   <div id="boxKioskLookupResults" style="display:none; max-height:320px; overflow-y:auto; gap:10px; flex-direction:column; margin-bottom:12px;"></div>
                   <div id="boxKioskSelectedStudent" style="display:none; background:#FFFFFF; border:2px solid #10B981; border-radius:12px; padding:14px 16px; margin-top:12px;">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
-                      <div>
+                    <div id="boxKioskSelectedStudentBanner" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+                      <div id="boxKioskSelStudentAvatar" style="width:64px; height:64px; border-radius:50%; overflow:hidden; flex-shrink:0; border:2.5px solid #10B981; background:#ECFDF5; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 10px rgba(4,120,87,0.16);"></div>
+                      <div style="flex:1; min-width:220px;">
                         <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:4px;">
                           <span id="lblKioskSelStudentId" style="background:#0F172A; color:#FFFFFF; font-size:12px; font-weight:800; padding:3px 9px; border-radius:6px;">-</span>
                           <span id="lblKioskSelLifecycleBadge" style="background:#DBEAFE; color:#1E40AF; font-size:12px; font-weight:800; padding:3px 10px; border-radius:999px;">-</span>
                         </div>
-                        <div id="lblKioskSelStudentName" style="font-size:16px; font-weight:800; color:#0F172A;">-</div>
-                        <div id="lblKioskSelStudentMeta" style="font-size:12.5px; color:#334155; margin-top:2px;">-</div>
+                        <div id="lblKioskSelStudentName" style="font-size:16px; font-weight:800; color:#0F172A;"><span id="lblKioskSelectedStudentTitle">-</span></div>
+                        <div style="font-size:12.5px; color:#0F172A; margin-top:5px; background:#F8FAFC; border:1px solid #CBD5E1; border-radius:8px; padding:6px 10px;">
+                          <i class="fa-solid fa-location-dot" style="color:#047857; margin-right:4px;"></i><strong>ที่อยู่จัดส่งปัจจุบัน:</strong> <span id="lblKioskSelectedStudentAddress">-</span>
+                        </div>
+                        <div id="lblKioskSelStudentMeta" style="font-size:12.5px; color:#334155; margin-top:4px;">-</div>
                       </div>
                       <button type="button" id="btnKioskToggleContactEdit" onclick="toggleKioskContactEdit()" style="background:#F1F5F9; color:#0F172A; border:1px solid #CBD5E1; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
                         <i class="fa-solid fa-pen-to-square"></i> <span id="lblKioskEditContactBtn">แก้ไขเบอร์โทร/ที่อยู่จัดส่ง</span>
                       </button>
                     </div>
                     <div id="boxKioskQuickContactEdit" style="display:none; margin-top:12px; padding-top:12px; border-top:1px dashed #CBD5E1;">
-                      <div class="oca-reg-grid-2" style="gap:10px;">
+                      <div class="oca-reg-grid-2" style="gap:10px; margin-bottom:10px;">
                         <div>
-                          <label class="oca-reg-label" id="lblKioskQuickPhone">เบอร์โทรศัพท์</label>
-                          <input type="tel" id="inpKioskQuickPhone" class="oca-reg-input" oninput="syncKioskQuickContactToForm()">
+                          <label class="oca-reg-label" id="lblKioskQuickPhone" for="inpKioskEditPhone">เบอร์โทรศัพท์ *</label>
+                          <input type="tel" id="inpKioskEditPhone" class="oca-reg-input" placeholder="08XXXXXXXX" oninput="syncKioskQuickContactToForm()">
+                          <input type="hidden" id="inpKioskQuickPhone">
                         </div>
                         <div>
-                          <label class="oca-reg-label" id="lblKioskQuickEmail">อีเมล</label>
-                          <input type="email" id="inpKioskQuickEmail" class="oca-reg-input" oninput="syncKioskQuickContactToForm()">
+                          <label class="oca-reg-label" id="lblKioskQuickEmail" for="inpKioskEditEmail">อีเมล</label>
+                          <input type="email" id="inpKioskEditEmail" class="oca-reg-input" placeholder="student@example.com" oninput="syncKioskQuickContactToForm()">
+                          <input type="hidden" id="inpKioskQuickEmail">
                         </div>
                         <div>
-                          <label class="oca-reg-label" id="lblKioskQuickLine">LINE ID</label>
-                          <input type="text" id="inpKioskQuickLine" class="oca-reg-input" oninput="syncKioskQuickContactToForm()">
+                          <label class="oca-reg-label" id="lblKioskQuickLine" for="inpKioskEditLine">LINE ID</label>
+                          <input type="text" id="inpKioskEditLine" class="oca-reg-input" placeholder="LINE ID" oninput="syncKioskQuickContactToForm()">
+                          <input type="hidden" id="inpKioskQuickLine">
                         </div>
                         <div>
-                          <label class="oca-reg-label" id="lblKioskQuickAddr">ที่อยู่จัดส่งเอกสาร/ตำรา</label>
-                          <input type="text" id="inpKioskQuickAddr" class="oca-reg-input" oninput="syncKioskQuickContactToForm()">
+                          <label class="oca-reg-label" id="lblKioskQuickAddr" for="inpKioskEditAddrLine">บ้านเลขที่ / หมู่บ้าน / ซอย / ถนน *</label>
+                          <input type="text" id="inpKioskEditAddrLine" class="oca-reg-input" placeholder="บ้านเลขที่, หมู่, อาคาร/หมู่บ้าน, ซอย, ถนน" oninput="syncKioskQuickContactToForm()">
+                          <input type="hidden" id="inpKioskQuickAddr">
                         </div>
+                        <div>
+                          <label class="oca-reg-label" for="inpKioskEditSubdistrict">แขวง / ตำบล *</label>
+                          <input type="text" id="inpKioskEditSubdistrict" class="oca-reg-input" placeholder="แขวง / ตำบล" oninput="syncKioskQuickContactToForm()">
+                        </div>
+                        <div>
+                          <label class="oca-reg-label" for="inpKioskEditDistrict">เขต / อำเภอ *</label>
+                          <input type="text" id="inpKioskEditDistrict" class="oca-reg-input" placeholder="เขต / อำเภอ" oninput="syncKioskQuickContactToForm()">
+                        </div>
+                        <div>
+                          <label class="oca-reg-label" for="inpKioskEditProvince">จังหวัด *</label>
+                          <input type="text" id="inpKioskEditProvince" class="oca-reg-input" placeholder="จังหวัด" oninput="syncKioskQuickContactToForm()">
+                        </div>
+                        <div>
+                          <label class="oca-reg-label" for="inpKioskEditPostalCode">รหัสไปรษณีย์ *</label>
+                          <input type="text" id="inpKioskEditPostalCode" class="oca-reg-input" maxlength="5" placeholder="รหัสไปรษณีย์ 5 หลัก" oninput="syncKioskQuickContactToForm()">
+                        </div>
+                      </div>
+                      <div style="display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:8px;">
+                        <button type="button" id="btnKioskSaveContactEdit" onclick="saveKioskReturningContactAndAddress()" style="background:#047857; color:#FFFFFF; border:1.5px solid #D7A600; border-radius:10px; padding:9px 18px; font-size:13px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                          <i class="fa-solid fa-floppy-disk"></i> <span id="lblKioskSaveContactBtn">💾 บันทึกข้อมูลการติดต่อ/ที่อยู่</span>
+                        </button>
                       </div>
                     </div>
                     <div style="display:flex; justify-content:flex-end; margin-top:14px;">
@@ -25553,6 +25603,28 @@ body.printing-report #printReportContainer {
 
                   <input type="file" id="filePubSlipInput" accept="image/*" onchange="handlePubSlipUpload(this)" style="display:none;" />
 
+                </div>
+              </div>
+
+              <!-- Corporate Reimbursement Option in Kiosk Step 4 -->
+              <div style="background:#F8FAFC; border:1.5px solid #CBD5E1; border-radius:12px; padding:12px 15px; margin-bottom:14px;">
+                <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13.5px; font-weight:800; color:#1E293B;">
+                  <input type="checkbox" id="chkPubNeedCorpTax" style="width:18px; height:18px; accent-color:#047857; cursor:pointer;" onchange="const b=document.getElementById('boxPubKioskCorpFields'); if(b) b.style.display=this.checked?'grid':'none';" />
+                  <span><i class="fa-solid fa-building" style="color:#047857; margin-right:4px;"></i>ต้องการออกใบเสร็จรับเงินเพื่อเบิกบริษัท / นิติบุคคล (ระบุชื่อผู้เรียนขึ้นก่อน ตามด้วยชื่อ/ที่อยู่บริษัท)</span>
+                </label>
+                <div id="boxPubKioskCorpFields" class="oca-reg-grid-2" style="display:none; gap:10px; margin-top:12px; padding-top:10px; border-top:1px dashed #CBD5E1;">
+                  <div>
+                    <label class="oca-reg-label" for="txtPubCorpName">ชื่อบริษัท / นิติบุคคล *</label>
+                    <input type="text" id="txtPubCorpName" class="oca-reg-input" placeholder="บริษัท ... จำกัด" oninput="const c=document.getElementById('txtPubCompanyName'); if(c) c.value=this.value; savePublicRegisterDraft();">
+                  </div>
+                  <div>
+                    <label class="oca-reg-label" for="txtPubCorpTaxId">เลขประจำตัวผู้เสียภาษี 13 หลัก</label>
+                    <input type="text" id="txtPubCorpTaxId" class="oca-reg-input" maxlength="13" placeholder="เลขผู้เสียภาษี 13 หลัก" oninput="const c=document.getElementById('txtPubCompanyTaxId'); if(c) c.value=this.value; savePublicRegisterDraft();">
+                  </div>
+                  <div style="grid-column:1/-1;">
+                    <label class="oca-reg-label" for="txtPubCorpAddress">ที่อยู่บริษัทสำหรับระบุในใบเสร็จรับเงิน *</label>
+                    <input type="text" id="txtPubCorpAddress" class="oca-reg-input" placeholder="ที่อยู่สำนักงานบริษัท..." oninput="const c=document.getElementById('txtPubCompanyAddress'); if(c) c.value=this.value; savePublicRegisterDraft();">
+                  </div>
                 </div>
               </div>
 
@@ -28436,6 +28508,8 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
 
           const fullFeeSettings = {
             ...feeObj,
+
+            regFee: feeObj.regFee ? Number(feeObj.regFee.amount ?? 0) : 300,
 
             discountKids: feeObj.discountKids ? feeObj.discountKids.amount : 200,
 
@@ -32549,6 +32623,8 @@ if (action === 'getDashboardStats') {
 
           const fullFeeSettings = {
             ...feeObj,
+
+            regFee: feeObj.regFee ? Number(feeObj.regFee.amount ?? 0) : 300,
 
             discountKids: feeObj.discountKids ? feeObj.discountKids.amount : 200,
 
@@ -37509,6 +37585,7 @@ if (action === 'getDashboardStats') {
       const email = document.getElementById('email').value.trim();
       const course = (document.getElementById('selEnrollCourse')?.value || document.getElementById('course')?.value || 'ภาษาจีนขั้นพื้นฐาน').trim();
       const schedule = (document.getElementById('selEnrollSchedule')?.value || document.getElementById('schedule')?.value || '-').trim();
+      const learningMode = (document.getElementById('selEnrollLearningMode')?.value || 'Onsite').trim();
       const companyName = (document.getElementById('enrollCompanyName')?.value || '').trim();
       const companyBranch = (document.getElementById('enrollCompanyBranch')?.value || '').trim();
       const companyTaxId = (document.getElementById('enrollCompanyTaxId')?.value || '').trim();
@@ -37655,6 +37732,8 @@ if (action === 'getDashboardStats') {
 
         schedule: schedule,
 
+        learningMode: learningMode,
+
         isCorporate: isCorporate,
 
         companyName: companyName,
@@ -37682,7 +37761,7 @@ if (action === 'getDashboardStats') {
         isCourseRenewal: !!(window._enrollAutoDetectedStudent || window._enrollStudentMode === 'returning'),
         regFee: (window._enrollAutoDetectedStudent || window._enrollStudentMode === 'returning') ? 0 : undefined,
 
-        notes: (typeof encodeExtProfileToNotes === 'function') ? encodeExtProfileToNotes('', {
+        notes: (typeof encodeExtProfileToNotes === 'function') ? encodeExtProfileToNotes(`[รูปแบบ: ${learningMode}]`, {
           ethnicity: document.getElementById('enrollEthnicity')?.value || '',
           nationality: document.getElementById('enrollNationality')?.value || '',
           birth_date: document.getElementById('enrollBirthDate')?.value || '',
@@ -37691,7 +37770,7 @@ if (action === 'getDashboardStats') {
           emergency_name: document.getElementById('enrollEmergencyName')?.value || '',
           emergency_relation: document.getElementById('enrollEmergencyRelation')?.value || '',
           emergency_phone: emergencyPhone || ''
-        }) : '',
+        }) : `[รูปแบบ: ${learningMode}]`,
 
         forceDuplicate: isDuplicateDismissed && window._enrollStudentMode === 'returning'
       };
@@ -37839,6 +37918,8 @@ if (action === 'getDashboardStats') {
 
                       schedule: schedule,
 
+                      learningMode: learningMode,
+
                       expectedFee: calculatedCourseFee,
 
                       slipUrl: uploadedSlipUrl,
@@ -37975,6 +38056,7 @@ if (action === 'getDashboardStats') {
               phone: phone,
               course: course,
               schedule: schedule,
+              learningMode: learningMode,
               courseFee: calculatedCourseFee,
               regFee: wasExistingReuse ? 0 : undefined,
               isExistingReuse: wasExistingReuse,
@@ -43453,7 +43535,11 @@ if (action === 'getDashboardStats') {
         const fallbackAmt = (globalFeePresets.items && globalFeePresets.items[k] && globalFeePresets.items[k].amount !== undefined) ?
 
                             globalFeePresets.items[k].amount : (globalFeePresets[k] !== undefined ? globalFeePresets[k] : defaultAmounts[k]);
-        const amt = inpEl ? (valStr !== '' && !isNaN(Number(valStr)) && Number(valStr) >= 0 ? Number(valStr) : 0) : fallbackAmt;
+        const amt = inpEl
+          ? (valStr !== '' && !isNaN(Number(valStr)) && Number(valStr) >= 0
+              ? Number(valStr)
+              : (k === 'regFee' ? Number(fallbackAmt ?? 300) : 0))
+          : fallbackAmt;
         const mode = document.getElementById(`cfgMode_${k}`)?.value || 'always';
         const start = document.getElementById(`cfgStart_${k}`)?.value || '';
         const end = document.getElementById(`cfgEnd_${k}`)?.value || '';
@@ -52996,15 +53082,24 @@ if (action === 'getDashboardStats') {
           } : null;
 
           if (isCorpStudent && cName) {
-            const stuLabel = student.profile.fullName || '-';
-            const effBuyerName = `${cName}${cBranch ? ' ' + cBranch : ''}${cTax ? ' (เลขผู้เสียภาษี: ' + cTax + ')' : ''} (${stuLabel})`;
-            if (txtBuyerName) txtBuyerName.value = effBuyerName;
+            const stuLabel = formatStudentNameWithPrefix(student.profile.prefix, student.profile.fullName || '-');
+            const corpParties = formatCorporateReceiptParties(stuLabel, cName, cBranch, cTax, cAddr, student.profile.address || '');
+            if (txtBuyerName) txtBuyerName.value = corpParties.buyerName;
             if (txtBuyerId) txtBuyerId.value = student.profile.studentId || cTax || '';
-            if (txtAddr) txtAddr.value = cAddr || student.profile.address || '';
+            if (txtAddr) txtAddr.value = corpParties.address;
             const txtRef = document.getElementById('txtRcptPaymentRef');
             if (txtRef) {
-              txtRef.value = '[นักศึกษา: ' + student.profile.studentId + ' ' + formatStudentNameWithPrefix(student.profile.prefix, student.profile.fullName || '') + ']';
+              txtRef.value = '[นักศึกษา: ' + student.profile.studentId + ' ' + stuLabel + ']';
             }
+          }
+
+          const selRcptLm = document.getElementById('selRcptLearningMode');
+          if (selRcptLm) {
+            const noteLmMatch = String(student.profile.notes || '').match(/\[รูปแบบ:\s*([^\]]+)\]/i);
+            const rawLm = String((enrollHandover && enrollHandover.learningMode) || student.profile.learningMode || (noteLmMatch && noteLmMatch[1]) || '').trim();
+            if (/^onsite$/i.test(rawLm)) selRcptLm.value = 'Onsite';
+            else if (/^hybrid$/i.test(rawLm)) selRcptLm.value = 'Hybrid';
+            else if (/^online$/i.test(rawLm)) selRcptLm.value = 'Online';
           }
 
           if (enrollHandover && enrollHandover.course) {
@@ -53032,8 +53127,8 @@ if (action === 'getDashboardStats') {
           }
 
           if (enrollHandover && enrollHandover.courseFee) {
-            const txtBase = document.getElementById('txtRcptBaseAmount');
-            if (txtBase) txtBase.value = enrollHandover.courseFee;
+            const inpBase = document.getElementById('inpRcptBaseFee');
+            if (inpBase) inpBase.value = enrollHandover.courseFee;
             if (typeof window.calcReceiptTotals === 'function') window.calcReceiptTotals();
           }
 
@@ -54077,6 +54172,24 @@ if (action === 'getDashboardStats') {
         window.removeBookFromRcptCart = removeBookFromRcptCart;
         window.renderRcptBookCart = renderRcptBookCart;
 
+        function formatCorporateReceiptParties(studentFullName, companyName, companyBranch, companyTaxId, companyAddress, fallbackStudentAddress) {
+          const sName = String(studentFullName || '').trim() || '-';
+          const cName = String(companyName || '').trim();
+          const cBranch = String(companyBranch || '').trim();
+          const cTax = String(companyTaxId || '').trim();
+          const cAddr = String(companyAddress || '').trim();
+          const fAddr = String(fallbackStudentAddress || '').trim();
+          if (!cName) {
+            return { buyerName: sName, address: cAddr || fAddr || '-' };
+          }
+          const compLabel = `${cName}${cBranch ? ' (' + cBranch + ')' : ''}${cTax ? ' (เลขผู้เสียภาษี: ' + cTax + ')' : ''}`;
+          const buyerName = sName.includes(cName) ? sName : `${sName} — ${compLabel}`;
+          const addrCore = cAddr || fAddr || '-';
+          const address = addrCore.includes(cName) ? addrCore : `${compLabel} ${addrCore}`.trim();
+          return { buyerName, address };
+        }
+        window.formatCorporateReceiptParties = formatCorporateReceiptParties;
+
         function calcReceiptTotals() {
       let baseAmount = 0;
       let regFee = 0;
@@ -54160,7 +54273,7 @@ if (action === 'getDashboardStats') {
         const chkNorm = document.getElementById('chkRcptApplyDiscountNormal');
         normalDiscount = (chkNorm && chkNorm.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountNormal')?.value) || 0) : 0;
         const chkOther = document.getElementById('chkRcptApplyDiscountOther');
-        otherDiscount = (chkOther && chkOther.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || 0) : 0;
+        otherDiscount = (chkOther && chkOther.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || Number(document.getElementById('inpRcptDiscount')?.value) || 0) : 0;
         grandTotal = Math.max(0, subTotal - normalDiscount - otherDiscount);
       }
 
@@ -54172,7 +54285,7 @@ if (action === 'getDashboardStats') {
       const elReg = document.getElementById('lblPrevRegFee');
 
       if (rowReg && elReg) {
-        if (feeReg.active) {
+        if (feeReg.active && regFee > 0) {
           rowReg.style.display = '';
           elReg.textContent = toArabicDigits(regFee.toLocaleString('en-US', { minimumFractionDigits: 2 }));
         } else {
@@ -54184,7 +54297,7 @@ if (action === 'getDashboardStats') {
       const elCard = document.getElementById('lblPrevCardFee');
 
       if (rowCard && elCard) {
-        if (feeCard.active) {
+        if (feeCard.active && cardFee > 0) {
           rowCard.style.display = '';
           elCard.textContent = toArabicDigits(cardFee.toLocaleString('en-US', { minimumFractionDigits: 2 }));
         } else {
@@ -54196,7 +54309,7 @@ if (action === 'getDashboardStats') {
       const elOtherReg = document.getElementById('lblPrevOtherRegFee');
 
       if (rowOtherReg && elOtherReg) {
-        if (feeOther.active) {
+        if (feeOther.active && otherRegFee > 0) {
           rowOtherReg.style.display = '';
           elOtherReg.textContent = toArabicDigits(otherRegFee.toLocaleString('en-US', { minimumFractionDigits: 2 }));
         } else {
@@ -54208,7 +54321,7 @@ if (action === 'getDashboardStats') {
       const elTransfer = document.getElementById('lblPrevTransferFee');
 
       if (rowTransfer && elTransfer) {
-        if (feeTransfer.active) {
+        if (feeTransfer.active && transferFee > 0) {
           rowTransfer.style.display = '';
           elTransfer.textContent = toArabicDigits(transferFee.toLocaleString('en-US', { minimumFractionDigits: 2 }));
         } else {
@@ -54683,7 +54796,9 @@ if (action === 'getDashboardStats') {
         }
 
         schedule = selS.selectedIndex > 0 ? selS.options[selS.selectedIndex].text : '-';
-        baseAmount = Number(document.getElementById('inpRcptBaseFee')?.value) || 0;
+        const chkTuitionSave = document.getElementById('chkRcptApplyTuitionFee');
+        const isTuitionSaveChecked = chkTuitionSave ? chkTuitionSave.checked : true;
+        baseAmount = isTuitionSaveChecked ? Math.max(0, Number(document.getElementById('inpRcptBaseFee')?.value) || 0) : 0;
         const getActiveFeeVal = (key, chkId, inpId) => {
           const chk = document.getElementById(chkId);
           if (!chk || !chk.checked) return 0;
@@ -61397,8 +61512,17 @@ if (action === 'getDashboardStats') {
                   <div style="font-size:13px; font-weight:700; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                     <span style="color:#D97706; font-family:monospace;">[${sid}]</span> ${name}
                   </div>
-                  <div style="font-size:11.5px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">
-                    📚 ${course}
+                  <div style="font-size:11.5px; color:var(--text-muted); display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:2px;">
+                    <span>📚 ${course}</span>
+                    ${item.learningMode ? (() => {
+                      const lmU = String(item.learningMode).toUpperCase();
+                      const lmBadge = lmU === 'ONLINE' ? '🌐 ONLINE' : (lmU === 'HYBRID' ? '🔄 HYBRID' : '🏫 ONSITE');
+                      const lmColor = lmU === 'ONLINE' ? '#38BDF8' : (lmU === 'HYBRID' ? '#A855F7' : '#10B981');
+                      return `<span style="background:rgba(56,189,248,0.14); color:${lmColor}; border:1px solid ${lmColor}; padding:1px 6px; border-radius:5px; font-size:10.5px; font-weight:800;">${lmBadge}</span>`;
+                    })() : ''}
+                    ${(item.groupSection === 'WAIT_ASSIGN' || (item.instructorName && item.instructorName.indexOf('รอเจ้าหน้าที่จัดกลุ่ม') !== -1))
+                      ? `<span style="background:rgba(245,158,11,0.18); color:#F59E0B; border:1px solid #F59E0B; padding:1px 7px; border-radius:5px; font-size:10.5px; font-weight:800;">⏳ รอเจ้าหน้าที่จัดกลุ่มเรียน</span>`
+                      : ((item.groupSection || item.instructorName) ? `<span style="background:rgba(16,185,129,0.16); color:var(--accent-emerald); border:1px solid #10B981; padding:1px 6px; border-radius:5px; font-size:10.5px; font-weight:700;">👥 กลุ่ม: ${escapeHtml(item.groupSection || '-')}${item.instructorName ? ' (อ.' + escapeHtml(item.instructorName) + ')' : ''}</span>` : '')}
                   </div>
                   <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
                     <button type="button" class="btn-approve-slip oca-btn-success" data-action="approve" data-sid="${sid}" onclick="approvePendingSlip(this.dataset.sid)" style="flex:1; border-radius:6px; padding:6px 10px; font-size:11.5px;">
@@ -72707,9 +72831,15 @@ function openPublicRegisterView() {
 
     function getEffectivePublicRegFee() {
       const presets = (typeof globalFeePresets === 'object' && globalFeePresets) ? globalFeePresets : {};
-      const item = (presets.items && presets.items.regFee) || null;
-      if (item && item.amount !== undefined && item.amount !== null) return Number(item.amount);
-      if (presets.regFee !== undefined && presets.regFee !== null) return Number(presets.regFee);
+      const item = (presets.items && presets.items.regFee) || (typeof presets.regFee === 'object' && presets.regFee !== null ? presets.regFee : null);
+      if (item) {
+        const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(item) : { active: true };
+        if (!st.active) return 0;
+        if (item.amount !== undefined && item.amount !== null && !isNaN(Number(item.amount))) return Math.max(0, Number(item.amount));
+      }
+      if (presets.regFee !== undefined && presets.regFee !== null && typeof presets.regFee !== 'object' && !isNaN(Number(presets.regFee))) {
+        return Math.max(0, Number(presets.regFee));
+      }
       return 300;
     }
 
@@ -73698,6 +73828,27 @@ function openPublicRegisterView() {
     }
     window.computeKioskCoursePricing = computeKioskCoursePricing;
 
+    function getKioskStudentAvatarHtml(student, sizePx) {
+      const sz = Number(sizePx) || 64;
+      const rawPhoto = (student && (student.photo_url || student.photoUrl)) || '';
+      const resolvedUrl = (rawPhoto && typeof toPublicStorageUrl === 'function') ? toPublicStorageUrl(rawPhoto) : String(rawPhoto || '').trim();
+      const rawName = String((student && (student.full_name || student.fullName)) || '').trim();
+      const parts = rawName.split(/\s+/).filter(Boolean);
+      const initials = parts.length >= 2
+        ? (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase()
+        : (rawName ? rawName.slice(0, 2).toUpperCase() : '');
+      const fontSize = Math.max(13, Math.round(sz * 0.34));
+      const fallbackHtml = initials
+        ? `<span style="font-size:${fontSize}px; font-weight:800; color:#065F46; letter-spacing:0.5px;">${escapeHtml(initials)}</span>`
+        : `<i class="fa-solid fa-user-graduate" style="font-size:${Math.round(sz * 0.42)}px; color:#047857;"></i>`;
+      if (resolvedUrl && (/^https?:\/\//i.test(resolvedUrl) || resolvedUrl.startsWith('data:image/'))) {
+        return `<img src="${escapeHtml(resolvedUrl)}" alt="Student Photo" style="width:100%; height:100%; object-fit:cover; display:block;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">`
+          + `<div style="display:none; width:100%; height:100%; align-items:center; justify-content:center; background:#ECFDF5;">${fallbackHtml}</div>`;
+      }
+      return `<div style="display:flex; width:100%; height:100%; align-items:center; justify-content:center; background:#ECFDF5;">${fallbackHtml}</div>`;
+    }
+    window.getKioskStudentAvatarHtml = getKioskStudentAvatarHtml;
+
     async function searchKioskReturningStudent(queryOverride) {
       const inp = document.getElementById('inpKioskStudentSearch');
       const resultsBox = document.getElementById('boxKioskLookupResults');
@@ -73844,16 +73995,70 @@ function openPublicRegisterView() {
         const maskedName = maskKioskName(st.full_name || st.fullName || '-');
         const maskedPhone = maskKioskPhone(st.phone_number || st.phone || '');
         const lastCourse = st.current_course ? ` | ${escapeHtml(st.current_course)}` : '';
-        return `<button type="button" class="oca-kiosk-choice-card" onclick="selectKioskReturningStudent(window._pubKioskLookupCandidates[${idx}])">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-            <span style="font-weight:800; color:#0F172A; font-size:14px;">คุณ${escapeHtml(maskedName)}</span>
-            <span style="background:#DBEAFE; color:#1E40AF; border:1px solid #93C5FD; font-size:11.5px; font-weight:800; padding:2px 8px; border-radius:6px;">รหัส ${escapeHtml(sid)}</span>
+        const avatarHtml = getKioskStudentAvatarHtml(st, 44);
+        return `<button type="button" class="oca-kiosk-choice-card" onclick="selectKioskReturningStudent(window._pubKioskLookupCandidates[${idx}])" style="flex-direction:row; align-items:center; gap:12px;">
+          <div style="width:44px; height:44px; border-radius:50%; overflow:hidden; flex-shrink:0; border:2px solid #93C5FD; background:#EFF6FF;">${avatarHtml}</div>
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+              <span style="font-weight:800; color:#0F172A; font-size:14px;">คุณ${escapeHtml(maskedName)}</span>
+              <span style="background:#DBEAFE; color:#1E40AF; border:1px solid #93C5FD; font-size:11.5px; font-weight:800; padding:2px 8px; border-radius:6px;">รหัส ${escapeHtml(sid)}</span>
+            </div>
+            <div style="font-size:12px; color:#334155;">โทร ${escapeHtml(maskedPhone)}${lastCourse}</div>
           </div>
-          <div style="font-size:12px; color:#334155;">โทร ${escapeHtml(maskedPhone)}${lastCourse}</div>
         </button>`;
       }).join('');
     }
     window.searchKioskReturningStudent = searchKioskReturningStudent;
+
+    function parseKioskStructuredAddress(rawAddr, studentObj) {
+      const raw = String(rawAddr || (studentObj && studentObj.address) || '').trim();
+      let postalCode = String((studentObj && studentObj.postal_code) || '').trim();
+      let province = String((studentObj && studentObj.province) || '').trim();
+      let district = String((studentObj && studentObj.district) || '').trim();
+      let subdistrict = String((studentObj && studentObj.subdistrict) || '').trim();
+      let remaining = raw;
+      const zipMatch = remaining.match(/\b(\d{5})\b/);
+      if (zipMatch) {
+        if (!postalCode) postalCode = zipMatch[1];
+        remaining = remaining.replace(zipMatch[0], '').trim();
+      }
+      const provMatch = remaining.match(/(?:จ\.|จังหวัด)\s*([^\s,]+)/) || remaining.match(/(กรุงเทพมหานคร|กรุงเทพฯ|กทม\.?)/);
+      if (provMatch) {
+        const pVal = provMatch[1] || provMatch[0];
+        if (!province) province = /กรุงเทพ|กทม/.test(pVal) ? 'กรุงเทพมหานคร' : pVal;
+        remaining = remaining.replace(provMatch[0], '').trim();
+      }
+      const distMatch = remaining.match(/(?:อ\.|อำเภอ|เขต)\s*([^\s,]+)/);
+      if (distMatch) {
+        if (!district) district = distMatch[1];
+        remaining = remaining.replace(distMatch[0], '').trim();
+      }
+      const subMatch = remaining.match(/(?:ต\.|ตำบล|แขวง)\s*([^\s,]+)/);
+      if (subMatch) {
+        if (!subdistrict) subdistrict = subMatch[1];
+        remaining = remaining.replace(subMatch[0], '').trim();
+      }
+      const addrLine = remaining.replace(/\s{2,}/g, ' ').trim() || raw;
+      return { addrLine, subdistrict, district, province, postalCode };
+    }
+    window.parseKioskStructuredAddress = parseKioskStructuredAddress;
+
+    function composeKioskStructuredAddress() {
+      const addrLine = String(document.getElementById('inpKioskEditAddrLine')?.value || '').trim();
+      const subdistrict = String(document.getElementById('inpKioskEditSubdistrict')?.value || '').trim();
+      const district = String(document.getElementById('inpKioskEditDistrict')?.value || '').trim();
+      const province = String(document.getElementById('inpKioskEditProvince')?.value || '').trim();
+      const postalCode = String(document.getElementById('inpKioskEditPostalCode')?.value || '').trim();
+      const isBkk = /กรุงเทพ|กทม/.test(province);
+      const parts = [];
+      if (addrLine) parts.push(addrLine);
+      if (subdistrict) parts.push((/^(แขวง|ต\.|ตำบล)/.test(subdistrict) ? '' : (isBkk ? 'แขวง' : 'ต.')) + subdistrict);
+      if (district) parts.push((/^(เขต|อ\.|อำเภอ)/.test(district) ? '' : (isBkk ? 'เขต' : 'อ.')) + district);
+      if (province) parts.push((/^(จ\.|จังหวัด|กรุงเทพ)/.test(province) ? '' : 'จ.') + (isBkk ? 'กรุงเทพมหานคร' : province));
+      if (postalCode) parts.push(postalCode);
+      return parts.join(' ').trim();
+    }
+    window.composeKioskStructuredAddress = composeKioskStructuredAddress;
 
     async function selectKioskReturningStudent(student) {
       if (!student) return;
@@ -73865,6 +74070,7 @@ function openPublicRegisterView() {
       window._pubKioskContext = {
         mode: window._pubStudentMode,
         student: student,
+        studentObj: student,
         lifecycle: lifecycle,
         takenCourseCodes: history.takenCourseCodes,
         takenCourseNames: history.takenCourseNames,
@@ -73876,8 +74082,9 @@ function openPublicRegisterView() {
         selectedLearningMode: '',
         halfBookFilter: null
       };
+      const parsedAddr = parseKioskStructuredAddress(student.address || '', student);
       // Populate underlying #formPublicRegister fields so submitPublicRegister() works seamlessly
-      const setV = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null && v !== '') el.value = v; };
+      const setV = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = v; };
       setV('selPubPrefix', student.prefix || 'นาย');
       setV('txtPubFullName', student.full_name || student.fullName || '');
       setV('txtPubNameEn', student.full_name_en || student.fullNameEn || '');
@@ -73888,7 +74095,7 @@ function openPublicRegisterView() {
       setV('txtPubEmergencyPhone', student.emergency_phone || student.phone_number || student.phone || '022162826');
       setV('txtPubEmail', student.email || 'student@oca.ac.th');
       setV('txtPubLineId', student.line_id || student.lineId || '-');
-      setV('txtPubAddrLine', student.address || 'กรุงเทพมหานคร');
+      setV('txtPubAddrLine', parsedAddr.addrLine || student.address || 'กรุงเทพมหานคร');
       const setFallbackSel = (id, val) => {
         const sel = document.getElementById(id);
         if (!sel) return;
@@ -73898,14 +74105,22 @@ function openPublicRegisterView() {
           sel.selectedIndex = 1;
         }
       };
-      setFallbackSel('selPubProvince', student.province || 'กรุงเทพมหานคร');
+      setFallbackSel('selPubProvince', parsedAddr.province || student.province || 'กรุงเทพมหานคร');
       if (typeof onPubProvinceChanged === 'function') { try { onPubProvinceChanged(); } catch (_) {} }
-      setFallbackSel('selPubDistrict', student.district || '');
+      setFallbackSel('selPubDistrict', parsedAddr.district || student.district || '');
       if (typeof onPubDistrictChanged === 'function') { try { onPubDistrictChanged(); } catch (_) {} }
-      setFallbackSel('selPubSubdistrict', student.subdistrict || '');
+      setFallbackSel('selPubSubdistrict', parsedAddr.subdistrict || student.subdistrict || '');
       if (typeof onPubSubdistrictChanged === 'function') { try { onPubSubdistrictChanged(); } catch (_) {} }
-      setFallbackSel('selPubPostalCode', student.postal_code || '');
-      // Populate Quick Contact Edit fields
+      setFallbackSel('selPubPostalCode', parsedAddr.postalCode || student.postal_code || '');
+      // Populate Structured Contact & 5-Field Address Editor
+      setV('inpKioskEditPhone', student.phone_number || student.phone || '');
+      setV('inpKioskEditEmail', student.email || '');
+      setV('inpKioskEditLine', student.line_id || student.lineId || '');
+      setV('inpKioskEditAddrLine', parsedAddr.addrLine || '');
+      setV('inpKioskEditSubdistrict', parsedAddr.subdistrict || '');
+      setV('inpKioskEditDistrict', parsedAddr.district || '');
+      setV('inpKioskEditProvince', parsedAddr.province || '');
+      setV('inpKioskEditPostalCode', parsedAddr.postalCode || '');
       setV('inpKioskQuickPhone', student.phone_number || student.phone || '');
       setV('inpKioskQuickEmail', student.email || '');
       setV('inpKioskQuickLine', student.line_id || student.lineId || '');
@@ -73915,9 +74130,13 @@ function openPublicRegisterView() {
       if (resultsBox) resultsBox.style.display = 'none';
       if (selBox) selBox.style.display = 'block';
       const d = getKioskI18nDict();
+      const elAvatar = document.getElementById('boxKioskSelStudentAvatar');
+      if (elAvatar) elAvatar.innerHTML = getKioskStudentAvatarHtml(student, 64);
       const elId = document.getElementById('lblKioskSelStudentId');
       const elBadge = document.getElementById('lblKioskSelLifecycleBadge');
       const elName = document.getElementById('lblKioskSelStudentName');
+      const elTitle = document.getElementById('lblKioskSelectedStudentTitle');
+      const elAddr = document.getElementById('lblKioskSelectedStudentAddress');
       const elMeta = document.getElementById('lblKioskSelStudentMeta');
       if (elId) elId.textContent = `รหัส ${toArabicDigits(sid)}`;
       if (elBadge) {
@@ -73925,7 +74144,13 @@ function openPublicRegisterView() {
         elBadge.style.background = lifecycle.isReturning ? '#DBEAFE' : '#FEF3C7';
         elBadge.style.color = lifecycle.isReturning ? '#1E40AF' : '#92400E';
       }
-      if (elName) elName.textContent = `${student.full_name || student.fullName || '-'} (${maskKioskPhone(student.phone_number || student.phone)})`;
+      const displayFullName = (typeof formatStudentNameWithPrefix === 'function')
+        ? formatStudentNameWithPrefix(student.prefix, student.full_name || student.fullName || '-')
+        : (student.full_name || student.fullName || '-');
+      const titleText = `${displayFullName} (โทร ${student.phone_number || student.phone || '-'})`;
+      if (elTitle) elTitle.textContent = titleText;
+      else if (elName) elName.textContent = titleText;
+      if (elAddr) elAddr.textContent = (student.address && String(student.address).trim()) ? student.address : 'ยังไม่ได้ระบุที่อยู่จัดส่ง';
       if (elMeta) elMeta.textContent = `คอร์สที่เคยเรียนในประวัติ: ${history.takenCourseNames.size} คอร์ส | เทอมแรก: ${lifecycle.firstYearBE || '-'}/${lifecycle.firstTerm || '-'}`;
       syncPublicModeSelectorUI();
       if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
@@ -73939,19 +74164,87 @@ function openPublicRegisterView() {
     window.toggleKioskContactEdit = toggleKioskContactEdit;
 
     function syncKioskQuickContactToForm() {
-      const map = [
-        ['inpKioskQuickPhone', 'txtPubPhone'],
-        ['inpKioskQuickEmail', 'txtPubEmail'],
-        ['inpKioskQuickLine', 'txtPubLineId'],
-        ['inpKioskQuickAddr', 'txtPubAddrLine']
-      ];
-      map.forEach(([src, dst]) => {
-        const s = document.getElementById(src);
-        const d = document.getElementById(dst);
-        if (s && d) d.value = s.value;
-      });
+      const ph = document.getElementById('inpKioskEditPhone')?.value ?? document.getElementById('inpKioskQuickPhone')?.value ?? '';
+      const em = document.getElementById('inpKioskEditEmail')?.value ?? document.getElementById('inpKioskQuickEmail')?.value ?? '';
+      const li = document.getElementById('inpKioskEditLine')?.value ?? document.getElementById('inpKioskQuickLine')?.value ?? '';
+      const addrLine = document.getElementById('inpKioskEditAddrLine')?.value ?? '';
+      const composedAddr = composeKioskStructuredAddress() || document.getElementById('inpKioskQuickAddr')?.value || '';
+      const setIf = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined) el.value = v; };
+      setIf('inpKioskQuickPhone', ph);
+      setIf('inpKioskQuickEmail', em);
+      setIf('inpKioskQuickLine', li);
+      setIf('inpKioskQuickAddr', composedAddr);
+      setIf('txtPubPhone', ph);
+      setIf('txtPubEmail', em);
+      setIf('txtPubLineId', li);
+      setIf('txtPubAddrLine', addrLine || composedAddr);
+      const lblAddr = document.getElementById('lblKioskSelectedStudentAddress');
+      if (lblAddr && composedAddr) lblAddr.textContent = composedAddr;
     }
     window.syncKioskQuickContactToForm = syncKioskQuickContactToForm;
+
+    async function saveKioskReturningContactAndAddress() {
+      syncKioskQuickContactToForm();
+      const ctx = window._pubKioskContext || {};
+      const st = ctx.studentObj || ctx.student || {};
+      const sid = String(window._pubExistingStudentId || st.student_id || st.studentId || '').trim();
+      const phone = String(document.getElementById('inpKioskEditPhone')?.value || '').trim();
+      const email = String(document.getElementById('inpKioskEditEmail')?.value || '').trim();
+      const lineId = String(document.getElementById('inpKioskEditLine')?.value || '').trim();
+      const fullAddr = composeKioskStructuredAddress();
+      if (!fullAddr) {
+        if (typeof showToast === 'function') showToast('กรุณากรอกที่อยู่', 'โปรดระบุที่อยู่จัดส่งให้ครบถ้วนก่อนบันทึก', 'warning');
+        return;
+      }
+      if (!sid) {
+        if (typeof showToast === 'function') showToast('บันทึกข้อมูลชั่วคราวแล้ว', 'อัปเดตที่อยู่ในแบบฟอร์มเรียบร้อยแล้ว', 'success');
+        return;
+      }
+      const btn = document.getElementById('btnKioskSaveContactEdit');
+      if (btn) btn.disabled = true;
+      try {
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          const updPayload = { address: fullAddr };
+          if (phone) updPayload.phone_number = phone;
+          if (email) updPayload.email = email;
+          if (lineId) updPayload.line_id = lineId;
+          const { data, error } = await _supabase
+            .from('students')
+            .update(updPayload)
+            .eq('student_id', sid)
+            .select();
+          if (error) throw error;
+          if (Array.isArray(data) && data[0]) {
+            Object.assign(st, data[0]);
+          } else {
+            Object.assign(st, updPayload);
+          }
+        } else {
+          st.address = fullAddr;
+          if (phone) st.phone_number = phone;
+          if (email) st.email = email;
+          if (lineId) st.line_id = lineId;
+        }
+        if (window._pubKioskContext) {
+          window._pubKioskContext.student = st;
+          window._pubKioskContext.studentObj = st;
+        }
+        const elAddr = document.getElementById('lblKioskSelectedStudentAddress');
+        if (elAddr) elAddr.textContent = fullAddr;
+        const elTitle = document.getElementById('lblKioskSelectedStudentTitle') || document.getElementById('lblKioskSelStudentName');
+        const displayFullName = (typeof formatStudentNameWithPrefix === 'function')
+          ? formatStudentNameWithPrefix(st.prefix, st.full_name || st.fullName || '-')
+          : (st.full_name || st.fullName || '-');
+        if (elTitle) elTitle.textContent = `${displayFullName} (โทร ${phone || st.phone_number || st.phone || '-'})`;
+        if (typeof showToast === 'function') showToast('บันทึกข้อมูลสำเร็จ', 'บันทึกเบอร์โทรศัพท์และที่อยู่จัดส่งของรหัส ' + sid + ' เรียบร้อยแล้ว', 'success');
+      } catch (err) {
+        console.warn('[saveKioskReturningContactAndAddress] error:', err);
+        if (typeof showToast === 'function') showToast('ไม่สามารถบันทึกข้อมูลได้', err.message || 'กรุณาตรวจสอบการเชื่อมต่อ', 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+    window.saveKioskReturningContactAndAddress = saveKioskReturningContactAndAddress;
 
     function toggleKioskCardScanInput() {
       const wrap = document.getElementById('boxKioskCardScanWrap');
@@ -73976,40 +74269,117 @@ function openPublicRegisterView() {
     window.handleKioskCardScanKey = handleKioskCardScanKey;
 
     function getKioskCourseSvgIllustration(category, course) {
-      const raw = `${category || ''} ${(course && course.code) || ''} ${(course && course.name) || ''}`.toUpperCase();
-      if (/KIDS|เด็ก|เยาวชน|CE|OE|E\d/.test(raw)) {
+      const codeUpper = String((course && (course.code || course.id)) || '').trim().toUpperCase();
+      const raw = `${category || ''} ${codeUpper} ${(course && course.name) || ''}`.toUpperCase();
+      if (/KIDS|เด็ก|เยาวชน|CE|OE|\bE\d/.test(raw)) {
+        // Kids: Panda + Red Lantern + Chinese Storybook
         return {
           bg: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
-          svg: '<svg width="72" height="72" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="26" fill="#F59E0B" opacity="0.18"/><path d="M32 14l5.2 10.6 11.7 1.7-8.4 8.2 2 11.6L32 40.6l-10.5 5.5 2-11.6-8.4-8.2 11.7-1.7L32 14z" fill="#D97706" stroke="#92400E" stroke-width="2" stroke-linejoin="round"/></svg>'
+          svg: '<svg width="118" height="84" viewBox="0 0 118 84" fill="none">'
+            + '<circle cx="59" cy="42" r="36" fill="#F59E0B" opacity="0.16"/>'
+            + '<rect x="14" y="20" width="8" height="2" rx="1" fill="#B45309"/>'
+            + '<line x1="18" y1="12" x2="18" y2="22" stroke="#92400E" stroke-width="1.8"/>'
+            + '<ellipse cx="18" cy="34" rx="9" ry="12" fill="#DC2626" stroke="#991B1B" stroke-width="1.6"/>'
+            + '<path d="M12 28h12M12 40h12" stroke="#FBBF24" stroke-width="1.5"/>'
+            + '<line x1="18" y1="46" x2="18" y2="54" stroke="#F59E0B" stroke-width="2"/>'
+            + '<circle cx="43" cy="24" r="6.5" fill="#1E293B"/>'
+            + '<circle cx="71" cy="24" r="6.5" fill="#1E293B"/>'
+            + '<ellipse cx="57" cy="40" rx="19" ry="17" fill="#FFFFFF" stroke="#1E293B" stroke-width="2"/>'
+            + '<ellipse cx="49" cy="38" rx="4.5" ry="5.5" transform="rotate(-15 49 38)" fill="#1E293B"/>'
+            + '<ellipse cx="65" cy="38" rx="4.5" ry="5.5" transform="rotate(15 65 38)" fill="#1E293B"/>'
+            + '<circle cx="50" cy="37" r="1.6" fill="#FFFFFF"/>'
+            + '<circle cx="64" cy="37" r="1.6" fill="#FFFFFF"/>'
+            + '<ellipse cx="57" cy="44" rx="3" ry="2" fill="#1E293B"/>'
+            + '<path d="M53 47c2 2.5 6 2.5 8 0" stroke="#1E293B" stroke-width="1.8" stroke-linecap="round"/>'
+            + '<circle cx="44" cy="44" r="2.8" fill="#FDA4AF" opacity="0.8"/>'
+            + '<circle cx="70" cy="44" r="2.8" fill="#FDA4AF" opacity="0.8"/>'
+            + '<rect x="78" y="42" width="28" height="24" rx="3" fill="#FFFFFF" stroke="#047857" stroke-width="2"/>'
+            + '<path d="M92 42v24" stroke="#047857" stroke-width="1.6"/>'
+            + '<path d="M82 49h6M82 54h6M96 49h6M96 54h6" stroke="#D97706" stroke-width="1.6" stroke-linecap="round"/>'
+            + '</svg>'
         };
       }
-      if (/ศิลป์|วาด|พู่กัน|ART|CALLIGRAPHY/.test(raw)) {
+      if (/ศิลป์|วาด|พู่กัน|เขียนอักษร|ART|CALLIGRAPHY/.test(raw)) {
+        // Art: Ink Brush + Bamboo + Inkstone
         return {
           bg: 'linear-gradient(135deg, #FCE7F3 0%, #FBCFE8 100%)',
-          svg: '<svg width="72" height="72" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="26" fill="#DB2777" opacity="0.15"/><path d="M44 16l4 4-20 20-6 2 2-6 20-20z" fill="#BE185D"/><path d="M18 42c-3 0-5 2.5-5 5.5 4.5 0 7.5-1.8 8.5-5.5-1.1-1-2.3-1-3.5 0z" fill="#9D174D"/></svg>'
+          svg: '<svg width="118" height="84" viewBox="0 0 118 84" fill="none">'
+            + '<circle cx="59" cy="42" r="36" fill="#DB2777" opacity="0.12"/>'
+            + '<path d="M26 70V16" stroke="#047857" stroke-width="3.5" stroke-linecap="round"/>'
+            + '<path d="M26 52l-10-6M26 36l10-7M26 24l-9-5" stroke="#059669" stroke-width="2" stroke-linecap="round"/>'
+            + '<ellipse cx="14" cy="44" rx="5" ry="2.2" transform="rotate(-25 14 44)" fill="#10B981"/>'
+            + '<ellipse cx="38" cy="27" rx="5.5" ry="2.2" transform="rotate(20 38 27)" fill="#10B981"/>'
+            + '<ellipse cx="80" cy="60" rx="22" ry="11" fill="#334155" stroke="#0F172A" stroke-width="2"/>'
+            + '<ellipse cx="80" cy="59" rx="14" ry="6" fill="#0F172A"/>'
+            + '<path d="M50 56L84 18l5 5-34 38-8 3 3-8z" fill="#92400E" stroke="#78350F" stroke-width="1.6" stroke-linejoin="round"/>'
+            + '<path d="M47 64c-4 1-7 4-6 7 5 0 9-2 10-6l-4-1z" fill="#1E293B"/>'
+            + '</svg>'
         };
       }
       if (/ดนตรี|กู่เจิง|ขลุ่ย|หยางฉิน|เอ้อหู|MUSIC|GUZHENG|ERHU/.test(raw)) {
+        // Music: Guzheng / Traditional Instrument + Musical Notes
         return {
           bg: 'linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 100%)',
-          svg: '<svg width="72" height="72" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="26" fill="#7C3AED" opacity="0.16"/><path d="M24 44V20l20-4v22" stroke="#5B21B6" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="44" r="5" fill="#6D28D9"/><circle cx="40" cy="38" r="5" fill="#6D28D9"/></svg>'
+          svg: '<svg width="118" height="84" viewBox="0 0 118 84" fill="none">'
+            + '<circle cx="59" cy="42" r="36" fill="#7C3AED" opacity="0.14"/>'
+            + '<path d="M16 54l76-18 8 14-78 18-6-14z" fill="#B45309" stroke="#78350F" stroke-width="2" stroke-linejoin="round"/>'
+            + '<path d="M22 55l70-16M24 59l70-16M26 63l70-16" stroke="#FDE68A" stroke-width="1.3"/>'
+            + '<rect x="36" y="45" width="3" height="14" rx="1" transform="rotate(-13 36 45)" fill="#FEF3C7"/>'
+            + '<rect x="74" y="36" width="3" height="14" rx="1" transform="rotate(-13 74 36)" fill="#FEF3C7"/>'
+            + '<path d="M46 30V14l14-3v15" stroke="#5B21B6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>'
+            + '<circle cx="43" cy="30" r="3.8" fill="#6D28D9"/>'
+            + '<circle cx="57" cy="26" r="3.8" fill="#6D28D9"/>'
+            + '<path d="M84 24V12l8-2" stroke="#7C3AED" stroke-width="2.4" stroke-linecap="round"/>'
+            + '<circle cx="81" cy="24" r="3.4" fill="#7C3AED"/>'
+            + '</svg>'
         };
       }
       if (/HSK|ติวสอบ/.test(raw)) {
+        // HSK Exam: Golden HSK Medal/Certificate + Books
         return {
           bg: 'linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%)',
-          svg: '<svg width="72" height="72" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="26" fill="#2563EB" opacity="0.15"/><rect x="18" y="14" width="28" height="36" rx="4" fill="#FFFFFF" stroke="#1D4ED8" stroke-width="2.5"/><path d="M24 24h16M24 32h16M24 40h10" stroke="#1D4ED8" stroke-width="2.5" stroke-linecap="round"/><circle cx="44" cy="44" r="8" fill="#047857"/><path d="M40.5 44l2.5 2.5 4.5-4.5" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+          svg: '<svg width="118" height="84" viewBox="0 0 118 84" fill="none">'
+            + '<circle cx="59" cy="42" r="36" fill="#2563EB" opacity="0.14"/>'
+            + '<rect x="18" y="48" width="34" height="18" rx="3" fill="#1D4ED8" stroke="#1E3A8A" stroke-width="1.8"/>'
+            + '<rect x="22" y="36" width="34" height="14" rx="3" fill="#047857" stroke="#065F46" stroke-width="1.8"/>'
+            + '<rect x="48" y="16" width="44" height="52" rx="5" fill="#FFFFFF" stroke="#1D4ED8" stroke-width="2"/>'
+            + '<path d="M56 27h28M56 35h22M56 43h18" stroke="#93C5FD" stroke-width="2.4" stroke-linecap="round"/>'
+            + '<circle cx="84" cy="54" r="13" fill="#F59E0B" stroke="#B45309" stroke-width="2"/>'
+            + '<text x="84" y="58" text-anchor="middle" fill="#FFFFFF" font-size="9" font-weight="900">HSK</text>'
+            + '</svg>'
         };
       }
-      if (/สนทนา|CONVERSATION|BIZ/.test(raw)) {
+      if (/สนทนา|CONVERSATION|BIZ|\bSS?\d|\bOS\d/.test(raw)) {
+        // Conversation: Speech Bubbles (你好!) + Headphones
         return {
           bg: 'linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%)',
-          svg: '<svg width="72" height="72" viewBox="0 0 64 64" fill="none"><path d="M14 20a6 6 0 0 1 6-6h24a6 6 0 0 1 6 6v14a6 6 0 0 1-6 6H28l-8 7v-7h0a6 6 0 0 1-6-6V20z" fill="#0284C7" opacity="0.2" stroke="#0369A1" stroke-width="2.5"/><text x="32" y="31" text-anchor="middle" fill="#0369A1" font-size="14" font-weight="800">中文</text></svg>'
+          svg: '<svg width="118" height="84" viewBox="0 0 118 84" fill="none">'
+            + '<circle cx="59" cy="42" r="36" fill="#0284C7" opacity="0.14"/>'
+            + '<path d="M18 22a7 7 0 0 1 7-7h30a7 7 0 0 1 7 7v16a7 7 0 0 1-7 7H35l-9 8v-8h-1a7 7 0 0 1-7-7V22z" fill="#FFFFFF" stroke="#0284C7" stroke-width="2.2"/>'
+            + '<text x="40" y="35" text-anchor="middle" fill="#0369A1" font-size="14" font-weight="800">你好!</text>'
+            + '<path d="M56 46a6 6 0 0 1 6-6h26a6 6 0 0 1 6 6v12a6 6 0 0 1-6 6h-4v7l-8-7H62a6 6 0 0 1-6-6V46z" fill="#0EA5E9" opacity="0.22" stroke="#0369A1" stroke-width="2"/>'
+            + '<path d="M76 34a16 16 0 0 1 30 0" stroke="#0F172A" stroke-width="2.8" stroke-linecap="round"/>'
+            + '<rect x="72" y="33" width="7" height="13" rx="3.5" fill="#0284C7"/>'
+            + '<rect x="103" y="33" width="7" height="13" rx="3.5" fill="#0284C7"/>'
+            + '</svg>'
         };
       }
+      // Adult Basic/Intermediate/Advanced (C1001-C3010, OC, default): Chinese Ink Scroll + Red Seal + OCA Pavilion
       return {
         bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
-        svg: '<svg width="72" height="72" viewBox="0 0 64 64" fill="none"><rect x="14" y="14" width="36" height="36" rx="8" fill="#047857" opacity="0.15" stroke="#047857" stroke-width="2.5"/><text x="32" y="39" text-anchor="middle" fill="#065F46" font-size="22" font-weight="800">漢</text></svg>'
+        svg: '<svg width="118" height="84" viewBox="0 0 118 84" fill="none">'
+          + '<circle cx="59" cy="42" r="36" fill="#047857" opacity="0.12"/>'
+          + '<path d="M68 32l20-12 20 12H68z" fill="#065F46" stroke="#047857" stroke-width="1.6" stroke-linejoin="round"/>'
+          + '<path d="M72 32h32v4H72z" fill="#D97706"/>'
+          + '<path d="M76 36v26M88 36v26M100 36v26" stroke="#047857" stroke-width="2.6"/>'
+          + '<rect x="68" y="62" width="40" height="5" rx="1.5" fill="#065F46"/>'
+          + '<rect x="16" y="18" width="46" height="48" rx="4" fill="#FFFBEB" stroke="#047857" stroke-width="2"/>'
+          + '<rect x="12" y="15" width="54" height="6" rx="3" fill="#92400E"/>'
+          + '<rect x="12" y="63" width="54" height="6" rx="3" fill="#92400E"/>'
+          + '<text x="39" y="46" text-anchor="middle" fill="#065F46" font-size="22" font-weight="800">漢</text>'
+          + '<rect x="46" y="48" width="12" height="12" rx="2" fill="#DC2626"/>'
+          + '<text x="52" y="57" text-anchor="middle" fill="#FFFFFF" font-size="7" font-weight="800">印</text>'
+          + '</svg>'
       };
     }
 
@@ -74487,6 +74857,77 @@ function openPublicRegisterView() {
       }
     });
 
+    async function verifyPublicSlipReplayGuard(slipDataUri) {
+      if (!window._pubVerifiedSlipMeta || !window._pubVerifiedSlipMeta.transRef) {
+        const qrScan = await scanSlipQrFromDataUri(slipDataUri);
+        const slipHash = await computeSlipSha256Hash(slipDataUri);
+
+        if (!qrScan || !qrScan.valid) {
+          showModal('ตรวจไม่พบ QR Code มาตรฐานธนาคาร', 'กรุณาแนบสลิปโอนเงินจริงจากแอปธนาคารที่มี Mini-QR Code ชัดเจน', '⚠️');
+          return null;
+        }
+
+        window._pubVerifiedSlipMeta = { qrRaw: qrScan.qrRaw, transRef: qrScan.transRef, slipSha256: slipHash, verifiedAt: Date.now() };
+      }
+
+      const slipTransRef = window._pubVerifiedSlipMeta.transRef;
+      const slipHash256 = window._pubVerifiedSlipMeta.slipSha256;
+
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data: dupKeys } = await _supabase.from('fee_settings')
+            .select('key, name')
+            .or('key.eq.used_slip_ref:' + slipTransRef + ',key.eq.used_slip_hash:' + slipHash256 + ',key.like.pending_slip%')
+            .limit(500);
+          let isDuplicate = false;
+          let dupMsg = '';
+
+          if (Array.isArray(dupKeys)) {
+            const shortRef = String(slipTransRef || '').slice(0, 18);
+            for (const r of dupKeys) {
+              if (r.key === 'used_slip_ref:' + slipTransRef || r.key === 'used_slip_hash:' + slipHash256) {
+                isDuplicate = true;
+                dupMsg = 'ตรวจพบรหัสอ้างอิงสลิปหรือลายนิ้วมือดิจิทัลนี้เคยถูกบันทึกในระบบแล้ว';
+                break;
+              }
+              if (r.key && r.key.startsWith('pending_slip') && r.name) {
+                if (r.name.includes(slipTransRef) || r.name.includes(slipHash256) || (shortRef.length >= 12 && r.name.includes(shortRef))) {
+                  isDuplicate = true;
+                  dupMsg = 'สลิปนี้กำลังอยู่ในคิวรอการตรวจสอบของผู้สมัครท่านอื่น';
+                  break;
+                }
+              }
+            }
+          }
+
+          if (!isDuplicate) {
+            const { data: dupRc, error: dupRcErr } = await _supabase.from('receipts')
+              .select('receipt_no')
+              .eq('payment_ref', slipTransRef)
+              .limit(1);
+            if (!dupRcErr && dupRc && dupRc.length > 0) {
+              isDuplicate = true;
+              dupMsg = 'สลิปนี้เคยถูกออกใบเสร็จรับเงินแล้ว (เลขที่ ' + dupRc[0].receipt_no + ')';
+            }
+          }
+
+          if (isDuplicate) {
+            const dupTitle = 'ปฏิเสธการทำรายการ: สลิปโอนเงินนี้เคยถูกใช้งานแล้ว';
+            const dupBody = 'สถาบันตรวจพบว่า (' + dupMsg + ')\n\nกรุณาใช้สลิปการโอนเงินจริงใบใหม่ที่ถูกต้อง ห้ามนำสลิปเก่าหรือสลิปของผู้อื่นมาใช้งานซ้ำ';
+            if (typeof showOcaAlert === 'function') {
+              showOcaAlert(dupTitle, dupBody, 'error');
+            } else {
+              showModal(dupTitle, dupBody, '❌');
+            }
+            return null;
+          }
+        } catch (e) {
+          console.warn('[Slip Anti-Replay Check] Notice:', e);
+        }
+      }
+      return { slipTransRef, slipHash256 };
+    }
+
     async function submitPublicRegister() {
       if (typeof getOnlineEnrollScheduleStatus === 'function') {
         const schedStatus = getOnlineEnrollScheduleStatus();
@@ -74546,11 +74987,11 @@ function openPublicRegisterView() {
       const selCourse = (document.getElementById('selPubCourse')?.value || '').trim();
       const selSchedule = (document.getElementById('selPubSchedule')?.value || '').trim();
       const userNotes = sanitizeInputText(document.getElementById('txtPubNotes')?.value || '');
-      const companyName = (document.getElementById('txtPubCompanyName')?.value || '').trim();
+      const companyName = (document.getElementById('txtPubCompanyName')?.value || document.getElementById('txtPubCorpName')?.value || '').trim();
       const companyBranch = (document.getElementById('txtPubCompanyBranch')?.value || '').trim();
-      const companyTaxId = (document.getElementById('txtPubCompanyTaxId')?.value || '').trim();
-      const companyAddress = (document.getElementById('txtPubCompanyAddress')?.value || '').trim();
-      const isCorporate = !!companyName;
+      const companyTaxId = (document.getElementById('txtPubCompanyTaxId')?.value || document.getElementById('txtPubCorpTaxId')?.value || '').trim();
+      const companyAddress = (document.getElementById('txtPubCompanyAddress')?.value || document.getElementById('txtPubCorpAddress')?.value || '').trim();
+      const isCorporate = !!(companyName || document.getElementById('chkPubNeedCorpTax')?.checked);
       const phoneDigits = phone.replace(/[-\s]/g, '');
       if (!/^0\d{8,9}$/.test(phoneDigits)) {
         window._lastPubSubmitTimestamp = 0;
@@ -74574,78 +75015,10 @@ function openPublicRegisterView() {
       }
 
       // Layer 2: Dual-Hash Duplicate / Replay Check BEFORE Registration
-
-      if (!window._pubVerifiedSlipMeta || !window._pubVerifiedSlipMeta.transRef) {
-        const qrScan = await scanSlipQrFromDataUri(pubPaymentSlipDataUri);
-        const slipHash = await computeSlipSha256Hash(pubPaymentSlipDataUri);
-
-        if (!qrScan || !qrScan.valid) {
-          showModal('ตรวจไม่พบ QR Code มาตรฐานธนาคาร', 'กรุณาแนบสลิปโอนเงินจริงจากแอปธนาคารที่มี Mini-QR Code ชัดเจน', '⚠️');
-          return;
-        }
-
-        window._pubVerifiedSlipMeta = { qrRaw: qrScan.qrRaw, transRef: qrScan.transRef, slipSha256: slipHash, verifiedAt: Date.now() };
-      }
-
-      const slipTransRef = window._pubVerifiedSlipMeta.transRef;
-      const slipHash256 = window._pubVerifiedSlipMeta.slipSha256;
-
-      if (typeof _supabase !== 'undefined' && _supabase) {
-        try {
-          const { data: dupKeys } = await _supabase.from('fee_settings')
-
-            .select('key, name')
-
-            .or('key.eq.used_slip_ref:' + slipTransRef + ',key.eq.used_slip_hash:' + slipHash256 + ',key.like.pending_slip%')
-
-            .limit(500);
-          let isDuplicate = false;
-          let dupMsg = '';
-
-          if (Array.isArray(dupKeys)) {
-            const shortRef = String(slipTransRef || '').slice(0, 18);
-            for (const r of dupKeys) {
-              if (r.key === 'used_slip_ref:' + slipTransRef || r.key === 'used_slip_hash:' + slipHash256) {
-                isDuplicate = true;
-                dupMsg = 'ตรวจพบรหัสอ้างอิงสลิปหรือลายนิ้วมือดิจิทัลนี้เคยถูกบันทึกในระบบแล้ว';
-                break;
-              }
-
-              if (r.key && r.key.startsWith('pending_slip') && r.name) {
-                if (r.name.includes(slipTransRef) || r.name.includes(slipHash256) || (shortRef.length >= 12 && r.name.includes(shortRef))) {
-                  isDuplicate = true;
-                  dupMsg = 'สลิปนี้กำลังอยู่ในคิวรอการตรวจสอบของผู้สมัครท่านอื่น';
-                  break;
-                }
-              }
-            }
-          }
-
-          if (!isDuplicate) {
-            const { data: dupRc, error: dupRcErr } = await _supabase.from('receipts')
-              .select('receipt_no')
-              .eq('payment_ref', slipTransRef)
-              .limit(1);
-            if (!dupRcErr && dupRc && dupRc.length > 0) {
-              isDuplicate = true;
-              dupMsg = 'สลิปนี้เคยถูกออกใบเสร็จรับเงินแล้ว (เลขที่ ' + dupRc[0].receipt_no + ')';
-            }
-          }
-
-          if (isDuplicate) {
-            const dupTitle = 'ปฏิเสธการทำรายการ: สลิปโอนเงินนี้เคยถูกใช้งานแล้ว';
-            const dupBody = 'สถาบันตรวจพบว่า (' + dupMsg + ')\n\nกรุณาใช้สลิปการโอนเงินจริงใบใหม่ที่ถูกต้อง ห้ามนำสลิปเก่าหรือสลิปของผู้อื่นมาใช้งานซ้ำ';
-            if (typeof showOcaAlert === 'function') {
-              showOcaAlert(dupTitle, dupBody, 'error');
-            } else {
-              showModal(dupTitle, dupBody, '❌');
-            }
-            return;
-          }
-        } catch (e) {
-          console.warn('[Slip Anti-Replay Check] Notice:', e);
-        }
-      }
+      const slipMeta = await verifyPublicSlipReplayGuard(pubPaymentSlipDataUri);
+      if (!slipMeta) return;
+      const slipTransRef = slipMeta.slipTransRef;
+      const slipHash256 = slipMeta.slipHash256;
 
       if (!selSchedule) {
         showModal(dict.valRequiredTitle || 'กรุณากรอกข้อมูลให้ครบถ้วน', dict.valSchedule || 'กรุณาเลือกรอบเวลาเรียนที่สะดวก', '⚠️');
@@ -74695,7 +75068,10 @@ function openPublicRegisterView() {
       if (district) fullAddressParts.push('เขต/อำเภอ ' + district);
       if (province) fullAddressParts.push('จ.' + province);
       if (postalCode) fullAddressParts.push(postalCode);
-      const combinedAddress = fullAddressParts.join(' ');
+      const kioskComposedAddr = (window._pubStudentMode === 'returning' && typeof composeKioskStructuredAddress === 'function')
+        ? composeKioskStructuredAddress()
+        : '';
+      const combinedAddress = kioskComposedAddr || fullAddressParts.join(' ');
       const pubIdType = document.getElementById('pubIdType')?.value || 'thai';
       const isPassportPub = pubIdType === 'passport' || /[A-Za-z]/.test(citizenRaw);
       const cleanCid = isPassportPub
@@ -74902,9 +75278,7 @@ function openPublicRegisterView() {
                 expectedFee = Math.max(0, expectedFee - regDiscAmt);
               }
               const isReturningPub = window._pubStudentMode === 'returning';
-              const regFeeItem = (typeof globalFeePresets !== 'undefined' && globalFeePresets && globalFeePresets.items && globalFeePresets.items.regFee) || {};
-              const regFeeSt = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(regFeeItem) : { active: true };
-              const pubRegFee = (!isReturningPub && regFeeSt.active) ? Number(regFeeItem.amount !== undefined ? regFeeItem.amount : (globalFeePresets && globalFeePresets.regFee !== undefined ? globalFeePresets.regFee : 300)) : 0;
+              const pubRegFee = isReturningPub ? 0 : (typeof getEffectivePublicRegFee === 'function' ? getEffectivePublicRegFee() : 300);
               expectedFee = Math.max(0, expectedFee + pubRegFee);
 
               // 3. 5-Layer Anti-Fraud: Save Pending Verification & Record Anti-Replay Locks
@@ -74952,6 +75326,12 @@ function openPublicRegisterView() {
                     baseFee: regBaseFee,
 
                     discountAmount: regDiscAmt,
+
+                    regFee: pubRegFee,
+
+                    studentMode: isReturningPub ? 'returning' : 'new',
+
+                    isReturning: isReturningPub,
 
                     expectedFee: expectedFee,
 
@@ -78232,6 +78612,10 @@ function openPublicRegisterView() {
         "Onsite": "线下授课",
         "Online": "线上直播",
         "Hybrid": "双轨混合",
+        "3. รูปแบบการเรียน *": "3. 学习方式 *",
+        "1. ONLINE (เรียนออนไลน์)": "1. 线上直播课程",
+        "2. ONSITE (เรียนที่สถาบัน)": "2. 学院线下授课",
+        "3. HYBRID (ผสมผสาน)": "3. 线上线下混合授课",
         "Live": "在线",
         "ชื่อผู้ใช้งาน หรือ อีเมล (Username / Email)": "用户名或电子邮箱",
         "รหัสผ่าน (Password)": "密码",
@@ -80434,6 +80818,10 @@ function openPublicRegisterView() {
         "Onsite": "Onsite",
         "Online": "Online",
         "Hybrid": "Hybrid",
+        "3. รูปแบบการเรียน *": "3. Learning Mode *",
+        "1. ONLINE (เรียนออนไลน์)": "1. ONLINE (Live Online)",
+        "2. ONSITE (เรียนที่สถาบัน)": "2. ONSITE (At Academy)",
+        "3. HYBRID (ผสมผสาน)": "3. HYBRID (Online & Onsite)",
         "Live": "Live",
         "ชื่อผู้ใช้งาน หรือ อีเมล (Username / Email)": "Username or Email",
         "รหัสผ่าน (Password)": "Password",
@@ -90729,6 +91117,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       if (m.slipSha256) compact.sh = String(m.slipSha256).slice(0, 64);
       if (m.baseFee !== undefined) compact.bf = Number(m.baseFee || 0);
       if (m.discountAmount !== undefined) compact.da = Number(m.discountAmount || 0);
+      if (m.regFee !== undefined) compact.rf = Number(m.regFee || 0);
+      if (m.studentMode || m.isReturning !== undefined) compact.md = (m.isReturning || m.studentMode === 'returning') ? 'returning' : 'new';
       if (m.groupSection) compact.gr = String(m.groupSection).slice(0, 20);
       if (m.instructorName) compact.ir = String(m.instructorName).slice(0, 60);
       if (m.room) compact.rm = String(m.room).slice(0, 20);
@@ -90805,6 +91195,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               if (extra.sh) item.slipSha256 = extra.sh;
               if (extra.bf !== undefined) item.baseFee = Number(extra.bf);
               if (extra.da !== undefined) item.discountAmount = Number(extra.da);
+              if (extra.rf !== undefined) item.regFee = Number(extra.rf);
+              if (extra.md) { item.studentMode = extra.md; item.isReturning = (extra.md === 'returning'); }
               if (extra.gr) item.groupSection = extra.gr;
               if (extra.ir) item.instructorName = extra.ir;
               if (extra.rm) item.room = extra.rm;
@@ -91093,6 +91485,23 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
      */
 
+    function resolveApprovedSlipFallbackAmounts(info, cMatch, appRegFee, dObj) {
+      if (info.baseFee !== undefined && info.discountAmount !== undefined) {
+        const b = Number(info.baseFee ?? 0);
+        const d = Number(info.discountAmount ?? 0);
+        const g = (info.expectedFee !== undefined && info.expectedFee !== null)
+          ? Number(info.expectedFee)
+          : Math.max(0, b - d + appRegFee);
+        return { appBaseFee: b, appDiscFee: d, appGrandTotal: g };
+      }
+      const basePrice = cMatch ? Number(cMatch.price ?? 0) : ((info.expectedFee !== undefined && info.expectedFee !== null) ? Number(info.expectedFee) : 2200);
+      const dAmt = (dObj && dObj.active) ? Number(dObj.amount || 0) : 0;
+      const g = (info.expectedFee !== undefined && info.expectedFee !== null)
+        ? Number(info.expectedFee)
+        : Math.max(0, basePrice - dAmt + appRegFee);
+      return { appBaseFee: basePrice, appDiscFee: dAmt, appGrandTotal: g };
+    }
+
     async function approvePendingSlip(studentId) {
       if (!studentId) return;
 
@@ -91178,24 +91587,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           cMatch = cachedCoursesList.find(c => c.name === info.course || c.code === info.course || c.id === info.course);
         }
 
-        if (info.baseFee !== undefined && info.discountAmount !== undefined) {
-          appBaseFee = Number(info.baseFee || 0);
-          appDiscFee = Number(info.discountAmount || 0);
-          appGrandTotal = Number(info.expectedFee || (appBaseFee - appDiscFee));
-        } else {
-          const basePrice = cMatch ? Number(cMatch.price || 0) : Number(info.expectedFee || 4000);
-          const dObj = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(cMatch || info.course, info.schedule) : null;
-          const dAmt = (dObj && dObj.active) ? Number(dObj.amount || 0) : 0;
-          appBaseFee = basePrice;
-          appDiscFee = dAmt;
-          appGrandTotal = Number(info.expectedFee || Math.max(0, basePrice - dAmt));
-        }
-
         const isReturningSlip = !!(info.isReturning || info.studentMode === 'returning' || (stRow && stRow.status && stRow.status !== 'PENDING_PAYMENT_VERIFICATION'));
         const regFeeItem = (typeof globalFeePresets !== 'undefined' && globalFeePresets && globalFeePresets.items && globalFeePresets.items.regFee) || {};
         const regFeeSt = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(regFeeItem) : { active: true };
-        const defaultRegFee = regFeeSt.active ? Number(regFeeItem.amount !== undefined ? regFeeItem.amount : (globalFeePresets && globalFeePresets.regFee !== undefined ? globalFeePresets.regFee : 0)) : 0;
-        const appRegFee = info.regFee !== undefined ? Number(info.regFee || 0) : (isReturningSlip ? 0 : defaultRegFee);
+        const defaultRegFee = regFeeSt.active ? Number(regFeeItem.amount !== undefined ? regFeeItem.amount : (globalFeePresets && globalFeePresets.regFee !== undefined && typeof globalFeePresets.regFee !== 'object' ? globalFeePresets.regFee : 0)) : 0;
+        const appRegFee = (info.regFee !== undefined && info.regFee !== null) ? Number(info.regFee) : (isReturningSlip ? 0 : defaultRegFee);
+        const dObj = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(cMatch || info.course, info.schedule) : null;
+        ({ appBaseFee, appDiscFee, appGrandTotal } = resolveApprovedSlipFallbackAmounts(info, cMatch, appRegFee, dObj));
 
         let canonicalCourseCode = (cMatch && cMatch.code) ? cMatch.code : '';
         if (!canonicalCourseCode && info.course) {
@@ -91250,7 +91648,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
           learningMode: info.learningMode || 'Onsite',
 
-          baseAmount: appBaseFee || Number(info.expectedFee || 4000),
+          baseAmount: appBaseFee !== undefined ? appBaseFee : (info.expectedFee !== undefined && info.expectedFee !== null ? Number(info.expectedFee) : 0),
 
           regFee: appRegFee,
 
@@ -91264,7 +91662,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
           discountOther: 0,
 
-          grandTotal: appGrandTotal || Number(info.expectedFee || 4000),
+          grandTotal: appGrandTotal !== undefined ? appGrandTotal : (info.expectedFee !== undefined && info.expectedFee !== null ? Number(info.expectedFee) : 0),
 
           paymentMethod: 'TRANSFER',
 
