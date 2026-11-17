@@ -13462,7 +13462,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '159';
+      var LATEST_VERSION = '160';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -27318,7 +27318,18 @@ body.printing-report #printReportContainer {
       } else if (table === 'fee_settings' || table === 'system_settings') {
         // Realtime General Fee Settings Sync Handler
 
-        if (payload && payload.new && payload.new.key && ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'discountNormal', 'discountKids', 'discountOther'].includes(payload.new.key)) {
+        const pKey = payload && payload.new && payload.new.key;
+        const feeWhitelist = [
+          'tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'shippingFee',
+          'discountNormal', 'discountKids', 'discountOther',
+          'disc_rule_adult5', 'disc_rule_adult3', 'disc_rule_kids', 'disc_rule_art', 'disc_rule_music'
+        ];
+        const isFeeWhitelisted = pKey && (
+          feeWhitelist.includes(pKey) ||
+          (typeof pKey === 'string' && (pKey.startsWith('course_audience_') || pKey.startsWith('course_disc_')))
+        );
+
+        if (payload && payload.new && isFeeWhitelisted) {
           const k = payload.new.key;
           const amt = Number(payload.new.amount) || 0;
           const m = payload.new.mode || 'always';
@@ -27338,6 +27349,12 @@ body.printing-report #printReportContainer {
 
             if (typeof updateReceiptFeeStatusBadges === 'function') updateReceiptFeeStatusBadges();
             if (typeof calcReceiptTotals === 'function') calcReceiptTotals();
+            if (typeof renderKioskCourseGrid === 'function') {
+              const kioskModal = document.getElementById('modalPublicRegisterKiosk');
+              if (kioskModal && (kioskModal.style.display !== 'none' || kioskModal.classList.contains('active'))) {
+                renderKioskCourseGrid();
+              }
+            }
           }
         }
         if (payload && payload.new && payload.new.key === 'active_academic_term' && payload.new.name) {
@@ -43080,16 +43097,13 @@ if (action === 'getDashboardStats') {
       );
       const feeItems = (globalFeePresets && globalFeePresets.items) || {};
       const normItem = feeItems.discountNormal || {};
-      const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(normItem) : { active: true };
-      const today = (typeof getBangkokTodayDateStr === 'function') ? getBangkokTodayDateStr() : '';
-      const isExpired = Boolean(normItem && normItem.mode === 'period' && normItem.endDate && today > normItem.endDate);
-      const isActive = (normItem && normItem.mode === 'always') ? true : Boolean(st && st.active);
 
       // Check if course has a custom normal discount configured
       const customDisc = (cObj && (cObj.custom_discount_normal !== undefined && cObj.custom_discount_normal !== null ? cObj.custom_discount_normal : cObj.customDiscountNormal));
       let baseAmount = 0;
       let hasCustom = false;
       let categoryLabel = 'ส่วนลดปกติ (ผู้ใหญ่ 5 ชม./สัปดาห์)';
+      let targetItem = normItem;
       const getDynRule = (ruleKey, fallbackVal) => {
         const itemVal = feeItems[ruleKey] && feeItems[ruleKey].amount !== undefined && feeItems[ruleKey].amount !== null && feeItems[ruleKey].amount !== '' ? Number(feeItems[ruleKey].amount) : null;
         if (itemVal !== null && !isNaN(itemVal) && itemVal >= 0) return itemVal;
@@ -43105,16 +43119,20 @@ if (action === 'getDashboardStats') {
       const ruleMusic = getDynRule('disc_rule_music', 0);
 
       if (isMusic) {
+        targetItem = feeItems.disc_rule_music || normItem;
         baseAmount = ruleMusic;
         categoryLabel = 'คอร์สดนตรี';
       } else if (customDisc !== undefined && customDisc !== null && customDisc !== '' && !isNaN(Number(customDisc))) {
+        targetItem = normItem;
         baseAmount = Number(customDisc);
         hasCustom = true;
         categoryLabel = `ส่วนลดปกติ (เฉพาะคอร์ส ฿${baseAmount})`;
       } else if (isArt) {
+        targetItem = feeItems.disc_rule_art || normItem;
         baseAmount = ruleArt;
         categoryLabel = 'ส่วนลดปกติ (ศิลปะ)';
       } else if (isKids) {
+        targetItem = feeItems.disc_rule_kids || feeItems.discountKids || normItem;
         const kidsVal = (feeItems.disc_rule_kids || (globalFeePresets && globalFeePresets.disc_rule_kids !== undefined))
           ? ruleKids
           : ((normItem.kidsAmount !== undefined && normItem.kidsAmount !== null && normItem.kidsAmount !== '' && Number(normItem.kidsAmount) > 0)
@@ -43125,9 +43143,11 @@ if (action === 'getDashboardStats') {
         baseAmount = Number(kidsVal);
         categoryLabel = 'ส่วนลดปกติ (เด็ก)';
       } else if (is3HrAdult) {
+        targetItem = feeItems.disc_rule_adult3 || normItem;
         baseAmount = ruleAdult3;
         categoryLabel = 'ส่วนลดปกติ (ผู้ใหญ่ 3 ชม./สัปดาห์)';
       } else {
+        targetItem = feeItems.disc_rule_adult5 || normItem;
         const adultVal = (feeItems.disc_rule_adult5 || (globalFeePresets && globalFeePresets.disc_rule_adult5 !== undefined))
           ? ruleAdult5
           : ((normItem.adultAmount !== undefined && normItem.adultAmount !== null && normItem.adultAmount !== '' && Number(normItem.adultAmount) > 0)
@@ -43140,6 +43160,11 @@ if (action === 'getDashboardStats') {
         baseAmount = Number(adultVal);
         categoryLabel = 'ส่วนลดปกติ (ผู้ใหญ่ 5 ชม./สัปดาห์)';
       }
+
+      const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(targetItem) : { active: true };
+      const today = (typeof getBangkokTodayDateStr === 'function') ? getBangkokTodayDateStr() : '';
+      const isExpired = Boolean(targetItem && targetItem.mode === 'period' && targetItem.endDate && today > targetItem.endDate);
+      const isActive = (targetItem && targetItem.mode === 'always') ? true : Boolean(st && st.active);
 
       if (isNaN(baseAmount) || baseAmount < 0) baseAmount = isKids ? 100 : 200;
       const effectiveAmount = isActive ? baseAmount : 0;
@@ -75595,8 +75620,61 @@ function openPublicRegisterView() {
       const offeredIds = (typeof getOfferedSchedulesForCourse === 'function')
         ? getOfferedSchedulesForCourse(course.code || course.id || course.name, act.term, act.yearBE)
         : [];
-      let schedList = offeredIds.length > 0 ? allScheds.filter(s => offeredIds.includes(s.id)) : allScheds;
-      if (schedList.length === 0) schedList = allScheds;
+
+      let schedList = [];
+      if (offeredIds.length > 0) {
+        schedList = allScheds.filter(s => offeredIds.includes(s.id));
+      } else {
+        const cTarget = String(course.code || course.id || course.name || '').trim().toUpperCase();
+        let hasConfigInOtherTerms = false;
+        if (window._ocaScheduleCoursesByTermMap && typeof window._ocaScheduleCoursesByTermMap === 'object') {
+          for (const [tKey, tMap] of Object.entries(window._ocaScheduleCoursesByTermMap)) {
+            if (tMap && typeof tMap === 'object') {
+              for (const cArr of Object.values(tMap)) {
+                if (Array.isArray(cArr) && cArr.some(c => String(c || '').trim().toUpperCase() === cTarget)) {
+                  hasConfigInOtherTerms = true;
+                  break;
+                }
+              }
+            }
+            if (hasConfigInOtherTerms) break;
+          }
+        }
+        const curTermMap = (typeof getScheduleCoursesMapForTerm === 'function') ? getScheduleCoursesMapForTerm(act.term, act.yearBE) : (window._ocaScheduleCoursesMap || {});
+        const hasAnyConfigInCurTerm = curTermMap && Object.values(curTermMap).some(arr => Array.isArray(arr) && arr.length > 0);
+        const isCourseInactive = (course.is_active === false || course.status === 'inactive');
+
+        if (hasConfigInOtherTerms || isCourseInactive || hasAnyConfigInCurTerm) {
+          schedList = [];
+        } else {
+          schedList = allScheds;
+        }
+      }
+
+      const btnNextStep3 = document.getElementById('btnKioskNextStep3');
+      if (schedList.length === 0) {
+        ctx.selectedScheduleId = '';
+        ctx.selectedScheduleName = '';
+        ctx.selectedGroupJson = null;
+        if (btnNextStep3) btnNextStep3.disabled = true;
+        const selSched = document.getElementById('selPubSchedule');
+        if (selSched) selSched.value = '';
+        if (schedBox) {
+          schedBox.innerHTML = `
+            <div style="grid-column: 1 / -1; padding:24px 16px; text-align:center; background:#FEF2F2; border:1px solid #FECACA; border-radius:12px; color:#991B1B;">
+              <div style="font-size:24px; margin-bottom:8px;">⚠️</div>
+              <div style="font-size:14px; font-weight:800; margin-bottom:12px;">คอร์สนี้ยังไม่เปิดรอบสอนในเทอมปัจจุบัน กรุณาเลือกคอร์สอื่น หรือติดต่อเจ้าหน้าที่</div>
+              <button type="button" class="oca-kiosk-btn" style="background:#EF4444; color:#fff; border:none; padding:8px 18px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;" onclick="goToKioskStep(2)">
+                <i class="fa-solid fa-arrow-left" style="margin-right:6px;"></i>กลับไปเลือกคอร์สอื่น
+              </button>
+            </div>
+          `;
+        }
+        if (groupBox) groupBox.innerHTML = '';
+        return;
+      }
+
+      if (btnNextStep3) btnNextStep3.disabled = false;
       if (!ctx.selectedScheduleId && schedList.length > 0) {
         ctx.selectedScheduleId = schedList[0].id;
         ctx.selectedScheduleName = schedList[0].name;
@@ -75693,6 +75771,7 @@ function openPublicRegisterView() {
       if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
     }
     window.renderKioskStep3ScheduleAndGroups = renderKioskStep3ScheduleAndGroups;
+    window.renderKioskStep3ScheduleGroupSelection = renderKioskStep3ScheduleAndGroups;
 
     function selectKioskSchedule(schedId, schedName) {
       if (!window._pubKioskContext) window._pubKioskContext = {};
@@ -76216,15 +76295,19 @@ function openPublicRegisterView() {
               if (typeof stopOnlineRegCamera === 'function') stopOnlineRegCamera();
 
               // 2. Resolve expected tuition fee from selected course (reflecting Kids vs Adult normal discount)
-              let expectedFee = 4000;
-              let regCourseObj = null;
-
-              if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
+              let regCourseObj = (window._pubKioskContext && window._pubKioskContext.selectedCourse) || null;
+              if (!regCourseObj && typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
                 regCourseObj = cachedCoursesList.find(c => c.name === selCourse || c.code === selCourse || c.id === selCourse);
-                if (regCourseObj && regCourseObj.price) expectedFee = Number(regCourseObj.price);
               }
+              let expectedFee = (regCourseObj && regCourseObj.price && !isNaN(Number(regCourseObj.price)))
+                ? Number(regCourseObj.price)
+                : ((window._pubKioskContext && window._pubKioskContext.selectedCourse && window._pubKioskContext.selectedCourse.price && !isNaN(Number(window._pubKioskContext.selectedCourse.price)))
+                  ? Number(window._pubKioskContext.selectedCourse.price)
+                  : 2200);
 
-              const pubSchedId = typeof getSelectedScheduleId === 'function' ? getSelectedScheduleId('selPubSchedule') : '';
+              const pubSchedId = (window._pubKioskContext && window._pubKioskContext.selectedScheduleId)
+                ? window._pubKioskContext.selectedScheduleId
+                : (typeof getSelectedScheduleId === 'function' ? getSelectedScheduleId('selPubSchedule') : '');
               const regDisc = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(regCourseObj || selCourse, pubSchedId) : null;
               let regBaseFee = expectedFee;
               let regDiscAmt = 0;
@@ -93057,7 +93140,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=159';
+      const swPath = basePath + 'sw.js?v=160';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -93066,7 +93149,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (159):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (160):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
