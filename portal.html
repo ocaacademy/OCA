@@ -13124,7 +13124,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '148';
+      var LATEST_VERSION = '149';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -73419,68 +73419,98 @@ function openPublicRegisterView() {
         : rawQ.replace(/[,()\\]/g, '').trim();
       const cleanDigits = rawQ.replace(/[-\s]/g, '');
       const cleanAlpha = rawQ.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+      const filterValidRows = (rows) => (Array.isArray(rows) ? rows : [])
+        .filter(s => s && s.status !== 'DELETED' && !String(s.notes || '').includes('[DELETED_ARCHIVE]'))
+        .sort((a, b) => Number(b.student_id || 0) - Number(a.student_id || 0))
+        .slice(0, 15);
       if (typeof _supabase !== 'undefined' && _supabase && (safeQ || cleanDigits || cleanAlpha)) {
         try {
           const isNumeric = /^\d+$/.test(cleanDigits);
-          let directRows = null;
-          if (isNumeric && cleanDigits.length >= 4 && cleanDigits.length <= 7 && Number(cleanDigits) <= 2147483647) {
-            const { data: dExact, error: dErr } = await _supabase
-              .from('students')
-              .select('*')
-              .eq('student_id', cleanDigits)
-              .limit(5);
-            if (dErr) {
-              console.warn('[searchKioskReturningStudent] student_id query error:', dErr);
-            } else if (Array.isArray(dExact) && dExact.length > 0) {
-              directRows = dExact;
-            }
-          }
-          if (directRows) {
-            matches = directRows
-              .filter(s => s && s.status !== 'DELETED' && !String(s.notes || '').includes('[DELETED_ARCHIVE]'))
-              .sort((a, b) => Number(b.student_id || 0) - Number(a.student_id || 0))
-              .slice(0, 15);
-          } else {
-            const orConds = [];
-            if (isNumeric) {
-              if (cleanDigits.length === 13) {
-                orConds.push(`citizen_id.eq.${cleanDigits}`);
-              }
-              if (cleanDigits.length >= 9 && cleanDigits.length <= 10) {
-                orConds.push(`phone_number.eq.${cleanDigits}`);
-              }
-              orConds.push(`smart_card_uid.eq.${cleanDigits}`);
-              if (cleanDigits.length >= 7) {
-                try {
-                  const hexVal = Number(cleanDigits).toString(16).toUpperCase();
-                  if (hexVal && hexVal.length >= 4) orConds.push(`smart_card_uid.eq.${hexVal}`);
-                } catch (_) {}
-              }
-            } else {
-              if (safeQ) orConds.push(`full_name.ilike.%${safeQ}%`);
-              if (safeQ && /^[0-9A-Za-z:-]{4,32}$/.test(safeQ)) {
-                orConds.push(`smart_card_uid.eq.${safeQ}`);
-              }
-              if (cleanAlpha.length >= 6) {
-                orConds.push(`citizen_id.ilike.%${cleanAlpha}%`);
-              }
-            }
-            if (orConds.length > 0) {
-              // Note: Avoid chaining student_id descending sort with .or(...) on students —
-              // PostgreSQL plans a backward index scan and hits statement timeout (HTTP 500 / 57014). Sort in JS instead.
-              const { data: stRows, error: stErr } = await _supabase
+          if (isNumeric) {
+            // 1. Fast indexed lookup by Student ID (4-8 digits)
+            if (cleanDigits.length >= 4 && cleanDigits.length <= 8 && Number(cleanDigits) <= 2147483647) {
+              const { data: dExact, error: dErr } = await _supabase
                 .from('students')
                 .select('*')
-                .or(orConds.join(','))
-                .limit(25);
-              if (stErr) {
-                console.warn('[searchKioskReturningStudent] query error:', stErr);
-              } else if (Array.isArray(stRows)) {
-                matches = stRows
-                  .filter(s => s && s.status !== 'DELETED' && !String(s.notes || '').includes('[DELETED_ARCHIVE]'))
-                  .sort((a, b) => Number(b.student_id || 0) - Number(a.student_id || 0))
-                  .slice(0, 15);
+                .eq('student_id', cleanDigits)
+                .limit(5);
+              if (dErr) console.warn('[searchKioskReturningStudent] student_id query error:', dErr);
+              else matches = filterValidRows(dExact);
+            }
+            // 2. Fast indexed lookup by 13-digit Citizen ID
+            if (matches.length === 0 && cleanDigits.length === 13) {
+              const { data: cData, error: cErr } = await _supabase
+                .from('students')
+                .select('*')
+                .eq('citizen_id', cleanDigits)
+                .limit(5);
+              if (cErr) console.warn('[searchKioskReturningStudent] citizen_id query error:', cErr);
+              else matches = filterValidRows(cData);
+            }
+            // 3. Fast indexed lookup by 9-10 digit Phone Number
+            if (matches.length === 0 && cleanDigits.length >= 9 && cleanDigits.length <= 10) {
+              const { data: pData, error: pErr } = await _supabase
+                .from('students')
+                .select('*')
+                .eq('phone_number', cleanDigits)
+                .limit(10);
+              if (pErr) console.warn('[searchKioskReturningStudent] phone_number query error:', pErr);
+              else matches = filterValidRows(pData);
+            }
+            // 4. Fast indexed lookup by numeric/hex Smart Card UID
+            if (matches.length === 0) {
+              const { data: uData, error: uErr } = await _supabase
+                .from('students')
+                .select('*')
+                .eq('smart_card_uid', cleanDigits)
+                .limit(5);
+              if (uErr) console.warn('[searchKioskReturningStudent] smart_card_uid query error:', uErr);
+              else matches = filterValidRows(uData);
+              if (matches.length === 0 && cleanDigits.length >= 7) {
+                try {
+                  const hexVal = Number(cleanDigits).toString(16).toUpperCase();
+                  if (hexVal && hexVal.length >= 4 && hexVal !== cleanDigits) {
+                    const { data: hData, error: hErr } = await _supabase
+                      .from('students')
+                      .select('*')
+                      .eq('smart_card_uid', hexVal)
+                      .limit(5);
+                    if (hErr) console.warn('[searchKioskReturningStudent] smart_card_uid hex query error:', hErr);
+                    else matches = filterValidRows(hData);
+                  }
+                } catch (_) {}
               }
+            }
+          } else {
+            // 5. Fast indexed lookup by alphanumeric Smart Card UID
+            if (safeQ && /^[0-9A-Za-z:-]{4,32}$/.test(safeQ)) {
+              const { data: uData, error: uErr } = await _supabase
+                .from('students')
+                .select('*')
+                .eq('smart_card_uid', safeQ)
+                .limit(5);
+              if (uErr) console.warn('[searchKioskReturningStudent] card_uid query error:', uErr);
+              else matches = filterValidRows(uData);
+            }
+            // 6. Fast indexed lookup by Passport / alphanumeric Citizen ID
+            if (matches.length === 0 && cleanAlpha.length >= 4 && /^[0-9A-Za-z]{4,32}$/.test(cleanAlpha)) {
+              const { data: cData, error: cErr } = await _supabase
+                .from('students')
+                .select('*')
+                .eq('citizen_id', cleanAlpha)
+                .limit(5);
+              if (cErr) console.warn('[searchKioskReturningStudent] passport/citizen_id query error:', cErr);
+              else matches = filterValidRows(cData);
+            }
+            // 7. Standalone full_name ilike (never inside OR filter and never for queries containing digits)
+            if (matches.length === 0 && safeQ && !/\d/.test(safeQ)) {
+              const { data: nData, error: nErr } = await _supabase
+                .from('students')
+                .select('*')
+                .ilike('full_name', `%${safeQ}%`)
+                .limit(15);
+              if (nErr) console.warn('[searchKioskReturningStudent] full_name query error:', nErr);
+              else matches = filterValidRows(nData);
             }
           }
         } catch (err) {
@@ -91240,7 +91270,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=148';
+      const swPath = basePath + 'sw.js?v=149';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -91249,7 +91279,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (148):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (149):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
