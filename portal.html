@@ -13462,7 +13462,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '158';
+      var LATEST_VERSION = '159';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -31724,7 +31724,7 @@ if (action === 'getDashboardStats') {
               const targetLm = String(params.learningMode).trim();
               if (targetLm === 'Online' || targetLm === 'Onsite' || targetLm === 'Hybrid') {
                 let rcQ = _supabase.from('receipts')
-                  .select('receipt_no, year_be, term, receipt_type, status')
+                  .select('receipt_no, year_be, term, receipt_type')
                   .eq('student_id', cleanSid)
                   .order('created_at', { ascending: false })
                   .limit(10);
@@ -31732,7 +31732,7 @@ if (action === 'getDashboardStats') {
                 if (!rcFetchErr && Array.isArray(rcList) && rcList.length > 0) {
                   const targetYr = Number(params.yearBE || 0);
                   const targetTerm = Number(params.term || 0);
-                  const validTuition = rcList.filter(r => r && String(r.status || '').toUpperCase() !== 'VOIDED' && String(r.receipt_type || 'tuition').toLowerCase() === 'tuition');
+                  const validTuition = rcList.filter(r => r && String(r.receipt_type || 'tuition').toLowerCase() === 'tuition');
                   const matchedRc = validTuition.find(r => (!targetYr || Number(r.year_be) === targetYr) && (!targetTerm || Number(r.term) === targetTerm)) || validTuition[0];
                   if (matchedRc && matchedRc.receipt_no) {
                     const { error: rcUpdErr } = await _supabase.from('receipts')
@@ -61802,11 +61802,11 @@ if (action === 'getDashboardStats') {
           } catch (_) {}
         }
 
-        const rcNos = checkedSlips.map(cs => (cs.key || '').replace('receipt_slip:', '')).filter(Boolean);
+        const rcNos = checkedSlips.map(cs => (cs.key || '').replace('receipt_slip:', '').trim()).filter(id => /^[a-zA-Z0-9_-]+$/.test(id));
         let receiptsMap = new Map();
         if (rcNos.length > 0 && typeof _supabase !== 'undefined' && _supabase) {
           try {
-            const { data: rcRows } = await _supabase.from('receipts').select('receipt_no, student_id, full_name, buyer_name, course_name, item_name, grand_total, created_at').in('receipt_no', rcNos.slice(0, 30));
+            const { data: rcRows } = await _supabase.from('receipts').select('receipt_no, student_id, buyer_name, item_name, grand_total, created_at').in('receipt_no', rcNos.slice(0, 30));
             if (Array.isArray(rcRows)) {
               rcRows.forEach(r => receiptsMap.set(String(r.receipt_no), r));
             }
@@ -75134,21 +75134,21 @@ function openPublicRegisterView() {
       const codeUpper = String((course && (course.code || course.id)) || '').trim().toUpperCase();
       const raw = `${category || ''} ${codeUpper} ${(course && course.name) || ''}`.toUpperCase();
       if (/KIDS|เด็ก|เยาวชน|\bE[1-4]0\d{2}\b|\bE\d{4}\b/.test(raw)) {
-        return 'https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=480&q=80';
+        return './assets/images/kiosk_cat_kids.jpg';
       }
       if (/ศิลป์|วาด|พู่กัน|เขียนอักษร|ART|CALLIGRAPHY/.test(raw)) {
-        return 'https://images.unsplash.com/photo-1582561424760-0321d75e81fa?auto=format&fit=crop&w=480&q=80';
+        return './assets/images/kiosk_cat_art.jpg';
       }
       if (/ดนตรี|กู่เจิง|ขลุ่ย|หยางฉิน|เอ้อหู|MUSIC|GUZHENG|ERHU/.test(raw)) {
-        return 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=480&q=80';
+        return './assets/images/kiosk_cat_music.jpg';
       }
       if (/HSK|ติวสอบ|EXAM/.test(raw)) {
-        return 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=480&q=80';
+        return './assets/images/kiosk_cat_hsk.jpg';
       }
       if (/สนทนา|CONVERSATION|BIZ|\bSS?\d|\bOS\d/.test(raw)) {
-        return 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=480&q=80';
+        return './assets/images/kiosk_cat_convo.jpg';
       }
-      return 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=480&q=80';
+      return './assets/images/kiosk_cat_adult.jpg';
     }
     window.getKioskCourseImageUrl = getKioskCourseImageUrl;
 
@@ -93057,7 +93057,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=158';
+      const swPath = basePath + 'sw.js?v=159';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -93066,7 +93066,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (158):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (159):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
