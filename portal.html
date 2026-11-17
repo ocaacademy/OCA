@@ -13462,7 +13462,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '160';
+      var LATEST_VERSION = '161';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -27437,9 +27437,98 @@ body.printing-report #printReportContainer {
           }
         }
 
-        // Handled via debounced refresh
+        if (payload && payload.new && payload.new.key) {
+          const fk = String(payload.new.key);
+          if (fk.startsWith('cg_chunk_') || fk.startsWith('sched_chunk_') || fk.startsWith('course_') || fk === 'schedule_courses_by_term_map' || fk === 'schedule_courses_map') {
+            _lastCoursesManagerLoadedAt = 0;
+            if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
+          }
+        }
+      } else if (table === 'courses') {
+        if (payload) {
+          const item = payload.new || payload.record;
+          const oldItem = payload.old;
+          if (Array.isArray(cachedCoursesList)) {
+            if (payload.eventType === 'INSERT' && item && item.is_active !== false) {
+              const cId = item.id || item.code;
+              const idx = cachedCoursesList.findIndex(c => c.id === cId || c.code === cId);
+              const mapped = {
+                ...item,
+                level: item.level || (typeof detectCourseLevel === 'function' ? detectCourseLevel(item) : 'คอร์สขั้นต้น'),
+                target_audience: item.target_audience || 'adult',
+                targetAudience: item.target_audience || 'adult',
+                materialType: item.linked_book || item.materialType || 'ไม่มีอุปกรณ์',
+                linkedBook: item.linked_book || ''
+              };
+              if (idx !== -1) {
+                cachedCoursesList[idx] = Object.assign({}, cachedCoursesList[idx], mapped);
+              } else {
+                cachedCoursesList.push(mapped);
+              }
+            } else if (payload.eventType === 'UPDATE' && item) {
+              const cId = item.id || item.code;
+              const idx = cachedCoursesList.findIndex(c => c.id === cId || c.code === cId);
+              if (item.is_active === false) {
+                if (idx !== -1) cachedCoursesList.splice(idx, 1);
+              } else {
+                const mapped = {
+                  ...item,
+                  level: item.level || (typeof detectCourseLevel === 'function' ? detectCourseLevel(item) : 'คอร์สขั้นต้น'),
+                  target_audience: item.target_audience || 'adult',
+                  targetAudience: item.target_audience || 'adult',
+                  materialType: item.linked_book || item.materialType || 'ไม่มีอุปกรณ์',
+                  linkedBook: item.linked_book || ''
+                };
+                if (idx !== -1) {
+                  cachedCoursesList[idx] = Object.assign({}, cachedCoursesList[idx], mapped);
+                } else {
+                  cachedCoursesList.push(mapped);
+                }
+              }
+            } else if (payload.eventType === 'DELETE' && oldItem) {
+              const oldId = oldItem.id || oldItem.code;
+              cachedCoursesList = cachedCoursesList.filter(c => c.id !== oldId && c.code !== oldId);
+            }
+          }
+          _lastCoursesManagerLoadedAt = 0;
+          if (typeof renderCoursesTable === 'function') renderCoursesTable(cachedCoursesList);
+          if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
+          if (typeof loadReceiptCoursesDropdown === 'function') loadReceiptCoursesDropdown();
+          if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
+          if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
+        }
       } else if (table === 'schedules') {
-        // Handled via debounced refresh
+        if (payload && (payload.new || payload.old)) {
+          const item = payload.new || payload.record;
+          const oldItem = payload.old;
+          if (Array.isArray(cachedSchedulesList)) {
+            if (payload.eventType === 'INSERT' && item && item.is_active !== false) {
+              const idx = cachedSchedulesList.findIndex(s => s.id === item.id);
+              if (idx !== -1) cachedSchedulesList[idx] = Object.assign({}, cachedSchedulesList[idx], item);
+              else cachedSchedulesList.push(item);
+            } else if (payload.eventType === 'UPDATE' && item) {
+              const idx = cachedSchedulesList.findIndex(s => s.id === item.id);
+              if (item.is_active === false) {
+                if (idx !== -1) cachedSchedulesList.splice(idx, 1);
+              } else if (idx !== -1) {
+                cachedSchedulesList[idx] = Object.assign({}, cachedSchedulesList[idx], item);
+              } else {
+                cachedSchedulesList.push(item);
+              }
+            } else if (payload.eventType === 'DELETE' && oldItem) {
+              cachedSchedulesList = cachedSchedulesList.filter(s => s.id !== oldItem.id);
+            }
+          }
+          _lastCoursesManagerLoadedAt = 0;
+          if (typeof renderSchedulesTable === 'function') renderSchedulesTable(cachedSchedulesList);
+          if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
+          if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
+        }
+      } else if (table === 'students') {
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
+        if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus('silent');
+        if (typeof filterAndRenderSearchStudents === 'function') filterAndRenderSearchStudents();
+        if (typeof loadRecentStudentsForCard === 'function') loadRecentStudentsForCard();
       } else if (table === 'staff_users') {
         if (payload && (payload.new || payload.record)) {
           const userObj = payload.new || payload.record;
@@ -35039,7 +35128,7 @@ if (action === 'getDashboardStats') {
         calcNextStudentId();
         if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
         if (typeof loadThaiAddressData === 'function') loadThaiAddressData(); else if (typeof initProvinceDropdown === 'function') initProvinceDropdown();
-        if (typeof loadCoursesManager === 'function') loadCoursesManager(true);
+        if (typeof loadCoursesManager === 'function') loadCoursesManager(true, true);
         if (typeof initGoogleFormModule === 'function') initGoogleFormModule();
         if (typeof resetEnrollCameraAndPhotoState === 'function') resetEnrollCameraAndPhotoState();
       } else if (navKey === 'search') {
@@ -35065,7 +35154,10 @@ if (action === 'getDashboardStats') {
           switchCourseSubView(targetSub);
         }
 
-        if (typeof loadCoursesManager === 'function') loadCoursesManager();
+        if (typeof renderCoursesTable === 'function' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0) {
+          renderCoursesTable(cachedCoursesList);
+        }
+        if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
       } else if (navKey === 'teacher') {
         activate('tabTeacher');
         activate('btnNavTeacher');
@@ -44779,7 +44871,7 @@ if (action === 'getDashboardStats') {
 
     function loadCoursesManager(silentOnlyDropdowns = false, forceRefresh = false) {
       if (isSavingFeeSettings) return;
-      if (!forceRefresh && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0 && (Date.now() - _lastCoursesManagerLoadedAt < 120000)) {
+      if (!forceRefresh && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0 && (Date.now() - _lastCoursesManagerLoadedAt < 15000)) {
         if (!silentOnlyDropdowns) {
           if (typeof renderCoursesTable === 'function') renderCoursesTable(cachedCoursesList);
           if (typeof renderFeeCourseDiscountMatrix === 'function') renderFeeCourseDiscountMatrix();
@@ -48329,9 +48421,7 @@ if (action === 'getDashboardStats') {
       if (!container) return;
       const targetCode = String(targetCourseId || '').trim().toUpperCase();
       const allScheds = Array.isArray(cachedSchedulesList) && cachedSchedulesList.length > 0
-
         ? cachedSchedulesList
-
         : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES : []);
       const y = yearVal || document.getElementById('selModalCourseYear')?.value || document.getElementById('selScheduleConfigYear')?.value || '2569';
       const t = termVal || document.getElementById('selModalCourseTerm')?.value || document.getElementById('selScheduleConfigTerm')?.value || '5';
@@ -48340,33 +48430,46 @@ if (action === 'getDashboardStats') {
       const tMap = (window._courseGroupInstructorByTermMap && window._courseGroupInstructorByTermMap[tKey]) || {};
       const rowsData = [];
 
-      if (targetCode) {
+      const allCodes = new Set();
+      if (targetCode) allCodes.add(targetCode);
+      const inpCourseCode = document.getElementById('inpCourseId')?.value;
+      if (inpCourseCode) allCodes.add(String(inpCourseCode).trim().toUpperCase());
+      const matchedCourse = (cachedCoursesList || []).find(c =>
+        (c.id && allCodes.has(String(c.id).toUpperCase())) ||
+        (c.code && allCodes.has(String(c.code).toUpperCase()))
+      );
+      if (matchedCourse) {
+        if (matchedCourse.id) allCodes.add(String(matchedCourse.id).trim().toUpperCase());
+        if (matchedCourse.code) allCodes.add(String(matchedCourse.code).trim().toUpperCase());
+      }
+      const candidateCodes = Array.from(allCodes).filter(Boolean);
+
+      if (candidateCodes.length > 0) {
         allScheds.forEach(s => {
           const sId = s.id;
           const mappedArr = Array.isArray(map[sId]) ? map[sId] : [];
-          const hasInMap = mappedArr.includes(targetCode) || mappedArr.some(c => String(c).toUpperCase() === targetCode);
-          const pairKey = `${targetCode}::${sId}`;
-          const hasInGroupMap = Array.isArray(tMap[pairKey]) && tMap[pairKey].length > 0;
-          const hasInDefaultMap = ((y === '2569' && t === '5') || !termVal) && sId === 'SCH-01' && !!(typeof DEFAULT_TERM_695_CLASS_MAP !== 'undefined' && DEFAULT_TERM_695_CLASS_MAP[targetCode]);
+          const hasInMap = candidateCodes.some(c => mappedArr.includes(c) || mappedArr.some(m => String(m).toUpperCase() === c));
+          let matchedCode = candidateCodes.find(c => Array.isArray(tMap[`${c}::${sId}`]) && tMap[`${c}::${sId}`].length > 0);
+          const hasInGroupMap = !!matchedCode;
+          if (!matchedCode && hasInMap) matchedCode = candidateCodes[0];
+          const hasInDefaultMap = ((y === '2569' && t === '5') || !termVal) && sId === 'SCH-01' && candidateCodes.some(c => typeof DEFAULT_TERM_695_CLASS_MAP !== 'undefined' && DEFAULT_TERM_695_CLASS_MAP[c]);
+          if (!matchedCode && hasInDefaultMap) {
+            matchedCode = candidateCodes.find(c => DEFAULT_TERM_695_CLASS_MAP[c]) || candidateCodes[0];
+          }
 
           if (hasInMap || hasInGroupMap || hasInDefaultMap) {
+            const codeToUse = matchedCode || candidateCodes[0];
             const groups = (typeof getCourseGroupInstructorList === 'function')
-
-              ? getCourseGroupInstructorList(targetCode, sId, t, y)
-
+              ? getCourseGroupInstructorList(codeToUse, sId, t, y)
               : [{ section: 'A', lecturerName: '', room: '', remark: 'ปกติ' }];
 
             if (Array.isArray(groups) && groups.length > 0) {
               groups.forEach(g => {
                 rowsData.push({
                   scheduleId: sId,
-
                   section: g.section || 'A',
-
                   lecturerName: g.lecturerName || '',
-
                   room: g.room || '',
-
                   remark: g.remark || 'ปกติ'
                 });
               });
@@ -48375,7 +48478,7 @@ if (action === 'getDashboardStats') {
         });
       }
 
-      if (!targetCode && rowsData.length === 0) {
+      if (candidateCodes.length === 0 && rowsData.length === 0) {
         rowsData.push({
           scheduleId: allScheds[0]?.id || 'SCH-01',
           section: 'A',
@@ -48694,16 +48797,14 @@ if (action === 'getDashboardStats') {
       window._ocaScheduleCoursesMap = window._ocaScheduleCoursesByTermMap[activeKey];
       if (typeof saveScheduleCoursesMapToSupabase === 'function') saveScheduleCoursesMapToSupabase();
 
-      // Save course group and instructor configurations for all schedules (including clearing to 0 rows)
-      if (typeof saveCourseGroupInstructorList === 'function') {
+      // Save course group and instructor configurations atomically (single batch upsert)
+      if (typeof saveCourseModalMatrix === 'function') {
+        saveCourseModalMatrix(id, schedGroupsMap, curTerm, curYear, applyAllInYear, origId);
+      } else if (typeof saveCourseGroupInstructorList === 'function') {
         allKnownSchedList.forEach(s => {
           const sId = s.id;
-          const grps = schedGroupsMap[sId];
-          if (grps && grps.length > 0) {
-            saveCourseGroupInstructorList(id, sId, grps, curTerm, curYear, applyAllInYear);
-          } else {
-            saveCourseGroupInstructorList(id, sId, [], curTerm, curYear, applyAllInYear);
-          }
+          const grps = schedGroupsMap[sId] || [];
+          saveCourseGroupInstructorList(id, sId, grps, curTerm, curYear, applyAllInYear);
         });
         const allCombinedGroups = Object.values(schedGroupsMap).flat();
         saveCourseGroupInstructorList(id, 'ALL', allCombinedGroups, curTerm, curYear, applyAllInYear);
@@ -48769,7 +48870,8 @@ if (action === 'getDashboardStats') {
             closeCourseModal();
             toast('สำเร็จ', 'บันทึกคอร์ส ' + name + ' เรียบร้อย', '✓');
             if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('บันทึกคอร์สเรียนสำเร็จ', 'บันทึกข้อมูลคอร์ส ' + name + ' เรียบร้อยแล้ว', '✅');
-            loadCoursesManager();
+            _lastCoursesManagerLoadedAt = 0;
+            loadCoursesManager(false, true);
             if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('courses');
             if (typeof renderSchedulesTable === 'function') renderSchedulesTable(cachedSchedulesList);
             if (typeof loadReceiptCoursesDropdown === 'function') loadReceiptCoursesDropdown();
@@ -48813,7 +48915,8 @@ if (action === 'getDashboardStats') {
 
             .then(res => {
               toast('สำเร็จ', 'ลบคอร์ส ' + name + ' เรียบร้อยแล้ว', '✓');
-              loadCoursesManager();
+              _lastCoursesManagerLoadedAt = 0;
+            loadCoursesManager(false, true);
               if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('courses');
             })
 
@@ -49052,14 +49155,18 @@ if (action === 'getDashboardStats') {
     function getCourseGroupInstructorTermKey(termVal, yearVal) {
       let y = yearVal;
       let t = termVal;
+      if (String(termVal).length === 4 || Number(termVal) > 2500) {
+        y = termVal;
+        t = yearVal;
+      }
 
       if (!y) {
-        const selY = document.getElementById('selScheduleConfigYear') || document.getElementById('selYear') || document.getElementById('selRcptYear');
+        const selY = document.getElementById('selModalCourseYear') || document.getElementById('selScheduleConfigYear') || document.getElementById('selYear') || document.getElementById('selRcptYear');
         y = selY ? selY.value : (window._currentResolvedAcademicTerm ? window._currentResolvedAcademicTerm.yearBE : '2569');
       }
 
       if (!t) {
-        const selT = document.getElementById('selScheduleConfigTerm') || document.getElementById('selTerm') || document.getElementById('selRcptTerm');
+        const selT = document.getElementById('selModalCourseTerm') || document.getElementById('selScheduleConfigTerm') || document.getElementById('selTerm') || document.getElementById('selRcptTerm');
         t = selT ? selT.value : (window._currentResolvedAcademicTerm ? window._currentResolvedAcademicTerm.term : '5');
       }
 
@@ -49076,31 +49183,55 @@ if (action === 'getDashboardStats') {
       const map = window._courseGroupInstructorByTermMap || {};
       const tMap = map[tKey] || map[altKey] || {};
 
-      if (sId !== 'ALL') {
-        const pairKey = `${cCode}::${sId}`;
+      const courseObj = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList))
+        ? cachedCoursesList.find(c => (c.code && String(c.code).toUpperCase() === cCode) || (c.id && String(c.id).toUpperCase() === cCode))
+        : null;
+      const candidateCodes = Array.from(new Set([
+        cCode,
+        courseObj?.code ? String(courseObj.code).trim().toUpperCase() : null,
+        courseObj?.id ? String(courseObj.id).trim().toUpperCase() : null
+      ].filter(Boolean)));
 
-        if (Array.isArray(tMap[pairKey]) && tMap[pairKey].length > 0) {
-          return JSON.parse(JSON.stringify(tMap[pairKey]));
+      if (sId !== 'ALL') {
+        for (const code of candidateCodes) {
+          const pairKey = `${code}::${sId}`;
+          if (Array.isArray(tMap[pairKey]) && tMap[pairKey].length > 0) {
+            return JSON.parse(JSON.stringify(tMap[pairKey]));
+          }
         }
       } else {
         const allGroups = [];
-
-        Object.keys(tMap).forEach(k => {
-          if (k.startsWith(cCode + '::') && Array.isArray(tMap[k])) {
-            allGroups.push(...tMap[k]);
-          }
+        candidateCodes.forEach(code => {
+          Object.keys(tMap).forEach(k => {
+            if (k.startsWith(code + '::') && Array.isArray(tMap[k])) {
+              allGroups.push(...tMap[k]);
+            }
+          });
         });
         if (allGroups.length > 0) return JSON.parse(JSON.stringify(allGroups));
       }
 
-      // Fallback for default term 695 (SCH-01 or ALL)
-
+      // Check localStorage oca_roster_cfg_${y}_${t}_${cCode}_${sId}
       const curY = String(yearVal || '2569').trim();
       const curT = String(termVal || '5').trim();
+      for (const code of candidateCodes) {
+        try {
+          const localCfg = localStorage.getItem(`oca_roster_cfg_${curY}_${curT}_${code}_${sId}`);
+          if (localCfg) {
+            const parsed = JSON.parse(localCfg);
+            if (parsed && Array.isArray(parsed.groups) && parsed.groups.length > 0) {
+              return JSON.parse(JSON.stringify(parsed.groups));
+            }
+          }
+        } catch (_) {}
+      }
 
+      // Fallback for default term 695 (SCH-01 or ALL)
       if ((curY === '2569' && curT === '5') || !termVal) {
-        if ((sId === 'SCH-01' || sId === 'ALL') && DEFAULT_TERM_695_CLASS_MAP[cCode]) {
-          return JSON.parse(JSON.stringify(DEFAULT_TERM_695_CLASS_MAP[cCode]));
+        for (const code of candidateCodes) {
+          if ((sId === 'SCH-01' || sId === 'ALL') && DEFAULT_TERM_695_CLASS_MAP[code]) {
+            return JSON.parse(JSON.stringify(DEFAULT_TERM_695_CLASS_MAP[code]));
+          }
         }
       }
 
@@ -49139,16 +49270,20 @@ if (action === 'getDashboardStats') {
         const expected = metaCounts[tKey];
         const partsMap = chunksByTerm[tKey];
         const indices = Object.keys(partsMap).map(Number).sort((a, b) => a - b);
-        const count = (expected && expected > 0) ? expected : indices.length;
+        const maxIdx = indices.length > 0 ? Math.max(...indices) : 0;
+        const count = (expected && expected > 0 && expected <= maxIdx + 1) ? expected : (maxIdx + 1);
         let joined = '';
+        let valid = true;
         for (let i = 0; i < count; i++) {
-          if (partsMap[i] === undefined) return;
+          if (partsMap[i] === undefined) { valid = false; break; }
           joined += partsMap[i];
         }
-        try {
-          const parsed = JSON.parse(joined);
-          if (parsed && typeof parsed === 'object') byTerm[tKey] = parsed;
-        } catch (_) {}
+        if (valid && joined) {
+          try {
+            const parsed = JSON.parse(joined);
+            if (parsed && typeof parsed === 'object') byTerm[tKey] = parsed;
+          } catch (_) {}
+        }
       });
       return byTerm;
     }
@@ -49186,53 +49321,91 @@ if (action === 'getDashboardStats') {
       });
       const { error } = await _supabase.from('fee_settings').upsert(rows, { onConflict: 'key' });
       if (error) throw error;
+      try {
+        const staleKeys = [];
+        for (let s = chunks.length; s < chunks.length + 50; s++) {
+          staleKeys.push(`${prefix}${tKey}_${s}`);
+        }
+        await _supabase.from('fee_settings').delete().in('key', staleKeys);
+      } catch (_) {}
     }
 
     window.saveChunkedFeeMapTerm = saveChunkedFeeMapTerm;
 
-    async function saveCourseGroupInstructorList(courseCode, scheduleId, groupsArray, termVal, yearVal, applyAllTermsInYear = false) {
+    async function saveCourseModalMatrix(courseCode, schedGroupsMap, termVal, yearVal, applyAllTermsInYear = false, originalCourseCode = null) {
       try {
         const cCode = String(courseCode || '').trim().toUpperCase();
-        const sId = String(scheduleId || 'SCH-01').trim().toUpperCase();
-        const y = String(yearVal || document.getElementById('selScheduleConfigYear')?.value || '2569').trim();
-        const curT = String(termVal || document.getElementById('selScheduleConfigTerm')?.value || '5').trim();
+        const origCode = originalCourseCode ? String(originalCourseCode).trim().toUpperCase() : null;
+        const y = String(yearVal || document.getElementById('selModalCourseYear')?.value || document.getElementById('selScheduleConfigYear')?.value || '2569').trim();
+        const curT = String(termVal || document.getElementById('selModalCourseTerm')?.value || document.getElementById('selScheduleConfigTerm')?.value || '5').trim();
         const terms = applyAllTermsInYear ? ['1', '2', '3', '4', '5'] : [curT];
         if (!window._courseGroupInstructorByTermMap) window._courseGroupInstructorByTermMap = {};
 
+        const allKnownSchedList = Array.isArray(cachedSchedulesList) && cachedSchedulesList.length > 0
+          ? cachedSchedulesList
+          : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES : []);
+
+        const allCombinedGroups = Object.values(schedGroupsMap || {}).flat();
+
         terms.forEach(t => {
           const tKey = `${y}_${t}`;
-
           if (!window._courseGroupInstructorByTermMap[tKey]) {
             window._courseGroupInstructorByTermMap[tKey] = {};
           }
+          const tMap = window._courseGroupInstructorByTermMap[tKey];
 
-          const pairKey = `${cCode}::${sId}`;
-          window._courseGroupInstructorByTermMap[tKey][pairKey] = JSON.parse(JSON.stringify(groupsArray));
+          allKnownSchedList.forEach(s => {
+            const sId = String(s.id).toUpperCase();
+            const pairKey = `${cCode}::${sId}`;
+            const grps = (schedGroupsMap && schedGroupsMap[sId]) || [];
 
-          // Also save sync to oca_roster_cfg_${y}_${t}_${cCode}_${sId}
+            if (origCode && origCode !== cCode) {
+              delete tMap[`${origCode}::${sId}`];
+            }
 
-          if (Array.isArray(groupsArray) && groupsArray.length > 0) {
-            const first = groupsArray[0];
-            const cfgData = {
-              roomNo: first.room || '',
+            if (Array.isArray(grps) && grps.length > 0) {
+              tMap[pairKey] = JSON.parse(JSON.stringify(grps));
+              const first = grps[0];
+              const cfgData = {
+                roomNo: first.room || '',
+                instructor: first.lecturerName || '',
+                groupName: first.section || 'A',
+                groups: grps,
+                updatedAt: new Date().toISOString()
+              };
+              try {
+                localStorage.setItem(`oca_roster_cfg_${y}_${t}_${cCode}_${sId}`, JSON.stringify(cfgData));
+              } catch (_) {}
+            } else {
+              delete tMap[pairKey];
+            }
+          });
 
-              instructor: first.lecturerName || '',
-
-              groupName: first.section || 'A',
-
-              groups: groupsArray,
-
-              updatedAt: new Date().toISOString()
-            };
-
+          if (allCombinedGroups.length > 0) {
+            tMap[`${cCode}::ALL`] = JSON.parse(JSON.stringify(allCombinedGroups));
             try {
-              localStorage.setItem(`oca_roster_cfg_${y}_${t}_${cCode}_${sId}`, JSON.stringify(cfgData));
-              localStorage.setItem(`oca_roster_cfg_${y}_${t}_${cCode}_ALL`, JSON.stringify(cfgData));
+              const first = allCombinedGroups[0];
+              localStorage.setItem(`oca_roster_cfg_${y}_${t}_${cCode}_ALL`, JSON.stringify({
+                roomNo: first.room || '',
+                instructor: first.lecturerName || '',
+                groupName: first.section || 'A',
+                groups: allCombinedGroups,
+                updatedAt: new Date().toISOString()
+              }));
             } catch (_) {}
+          } else {
+            delete tMap[`${cCode}::ALL`];
+          }
+
+          if (origCode && origCode !== cCode) {
+            delete tMap[`${origCode}::ALL`];
           }
         });
+
         const jsonStr = JSON.stringify(window._courseGroupInstructorByTermMap);
-        localStorage.setItem(COURSE_GROUP_INSTRUCTOR_STORAGE_KEY, jsonStr);
+        try {
+          localStorage.setItem(COURSE_GROUP_INSTRUCTOR_STORAGE_KEY, jsonStr);
+        } catch (_) {}
 
         if (typeof _supabase !== 'undefined' && _supabase) {
           for (const t of terms) {
@@ -49241,8 +49414,16 @@ if (action === 'getDashboardStats') {
           }
         }
       } catch (err) {
-        console.warn('[CourseGroupInstructor] Save error:', err);
+        console.warn('[CourseModalMatrix] Save error:', err);
       }
+    }
+
+    window.saveCourseModalMatrix = saveCourseModalMatrix;
+
+    async function saveCourseGroupInstructorList(courseCode, scheduleId, groupsArray, termVal, yearVal, applyAllTermsInYear = false) {
+      const map = {};
+      map[scheduleId] = groupsArray;
+      return saveCourseModalMatrix(courseCode, map, termVal, yearVal, applyAllTermsInYear, null);
     }
 
     window.saveCourseGroupInstructorList = saveCourseGroupInstructorList;
@@ -51227,7 +51408,8 @@ if (action === 'getDashboardStats') {
           if (res && res.success !== false) {
             closeScheduleModal();
             toast('สำเร็จ', 'บันทึกรอบเวลา ' + name + ' เรียบร้อย', '✓');
-            loadCoursesManager();
+            _lastCoursesManagerLoadedAt = 0;
+            loadCoursesManager(false, true);
             if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('schedules');
             if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
             if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
@@ -51283,7 +51465,8 @@ if (action === 'getDashboardStats') {
 
             .then(res => {
               toast('สำเร็จ', 'ลบรอบเวลา ' + name + ' เรียบร้อยแล้ว', '✓');
-              loadCoursesManager();
+              _lastCoursesManagerLoadedAt = 0;
+            loadCoursesManager(false, true);
               if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('schedules');
             })
 
@@ -67114,6 +67297,9 @@ if (action === 'getDashboardStats') {
         if (passwordInput) passwordInput.value = '';
         saveCurrentUser(res.user);
         applyUserPermissions(res.user);
+        _lastCoursesManagerLoadedAt = 0;
+        if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
+        if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus('silent');
         if (typeof initStaffAvatarsCloud === 'function') initStaffAvatarsCloud();
 
           // Authoritative Cloud Single-Session Registration & Broadcast Kick
@@ -67244,6 +67430,10 @@ if (action === 'getDashboardStats') {
       if (txtLogoutU) txtLogoutU.value = '';
       if (txtLogoutP) txtLogoutP.value = '';
       saveCurrentUser(null);
+      _lastCoursesManagerLoadedAt = 0;
+      cachedCoursesList = [];
+      window._ocaScheduleCoursesByTermMap = {};
+      window._courseGroupInstructorByTermMap = {};
 
       try {
         sessionStorage.removeItem('oca_security_unlocked');
@@ -93140,7 +93330,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=160';
+      const swPath = basePath + 'sw.js?v=161';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -93149,7 +93339,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (160):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (161):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
