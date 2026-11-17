@@ -13170,7 +13170,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '154';
+      var LATEST_VERSION = '155';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -24971,21 +24971,7 @@ body.printing-report #printReportContainer {
             </div>
 
             <form id="formPublicRegister" autocomplete="off" style="display:none;" onsubmit="event.preventDefault(); submitPublicRegister();">
-              <!-- Active Mode Selector & Renewal Badge -->
-              <div id="boxPubActiveModeBanner" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; background:#F8FAFC; border:1.5px solid #CBD5E1; border-radius:12px; padding:12px 14px; margin-bottom:12px;">
-                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
-                  <button type="button" id="btnPubModeNew" onclick="selectPublicStudentMode('new')" style="background:#047857; color:#FFFFFF; border:1.5px solid #047857; border-radius:8px; padding:6px 12px; font-size:12.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all 0.2s;">
-                    <i class="fa-solid fa-user-plus"></i> สมัครเรียนใหม่ (New Student)
-                  </button>
-                  <button type="button" id="btnPubModeRenewal" onclick="selectPublicStudentMode('returning')" style="background:#FFFFFF; color:#1E40AF; border:1.5px solid #93C5FD; border-radius:8px; padding:6px 12px; font-size:12.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all 0.2s;">
-                    <i class="fa-solid fa-rotate"></i> ต่อคอร์ส — นักศึกษาเก่า (Course Renewal)
-                  </button>
-                  <span id="lblPubActiveModeText" style="font-size:12.5px; font-weight:700; color:#065F46; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:999px; padding:4px 10px;">โหมด: นักศึกษาใหม่ (สมัครเรียนครั้งแรก)</span>
-                </div>
-                <button type="button" onclick="showPublicStep0()" style="background:#FFFFFF; border:1px solid #94A3B8; color:#334155; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer;">
-                  <i class="fa-solid fa-arrow-left"></i> เปลี่ยนประเภทนักศึกษา
-                </button>
-              </div>
+              <div style="display:none;" aria-hidden="true"><button type="button" id="btnPubModeNew" onclick="selectPublicStudentMode('new')"></button><button type="button" id="btnPubModeRenewal" onclick="selectPublicStudentMode('returning')"></button></div>
               <!-- Online Registration Scope Policy Notice -->
               <div id="boxPubOnlineScopeNotice" style="background:#FFFBEB; border:1.5px solid #F59E0B; border-radius:12px; padding:12px 15px; margin-bottom:14px; display:flex; align-items:flex-start; gap:10px; box-shadow:0 2px 8px rgba(245,158,11,0.08);">
                 <div style="width:30px; height:30px; border-radius:50%; background:#FEF3C7; color:#B45309; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:14px;">
@@ -73407,7 +73393,7 @@ function openPublicRegisterView() {
         lmRecommendedBadge: 'แนะนำสำหรับคอร์สนี้',
         recommendedNextTitle: '★ คอร์สแนะนำถัดไปสำหรับคุณ',
         recommendedStarterTitle: '★ คอร์สเริ่มต้นแนะนำสำหรับคุณ',
-        halfBookChip: '✂️ แบ่งเรียนครึ่งเล่ม',
+        halfBookChip: 'แบ่งเรียนครึ่งเล่ม',
         halfBookFilterBanner: 'กำลังแสดงคอร์สแบ่งครึ่งเล่มของหนังสือ',
         showAllCoursesBtn: '← กลับไปดูคอร์สทั้งหมด',
         noCoursesFound: 'ไม่พบคอร์สเรียนในหมวดหมู่นี้',
@@ -73465,7 +73451,7 @@ function openPublicRegisterView() {
         lmRecommendedBadge: 'Recommended',
         recommendedNextTitle: '★ Recommended Next Courses for You',
         recommendedStarterTitle: '★ Recommended Starter Courses',
-        halfBookChip: '✂️ Half-Book',
+        halfBookChip: 'Half-Book',
         halfBookFilterBanner: 'Showing half-book courses for book',
         showAllCoursesBtn: '← Back to All Courses',
         noCoursesFound: 'No courses found in this category',
@@ -73523,7 +73509,7 @@ function openPublicRegisterView() {
         lmRecommendedBadge: '推荐方式',
         recommendedNextTitle: '★ 为您推荐的下一阶段课程',
         recommendedStarterTitle: '★ 推荐入门课程',
-        halfBookChip: '✂️ 分半册学习',
+        halfBookChip: '分半册学习',
         halfBookFilterBanner: '正在显示教材的半册课程',
         showAllCoursesBtn: '← 返回查看全部课程',
         noCoursesFound: '未找到该分类下的课程',
@@ -73930,6 +73916,28 @@ function openPublicRegisterView() {
       selectKioskCourse(code);
     }
     window.selectKioskHalfCourseByCode = selectKioskHalfCourseByCode;
+
+    function getKioskHalfBookPartLabel(hcCode, lang) {
+      const norm = String(hcCode || '').trim().toUpperCase();
+      const langKey = lang || (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
+      let part = (typeof OCA_BOOK_CURRICULUM_MAP !== 'undefined' && OCA_BOOK_CURRICULUM_MAP[norm]) ? OCA_BOOK_CURRICULUM_MAP[norm].part : null;
+      if (!part) {
+        if (/(?:CE1|OE1)\d{2}/i.test(norm)) part = 'half1';
+        else if (/(?:CE2|OE2)\d{2}/i.test(norm)) part = 'half2';
+      }
+      if (part === 'half1') {
+        if (langKey === 'zh') return '上半册';
+        if (langKey === 'en') return '1st Half';
+        return 'ครึ่งแรก';
+      }
+      if (part === 'half2') {
+        if (langKey === 'zh') return '下半册';
+        if (langKey === 'en') return '2nd Half';
+        return 'ครึ่งหลัง';
+      }
+      return '';
+    }
+    window.getKioskHalfBookPartLabel = getKioskHalfBookPartLabel;
 
     function computeKioskCoursePricing(course, schedId, mode, studentHistory) {
       const basePrice = (course && course.price && !isNaN(Number(course.price))) ? Number(course.price) : 2200;
@@ -74703,8 +74711,8 @@ function openPublicRegisterView() {
       if (customImg && typeof customImg === 'string' && customImg.trim()) return customImg.trim();
       const codeUpper = String((course && (course.code || course.id)) || '').trim().toUpperCase();
       const raw = `${category || ''} ${codeUpper} ${(course && course.name) || ''}`.toUpperCase();
-      if (/KIDS|เด็ก|เยาวชน|CE|OE|\bE\d/.test(raw)) {
-        return 'https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?auto=format&fit=crop&w=480&q=80';
+      if (/KIDS|เด็ก|เยาวชน|\bE[1-4]0\d{2}\b|\bE\d{4}\b/.test(raw)) {
+        return 'https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=480&q=80';
       }
       if (/ศิลป์|วาด|พู่กัน|เขียนอักษร|ART|CALLIGRAPHY/.test(raw)) {
         return 'https://images.unsplash.com/photo-1582561424760-0321d75e81fa?auto=format&fit=crop&w=480&q=80';
@@ -74716,9 +74724,9 @@ function openPublicRegisterView() {
         return 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=480&q=80';
       }
       if (/สนทนา|CONVERSATION|BIZ|\bSS?\d|\bOS\d/.test(raw)) {
-        return 'https://images.unsplash.com/photo-1577563908411-5077b6dc7624?auto=format&fit=crop&w=480&q=80';
+        return 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=480&q=80';
       }
-      return 'https://images.unsplash.com/photo-1547981609-4b6bfe67ca0b?auto=format&fit=crop&w=480&q=80';
+      return 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=480&q=80';
     }
     window.getKioskCourseImageUrl = getKioskCourseImageUrl;
 
@@ -74840,7 +74848,7 @@ function openPublicRegisterView() {
       }
       const halfFilterBannerHtml = halfFilter
         ? `<div style="grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; background:#EFF6FF; border:1.5px solid #3B82F6; border-radius:10px; padding:10px 14px;">
-            <div style="font-size:13px; font-weight:700; color:#1E40AF;">✂️ ${escapeHtml(d.halfBookFilterBanner || 'กำลังแสดงคอร์สแบ่งครึ่งเล่มของหนังสือ')} <strong>${escapeHtml(halfFilter.bookKey)}</strong> (${escapeHtml(halfFilter.codes.join(', '))})</div>
+            <div style="font-size:13px; font-weight:700; color:#1E40AF;"><i class="fa-solid fa-book-open" style="margin-right:5px;"></i>${escapeHtml(d.halfBookFilterBanner || 'กำลังแสดงคอร์สแบ่งครึ่งเล่มของหนังสือ')} <strong>${escapeHtml(halfFilter.bookKey)}</strong> (${escapeHtml(halfFilter.codes.join(', '))})</div>
             <button type="button" onclick="resetKioskCourseFilters()" style="background:#FFFFFF; color:#1E40AF; border:1px solid #93C5FD; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:700; cursor:pointer;">${escapeHtml(d.showAllCoursesBtn || '← กลับไปดูคอร์สทั้งหมด')}</button>
           </div>`
         : '';
@@ -74867,7 +74875,9 @@ function openPublicRegisterView() {
                 const hcCode = hc.code || hc.id || extractKioskCourseCode(hc);
                 const hcPricing = computeKioskCoursePricing(hc, '', mode, ctx);
                 const hcTarget = String(hc.id || hcCode).replace(/'/g, "\\'");
-                return `<button type="button" class="oca-kiosk-half-btn" onclick="event.stopPropagation(); selectKioskCourse('${escapeHtml(hcTarget)}');" onkeydown="if(event.key==='Enter'||event.key===' '){event.stopPropagation(); selectKioskCourse('${escapeHtml(hcTarget)}');}" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #93C5FD; border-radius:8px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(29,78,216,0.08); transition:all 0.15s ease;" onmouseover="this.style.background='#DBEAFE'" onmouseout="this.style.background='#EFF6FF'" title="เลือกเรียน ${escapeHtml(hc.name || hcCode)}"><span>✂️ ${escapeHtml(hcCode)}</span><span style="color:#047857; font-weight:800;">฿${hcPricing.netTuition.toLocaleString()}</span></button>`;
+                const halfLabel = (typeof getKioskHalfBookPartLabel === 'function') ? getKioskHalfBookPartLabel(hcCode, lang) : '';
+                const halfLabelHtml = halfLabel ? ` <small style="font-weight:600; opacity:0.85;">(${escapeHtml(halfLabel)})</small>` : '';
+                return `<button type="button" class="oca-kiosk-half-btn" onclick="event.stopPropagation(); selectKioskCourse('${escapeHtml(hcTarget)}');" onkeydown="if(event.key==='Enter'||event.key===' '){event.stopPropagation(); selectKioskCourse('${escapeHtml(hcTarget)}');}" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #93C5FD; border-radius:8px; padding:4px 8px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(29,78,216,0.08); transition:all 0.15s ease;" onmouseover="this.style.background='#DBEAFE'" onmouseout="this.style.background='#EFF6FF'" title="เลือกเรียน ${escapeHtml(hc.name || hcCode)}"><span><strong>${escapeHtml(hcCode)}</strong>${halfLabelHtml}</span> <span style="color:#047857; font-weight:800;">฿${hcPricing.netTuition.toLocaleString()}</span></button>`;
               }).join('')}
             </div>`
           : '';
@@ -74884,9 +74894,18 @@ function openPublicRegisterView() {
         const regTag = pricing.isReturning
           ? `<span style="display:inline-block; background:#DBEAFE; color:#1E40AF; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px;">${escapeHtml(d.freeRegFee)}</span>`
           : `<span style="display:inline-block; background:#FEF3C7; color:#92400E; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px;">${escapeHtml(d.newRegFeePrefix + pricing.regFee.toLocaleString())}</span>`;
-        const discHtml = pricing.discountAmount > 0
-          ? `<span style="font-size:11px; color:#047857; font-weight:700;">${escapeHtml(d.discountPrefix + pricing.discountAmount.toLocaleString())}</span>`
-          : '';
+        const hasDiscount = pricing.discountAmount > 0 && pricing.basePrice > pricing.netTuition;
+        const priceRowHtml = hasDiscount
+          ? `<div style="display:flex; align-items:baseline; justify-content:space-between; gap:6px; flex-wrap:wrap;">
+              <div style="display:flex; align-items:baseline; gap:6px;">
+                <span style="font-size:18px; font-weight:900; color:#047857;">฿${pricing.netTuition.toLocaleString()}</span>
+                <span style="font-size:12px; color:#64748B; text-decoration:line-through; font-weight:600;">฿${pricing.basePrice.toLocaleString()}</span>
+              </div>
+              <span style="display:inline-flex; align-items:center; gap:3px; background:#DCFCE7; color:#15803D; font-size:10.5px; font-weight:800; padding:2px 6px; border-radius:6px; border:1px solid #86EFAC;"><i class="fa-solid fa-tag" style="font-size:9px;"></i>${escapeHtml(d.discountPrefix || 'ลด -฿')}${pricing.discountAmount.toLocaleString()}</span>
+            </div>`
+          : `<div style="display:flex; align-items:baseline; justify-content:space-between; gap:6px;">
+              <span style="font-size:18px; font-weight:900; color:#047857;">฿${pricing.netTuition.toLocaleString()}</span>
+            </div>`;
         return `<div class="oca-kiosk-card${isSelected ? ' selected' : ''}" role="button" tabindex="0" data-course-code="${escapeHtml(codeStr)}" onclick="onKioskCourseCardClick(${idx})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); onKioskCourseCardClick(${idx});}">
           <div class="oca-kiosk-card-art" style="background:${art.bg};">
             <span class="oca-kiosk-code-badge">${escapeHtml(codeStr)}</span>
@@ -74904,10 +74923,7 @@ function openPublicRegisterView() {
               ${halfBtnHtml}
             </div>
             <div style="border-top:1px solid #F1F5F9; padding-top:8px; display:flex; flex-direction:column; gap:4px;">
-              <div style="display:flex; align-items:baseline; justify-content:space-between; gap:6px;">
-                <span style="font-size:18px; font-weight:900; color:#047857;">฿${pricing.netTuition.toLocaleString()}</span>
-                ${discHtml}
-              </div>
+              ${priceRowHtml}
               <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
                 ${regTag}
                 <span style="font-size:11px; color:#334155; font-weight:700;">รวมสุทธิ ฿${pricing.netTotal.toLocaleString()}</span>
@@ -75010,9 +75026,31 @@ function openPublicRegisterView() {
       const mode = window._pubStudentMode === 'returning' ? 'returning' : 'new';
       const pricing = computeKioskCoursePricing(course, ctx.selectedScheduleId, mode, ctx);
       if (summaryBox) {
+        const lang = (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
+        const cCode = course.code || course.id || '';
+        const normCode = String(cCode).trim().toUpperCase();
+        const meta = (typeof OCA_BOOK_CURRICULUM_MAP !== 'undefined') ? OCA_BOOK_CURRICULUM_MAP[normCode] : null;
+        let part = meta ? meta.part : '';
+        if (!part) {
+          if (/(?:CE1|OE1)\d{2}/i.test(normCode)) part = 'half1';
+          else if (/(?:CE2|OE2)\d{2}/i.test(normCode)) part = 'half2';
+        }
+        let halfBadgeHtml = '';
+        if (part === 'half1' || part === 'half2') {
+          let badgeText = '';
+          if (lang === 'zh') {
+            badgeText = part === 'half1' ? '分半册课程：上半册（第1期）' : '分半册课程：下半册（第2期）';
+          } else if (lang === 'en') {
+            badgeText = part === 'half1' ? 'Half-Book Course: 1st Half (Term 1)' : 'Half-Book Course: 2nd Half (Term 2)';
+          } else {
+            badgeText = part === 'half1' ? 'คอร์สแบ่งครึ่งเล่ม: ครึ่งแรก (เทอม 1)' : 'คอร์สแบ่งครึ่งเล่ม: ครึ่งหลัง (เทอม 2)';
+          }
+          halfBadgeHtml = `<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; background:#EFF6FF; color:#1D4ED8; border:1px solid #93C5FD; font-size:11px; font-weight:800; padding:2px 8px; border-radius:6px;">📘 ${escapeHtml(badgeText)}</span></div>`;
+        }
         summaryBox.innerHTML = `<div>
-          <div style="font-size:11.5px; color:#047857; font-weight:800;">${escapeHtml(course.code || course.id || '')}</div>
+          <div style="font-size:11.5px; color:#047857; font-weight:800;">${escapeHtml(cCode)}</div>
           <div style="font-size:16px; font-weight:800; color:#0F172A;">${escapeHtml(course.name || '')}</div>
+          ${halfBadgeHtml}
         </div>
         <div style="text-align:right;">
           <div style="font-size:18px; font-weight:900; color:#047857;">฿${pricing.netTotal.toLocaleString()}</div>
@@ -92488,7 +92526,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=154';
+      const swPath = basePath + 'sw.js?v=155';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -92497,7 +92535,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (154):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (155):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
