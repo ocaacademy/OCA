@@ -73421,49 +73421,66 @@ function openPublicRegisterView() {
       const cleanAlpha = rawQ.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
       if (typeof _supabase !== 'undefined' && _supabase && (safeQ || cleanDigits || cleanAlpha)) {
         try {
-          const orConds = [];
           const isNumeric = /^\d+$/.test(cleanDigits);
-          if (isNumeric) {
-            if (cleanDigits.length >= 4 && cleanDigits.length <= 7 && Number(cleanDigits) <= 2147483647) {
-              orConds.push(`student_id.eq.${cleanDigits}`);
-            }
-            if (cleanDigits.length === 13) {
-              orConds.push(`citizen_id.eq.${cleanDigits}`);
-            }
-            if (cleanDigits.length >= 9 && cleanDigits.length <= 10) {
-              orConds.push(`phone_number.eq.${cleanDigits}`);
-            }
-            orConds.push(`smart_card_uid.eq.${cleanDigits}`);
-            if (cleanDigits.length >= 7) {
-              try {
-                const hexVal = Number(cleanDigits).toString(16).toUpperCase();
-                if (hexVal && hexVal.length >= 4) orConds.push(`smart_card_uid.eq.${hexVal}`);
-              } catch (_) {}
-            }
-          } else {
-            if (safeQ) orConds.push(`full_name.ilike.%${safeQ}%`);
-            if (safeQ && /^[0-9A-Za-z:-]{4,32}$/.test(safeQ)) {
-              orConds.push(`smart_card_uid.eq.${safeQ}`);
-            }
-            if (cleanAlpha.length >= 6) {
-              orConds.push(`citizen_id.ilike.%${cleanAlpha}%`);
-            }
-          }
-          if (orConds.length > 0) {
-            // Note: Avoid chaining student_id descending sort with .or(...) on students —
-            // PostgreSQL plans a backward index scan and hits statement timeout (HTTP 500 / 57014). Sort in JS instead.
-            const { data: stRows, error: stErr } = await _supabase
+          let directRows = null;
+          if (isNumeric && cleanDigits.length >= 4 && cleanDigits.length <= 7 && Number(cleanDigits) <= 2147483647) {
+            const { data: dExact, error: dErr } = await _supabase
               .from('students')
               .select('*')
-              .or(orConds.join(','))
-              .limit(25);
-            if (stErr) {
-              console.warn('[searchKioskReturningStudent] query error:', stErr);
-            } else if (Array.isArray(stRows)) {
-              matches = stRows
-                .filter(s => s && s.status !== 'DELETED' && !String(s.notes || '').includes('[DELETED_ARCHIVE]'))
-                .sort((a, b) => Number(b.student_id || 0) - Number(a.student_id || 0))
-                .slice(0, 15);
+              .eq('student_id', cleanDigits)
+              .limit(5);
+            if (dErr) {
+              console.warn('[searchKioskReturningStudent] student_id query error:', dErr);
+            } else if (Array.isArray(dExact) && dExact.length > 0) {
+              directRows = dExact;
+            }
+          }
+          if (directRows) {
+            matches = directRows
+              .filter(s => s && s.status !== 'DELETED' && !String(s.notes || '').includes('[DELETED_ARCHIVE]'))
+              .sort((a, b) => Number(b.student_id || 0) - Number(a.student_id || 0))
+              .slice(0, 15);
+          } else {
+            const orConds = [];
+            if (isNumeric) {
+              if (cleanDigits.length === 13) {
+                orConds.push(`citizen_id.eq.${cleanDigits}`);
+              }
+              if (cleanDigits.length >= 9 && cleanDigits.length <= 10) {
+                orConds.push(`phone_number.eq.${cleanDigits}`);
+              }
+              orConds.push(`smart_card_uid.eq.${cleanDigits}`);
+              if (cleanDigits.length >= 7) {
+                try {
+                  const hexVal = Number(cleanDigits).toString(16).toUpperCase();
+                  if (hexVal && hexVal.length >= 4) orConds.push(`smart_card_uid.eq.${hexVal}`);
+                } catch (_) {}
+              }
+            } else {
+              if (safeQ) orConds.push(`full_name.ilike.%${safeQ}%`);
+              if (safeQ && /^[0-9A-Za-z:-]{4,32}$/.test(safeQ)) {
+                orConds.push(`smart_card_uid.eq.${safeQ}`);
+              }
+              if (cleanAlpha.length >= 6) {
+                orConds.push(`citizen_id.ilike.%${cleanAlpha}%`);
+              }
+            }
+            if (orConds.length > 0) {
+              // Note: Avoid chaining student_id descending sort with .or(...) on students —
+              // PostgreSQL plans a backward index scan and hits statement timeout (HTTP 500 / 57014). Sort in JS instead.
+              const { data: stRows, error: stErr } = await _supabase
+                .from('students')
+                .select('*')
+                .or(orConds.join(','))
+                .limit(25);
+              if (stErr) {
+                console.warn('[searchKioskReturningStudent] query error:', stErr);
+              } else if (Array.isArray(stRows)) {
+                matches = stRows
+                  .filter(s => s && s.status !== 'DELETED' && !String(s.notes || '').includes('[DELETED_ARCHIVE]'))
+                  .sort((a, b) => Number(b.student_id || 0) - Number(a.student_id || 0))
+                  .slice(0, 15);
+              }
             }
           }
         } catch (err) {
