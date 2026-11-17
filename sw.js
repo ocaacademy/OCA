@@ -1,4 +1,4 @@
-const CACHE_NAME = '158';
+const CACHE_NAME = '159';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -15,6 +15,12 @@ const ASSETS_TO_CACHE = [
   './assets/images/oca_bamboo_cranes.jpg',
   './assets/images/oca_gold_card_template.jpg',
   './assets/images/oca_gold_card_template.png',
+  './assets/images/kiosk_cat_kids.jpg',
+  './assets/images/kiosk_cat_adult.jpg',
+  './assets/images/kiosk_cat_convo.jpg',
+  './assets/images/kiosk_cat_hsk.jpg',
+  './assets/images/kiosk_cat_music.jpg',
+  './assets/images/kiosk_cat_art.jpg',
   './assets/data/thai_address_compact.json',
   'https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-kJVDLKednw7P',
   'https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap',
