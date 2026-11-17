@@ -13674,7 +13674,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '164';
+      var LATEST_VERSION = '165';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -73283,9 +73283,9 @@ if (action === 'getDashboardStats') {
 
     async function checkAndRestoreExistingStudent() {
       try {
-        const primaryDraft = localStorage.getItem('oca_public_reg_draft');
-        if (primaryDraft) {
-          const parsed = JSON.parse(primaryDraft);
+        const sDraft = sessionStorage.getItem('oca_public_reg_draft') || localStorage.getItem('oca_public_reg_draft');
+        if (sDraft) {
+          const parsed = JSON.parse(sDraft);
           if (parsed && (parsed.fullName || parsed.citizenId || parsed.phone)) {
             restorePublicRegisterFromDraft(parsed, 'ข้อมูลที่คุณเคยกรอกไว้ในอุปกรณ์นี้');
           }
@@ -73420,7 +73420,7 @@ if (action === 'getDashboardStats') {
 
       try {
         // Purge primary auto-save draft & session tokens
-
+        sessionStorage.removeItem('oca_public_reg_draft');
         localStorage.removeItem('oca_public_reg_draft');
         localStorage.removeItem('oca_pub_reg_draft');
         localStorage.removeItem('oca_pub_reg_last_cid');
@@ -74445,6 +74445,15 @@ function openPublicRegisterView() {
         if (step2Box) step2Box.style.display = 'none';
         if (step3Box) step3Box.style.display = 'none';
         goToPubRegStep(1);
+        try {
+          const sessDraft = sessionStorage.getItem('oca_public_reg_draft');
+          if (sessDraft) {
+            const parsed = JSON.parse(sessDraft);
+            if (parsed && (parsed.fullName || parsed.citizenId || parsed.phone || parsed.addrLine)) {
+              restorePublicRegisterFromDraft(parsed, 'ข้อมูลที่คุณเคยกรอกไว้ในอุปกรณ์นี้');
+            }
+          }
+        } catch (_) {}
       }
     }
 
@@ -74754,7 +74763,7 @@ function openPublicRegisterView() {
       const firstPair = termPairs.length > 0 ? termPairs[0] : null;
       const hasPastCompletedTerm = termPairs.some(p => (p.yearBE < activeYear) || (p.yearBE === activeYear && p.term < activeTerm));
       const hasLegacyStudentId = Boolean(student && student.student_id && String(student.student_id).trim().length >= 5);
-      const isReturning = hasPastCompletedTerm || (validReceipts.length > 0 && hasPastCompletedTerm);
+      const isReturning = hasPastCompletedTerm || hasLegacyStudentId || (validReceipts.length > 0);
       return {
         status: isReturning ? 'returning' : 'new',
         isReturning: isReturning,
@@ -75583,7 +75592,7 @@ function openPublicRegisterView() {
       const sid = String(student.student_id || student.studentId || '').trim();
       const history = await loadKioskStudentCourseHistory(sid, student);
       const lifecycle = resolveStudentLifecycleStatus(student, history.receipts);
-      window._pubStudentMode = lifecycle.isReturning ? 'returning' : 'new';
+      window._pubStudentMode = (lifecycle.isReturning || sid) ? 'returning' : 'new';
       window._pubExistingStudentId = sid;
       window._pubKioskContext = {
         mode: window._pubStudentMode,
@@ -76579,21 +76588,42 @@ function openPublicRegisterView() {
       // Sync #selPubSchedule & #selPubCourse
       const selSched = document.getElementById('selPubSchedule');
       if (selSched && ctx.selectedScheduleName) {
+        let schedMatched = false;
         for (const opt of selSched.options) {
           if (opt.value === ctx.selectedScheduleName || (opt.dataset && opt.dataset.scheduleId === ctx.selectedScheduleId)) {
             selSched.value = opt.value;
+            schedMatched = true;
             break;
           }
+        }
+        if (!schedMatched && ctx.selectedScheduleName) {
+          const opt = document.createElement('option');
+          opt.value = ctx.selectedScheduleName;
+          opt.textContent = ctx.selectedScheduleName;
+          if (ctx.selectedScheduleId) opt.dataset.scheduleId = ctx.selectedScheduleId;
+          selSched.appendChild(opt);
+          selSched.value = ctx.selectedScheduleName;
         }
         if (typeof onPublicScheduleChanged === 'function') onPublicScheduleChanged(course.name || course.code || course.id);
       }
       const selCourse = document.getElementById('selPubCourse');
-      if (selCourse) {
+      if (selCourse && course) {
+        const cTargetName = course.name || course.code || course.id || '';
+        let courseMatched = false;
         for (const opt of selCourse.options) {
-          if (opt.value === course.name || (opt.dataset && (opt.dataset.courseId === course.id || opt.dataset.courseId === course.code))) {
+          if (opt.value === cTargetName || (opt.dataset && (opt.dataset.courseId === course.id || opt.dataset.courseId === course.code))) {
             selCourse.value = opt.value;
+            courseMatched = true;
             break;
           }
+        }
+        if (!courseMatched && cTargetName) {
+          const opt = document.createElement('option');
+          opt.value = cTargetName;
+          opt.textContent = cTargetName;
+          if (course.id || course.code) opt.dataset.courseId = course.id || course.code;
+          selCourse.appendChild(opt);
+          selCourse.value = cTargetName;
         }
       }
       // Render Groups / Instructors / Rooms (Explicit selection required — no auto-default)
@@ -76785,30 +76815,44 @@ function openPublicRegisterView() {
         window._pubVerifiedSlipMeta = { qrRaw: qrScan.qrRaw, transRef: qrScan.transRef, slipSha256: slipHash, verifiedAt: Date.now() };
       }
 
-      const slipTransRef = window._pubVerifiedSlipMeta.transRef;
-      const slipHash256 = window._pubVerifiedSlipMeta.slipSha256;
-      const refKey = 'used_slip_ref:' + String(slipTransRef || '').slice(0, 35);
-      const hashKey = 'used_hash:' + String(slipHash256 || '').slice(0, 39);
+      const slipTransRef = String(window._pubVerifiedSlipMeta.transRef || '').trim();
+      const slipHash256 = String(window._pubVerifiedSlipMeta.slipSha256 || '').trim();
+      const refKey = slipTransRef ? ('used_slip_ref:' + slipTransRef.slice(0, 35)) : '';
+      const hashKey = slipHash256 ? ('used_hash:' + slipHash256.slice(0, 39)) : '';
+      const legacyHashKey = slipHash256 ? ('used_slip_hash:' + slipHash256.slice(0, 34)) : '';
 
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
+          const filterParts = ['key.like.pending_slip%'];
+          if (refKey) filterParts.push('key.eq.' + refKey);
+          if (hashKey) filterParts.push('key.eq.' + hashKey);
+          if (legacyHashKey) filterParts.push('key.eq.' + legacyHashKey);
           const { data: dupKeys } = await _supabase.from('fee_settings')
             .select('key, name')
-            .or('key.eq.' + refKey + ',key.eq.' + hashKey + ',key.like.pending_slip%')
+            .or(filterParts.join(','))
             .limit(500);
           let isDuplicate = false;
           let dupMsg = '';
 
           if (Array.isArray(dupKeys)) {
-            const shortRef = String(slipTransRef || '').slice(0, 18);
+            const shortRef = slipTransRef.slice(0, 18);
             for (const r of dupKeys) {
-              if (r.key === refKey || r.key === hashKey || r.key === 'used_slip_ref:' + slipTransRef || r.key === 'used_slip_hash:' + slipHash256) {
+              if (
+                (refKey && r.key === refKey) ||
+                (hashKey && r.key === hashKey) ||
+                (legacyHashKey && r.key === legacyHashKey) ||
+                (slipTransRef && r.key === 'used_slip_ref:' + slipTransRef) ||
+                (slipHash256 && (r.key === 'used_slip_hash:' + slipHash256 || r.key === 'used_hash:' + slipHash256))
+              ) {
                 isDuplicate = true;
                 dupMsg = 'ตรวจพบรหัสอ้างอิงสลิปหรือลายนิ้วมือดิจิทัลนี้เคยถูกบันทึกในระบบแล้ว';
                 break;
               }
               if (r.key && r.key.startsWith('pending_slip') && r.name) {
-                if (r.name.includes(slipTransRef) || r.name.includes(slipHash256) || (shortRef.length >= 12 && r.name.includes(shortRef))) {
+                const hasRefMatch = Boolean(slipTransRef && slipTransRef.length >= 6 && r.name.includes(slipTransRef));
+                const hasHashMatch = Boolean(slipHash256 && slipHash256.length >= 12 && r.name.includes(slipHash256));
+                const hasShortRefMatch = Boolean(shortRef && shortRef.length >= 12 && r.name.includes(shortRef));
+                if (hasRefMatch || hasHashMatch || hasShortRefMatch) {
                   isDuplicate = true;
                   dupMsg = 'สลิปนี้กำลังอยู่ในคิวรอการตรวจสอบของผู้สมัครท่านอื่น';
                   break;
@@ -76817,14 +76861,21 @@ function openPublicRegisterView() {
             }
           }
 
-          if (!isDuplicate) {
-            const { data: dupRc, error: dupRcErr } = await _supabase.from('receipts')
-              .select('receipt_no')
-              .eq('payment_ref', slipTransRef)
-              .limit(1);
-            if (!dupRcErr && dupRc && dupRc.length > 0) {
-              isDuplicate = true;
-              dupMsg = 'สลิปนี้เคยถูกออกใบเสร็จรับเงินแล้ว (เลขที่ ' + dupRc[0].receipt_no + ')';
+          if (!isDuplicate && slipTransRef && slipTransRef.length >= 6) {
+            try {
+              const hasAbort = typeof window !== 'undefined' && 'AbortController' in window;
+              const abortController = hasAbort ? new window.AbortController() : null;
+              const timeoutId = abortController ? setTimeout(() => abortController.abort(), 1200) : null;
+              let q = _supabase.from('receipts').select('receipt_no').eq('payment_ref', slipTransRef).limit(1);
+              if (abortController) q = q.abortSignal(abortController.signal);
+              const { data: dupRc, error: dupRcErr } = await q;
+              if (timeoutId) clearTimeout(timeoutId);
+              if (!dupRcErr && Array.isArray(dupRc) && dupRc.length > 0) {
+                isDuplicate = true;
+                dupMsg = 'สลิปนี้เคยถูกออกใบเสร็จรับเงินแล้ว (เลขที่ ' + dupRc[0].receipt_no + ')';
+              }
+            } catch (rcScanNotice) {
+              console.warn('[Slip Anti-Replay Check] Notice:', rcScanNotice);
             }
           }
 
@@ -76901,8 +76952,9 @@ function openPublicRegisterView() {
       const district = (document.getElementById('selPubDistrict')?.value || document.getElementById('txtPubDistrict')?.value || '').trim();
       const province = (document.getElementById('selPubProvince')?.value || document.getElementById('txtPubProvince')?.value || '').trim();
       const postalCode = (document.getElementById('selPubPostalCode')?.value || document.getElementById('txtPubPostalCode')?.value || '').trim();
-      const selCourse = (document.getElementById('selPubCourse')?.value || '').trim();
-      const selSchedule = (document.getElementById('selPubSchedule')?.value || '').trim();
+      const ctxCourse = (window._pubKioskContext && window._pubKioskContext.selectedCourse) || null;
+      const selCourse = (document.getElementById('selPubCourse')?.value || (ctxCourse && (ctxCourse.name || ctxCourse.code || ctxCourse.id)) || '').trim();
+      const selSchedule = (document.getElementById('selPubSchedule')?.value || (window._pubKioskContext && window._pubKioskContext.selectedScheduleName) || '').trim();
       const userNotes = sanitizeInputText(document.getElementById('txtPubNotes')?.value || '');
       const companyName = (document.getElementById('txtPubCompanyName')?.value || document.getElementById('txtPubCorpName')?.value || '').trim();
       const companyBranch = (document.getElementById('txtPubCompanyBranch')?.value || '').trim();
@@ -77372,6 +77424,7 @@ function openPublicRegisterView() {
               }
 
             try {
+              sessionStorage.removeItem('oca_public_reg_draft');
               localStorage.removeItem('oca_public_reg_draft');
             } catch (_) {}
 
@@ -94039,7 +94092,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=164';
+      const swPath = basePath + 'sw.js?v=165';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -94048,7 +94101,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (164):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (165):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
