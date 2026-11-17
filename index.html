@@ -13131,7 +13131,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '150';
+      var LATEST_VERSION = '151';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -25024,25 +25024,33 @@ body.printing-report #printReportContainer {
                           <input type="hidden" id="inpKioskQuickAddr">
                         </div>
                         <div>
-                          <label class="oca-reg-label" for="inpKioskEditSubdistrict">แขวง / ตำบล *</label>
-                          <input type="text" id="inpKioskEditSubdistrict" class="oca-reg-input" placeholder="แขวง / ตำบล" oninput="syncKioskQuickContactToForm()">
+                          <label class="oca-reg-label" for="inpKioskEditProvince">จังหวัด *</label>
+                          <select id="inpKioskEditProvince" class="oca-reg-input" onchange="onKioskEditProvinceChanged()">
+                            <option value="">-- เลือกจังหวัด --</option>
+                          </select>
                         </div>
                         <div>
                           <label class="oca-reg-label" for="inpKioskEditDistrict">เขต / อำเภอ *</label>
-                          <input type="text" id="inpKioskEditDistrict" class="oca-reg-input" placeholder="เขต / อำเภอ" oninput="syncKioskQuickContactToForm()">
+                          <select id="inpKioskEditDistrict" class="oca-reg-input" onchange="onKioskEditDistrictChanged()">
+                            <option value="">-- เลือกอำเภอ / เขต --</option>
+                          </select>
                         </div>
                         <div>
-                          <label class="oca-reg-label" for="inpKioskEditProvince">จังหวัด *</label>
-                          <input type="text" id="inpKioskEditProvince" class="oca-reg-input" placeholder="จังหวัด" oninput="syncKioskQuickContactToForm()">
+                          <label class="oca-reg-label" for="inpKioskEditSubdistrict">แขวง / ตำบล *</label>
+                          <select id="inpKioskEditSubdistrict" class="oca-reg-input" onchange="onKioskEditSubdistrictChanged()">
+                            <option value="">-- เลือกตำบล / แขวง --</option>
+                          </select>
                         </div>
                         <div>
                           <label class="oca-reg-label" for="inpKioskEditPostalCode">รหัสไปรษณีย์ *</label>
-                          <input type="text" id="inpKioskEditPostalCode" class="oca-reg-input" maxlength="5" placeholder="รหัสไปรษณีย์ 5 หลัก" oninput="syncKioskQuickContactToForm()">
+                          <select id="inpKioskEditPostalCode" class="oca-reg-input" onchange="syncKioskQuickContactToForm()">
+                            <option value="">-- เลือกรหัสไปรษณีย์ --</option>
+                          </select>
                         </div>
                       </div>
                       <div style="display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:8px;">
                         <button type="button" id="btnKioskSaveContactEdit" onclick="saveKioskReturningContactAndAddress()" style="background:#047857; color:#FFFFFF; border:1.5px solid #D7A600; border-radius:10px; padding:9px 18px; font-size:13px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
-                          <i class="fa-solid fa-floppy-disk"></i> <span id="lblKioskSaveContactBtn">💾 บันทึกข้อมูลการติดต่อ/ที่อยู่</span>
+                          <i class="fa-solid fa-floppy-disk"></i> <span id="lblKioskSaveContactBtn">บันทึกข้อมูลการติดต่อ/ที่อยู่</span>
                         </button>
                       </div>
                     </div>
@@ -74012,10 +74020,16 @@ function openPublicRegisterView() {
 
     function parseKioskStructuredAddress(rawAddr, studentObj) {
       const raw = String(rawAddr || (studentObj && studentObj.address) || '').trim();
+      const normProv = (v) => {
+        const s = String(v || '').replace(/^(?:จ\.|จังหวัด)\s*/, '').trim();
+        return /กรุงเทพ|กทม/.test(s) ? 'กรุงเทพมหานคร' : s;
+      };
+      const normDist = (v) => String(v || '').replace(/^(?:อ\.|อำเภอ|เขต)\s*/, '').trim();
+      const normSub = (v) => String(v || '').replace(/^(?:ต\.|ตำบล|แขวง)\s*/, '').trim();
       let postalCode = String((studentObj && studentObj.postal_code) || '').trim();
-      let province = String((studentObj && studentObj.province) || '').trim();
-      let district = String((studentObj && studentObj.district) || '').trim();
-      let subdistrict = String((studentObj && studentObj.subdistrict) || '').trim();
+      let province = normProv(studentObj && studentObj.province);
+      let district = normDist(studentObj && studentObj.district);
+      let subdistrict = normSub(studentObj && studentObj.subdistrict);
       let remaining = raw;
       const zipMatch = remaining.match(/\b(\d{5})\b/);
       if (zipMatch) {
@@ -74025,23 +74039,180 @@ function openPublicRegisterView() {
       const provMatch = remaining.match(/(?:จ\.|จังหวัด)\s*([^\s,]+)/) || remaining.match(/(กรุงเทพมหานคร|กรุงเทพฯ|กทม\.?)/);
       if (provMatch) {
         const pVal = provMatch[1] || provMatch[0];
-        if (!province) province = /กรุงเทพ|กทม/.test(pVal) ? 'กรุงเทพมหานคร' : pVal;
+        if (!province) province = normProv(pVal);
         remaining = remaining.replace(provMatch[0], '').trim();
       }
       const distMatch = remaining.match(/(?:อ\.|อำเภอ|เขต)\s*([^\s,]+)/);
       if (distMatch) {
-        if (!district) district = distMatch[1];
+        if (!district) district = normDist(distMatch[1]);
         remaining = remaining.replace(distMatch[0], '').trim();
       }
       const subMatch = remaining.match(/(?:ต\.|ตำบล|แขวง)\s*([^\s,]+)/);
       if (subMatch) {
-        if (!subdistrict) subdistrict = subMatch[1];
+        if (!subdistrict) subdistrict = normSub(subMatch[1]);
         remaining = remaining.replace(subMatch[0], '').trim();
       }
-      const addrLine = remaining.replace(/\s{2,}/g, ' ').trim() || raw;
+      const addrLine = remaining.replace(/[,\s]+$/g, '').replace(/\s{2,}/g, ' ').trim() || raw;
       return { addrLine, subdistrict, district, province, postalCode };
     }
     window.parseKioskStructuredAddress = parseKioskStructuredAddress;
+
+    function getKioskThaiAddressDB() {
+      const candidates = [
+        (typeof pubThaiAddressDB !== 'undefined' ? pubThaiAddressDB : null),
+        window.pubThaiAddressDB,
+        (typeof thaiAddressDB !== 'undefined' ? thaiAddressDB : null),
+        window.thaiAddressDB
+      ];
+      return candidates.find(db => db && Array.isArray(db.provinces) && db.provinces.length > 0 && db.districtsByProv && Object.keys(db.districtsByProv).length > 0) || null;
+    }
+
+    async function ensureKioskThaiAddressDB() {
+      let db = getKioskThaiAddressDB();
+      if (db) return db;
+      if (typeof initPubAddressDropdowns === 'function') {
+        try { await initPubAddressDropdowns(); } catch (_) {}
+      }
+      db = getKioskThaiAddressDB();
+      if (db) return db;
+      if (typeof loadThaiAddressData === 'function') {
+        try { await loadThaiAddressData(); } catch (_) {}
+      }
+      return getKioskThaiAddressDB();
+    }
+
+    function setKioskSelectValue(sel, val) {
+      if (!sel) return;
+      const target = String(val || '').trim();
+      if (!target) {
+        sel.value = '';
+        return;
+      }
+      const matched = Array.from(sel.options).find(o => o.value === target || o.value.trim() === target);
+      if (matched) {
+        sel.value = matched.value;
+      } else {
+        const opt = document.createElement('option');
+        opt.value = target;
+        opt.textContent = target;
+        sel.appendChild(opt);
+        sel.value = target;
+      }
+    }
+
+    function populateKioskProvinceDropdown() {
+      const pSel = document.getElementById('inpKioskEditProvince');
+      if (!pSel) return;
+      const currentVal = pSel.value;
+      pSel.innerHTML = '<option value="">-- เลือกจังหวัด --</option>';
+      const db = getKioskThaiAddressDB();
+      let provList = [];
+      if (db && db.provinces && db.provinces.length > 0) {
+        provList = db.provinces.map(p => typeof p === 'string' ? p : p.name);
+      } else if (typeof THAI_PROVINCES_LIST !== 'undefined' && Array.isArray(THAI_PROVINCES_LIST)) {
+        provList = [...THAI_PROVINCES_LIST];
+      }
+      provList.sort((a, b) => a.localeCompare(b, 'th'));
+      provList.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        pSel.appendChild(opt);
+      });
+      if (currentVal) setKioskSelectValue(pSel, currentVal);
+    }
+
+    function onKioskEditProvinceChanged(skipSync) {
+      const pSel = document.getElementById('inpKioskEditProvince');
+      const dSel = document.getElementById('inpKioskEditDistrict');
+      const sSel = document.getElementById('inpKioskEditSubdistrict');
+      const zSel = document.getElementById('inpKioskEditPostalCode');
+      if (!pSel || !dSel) return;
+      const selectedProv = pSel.value;
+      dSel.innerHTML = '<option value="">-- เลือกอำเภอ / เขต --</option>';
+      if (sSel) sSel.innerHTML = '<option value="">-- เลือกตำบล / แขวง --</option>';
+      if (zSel) zSel.innerHTML = '<option value="">-- เลือกรหัสไปรษณีย์ --</option>';
+      const db = getKioskThaiAddressDB();
+      if (selectedProv && db && db.districtsByProv) {
+        const districts = [...(db.districtsByProv[selectedProv] || [])];
+        districts.sort((a, b) => a.name.localeCompare(b.name, 'th'));
+        const isBkk = (selectedProv === 'กรุงเทพมหานคร');
+        districts.forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d.name;
+          opt.textContent = (isBkk ? 'เขต' : 'อำเภอ') + d.name;
+          opt.setAttribute('data-id', d.id);
+          dSel.appendChild(opt);
+        });
+      }
+      if (!skipSync) syncKioskQuickContactToForm();
+    }
+    window.onKioskEditProvinceChanged = onKioskEditProvinceChanged;
+
+    function onKioskEditDistrictChanged(skipSync) {
+      const pSel = document.getElementById('inpKioskEditProvince');
+      const dSel = document.getElementById('inpKioskEditDistrict');
+      const sSel = document.getElementById('inpKioskEditSubdistrict');
+      const zSel = document.getElementById('inpKioskEditPostalCode');
+      if (!dSel || !sSel) return;
+      const selectedDist = dSel.value;
+      const selectedOption = dSel.options[dSel.selectedIndex];
+      sSel.innerHTML = '<option value="">-- เลือกตำบล / แขวง --</option>';
+      if (zSel) zSel.innerHTML = '<option value="">-- เลือกรหัสไปรษณีย์ --</option>';
+      const db = getKioskThaiAddressDB();
+      const distId = selectedOption ? selectedOption.getAttribute('data-id') : '';
+      if (selectedDist && distId && db && db.subdistrictsByDist) {
+        const subdistricts = [...(db.subdistrictsByDist[distId] || [])];
+        subdistricts.sort((a, b) => a.name.localeCompare(b.name, 'th'));
+        const isBkk = (pSel && pSel.value === 'กรุงเทพมหานคร');
+        subdistricts.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.name;
+          opt.textContent = (isBkk ? 'แขวง' : 'ตำบล') + s.name;
+          opt.setAttribute('data-zip', s.zipCode || '');
+          sSel.appendChild(opt);
+        });
+      }
+      if (!skipSync) syncKioskQuickContactToForm();
+    }
+    window.onKioskEditDistrictChanged = onKioskEditDistrictChanged;
+
+    function onKioskEditSubdistrictChanged(skipSync) {
+      const sSel = document.getElementById('inpKioskEditSubdistrict');
+      const zSel = document.getElementById('inpKioskEditPostalCode');
+      if (!sSel || !zSel) return;
+      const selectedOption = sSel.options[sSel.selectedIndex];
+      zSel.innerHTML = '<option value="">-- เลือกรหัสไปรษณีย์ --</option>';
+      const zipCode = selectedOption ? String(selectedOption.getAttribute('data-zip') || '').trim() : '';
+      if (zipCode) {
+        const opt = document.createElement('option');
+        opt.value = zipCode;
+        opt.textContent = zipCode;
+        opt.selected = true;
+        zSel.appendChild(opt);
+      }
+      if (!skipSync) syncKioskQuickContactToForm();
+    }
+    window.onKioskEditSubdistrictChanged = onKioskEditSubdistrictChanged;
+
+    async function applyKioskParsedAddressToDropdowns(parsedAddr) {
+      await ensureKioskThaiAddressDB();
+      populateKioskProvinceDropdown();
+      const pSel = document.getElementById('inpKioskEditProvince');
+      const dSel = document.getElementById('inpKioskEditDistrict');
+      const sSel = document.getElementById('inpKioskEditSubdistrict');
+      const zSel = document.getElementById('inpKioskEditPostalCode');
+      setKioskSelectValue(pSel, parsedAddr && parsedAddr.province);
+      onKioskEditProvinceChanged(true);
+      setKioskSelectValue(dSel, parsedAddr && parsedAddr.district);
+      onKioskEditDistrictChanged(true);
+      setKioskSelectValue(sSel, parsedAddr && parsedAddr.subdistrict);
+      onKioskEditSubdistrictChanged(true);
+      if (parsedAddr && parsedAddr.postalCode) {
+        setKioskSelectValue(zSel, parsedAddr.postalCode);
+      }
+    }
+    window.applyKioskParsedAddressToDropdowns = applyKioskParsedAddressToDropdowns;
 
     function composeKioskStructuredAddress() {
       const addrLine = String(document.getElementById('inpKioskEditAddrLine')?.value || '').trim();
@@ -74105,6 +74276,7 @@ function openPublicRegisterView() {
           sel.selectedIndex = 1;
         }
       };
+      await applyKioskParsedAddressToDropdowns(parsedAddr);
       setFallbackSel('selPubProvince', parsedAddr.province || student.province || 'กรุงเทพมหานคร');
       if (typeof onPubProvinceChanged === 'function') { try { onPubProvinceChanged(); } catch (_) {} }
       setFallbackSel('selPubDistrict', parsedAddr.district || student.district || '');
@@ -74117,10 +74289,6 @@ function openPublicRegisterView() {
       setV('inpKioskEditEmail', student.email || '');
       setV('inpKioskEditLine', student.line_id || student.lineId || '');
       setV('inpKioskEditAddrLine', parsedAddr.addrLine || '');
-      setV('inpKioskEditSubdistrict', parsedAddr.subdistrict || '');
-      setV('inpKioskEditDistrict', parsedAddr.district || '');
-      setV('inpKioskEditProvince', parsedAddr.province || '');
-      setV('inpKioskEditPostalCode', parsedAddr.postalCode || '');
       setV('inpKioskQuickPhone', student.phone_number || student.phone || '');
       setV('inpKioskQuickEmail', student.email || '');
       setV('inpKioskQuickLine', student.line_id || student.lineId || '');
@@ -74157,9 +74325,19 @@ function openPublicRegisterView() {
     }
     window.selectKioskReturningStudent = selectKioskReturningStudent;
 
-    function toggleKioskContactEdit() {
+    async function toggleKioskContactEdit() {
       const box = document.getElementById('boxKioskQuickContactEdit');
-      if (box) box.style.display = (box.style.display === 'none' || !box.style.display) ? 'block' : 'none';
+      if (!box) return;
+      const opening = (box.style.display === 'none' || !box.style.display);
+      box.style.display = opening ? 'block' : 'none';
+      if (opening) {
+        const pSel = document.getElementById('inpKioskEditProvince');
+        if (pSel && pSel.options.length <= 1) {
+          const st = (window._pubKioskContext && (window._pubKioskContext.studentObj || window._pubKioskContext.student)) || null;
+          const parsedAddr = st ? parseKioskStructuredAddress(st.address || '', st) : null;
+          await applyKioskParsedAddressToDropdowns(parsedAddr);
+        }
+      }
     }
     window.toggleKioskContactEdit = toggleKioskContactEdit;
 
@@ -74168,6 +74346,10 @@ function openPublicRegisterView() {
       const em = document.getElementById('inpKioskEditEmail')?.value ?? document.getElementById('inpKioskQuickEmail')?.value ?? '';
       const li = document.getElementById('inpKioskEditLine')?.value ?? document.getElementById('inpKioskQuickLine')?.value ?? '';
       const addrLine = document.getElementById('inpKioskEditAddrLine')?.value ?? '';
+      const prov = document.getElementById('inpKioskEditProvince')?.value ?? '';
+      const dist = document.getElementById('inpKioskEditDistrict')?.value ?? '';
+      const sub = document.getElementById('inpKioskEditSubdistrict')?.value ?? '';
+      const zip = document.getElementById('inpKioskEditPostalCode')?.value ?? '';
       const composedAddr = composeKioskStructuredAddress() || document.getElementById('inpKioskQuickAddr')?.value || '';
       const setIf = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined) el.value = v; };
       setIf('inpKioskQuickPhone', ph);
@@ -74178,6 +74360,19 @@ function openPublicRegisterView() {
       setIf('txtPubEmail', em);
       setIf('txtPubLineId', li);
       setIf('txtPubAddrLine', addrLine || composedAddr);
+      if (prov) {
+        setKioskSelectValue(document.getElementById('selPubProvince'), prov);
+        if (typeof onPubProvinceChanged === 'function') { try { onPubProvinceChanged(); } catch (_) {} }
+      }
+      if (dist) {
+        setKioskSelectValue(document.getElementById('selPubDistrict'), dist);
+        if (typeof onPubDistrictChanged === 'function') { try { onPubDistrictChanged(); } catch (_) {} }
+      }
+      if (sub) {
+        setKioskSelectValue(document.getElementById('selPubSubdistrict'), sub);
+        if (typeof onPubSubdistrictChanged === 'function') { try { onPubSubdistrictChanged(); } catch (_) {} }
+      }
+      if (zip) setKioskSelectValue(document.getElementById('selPubPostalCode'), zip);
       const lblAddr = document.getElementById('lblKioskSelectedStudentAddress');
       if (lblAddr && composedAddr) lblAddr.textContent = composedAddr;
     }
@@ -92102,7 +92297,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=150';
+      const swPath = basePath + 'sw.js?v=151';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -92111,7 +92306,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (150):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (151):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
