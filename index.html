@@ -8816,6 +8816,35 @@ body.printing-report #printReportContainer {
       overflow: hidden;
       padding: 10px;
     }
+    .oca-kiosk-card-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 1;
+      pointer-events: none;
+      transition: transform 0.28s ease;
+    }
+    .oca-kiosk-card:hover .oca-kiosk-card-img {
+      transform: scale(1.06);
+    }
+    .oca-kiosk-card-art-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.42) 0%, rgba(15, 23, 42, 0.05) 50%, rgba(15, 23, 42, 0.35) 100%);
+      z-index: 2;
+      pointer-events: none;
+    }
+    .oca-kiosk-svg-fallback {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+      pointer-events: none;
+    }
     .oca-kiosk-code-badge {
       position: absolute;
       top: 8px;
@@ -8827,19 +8856,29 @@ body.printing-report #printReportContainer {
       padding: 3px 8px;
       border-radius: 6px;
       letter-spacing: 0.4px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+      z-index: 5;
+      pointer-events: none;
     }
+    .oca-kiosk-diagonal-watermark,
     .oca-kiosk-taken-badge {
       position: absolute;
-      top: 8px;
-      right: 8px;
-      background: #1D4ED8;
+      top: 14px;
+      right: -34px;
+      transform: rotate(40deg);
+      background: linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%);
       color: #FFFFFF;
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 800;
-      padding: 3px 8px;
-      border-radius: 999px;
-      box-shadow: 0 2px 6px rgba(29, 78, 216, 0.3);
+      letter-spacing: 0.4px;
+      padding: 3.5px 34px;
+      box-shadow: 0 2px 8px rgba(30, 64, 175, 0.45);
+      pointer-events: none;
+      z-index: 6;
+      text-align: center;
+      white-space: nowrap;
+      user-select: none;
+      line-height: 1.2;
     }
     .oca-kiosk-choice-card {
       background: #FFFFFF;
@@ -13131,7 +13170,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '153';
+      var LATEST_VERSION = '154';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -73342,7 +73381,8 @@ function openPublicRegisterView() {
         notesLabel: 'หมายเหตุ / พื้นฐานภาษาจีนเดิม (ถ้ามี)',
         backStep3: 'ย้อนกลับ: เปลี่ยนคอร์สเรียน',
         nextStep3: 'ถัดไป: สรุปยอดเงินและแนบสลิป',
-        takenBadge: '✓ เคยเรียนแล้ว',
+        takenBadge: '✓ เรียนแล้ว',
+        takenWatermark: '✓ เรียนแล้ว',
         freeRegFee: 'ฟรีแรกเข้า ฿0',
         newRegFeePrefix: '+แรกเข้า ฿',
         discountPrefix: 'ส่วนลด -฿',
@@ -73400,6 +73440,7 @@ function openPublicRegisterView() {
         backStep3: 'Back: Change Course',
         nextStep3: 'Next: Payment & Slip Upload',
         takenBadge: '✓ Previously Taken',
+        takenWatermark: '✓ Previously Taken',
         freeRegFee: 'Reg. Fee ฿0 (Waived)',
         newRegFeePrefix: '+Reg. Fee ฿',
         discountPrefix: 'Discount -฿',
@@ -73457,6 +73498,7 @@ function openPublicRegisterView() {
         backStep3: '返回：重选课程',
         nextStep3: '下一步：核对费用并上传回执',
         takenBadge: '✓ 已修课程',
+        takenWatermark: '✓ 已修课程',
         freeRegFee: '免注册费 ฿0',
         newRegFeePrefix: '+新生注册费 ฿',
         discountPrefix: '优惠 -฿',
@@ -74654,6 +74696,31 @@ function openPublicRegisterView() {
           + '</svg>'
       };
     }
+    window.getKioskCourseSvgIllustration = getKioskCourseSvgIllustration;
+
+    function getKioskCourseImageUrl(category, course) {
+      const customImg = course && (course.image_url || course.imageUrl || course.cover_image);
+      if (customImg && typeof customImg === 'string' && customImg.trim()) return customImg.trim();
+      const codeUpper = String((course && (course.code || course.id)) || '').trim().toUpperCase();
+      const raw = `${category || ''} ${codeUpper} ${(course && course.name) || ''}`.toUpperCase();
+      if (/KIDS|เด็ก|เยาวชน|CE|OE|\bE\d/.test(raw)) {
+        return 'https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?auto=format&fit=crop&w=480&q=80';
+      }
+      if (/ศิลป์|วาด|พู่กัน|เขียนอักษร|ART|CALLIGRAPHY/.test(raw)) {
+        return 'https://images.unsplash.com/photo-1582561424760-0321d75e81fa?auto=format&fit=crop&w=480&q=80';
+      }
+      if (/ดนตรี|กู่เจิง|ขลุ่ย|หยางฉิน|เอ้อหู|MUSIC|GUZHENG|ERHU/.test(raw)) {
+        return 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=480&q=80';
+      }
+      if (/HSK|ติวสอบ/.test(raw)) {
+        return 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=480&q=80';
+      }
+      if (/สนทนา|CONVERSATION|BIZ|\bSS?\d|\bOS\d/.test(raw)) {
+        return 'https://images.unsplash.com/photo-1577563908411-5077b6dc7624?auto=format&fit=crop&w=480&q=80';
+      }
+      return 'https://images.unsplash.com/photo-1547981609-4b6bfe67ca0b?auto=format&fit=crop&w=480&q=80';
+    }
+    window.getKioskCourseImageUrl = getKioskCourseImageUrl;
 
     function getKioskActiveCourses() {
       const list = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
@@ -74809,9 +74876,11 @@ function openPublicRegisterView() {
           : (c.name || codeStr);
         const pricing = computeKioskCoursePricing(c, '', mode, ctx);
         const isSelected = ctx.selectedCourse && (ctx.selectedCourse.id === c.id || ctx.selectedCourse.code === c.code);
-        const takenHtml = pricing.isPreviouslyTaken
-          ? `<span class="oca-kiosk-taken-badge">${escapeHtml(d.takenBadge)}</span>`
+        const isTaken = Boolean(pricing.isPreviouslyTaken || c.isTaken || c.hasTakenBefore);
+        const takenWatermarkHtml = isTaken
+          ? `<div class="oca-kiosk-diagonal-watermark oca-kiosk-taken-badge" aria-hidden="true">${escapeHtml(d.takenWatermark || d.takenBadge || '✓ เรียนแล้ว')}</div>`
           : '';
+        const imgUrl = (typeof getKioskCourseImageUrl === 'function') ? getKioskCourseImageUrl(cat, c) : '';
         const regTag = pricing.isReturning
           ? `<span style="display:inline-block; background:#DBEAFE; color:#1E40AF; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px;">${escapeHtml(d.freeRegFee)}</span>`
           : `<span style="display:inline-block; background:#FEF3C7; color:#92400E; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px;">${escapeHtml(d.newRegFeePrefix + pricing.regFee.toLocaleString())}</span>`;
@@ -74821,8 +74890,12 @@ function openPublicRegisterView() {
         return `<div class="oca-kiosk-card${isSelected ? ' selected' : ''}" role="button" tabindex="0" data-course-code="${escapeHtml(codeStr)}" onclick="onKioskCourseCardClick(${idx})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); onKioskCourseCardClick(${idx});}">
           <div class="oca-kiosk-card-art" style="background:${art.bg};">
             <span class="oca-kiosk-code-badge">${escapeHtml(codeStr)}</span>
-            ${takenHtml}
-            ${art.svg}
+            ${takenWatermarkHtml}
+            ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(titleStr)}" loading="lazy" class="oca-kiosk-card-img" onload="const fb=this.parentElement.querySelector('.oca-kiosk-svg-fallback'); if(fb) fb.style.display='none';" onerror="this.style.display='none'; const p=this.parentElement; if(p){ const fb=p.querySelector('.oca-kiosk-svg-fallback'); if(fb) fb.style.display='flex'; else { const a=getKioskCourseSvgIllustration('${escapeHtml(cat)}'); if(a&&a.svg){ const el=document.createElement('div'); el.className='oca-kiosk-svg-fallback'; el.innerHTML=a.svg; p.appendChild(el); } } const ov=p.querySelector('.oca-kiosk-card-art-overlay'); if(ov) ov.style.display='none'; }" />` : ''}
+            ${imgUrl ? '<div class="oca-kiosk-card-art-overlay"></div>' : ''}
+            <div class="oca-kiosk-svg-fallback">
+              ${art.svg}
+            </div>
           </div>
           <div style="padding:12px 14px; display:flex; flex-direction:column; gap:6px; flex:1; justify-content:space-between;">
             <div style="display:flex; flex-direction:column;">
@@ -92415,7 +92488,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=153';
+      const swPath = basePath + 'sw.js?v=154';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -92424,7 +92497,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (153):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (154):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
