@@ -13124,7 +13124,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '149';
+      var LATEST_VERSION = '150';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -23636,6 +23636,19 @@ body.printing-report #printReportContainer {
                       </div>
                     </div>
 
+                    <!-- Row 7b: รูปแบบการเรียน (Learning Mode) -->
+                    <div class="oca-edit-row-2col">
+                      <div class="oca-input-group">
+                        <label class="oca-label" for="inpEditLearningMode">รูปแบบการเรียน (Learning Mode)</label>
+                        <select id="inpEditLearningMode" class="oca-input">
+                          <option value="Onsite">Onsite (เรียนที่สถาบัน)</option>
+                          <option value="Online">Online (เรียนออนไลน์)</option>
+                          <option value="Hybrid">Hybrid (ผสมผสาน Online/Onsite)</option>
+                        </select>
+                      </div>
+                      <div></div>
+                    </div>
+
                     <!-- Row 8: หมายเหตุ (full width) -->
                     <div class="oca-input-group" style="margin-bottom:6px;">
                       <label class="oca-label" for="inpEditNotes">หมายเหตุ / ข้อมูลเพิ่มเติม (Notes)</label>
@@ -25000,6 +25013,7 @@ body.printing-report #printReportContainer {
                     </div>
                     <input type="text" id="inpKioskCourseFilter" class="oca-reg-input" style="max-width:240px; padding:7px 12px; font-size:13px;" placeholder="ค้นหารหัสหรือชื่อคอร์ส..." oninput="renderKioskCourseGrid()">
                   </div>
+                  <div id="boxKioskRecommendedNext" style="display:none; background:linear-gradient(135deg, #FEF3C7 0%, #FFFBEB 100%); border:1.5px solid #F59E0B; border-radius:12px; padding:12px 14px; margin-bottom:14px;"></div>
                   <div class="oca-kiosk-layout">
                     <div id="pubKioskCategoryList" class="oca-kiosk-sidebar" role="tablist" aria-label="หมวดหมู่คอร์สเรียน"></div>
                     <div id="pubKioskCourseGrid" class="oca-kiosk-course-grid"></div>
@@ -25018,7 +25032,9 @@ body.printing-report #printReportContainer {
                     <div id="lblKioskStep3SchedTitle" style="font-size:14px; font-weight:800; color:#065F46; margin-bottom:10px;">1. เลือกรอบเวลาเรียนที่เปิดสอน (Available Schedules)</div>
                     <div id="boxKioskScheduleCards" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px; margin-bottom:16px;"></div>
                     <div id="lblKioskStep3GroupTitle" style="font-size:14px; font-weight:800; color:#065F46; margin-bottom:10px;">2. เลือกกลุ่มเรียน / อาจารย์ผู้สอน / ห้องเรียน (Group & Instructor)</div>
-                    <div id="boxKioskGroupCards" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px; margin-bottom:14px;"></div>
+                    <div id="boxKioskGroupCards" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px; margin-bottom:16px;"></div>
+                    <div id="lblKioskStep3LearningModeTitle" style="font-size:14px; font-weight:800; color:#065F46; margin-bottom:10px;">3. เลือกรูปแบบการเรียน (1. ONLINE / 2. ONSITE / 3. HYBRID) <span style="color:#DC2626;">*</span></div>
+                    <div id="boxKioskLearningModeCards" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:10px; margin-bottom:14px;"></div>
                     <div>
                       <label id="lblKioskNotesLabel" for="txtKioskNotes" style="display:block; font-size:12.5px; font-weight:700; color:#1F2937; margin-bottom:4px;">หมายเหตุ / พื้นฐานภาษาจีนเดิม (ถ้ามี)</label>
                       <textarea id="txtKioskNotes" class="oca-reg-input" rows="2" oninput="const n=document.getElementById('txtPubNotes'); if(n) n.value=this.value; savePublicRegisterDraft();"></textarea>
@@ -25431,6 +25447,12 @@ body.printing-report #printReportContainer {
                   </select>
                   <div style="font-size:11.5px; color:#065F46; margin-top:4px;">เลือกกลุ่มและอาจารย์ที่ต้องการเรียน (เช่น ตามไปเรียนกับอาจารย์ท่านเดิม)</div>
                 </div>
+                <select id="selPubLearningMode" class="oca-reg-input" style="display:none;" onchange="savePublicRegisterDraft();">
+                  <option value="">-- เลือกรูปแบบการเรียน --</option>
+                  <option value="Online">1. ONLINE</option>
+                  <option value="Onsite">2. ONSITE</option>
+                  <option value="Hybrid">3. HYBRID</option>
+                </select>
 
                 <div>
                   <label id="lblPubNotes" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
@@ -29952,6 +29974,14 @@ if (action === 'getDashboardStats') {
                 if (cleanName) reusePayload.full_name = cleanName;
                 if (params.prefix) reusePayload.prefix = params.prefix;
                 if (params.smartCardUid) reusePayload.smart_card_uid = params.smartCardUid;
+                if (params.notes) {
+                  let mergedNotes = String(existing.notes || '').replace(/\s*\[กลุ่ม:\s*[^\]]+\]/g, '').replace(/\s*\[รูปแบบ:\s*[^\]]+\]/g, '').trim();
+                  const grpTagMatch = String(params.notes).match(/\[กลุ่ม:\s*[^\]]+\]/);
+                  const lmTagMatch = String(params.notes).match(/\[รูปแบบ:\s*[^\]]+\]/);
+                  if (grpTagMatch) mergedNotes = mergedNotes ? `${mergedNotes} ${grpTagMatch[0]}` : grpTagMatch[0];
+                  if (lmTagMatch) mergedNotes = mergedNotes ? `${mergedNotes} ${lmTagMatch[0]}` : lmTagMatch[0];
+                  if (mergedNotes) reusePayload.notes = mergedNotes;
+                }
                 Object.keys(reusePayload).forEach(k => { if (reusePayload[k] === undefined) delete reusePayload[k]; });
                 const { error: reuseErr } = await _supabase
                   .from('students')
@@ -31272,11 +31302,39 @@ if (action === 'getDashboardStats') {
             }
           }
 
+          const cleanSid = extractCleanId(params.studentId);
           const { error } = await _supabase.from('students')
 
             .update(updateData)
 
-            .eq('student_id', extractCleanId(params.studentId));
+            .eq('student_id', cleanSid);
+          if (!error && params.learningMode) {
+            try {
+              const targetLm = String(params.learningMode).trim();
+              if (targetLm === 'Online' || targetLm === 'Onsite' || targetLm === 'Hybrid') {
+                let rcQ = _supabase.from('receipts')
+                  .select('receipt_no, year_be, term, receipt_type, status')
+                  .eq('student_id', cleanSid)
+                  .order('created_at', { ascending: false })
+                  .limit(10);
+                const { data: rcList, error: rcFetchErr } = await rcQ;
+                if (!rcFetchErr && Array.isArray(rcList) && rcList.length > 0) {
+                  const targetYr = Number(params.yearBE || 0);
+                  const targetTerm = Number(params.term || 0);
+                  const validTuition = rcList.filter(r => r && String(r.status || '').toUpperCase() !== 'VOIDED' && String(r.receipt_type || 'tuition').toLowerCase() === 'tuition');
+                  const matchedRc = validTuition.find(r => (!targetYr || Number(r.year_be) === targetYr) && (!targetTerm || Number(r.term) === targetTerm)) || validTuition[0];
+                  if (matchedRc && matchedRc.receipt_no) {
+                    const { error: rcUpdErr } = await _supabase.from('receipts')
+                      .update({ learning_mode: targetLm })
+                      .eq('receipt_no', matchedRc.receipt_no);
+                    if (rcUpdErr) console.warn('[updateStudentProfile] receipt learning_mode sync error:', rcUpdErr);
+                  }
+                }
+              }
+            } catch (syncLmErr) {
+              console.warn('[updateStudentProfile] learning_mode sync warning:', syncLmErr);
+            }
+          }
           return { success: !error };
         }
 
@@ -40627,6 +40685,26 @@ if (action === 'getDashboardStats') {
       }
 
       if (inpNotes) inpNotes.value = student.notes || '';
+      const inpEditLm = document.getElementById('inpEditLearningMode');
+      if (inpEditLm) {
+        const noteLmMatch = String(student.notes || '').match(/\[รูปแบบ:\s*(Online|Onsite|Hybrid)\]/i);
+        const initLm = student.learningMode || (noteLmMatch ? noteLmMatch[1] : '') || 'Onsite';
+        const normLm = initLm.charAt(0).toUpperCase() + initLm.slice(1).toLowerCase();
+        inpEditLm.value = (normLm === 'Online' || normLm === 'Onsite' || normLm === 'Hybrid') ? normLm : 'Onsite';
+        if (student.studentId && typeof fetchStudentReceiptsSafely === 'function') {
+          const targetSid = student.studentId;
+          fetchStudentReceiptsSafely(targetSid, 'receipt_no,receipt_type,learning_mode,status,year_be,term', 20)
+            .then(rcList => {
+              const curId = document.getElementById('inpEditStudentId')?.value;
+              if (curId !== targetSid || !Array.isArray(rcList)) return;
+              const latestTuition = rcList.find(r => r && String(r.status || '').toUpperCase() !== 'VOIDED' && String(r.receipt_type || 'tuition').toLowerCase() === 'tuition' && (r.learning_mode === 'Online' || r.learning_mode === 'Onsite' || r.learning_mode === 'Hybrid'));
+              if (latestTuition && latestTuition.learning_mode) {
+                inpEditLm.value = latestTuition.learning_mode;
+              }
+            })
+            .catch(() => {});
+        }
+      }
       const extP = (typeof decodeExtProfileFromNotes === 'function') ? decodeExtProfileFromNotes(student.notes || '') : {};
       const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
       setVal('inpEditEthnicity', extP.ethnicity || student.ethnicity || '');
@@ -41170,8 +41248,12 @@ if (action === 'getDashboardStats') {
       const term = (document.getElementById('inpEditTerm')?.value || '1').trim();
       const deliveryMethod = (document.getElementById('inpEditDeliveryMethod')?.value || 'รับเอง').trim();
       const status = (document.getElementById('inpEditStatus')?.value || 'พร้อมเรียน').trim();
+      const learningMode = (document.getElementById('inpEditLearningMode')?.value || 'Onsite').trim();
       const notes = (document.getElementById('inpEditNotes')?.value || '').trim();
-      let finalNotes = notes;
+      let finalNotes = notes.replace(/\s*\[รูปแบบ:\s*(?:Online|Onsite|Hybrid)\]/gi, '').trim();
+      if (learningMode) {
+        finalNotes = finalNotes ? `${finalNotes} [รูปแบบ: ${learningMode}]` : `[รูปแบบ: ${learningMode}]`;
+      }
 
       if (fullNameEn) {
         if (finalNotes.includes('EN:')) {
@@ -41254,6 +41336,8 @@ if (action === 'getDashboardStats') {
         deliveryMethod: deliveryMethod,
 
         status: status,
+
+        learningMode: learningMode,
 
         notes: finalNotes,
 
@@ -71699,6 +71783,8 @@ if (action === 'getDashboardStats') {
 
         groupInstructor: (document.getElementById('selPubGroupInstructor')?.value || '').trim(),
 
+        learningMode: (document.getElementById('selPubLearningMode')?.value || '').trim(),
+
         notes: (document.getElementById('txtPubNotes')?.value || '').trim(),
 
           photoBase64: pubStudentPhotoDataUri || '',
@@ -71760,6 +71846,7 @@ if (action === 'getDashboardStats') {
         populatePublicGroupInstructorOptions(data.groupInstructor || '');
       }
       setVal('selPubGroupInstructor', data.groupInstructor);
+      setVal('selPubLearningMode', data.learningMode);
       setVal('txtPubNotes', data.notes);
       setVal('txtPubCompanyName', data.companyName);
       setVal('txtPubCompanyBranch', data.companyBranch);
@@ -73049,7 +73136,9 @@ function openPublicRegisterView() {
           selectedCourse: null,
           selectedScheduleId: '',
           selectedScheduleName: '',
-          selectedGroupJson: ''
+          selectedGroupJson: null,
+          selectedLearningMode: '',
+          halfBookFilter: null
         };
       }
       const step0 = document.getElementById('stepPublicStep0');
@@ -73121,6 +73210,21 @@ function openPublicRegisterView() {
         noResults: 'ไม่พบประวัตินักศึกษาที่ตรงกับคำค้นหา กรุณาตรวจสอบคำค้นหาหรือสมัครเป็นนักศึกษาใหม่',
         autoGroupLabel: 'ให้สถาบันจัดกลุ่มให้ / ไม่ระบุอาจารย์',
         autoGroupSub: 'ฝ่ายวิชาการจะจัดกลุ่มที่เหมาะสมให้ตามระดับผู้เรียน',
+        waitAssignLabel: 'กลุ่มอื่นๆ — ให้เจ้าหน้าที่จัดกลุ่ม / อาจารย์ให้',
+        waitAssignSub: 'ฝ่ายวิชาการจะจัดกลุ่ม อาจารย์ และห้องเรียนที่เหมาะสมให้หลังอนุมัติ',
+        step3LearningModeTitle: '3. เลือกรูปแบบการเรียน (1. ONLINE / 2. ONSITE / 3. HYBRID) *',
+        lmOnlineTitle: '1. ONLINE (เรียนออนไลน์)',
+        lmOnlineSub: 'เรียนสดผ่านออนไลน์ (Zoom / Live)',
+        lmOnsiteTitle: '2. ONSITE (เรียนที่สถาบัน)',
+        lmOnsiteSub: 'เข้าเรียนในห้องเรียนที่สถาบัน OCA',
+        lmHybridTitle: '3. HYBRID (ผสมผสาน)',
+        lmHybridSub: 'เรียนได้ทั้งออนไลน์และที่สถาบัน',
+        lmRecommendedBadge: 'แนะนำสำหรับคอร์สนี้',
+        recommendedNextTitle: '★ คอร์สแนะนำถัดไปสำหรับคุณ',
+        recommendedStarterTitle: '★ คอร์สเริ่มต้นแนะนำสำหรับคุณ',
+        halfBookChip: '✂️ แบ่งเรียนครึ่งเล่ม',
+        halfBookFilterBanner: 'กำลังแสดงคอร์สแบ่งครึ่งเล่มของหนังสือ',
+        showAllCoursesBtn: 'แสดงคอร์สทั้งหมด',
         catAll: 'ทั้งหมด',
         catKids: 'คอร์สเด็ก',
         catBeginner: 'คอร์สขั้นต้น',
@@ -73162,6 +73266,21 @@ function openPublicRegisterView() {
         noResults: 'No matching student record found. Please check your query or register as a New Student.',
         autoGroupLabel: 'Institute Assigned Group / Any Instructor',
         autoGroupSub: 'Academic office will assign the best matching group',
+        waitAssignLabel: 'Other Group — Staff Will Assign Group / Instructor',
+        waitAssignSub: 'Academic office will assign your group, instructor, and room after approval',
+        step3LearningModeTitle: '3. Select Learning Mode (1. ONLINE / 2. ONSITE / 3. HYBRID) *',
+        lmOnlineTitle: '1. ONLINE (Live Online)',
+        lmOnlineSub: 'Study live online via Zoom',
+        lmOnsiteTitle: '2. ONSITE (At OCA Campus)',
+        lmOnsiteSub: 'Attend in-person classes at OCA',
+        lmHybridTitle: '3. HYBRID (Online + Onsite)',
+        lmHybridSub: 'Flexible online & on-campus attendance',
+        lmRecommendedBadge: 'Recommended',
+        recommendedNextTitle: '★ Recommended Next Courses for You',
+        recommendedStarterTitle: '★ Recommended Starter Courses',
+        halfBookChip: '✂️ Half-Book',
+        halfBookFilterBanner: 'Showing half-book courses for book',
+        showAllCoursesBtn: 'Show All Courses',
         catAll: 'All Courses',
         catKids: 'Kids Courses',
         catBeginner: 'Beginner',
@@ -73203,6 +73322,21 @@ function openPublicRegisterView() {
         noResults: '未找到匹配的学生档案，请核对查询信息或选择新生报名。',
         autoGroupLabel: '由学院统一分班 / 不指定老师',
         autoGroupSub: '教务处将根据学员水平安排合适班级',
+        waitAssignLabel: '其他班级 — 由教务老师安排班级与授课老师',
+        waitAssignSub: '教务处将在审核后为您分配合适的班级、老师和教室',
+        step3LearningModeTitle: '3. 选择上课方式 (1. ONLINE / 2. ONSITE / 3. HYBRID) *',
+        lmOnlineTitle: '1. ONLINE (线上直播课)',
+        lmOnlineSub: '通过线上直播平台实时上课',
+        lmOnsiteTitle: '2. ONSITE (学院面授课)',
+        lmOnsiteSub: '到 OCA 学院教室线下上课',
+        lmHybridTitle: '3. HYBRID (线上线下混合)',
+        lmHybridSub: '灵活选择线上或到校上课',
+        lmRecommendedBadge: '推荐方式',
+        recommendedNextTitle: '★ 为您推荐的下一阶段课程',
+        recommendedStarterTitle: '★ 推荐入门课程',
+        halfBookChip: '✂️ 分半册学习',
+        halfBookFilterBanner: '正在显示教材的半册课程',
+        showAllCoursesBtn: '显示全部课程',
         catAll: '全部课程',
         catKids: '少儿课程',
         catBeginner: '初级课程',
@@ -73238,6 +73372,7 @@ function openPublicRegisterView() {
       setT('lblKioskBackStep2', d.backStep2);
       setT('lblKioskStep3SchedTitle', d.step3SchedTitle);
       setT('lblKioskStep3GroupTitle', d.step3GroupTitle);
+      setT('lblKioskStep3LearningModeTitle', d.step3LearningModeTitle);
       setT('lblKioskNotesLabel', d.notesLabel);
       setT('lblKioskBackStep3', d.backStep3);
       setT('lblKioskNextStep3', d.nextStep3);
@@ -73356,25 +73491,188 @@ function openPublicRegisterView() {
     }
     window.loadKioskStudentCourseHistory = loadKioskStudentCourseHistory;
 
-    function isCoursePreviouslyTaken(course, historyCtx) {
-      if (!course || !historyCtx) return false;
+    const OCA_BOOK_CURRICULUM_MAP = (() => {
+      const m = {};
+      const add = (code, bookKey, part, nextCodes, halfCodes, family) => {
+        m[code] = { code, bookKey, part, nextCodes: nextCodes || [], halfCodes: halfCodes || [], family };
+      };
+      // P0001 -> P0002 -> C1001 / CE101 / OC101 / OE101
+      add('P0001', 'P0001', 'full', ['P0002'], [], 'PINYIN');
+      add('P0002', 'P0002', 'full', ['C1001', 'CE101', 'OC101', 'OE101'], [], 'PINYIN');
+      // C1001-C1005 (Full Onsite) + CE10n/CE20n (Half) + OE10n/OE20n (Half Online) + OC101-OC105 (Full Online)
+      for (let i = 1; i <= 5; i++) {
+        const cCode = `C100${i}`;
+        const ocCode = `OC10${i}`;
+        const ce1 = `CE10${i}`;
+        const ce2 = `CE20${i}`;
+        const oe1 = `OE10${i}`;
+        const oe2 = `OE20${i}`;
+        const nextC = i < 5 ? [`C100${i + 1}`] : ['C2001'];
+        const nextOC = i < 5 ? [`OC10${i + 1}`] : ['OC201'];
+        const halfList = [ce1, ce2, oe1, oe2];
+        add(cCode, cCode, 'full', nextC, halfList, 'C1000');
+        add(ocCode, cCode, 'full', nextOC, halfList, 'OC100');
+        add(ce1, cCode, 'half1', [ce2], [], 'CE100');
+        add(ce2, cCode, 'half2', i < 5 ? [`CE10${i + 1}`, `C100${i + 1}`] : ['CE121', 'C2001'], [], 'CE200');
+        add(oe1, cCode, 'half1', [oe2], [], 'OE100');
+        add(oe2, cCode, 'half2', i < 5 ? [`OE10${i + 1}`, `OC10${i + 1}`] : ['OC201'], [], 'OE200');
+      }
+      // C2001-C2010 (Full Onsite) + CE12n/CE22n (Half; 10 -> CE120/CE220) + OC201-OC210 (Full Online)
+      for (let i = 1; i <= 10; i++) {
+        const suffix = String(i).padStart(2, '0');
+        const cCode = `C20${suffix}`;
+        const ocCode = `OC2${suffix}`;
+        const hSuffix = i === 10 ? '0' : String(i);
+        const ce1 = `CE12${hSuffix}`;
+        const ce2 = `CE22${hSuffix}`;
+        const nextC = i < 10 ? [`C20${String(i + 1).padStart(2, '0')}`] : ['C3001'];
+        const nextOC = i < 10 ? [`OC2${String(i + 1).padStart(2, '0')}`] : [];
+        const nextCe1 = i < 10 ? `CE12${i + 1 === 10 ? '0' : String(i + 1)}` : '';
+        add(cCode, cCode, 'full', nextC, [ce1, ce2], 'C2000');
+        add(ocCode, cCode, 'full', nextOC, [ce1, ce2], 'OC200');
+        add(ce1, cCode, 'half1', [ce2], [], 'CE120');
+        add(ce2, cCode, 'half2', nextCe1 ? [nextCe1, nextC[0]] : ['C3001'], [], 'CE220');
+      }
+      // C3001-C3010
+      for (let i = 1; i <= 10; i++) {
+        const cCode = `C30${String(i).padStart(2, '0')}`;
+        const nextC = i < 10 ? [`C30${String(i + 1).padStart(2, '0')}`] : [];
+        add(cCode, cCode, 'full', nextC, [], 'C3000');
+      }
+      // E100n -> E200n -> E300n -> E400n (Books 1..7)
+      for (let n = 1; n <= 7; n++) {
+        const bKey = `EBOOK${n}`;
+        add(`E100${n}`, bKey, 'q1', [`E200${n}`], [], 'E_KIDS');
+        add(`E200${n}`, bKey, 'q2', [`E300${n}`], [], 'E_KIDS');
+        add(`E300${n}`, bKey, 'q3', [`E400${n}`], [], 'E_KIDS');
+        add(`E400${n}`, bKey, 'q4', n < 7 ? [`E100${n + 1}`] : [], [], 'E_KIDS');
+      }
+      // S1001-S1005 / SS101-SS105 / S3101-S3105 / S4101-S4105
+      for (let i = 1; i <= 5; i++) {
+        add(`S100${i}`, `S100${i}`, 'full', i < 5 ? [`S100${i + 1}`] : [], [`SS10${i}`], 'S1000');
+        add(`SS10${i}`, `S100${i}`, 'full', i < 5 ? [`SS10${i + 1}`] : [], [], 'SS100');
+        add(`S310${i}`, `S310${i}`, 'full', i < 5 ? [`S310${i + 1}`] : [], [], 'S3100');
+        add(`S410${i}`, `S410${i}`, 'full', i < 5 ? [`S410${i + 1}`] : [], [], 'S4100');
+      }
+      return m;
+    })();
+    window.OCA_BOOK_CURRICULUM_MAP = OCA_BOOK_CURRICULUM_MAP;
+
+    function extractKioskCourseCode(courseOrStr) {
+      if (!courseOrStr) return '';
+      if (typeof courseOrStr === 'object') {
+        const c = String(courseOrStr.code || courseOrStr.id || '').trim().toUpperCase();
+        if (OCA_BOOK_CURRICULUM_MAP[c]) return c;
+        const mObj = `${courseOrStr.code || ''} ${courseOrStr.id || ''} ${courseOrStr.name || ''}`.toUpperCase().match(/\b([A-Z]{1,3}\d{3,4})\b/);
+        return mObj ? mObj[1] : c;
+      }
+      const raw = String(courseOrStr).trim().toUpperCase();
+      if (OCA_BOOK_CURRICULUM_MAP[raw]) return raw;
+      const m = raw.match(/\b([A-Z]{1,3}\d{3,4})\b/);
+      return m ? m[1] : raw;
+    }
+
+    function getKioskCourseOverlapReason(course, historyCtx) {
+      if (!course || !historyCtx) return '';
       const codes = historyCtx.takenCourseCodes;
       const names = historyCtx.takenCourseNames;
-      const cCode = String(course.code || '').trim().toUpperCase();
+      const cCode = extractKioskCourseCode(course);
       const cId = String(course.id || '').trim().toUpperCase();
       const cName = String(course.name || '').trim().toLowerCase();
       if (codes instanceof Set) {
-        if (cCode && codes.has(cCode)) return true;
-        if (cId && codes.has(cId)) return true;
-      }
-      if (names instanceof Set && cName) {
-        if (names.has(cName)) return true;
-        for (const n of names) {
-          if (n && (n.includes(cName) || (cCode && n.toUpperCase().includes(cCode)))) return true;
+        if (cCode && codes.has(cCode)) return `คุณเคยเรียนรหัส ${cCode} แล้ว`;
+        if (cId && codes.has(cId)) return `คุณเคยเรียนรหัส ${cId} แล้ว`;
+        const targetMeta = OCA_BOOK_CURRICULUM_MAP[cCode];
+        if (targetMeta && targetMeta.bookKey) {
+          for (const taken of codes) {
+            const tMeta = OCA_BOOK_CURRICULUM_MAP[String(taken || '').trim().toUpperCase()];
+            if (!tMeta || tMeta.bookKey !== targetMeta.bookKey) continue;
+            const samePart = tMeta.part === 'full' || targetMeta.part === 'full' || tMeta.part === targetMeta.part;
+            if (samePart) {
+              return `หนังสือเล่ม ${targetMeta.bookKey} ซ้ำกับรหัส ${tMeta.code} ที่คุณเคยเรียนแล้ว`;
+            }
+          }
         }
       }
-      return false;
+      if (names instanceof Set && cName) {
+        if (names.has(cName)) return `คุณเคยเรียนคอร์ส "${course.name}" แล้ว`;
+        for (const n of names) {
+          if (n && (n.includes(cName) || (cCode && n.toUpperCase().includes(cCode)))) {
+            return `คุณเคยเรียนคอร์สที่ตรงกับ ${cCode || course.name} แล้ว`;
+          }
+        }
+      }
+      return '';
     }
+    window.getKioskCourseOverlapReason = getKioskCourseOverlapReason;
+
+    function isCoursePreviouslyTaken(course, historyCtx) {
+      return Boolean(getKioskCourseOverlapReason(course, historyCtx));
+    }
+    window.isCoursePreviouslyTaken = isCoursePreviouslyTaken;
+
+    function resolveKioskCourseRecommendations(historyCtx, activeCourses) {
+      const list = Array.isArray(activeCourses) ? activeCourses : getKioskActiveCourses();
+      const takenCodes = [];
+      if (historyCtx && historyCtx.takenCourseCodes instanceof Set) {
+        historyCtx.takenCourseCodes.forEach(c => {
+          const norm = extractKioskCourseCode(c);
+          if (norm) takenCodes.push(norm);
+        });
+      }
+      const nextSet = new Set();
+      const sourceCodes = [];
+      takenCodes.forEach(tc => {
+        const meta = OCA_BOOK_CURRICULUM_MAP[tc];
+        if (meta && Array.isArray(meta.nextCodes) && meta.nextCodes.length > 0) {
+          sourceCodes.push(tc);
+          meta.nextCodes.forEach(nc => nextSet.add(nc));
+        }
+      });
+      const findCourseByCode = (code) => list.find(c => extractKioskCourseCode(c) === code || String(c.code || '').toUpperCase() === code || String(c.id || '').toUpperCase() === code);
+      const recommendedCourses = [];
+      const seenIds = new Set();
+      nextSet.forEach(nc => {
+        const matched = findCourseByCode(nc);
+        if (matched && !seenIds.has(matched.id || matched.code) && !isCoursePreviouslyTaken(matched, historyCtx)) {
+          seenIds.add(matched.id || matched.code);
+          recommendedCourses.push(matched);
+        }
+      });
+      if (recommendedCourses.length === 0 && takenCodes.length === 0) {
+        ['P0001', 'C1001', 'CE101', 'E1001', 'OC101'].forEach(sc => {
+          const matched = findCourseByCode(sc);
+          if (matched && !seenIds.has(matched.id || matched.code)) {
+            seenIds.add(matched.id || matched.code);
+            recommendedCourses.push(matched);
+          }
+        });
+        return { recommendedCourses, sourceCodes: [], isStarter: true };
+      }
+      return { recommendedCourses, sourceCodes, isStarter: false };
+    }
+    window.resolveKioskCourseRecommendations = resolveKioskCourseRecommendations;
+
+    function filterKioskHalfBooks(bookKey, sourceCode) {
+      if (!window._pubKioskContext) window._pubKioskContext = { mode: window._pubStudentMode || 'new' };
+      const meta = OCA_BOOK_CURRICULUM_MAP[String(sourceCode || '').toUpperCase()];
+      const codes = (meta && Array.isArray(meta.halfCodes) && meta.halfCodes.length > 0)
+        ? meta.halfCodes
+        : Object.values(OCA_BOOK_CURRICULUM_MAP)
+            .filter(x => x.bookKey === bookKey && (x.part === 'half1' || x.part === 'half2'))
+            .map(x => x.code);
+      window._pubKioskContext.halfBookFilter = { bookKey, sourceCode, codes };
+      window._pubKioskContext.selectedCategory = 'ทั้งหมด';
+      renderKioskCourseCategories();
+      renderKioskCourseGrid('ทั้งหมด');
+    }
+    window.filterKioskHalfBooks = filterKioskHalfBooks;
+
+    function clearKioskHalfBookFilter() {
+      if (window._pubKioskContext) window._pubKioskContext.halfBookFilter = null;
+      renderKioskCourseGrid();
+    }
+    window.clearKioskHalfBookFilter = clearKioskHalfBookFilter;
 
     function computeKioskCoursePricing(course, schedId, mode, studentHistory) {
       const basePrice = (course && course.price && !isNaN(Number(course.price))) ? Number(course.price) : 2200;
@@ -73574,7 +73872,9 @@ function openPublicRegisterView() {
         selectedCourse: null,
         selectedScheduleId: '',
         selectedScheduleName: '',
-        selectedGroupJson: ''
+        selectedGroupJson: null,
+        selectedLearningMode: '',
+        halfBookFilter: null
       };
       // Populate underlying #formPublicRegister fields so submitPublicRegister() works seamlessly
       const setV = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null && v !== '') el.value = v; };
@@ -73777,9 +74077,44 @@ function openPublicRegisterView() {
       const d = getKioskI18nDict();
       const mode = window._pubStudentMode === 'returning' ? 'returning' : 'new';
       const lang = (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
+      const halfFilter = ctx.halfBookFilter && Array.isArray(ctx.halfBookFilter.codes) && ctx.halfBookFilter.codes.length > 0 ? ctx.halfBookFilter : null;
+
+      // Render #boxKioskRecommendedNext
+      const recBox = document.getElementById('boxKioskRecommendedNext');
+      if (recBox) {
+        const recRes = resolveKioskCourseRecommendations(ctx, courses);
+        if (recRes.recommendedCourses && recRes.recommendedCourses.length > 0) {
+          window._pubKioskRecommendedCourses = recRes.recommendedCourses;
+          const recTitle = recRes.isStarter ? (d.recommendedStarterTitle || '★ คอร์สเริ่มต้นแนะนำสำหรับคุณ') : (d.recommendedNextTitle || '★ คอร์สแนะนำถัดไปสำหรับคุณ');
+          const srcInfo = (!recRes.isStarter && recRes.sourceCodes.length > 0) ? ` (${recRes.sourceCodes.join(', ')})` : '';
+          recBox.style.display = 'block';
+          recBox.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+            <div style="font-size:13.5px; font-weight:800; color:#92400E;">${escapeHtml(recTitle + srcInfo)}</div>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            ${recRes.recommendedCourses.slice(0, 6).map((rc, rIdx) => {
+              const rCode = rc.code || rc.id || '';
+              const rPricing = computeKioskCoursePricing(rc, '', mode, ctx);
+              return `<button type="button" onclick="onKioskRecommendedCourseClick(${rIdx})" style="display:inline-flex; align-items:center; gap:8px; background:#FFFFFF; border:1.5px solid #F59E0B; border-radius:10px; padding:7px 12px; cursor:pointer; text-align:left; box-shadow:0 2px 6px rgba(245,158,11,0.14);">
+                <span style="background:#FEF3C7; color:#92400E; font-weight:800; font-size:11.5px; padding:2px 7px; border-radius:6px;">${escapeHtml(rCode)}</span>
+                <span style="font-size:12.5px; font-weight:700; color:#0F172A;">${escapeHtml(rc.name || rCode)}</span>
+                <span style="font-size:12px; font-weight:800; color:#047857;">฿${rPricing.netTuition.toLocaleString()}</span>
+              </button>`;
+            }).join('')}
+          </div>`;
+        } else {
+          recBox.style.display = 'none';
+          recBox.innerHTML = '';
+        }
+      }
+
       const filtered = courses.filter(c => {
+        if (halfFilter) {
+          const cCode = extractKioskCourseCode(c);
+          if (!halfFilter.codes.includes(cCode)) return false;
+        }
         const cat = (typeof detectCourseLevel === 'function') ? detectCourseLevel(c) : (c.level || 'คอร์สขั้นต้น');
-        if (activeCat !== 'ทั้งหมด' && cat !== activeCat) return false;
+        if (!halfFilter && activeCat !== 'ทั้งหมด' && cat !== activeCat) return false;
         if (filterText) {
           const hay = `${c.code || ''} ${c.id || ''} ${c.name || ''}`.toLowerCase();
           if (!hay.includes(filterText)) return false;
@@ -73798,10 +74133,22 @@ function openPublicRegisterView() {
         return;
       }
       window._pubKioskRenderedCourses = filtered;
-      grid.innerHTML = filtered.map((c, idx) => {
+      const halfFilterBannerHtml = halfFilter
+        ? `<div style="grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; background:#EFF6FF; border:1.5px solid #3B82F6; border-radius:10px; padding:10px 14px;">
+            <div style="font-size:13px; font-weight:700; color:#1E40AF;">✂️ ${escapeHtml(d.halfBookFilterBanner || 'กำลังแสดงคอร์สแบ่งครึ่งเล่มของหนังสือ')} <strong>${escapeHtml(halfFilter.bookKey)}</strong> (${escapeHtml(halfFilter.codes.join(', '))})</div>
+            <button type="button" onclick="clearKioskHalfBookFilter()" style="background:#FFFFFF; color:#1E40AF; border:1px solid #93C5FD; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:700; cursor:pointer;">${escapeHtml(d.showAllCoursesBtn || 'แสดงคอร์สทั้งหมด')}</button>
+          </div>`
+        : '';
+      grid.innerHTML = halfFilterBannerHtml + filtered.map((c, idx) => {
         const cat = (typeof detectCourseLevel === 'function') ? detectCourseLevel(c) : (c.level || '');
         const art = getKioskCourseSvgIllustration(cat, c);
         const codeStr = c.code || c.id || 'OCA';
+        const normCode = extractKioskCourseCode(c);
+        const cMeta = OCA_BOOK_CURRICULUM_MAP[normCode];
+        const hasHalfBooks = Boolean(cMeta && cMeta.part === 'full' && Array.isArray(cMeta.halfCodes) && cMeta.halfCodes.length > 0 && /^(C100[1-5]|C20(?:0[1-9]|10)|OC10[1-5])$/.test(normCode));
+        const halfBtnHtml = hasHalfBooks
+          ? `<button type="button" class="oca-kiosk-half-btn" onclick="event.stopPropagation(); filterKioskHalfBooks('${escapeHtml(cMeta.bookKey)}', '${escapeHtml(normCode)}')" style="align-self:flex-start; background:#EFF6FF; color:#1D4ED8; border:1px solid #93C5FD; border-radius:8px; padding:4px 9px; font-size:11px; font-weight:700; cursor:pointer; margin-top:4px;">${escapeHtml(d.halfBookChip || '✂️ แบ่งเรียนครึ่งเล่ม')}</button>`
+          : '';
         const titleStr = (lang === 'zh' && c.id && typeof OCA_COURSE_ZH !== 'undefined' && OCA_COURSE_ZH[c.id])
           ? OCA_COURSE_ZH[c.id]
           : (c.name || codeStr);
@@ -73823,9 +74170,10 @@ function openPublicRegisterView() {
             ${art.svg}
           </div>
           <div style="padding:12px 14px; display:flex; flex-direction:column; gap:6px; flex:1; justify-content:space-between;">
-            <div>
+            <div style="display:flex; flex-direction:column;">
               <div style="font-size:14px; font-weight:800; color:#0F172A; line-height:1.35;">${escapeHtml(titleStr)}</div>
               <div style="font-size:11.5px; color:#475569; margin-top:2px;">${escapeHtml(getKioskCategoryDisplayLabel(cat))}</div>
+              ${halfBtnHtml}
             </div>
             <div style="border-top:1px solid #F1F5F9; padding-top:8px; display:flex; flex-direction:column; gap:4px;">
               <div style="display:flex; align-items:baseline; justify-content:space-between; gap:6px;">
@@ -73843,24 +74191,36 @@ function openPublicRegisterView() {
     }
     window.renderKioskCourseGrid = renderKioskCourseGrid;
 
-    function onKioskCourseCardClick(idx) {
-      const list = window._pubKioskRenderedCourses || [];
-      const course = list[idx];
+    function handleKioskCourseSelection(course) {
       if (!course) return;
       const ctx = window._pubKioskContext || {};
       const mode = window._pubStudentMode === 'returning' ? 'returning' : 'new';
-      const pricing = computeKioskCoursePricing(course, '', mode, ctx);
-      if (mode === 'returning' && pricing.isPreviouslyTaken) {
+      const overlapReason = mode === 'returning' ? getKioskCourseOverlapReason(course, ctx) : '';
+      if (mode === 'returning' && overlapReason) {
         window._pendingKioskDuplicateCourse = course;
         const modal = document.getElementById('modalPubKioskDuplicateCourseWarn');
         const lblC = document.getElementById('lblKioskDupModalCourse');
+        const lblB = document.getElementById('lblKioskDupModalBody');
+        const d = getKioskI18nDict();
         if (lblC) lblC.textContent = `[${course.code || course.id}] ${course.name}`;
+        if (lblB) lblB.textContent = `${overlapReason} — ${d.dupModalBody}`;
         if (modal) modal.style.display = 'flex';
         return;
       }
       selectKioskCourse(course);
     }
+
+    function onKioskCourseCardClick(idx) {
+      const list = window._pubKioskRenderedCourses || [];
+      handleKioskCourseSelection(list[idx]);
+    }
     window.onKioskCourseCardClick = onKioskCourseCardClick;
+
+    function onKioskRecommendedCourseClick(idx) {
+      const list = window._pubKioskRecommendedCourses || [];
+      handleKioskCourseSelection(list[idx]);
+    }
+    window.onKioskRecommendedCourseClick = onKioskRecommendedCourseClick;
 
     function closeKioskDuplicateCourseModal() {
       const modal = document.getElementById('modalPubKioskDuplicateCourseWarn');
@@ -73882,7 +74242,10 @@ function openPublicRegisterView() {
       window._pubKioskContext.selectedCourse = course;
       window._pubKioskContext.selectedScheduleId = '';
       window._pubKioskContext.selectedScheduleName = '';
-      window._pubKioskContext.selectedGroupJson = '';
+      window._pubKioskContext.selectedGroupJson = null;
+      window._pubKioskContext.selectedLearningMode = '';
+      const selLm = document.getElementById('selPubLearningMode');
+      if (selLm) selLm.value = '';
       goToKioskStep(3);
     }
     window.selectKioskCourse = selectKioskCourse;
@@ -73949,15 +74312,14 @@ function openPublicRegisterView() {
           }
         }
       }
-      // Render Groups / Instructors / Rooms
+      // Render Groups / Instructors / Rooms (Explicit selection required — no auto-default)
       const groups = (typeof getCourseGroupInstructorList === 'function' && ctx.selectedScheduleId)
         ? (getCourseGroupInstructorList(course.code || course.id, ctx.selectedScheduleId, act.term, act.yearBE) || [])
         : [];
+      const waitAssignObj = { section: 'WAIT_ASSIGN', lecturerName: 'รอเจ้าหน้าที่จัดกลุ่ม', room: 'รอจัดห้อง', isStaffAssign: true };
+      const waitAssignJson = JSON.stringify(waitAssignObj);
       if (groupBox) {
-        let gHtml = `<button type="button" class="oca-kiosk-choice-card${!ctx.selectedGroupJson ? ' selected' : ''}" onclick="selectKioskGroup('')">
-          <div style="font-size:13.5px; font-weight:800; color:#0F172A;">${escapeHtml(d.autoGroupLabel)}</div>
-          <div style="font-size:11.5px; color:#475569;">${escapeHtml(d.autoGroupSub)}</div>
-        </button>`;
+        let gHtml = '';
         groups.forEach(g => {
           if (!g) return;
           const section = String(g.section || 'A').trim();
@@ -73970,11 +74332,45 @@ function openPublicRegisterView() {
             <div style="font-size:11.5px; color:#047857; font-weight:700;">${room ? 'ห้อง ' + escapeHtml(room) : 'ห้องเรียนตามตารางสถาบัน'}</div>
           </button>`;
         });
+        const isWaitSel = (ctx.selectedGroupJson === waitAssignJson);
+        gHtml += `<button type="button" data-group-type="WAIT_ASSIGN" class="oca-kiosk-choice-card${isWaitSel ? ' selected' : ''}" style="${isWaitSel ? 'border-color:#F59E0B; background:#FFFBEB;' : 'border-style:dashed; border-color:#F59E0B;'}" onclick='selectKioskGroup(${JSON.stringify(waitAssignJson)})'>
+          <div style="font-size:13.5px; font-weight:800; color:#92400E;">⏳ ${escapeHtml(d.waitAssignLabel || 'กลุ่มอื่นๆ — ให้เจ้าหน้าที่จัดกลุ่ม / อาจารย์ให้')}</div>
+          <div style="font-size:11.5px; color:#B45309;">${escapeHtml(d.waitAssignSub || 'ฝ่ายวิชาการจะจัดกลุ่ม อาจารย์ และห้องเรียนที่เหมาะสมให้หลังอนุมัติ')}</div>
+        </button>`;
         groupBox.innerHTML = gHtml;
       }
       const selGroup = document.getElementById('selPubGroupInstructor');
       if (selGroup) {
+        if (!Array.from(selGroup.options).some(o => o.value === waitAssignJson)) {
+          const optW = document.createElement('option');
+          optW.value = waitAssignJson;
+          optW.textContent = d.waitAssignLabel || 'กลุ่มอื่นๆ — ให้เจ้าหน้าที่จัดกลุ่ม / อาจารย์ให้';
+          selGroup.appendChild(optW);
+        }
         selGroup.value = ctx.selectedGroupJson || '';
+      }
+      // Render Learning Mode Cards (1. ONLINE / 2. ONSITE / 3. HYBRID)
+      const lmBox = document.getElementById('boxKioskLearningModeCards');
+      const normCode = extractKioskCourseCode(course);
+      const isOnlineCourse = /^(OC|OE|SS)/i.test(normCode);
+      if (lmBox) {
+        const modes = [
+          { val: 'Online', icon: '🌐', title: d.lmOnlineTitle || '1. ONLINE (เรียนออนไลน์)', sub: d.lmOnlineSub || 'เรียนสดผ่านออนไลน์ (Zoom / Live)', rec: isOnlineCourse },
+          { val: 'Onsite', icon: '🏫', title: d.lmOnsiteTitle || '2. ONSITE (เรียนที่สถาบัน)', sub: d.lmOnsiteSub || 'เข้าเรียนในห้องเรียนที่สถาบัน OCA', rec: false },
+          { val: 'Hybrid', icon: '🔄', title: d.lmHybridTitle || '3. HYBRID (ผสมผสาน)', sub: d.lmHybridSub || 'เรียนได้ทั้งออนไลน์และที่สถาบัน', rec: false }
+        ];
+        lmBox.innerHTML = modes.map(m => {
+          const isSel = ctx.selectedLearningMode === m.val;
+          const recBadge = m.rec ? `<span style="display:inline-block; background:#DBEAFE; color:#1E40AF; font-size:10px; font-weight:800; padding:1px 6px; border-radius:999px; margin-left:6px;">${escapeHtml(d.lmRecommendedBadge || 'แนะนำ')}</span>` : '';
+          return `<button type="button" data-learning-mode="${escapeHtml(m.val)}" class="oca-kiosk-choice-card${isSel ? ' selected' : ''}" onclick="selectKioskLearningMode('${escapeHtml(m.val)}')">
+            <div style="font-size:13.5px; font-weight:800; color:#0F172A;">${m.icon} ${escapeHtml(m.title)}${recBadge}</div>
+            <div style="font-size:11.5px; color:#475569;">${escapeHtml(m.sub)}</div>
+          </button>`;
+        }).join('');
+      }
+      const selLm = document.getElementById('selPubLearningMode');
+      if (selLm) {
+        selLm.value = ctx.selectedLearningMode || '';
       }
       if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
     }
@@ -73984,17 +74380,27 @@ function openPublicRegisterView() {
       if (!window._pubKioskContext) window._pubKioskContext = {};
       window._pubKioskContext.selectedScheduleId = schedId;
       window._pubKioskContext.selectedScheduleName = schedName;
-      window._pubKioskContext.selectedGroupJson = '';
+      window._pubKioskContext.selectedGroupJson = null;
       renderKioskStep3ScheduleAndGroups();
     }
     window.selectKioskSchedule = selectKioskSchedule;
 
     function selectKioskGroup(groupJson) {
       if (!window._pubKioskContext) window._pubKioskContext = {};
-      window._pubKioskContext.selectedGroupJson = groupJson || '';
+      window._pubKioskContext.selectedGroupJson = groupJson || null;
       renderKioskStep3ScheduleAndGroups();
     }
     window.selectKioskGroup = selectKioskGroup;
+
+    function selectKioskLearningMode(mode) {
+      if (!window._pubKioskContext) window._pubKioskContext = {};
+      window._pubKioskContext.selectedLearningMode = mode || '';
+      const selLm = document.getElementById('selPubLearningMode');
+      if (selLm) selLm.value = mode || '';
+      if (typeof savePublicRegisterDraft === 'function') savePublicRegisterDraft();
+      renderKioskStep3ScheduleAndGroups();
+    }
+    window.selectKioskLearningMode = selectKioskLearningMode;
 
     function goToKioskStep(step) {
       const lookupBox = document.getElementById('pubKioskStep1Lookup');
@@ -74027,8 +74433,19 @@ function openPublicRegisterView() {
         if (step3Box) step3Box.style.display = 'block';
         renderKioskStep3ScheduleAndGroups();
       } else if (step === 4) {
+        const ctx4 = window._pubKioskContext || {};
         if (!document.getElementById('selPubSchedule')?.value || !document.getElementById('selPubCourse')?.value) {
           if (typeof showToast === 'function') showToast('กรุณาเลือกเวลาเรียนและคอร์ส', 'โปรดเลือกรอบเวลาเรียนให้เรียบร้อยก่อน', 'warning');
+          if (step3Box) step3Box.style.display = 'block';
+          return;
+        }
+        if (!ctx4.selectedGroupJson) {
+          if (typeof showToast === 'function') showToast('กรุณาเลือกกลุ่มเรียน', 'โปรดเลือกกลุ่มเรียน หรือเลือก "กลุ่มอื่นๆ — ให้เจ้าหน้าที่จัดกลุ่มให้"', 'warning');
+          if (step3Box) step3Box.style.display = 'block';
+          return;
+        }
+        if (!ctx4.selectedLearningMode) {
+          if (typeof showToast === 'function') showToast('กรุณาเลือกรูปแบบการเรียน', 'โปรดเลือกรูปแบบการเรียน (1. ONLINE / 2. ONSITE / 3. HYBRID)', 'warning');
           if (step3Box) step3Box.style.display = 'block';
           return;
         }
@@ -74319,12 +74736,17 @@ function openPublicRegisterView() {
       if (selGroupRaw && selGroupRaw.startsWith('{')) {
         try { selGroupInfo = JSON.parse(selGroupRaw); } catch (_) {}
       }
-      const pubGroupSection = selGroupInfo && selGroupInfo.section ? String(selGroupInfo.section).trim() : '';
-      const pubInstructorName = selGroupInfo && selGroupInfo.lecturerName ? String(selGroupInfo.lecturerName).trim() : '';
-      const pubGroupRoom = selGroupInfo && selGroupInfo.room ? String(selGroupInfo.room).trim() : '';
-      const pubGroupNoteTag = (pubGroupSection || pubInstructorName)
-        ? ` [กลุ่ม: ${pubGroupSection || '-'}${pubInstructorName ? ' | อ.' + pubInstructorName : ''}${pubGroupRoom ? ' | ห้อง ' + pubGroupRoom : ''}]`
-        : '';
+      const isWaitAssignGroup = Boolean(selGroupInfo && (selGroupInfo.section === 'WAIT_ASSIGN' || selGroupInfo.isStaffAssign));
+      const pubGroupSection = isWaitAssignGroup ? 'WAIT_ASSIGN' : (selGroupInfo && selGroupInfo.section ? String(selGroupInfo.section).trim() : '');
+      const pubInstructorName = isWaitAssignGroup ? 'รอเจ้าหน้าที่จัดกลุ่ม' : (selGroupInfo && selGroupInfo.lecturerName ? String(selGroupInfo.lecturerName).trim() : '');
+      const pubGroupRoom = isWaitAssignGroup ? 'รอจัดห้อง' : (selGroupInfo && selGroupInfo.room ? String(selGroupInfo.room).trim() : '');
+      const pubGroupNoteTag = isWaitAssignGroup
+        ? ' [กลุ่ม: รอเจ้าหน้าที่จัดกลุ่ม]'
+        : ((pubGroupSection || pubInstructorName)
+            ? ` [กลุ่ม: ${pubGroupSection || '-'}${pubInstructorName ? ' | อ.' + pubInstructorName : ''}${pubGroupRoom ? ' | ห้อง ' + pubGroupRoom : ''}]`
+            : '');
+      const pubLearningMode = (document.getElementById('selPubLearningMode')?.value || (window._pubKioskContext && window._pubKioskContext.selectedLearningMode) || 'Onsite').trim();
+      const pubLearningModeTag = pubLearningMode ? ` [รูปแบบ: ${pubLearningMode}]` : '';
 
       if (btn) {
         btn.disabled = true;
@@ -74373,6 +74795,8 @@ function openPublicRegisterView() {
 
         schedule: selSchedule,
 
+        learningMode: pubLearningMode,
+
         userNotes: typeof sanitizeInputText === 'function' ? sanitizeInputText(userNotes) : userNotes,
 
         yearBE: (() => {
@@ -74403,7 +74827,7 @@ function openPublicRegisterView() {
 
         notes: (() => {
           const pdpaTag = ` [PDPA_CONSENT: ${new Date().toISOString()}]`;
-          const basePubNote = `สมัครเรียนออนไลน์แบบ OCA (${currentRegLanguage.toUpperCase()})${pubGroupNoteTag}${pdpaTag}`;
+          const basePubNote = `สมัครเรียนออนไลน์แบบ OCA (${currentRegLanguage.toUpperCase()})${pubGroupNoteTag}${pubLearningModeTag}${pdpaTag}`;
           return (typeof encodeExtProfileToNotes === 'function') ? encodeExtProfileToNotes(basePubNote, {
             ethnicity: document.getElementById('txtPubEthnicity')?.value || '',
             nationality: document.getElementById('txtPubNationality')?.value || '',
@@ -74522,6 +74946,8 @@ function openPublicRegisterView() {
                     instructorName: pubInstructorName,
 
                     room: pubGroupRoom,
+
+                    learningMode: pubLearningMode,
 
                     baseFee: regBaseFee,
 
@@ -90306,6 +90732,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       if (m.groupSection) compact.gr = String(m.groupSection).slice(0, 20);
       if (m.instructorName) compact.ir = String(m.instructorName).slice(0, 60);
       if (m.room) compact.rm = String(m.room).slice(0, 20);
+      if (m.learningMode) compact.lm = String(m.learningMode).slice(0, 16);
       const raw = JSON.stringify(compact);
       if (!raw || raw === '{}') return [];
       const rows = [];
@@ -90381,6 +90808,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               if (extra.gr) item.groupSection = extra.gr;
               if (extra.ir) item.instructorName = extra.ir;
               if (extra.rm) item.room = extra.rm;
+              if (extra.lm) item.learningMode = extra.lm;
             }
           } catch (_) {}
         }
@@ -90604,7 +91032,12 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
                 <div style="font-size:12.5px; color:var(--text-muted); margin-top:3px;">
                   <span>📚 หลักสูตร: <strong style="color:#38BDF8;">` + course + `</strong></span> |
-                  <span>⏰ รอบ: <strong style="color:var(--text-muted);">` + schedule + `</strong></span>` + ((item.groupSection || item.instructorName) ? ` | <span style="background:rgba(16,185,129,0.16); color:var(--accent-emerald); border:1px solid #10B981; padding:1px 7px; border-radius:6px; font-size:11px; font-weight:700;">👥 กลุ่ม: ` + escapeHtml(item.groupSection || '-') + (item.instructorName ? ` (อ.` + escapeHtml(item.instructorName) + `)` : ``) + (item.room ? ` ห้อง ` + escapeHtml(item.room) : ``) + `</span>` : ``) + `
+                  <span>⏰ รอบ: <strong style="color:var(--text-muted);">` + schedule + `</strong></span>` + (item.learningMode ? (() => {
+                    const lmU = String(item.learningMode).toUpperCase();
+                    const lmBadge = lmU === 'ONLINE' ? '🌐 ONLINE' : (lmU === 'HYBRID' ? '🔄 HYBRID' : '🏫 ONSITE');
+                    const lmColor = lmU === 'ONLINE' ? '#38BDF8' : (lmU === 'HYBRID' ? '#A855F7' : '#10B981');
+                    return ` | <span style="background:rgba(56,189,248,0.14); color:` + lmColor + `; border:1px solid ` + lmColor + `; padding:1px 7px; border-radius:6px; font-size:11px; font-weight:800;">` + lmBadge + `</span>`;
+                  })() : ``) + ((item.groupSection === 'WAIT_ASSIGN' || (item.instructorName && item.instructorName.indexOf('รอเจ้าหน้าที่จัดกลุ่ม') !== -1)) ? ` | <span style="background:rgba(245,158,11,0.18); color:#F59E0B; border:1px solid #F59E0B; padding:1px 8px; border-radius:6px; font-size:11px; font-weight:800;">⏳ รอเจ้าหน้าที่จัดกลุ่มเรียน</span>` : ((item.groupSection || item.instructorName) ? ` | <span style="background:rgba(16,185,129,0.16); color:var(--accent-emerald); border:1px solid #10B981; padding:1px 7px; border-radius:6px; font-size:11px; font-weight:700;">👥 กลุ่ม: ` + escapeHtml(item.groupSection || '-') + (item.instructorName ? ` (อ.` + escapeHtml(item.instructorName) + `)` : ``) + (item.room ? ` ห้อง ` + escapeHtml(item.room) : ``) + `</span>` : ``)) + `
                 </div>
               </div>
 
@@ -90815,7 +91248,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
           deliveryMethod: 'รับเอง',
 
-          learningMode: 'Online',
+          learningMode: info.learningMode || 'Onsite',
 
           baseAmount: appBaseFee || Number(info.expectedFee || 4000),
 
@@ -91271,7 +91704,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=149';
+      const swPath = basePath + 'sw.js?v=150';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -91280,7 +91713,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (149):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (150):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
