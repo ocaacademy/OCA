@@ -13131,7 +13131,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '151';
+      var LATEST_VERSION = '152';
 
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -30016,16 +30016,10 @@ if (action === 'getDashboardStats') {
           const isValidCidForDupCheck = cleanCid && (isPassportId ? /^[A-Z0-9]{6,20}$/.test(cleanCid) : (cleanCid.length >= 5 && !/^0+$/.test(cleanCid)));
 
           if (isValidCidForDupCheck) {
-            const { data: existingCidRows, error: cidLookupErr } = await _supabase
-              .from('students')
-              .select('student_id, full_name, status, year_be, term, phone_number, address, notes, photo_url')
-              .ilike('citizen_id', cleanCid)
-              .neq('status', 'DELETED')
-              .limit(1);
-
-            if (cidLookupErr) {
-              console.warn('[Register Citizen ID Guard] Lookup warning:', cidLookupErr);
-            }
+            let cidQ = _supabase.from('students').select('student_id, full_name, status, year_be, term, phone_number, address, notes, photo_url').neq('status', 'DELETED').limit(1);
+            cidQ = isPassportId ? cidQ.ilike('citizen_id', cleanCid) : cidQ.eq('citizen_id', cleanCid);
+            const { data: existingCidRows, error: cidLookupErr } = await cidQ;
+            if (cidLookupErr) console.warn('[Register Citizen ID Guard] Lookup warning:', cidLookupErr);
 
             if (existingCidRows && existingCidRows.length > 0) {
               const existing = existingCidRows[0];
@@ -37188,12 +37182,18 @@ if (action === 'getDashboardStats') {
       if (isValidId && !/^0+$/.test(cleanId) && typeof _supabase !== 'undefined' && _supabase) {
         window._lastEnrollCheckedCid = cleanId;
         try {
-          const { data: cidRows, error: cidErr } = await _supabase
+          let cidQuery = _supabase
             .from('students')
             .select('*')
-            .ilike('citizen_id', cleanId)
             .neq('status', 'DELETED')
             .limit(1);
+          cidQuery = enrollIdType === 'passport'
+            ? cidQuery.ilike('citizen_id', cleanId)
+            : cidQuery.eq('citizen_id', cleanId);
+          const { data: cidRows, error: cidErr } = await cidQuery;
+          if (cidErr) {
+            console.warn('autoDetectStudentByCitizenId Supabase query error:', cidErr);
+          }
           if (!cidErr && cidRows && cidRows.length > 0) {
             const matchedSt = cidRows[0];
             applyEnrollAutoDetectedStudent(matchedSt);
@@ -72445,12 +72445,19 @@ if (action === 'getDashboardStats') {
           const cleanCidCheck = cid.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
           if (cleanCidCheck.length >= 6 && !/^0+$/.test(cleanCidCheck)) {
             try {
-              const { data: existingRows, error: existingErr } = await _supabase
+              const hasAlphaCid = /[A-Z]/.test(cleanCidCheck);
+              let existingQuery = _supabase
                 .from('students')
                 .select('*')
-                .ilike('citizen_id', cleanCidCheck)
                 .neq('status', 'DELETED')
                 .limit(1);
+              existingQuery = hasAlphaCid
+                ? existingQuery.in('citizen_id', [cleanCidCheck, cleanCidCheck.toLowerCase()])
+                : existingQuery.eq('citizen_id', cleanCidCheck);
+              const { data: existingRows, error: existingErr } = await existingQuery;
+              if (existingErr) {
+                console.warn('[goToPubRegStep] Citizen ID lookup error:', existingErr);
+              }
               if (!existingErr && Array.isArray(existingRows) && existingRows.length > 0) {
                 const matchedSt = existingRows[0];
                 if (typeof selectKioskReturningStudent === 'function') {
@@ -75274,12 +75281,19 @@ function openPublicRegisterView() {
         : citizenRaw.replace(/\D/g, '').slice(0, 13);
       if (window._pubStudentMode !== 'returning' && cleanCid && cleanCid.length >= 6 && !/^0+$/.test(cleanCid) && typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const { data: pubDupRows, error: pubDupErr } = await _supabase
+          const hasAlphaPubCid = /[A-Za-z]/.test(cleanCid);
+          let pubDupQuery = _supabase
             .from('students')
             .select('student_id, full_name')
-            .ilike('citizen_id', cleanCid)
             .neq('status', 'DELETED')
             .limit(1);
+          pubDupQuery = hasAlphaPubCid
+            ? pubDupQuery.in('citizen_id', [cleanCid, cleanCid.toLowerCase()])
+            : pubDupQuery.eq('citizen_id', cleanCid);
+          const { data: pubDupRows, error: pubDupErr } = await pubDupQuery;
+          if (pubDupErr) {
+            console.warn('[PublicReg Citizen ID Guard] Lookup error:', pubDupErr);
+          }
           if (!pubDupErr && pubDupRows && pubDupRows.length > 0) {
             const ex = pubDupRows[0];
             window._lastPubSubmitTimestamp = 0;
@@ -92297,7 +92311,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=151';
+      const swPath = basePath + 'sw.js?v=152';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -92306,7 +92320,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (151):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (152):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
