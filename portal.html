@@ -14009,7 +14009,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '190';
+      var LATEST_VERSION = '191';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -18380,7 +18380,7 @@ body.printing-report #printReportContainer {
                     <tr id="rowPrevLine1">
                       <td>
                         <span id="lblPrevItemDesc">(กรุณาเลือกคอร์สเรียน)</span><br>
-                        <small style="color:#64748b;" id="lblPrevItemSubDesc">-</small>
+                        <small style="color:#475569; word-break:break-word; white-space:normal; display:block; line-height:1.45;" id="lblPrevItemSubDesc">-</small>
                       </td>
 
                       <td style="text-align:right;">
@@ -18709,7 +18709,7 @@ body.printing-report #printReportContainer {
               </div>
 
               <!-- Embedded Pending & Verified Slips Queue Container -->
-              <div id="boxFinancialEmbeddedSlipsQueue" class="oca-table-scroll-container" style="max-height:650px; overflow-y:auto; overflow-x:auto;">
+              <div id="boxFinancialEmbeddedSlipsQueue" class="oca-table-scroll-container oca-custom-scrollbar" style="max-height:520px; overflow-y:auto !important; overflow-x:auto; padding-right:4px; scrollbar-gutter:stable;">
                 <div style="text-align:center; padding:36px 10px; color:#64748B;">
                   <i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:#F59E0B; margin-bottom:8px;"></i>
                   <div>กำลังโหลดคิวสลิปการเงิน...</div>
@@ -33113,6 +33113,24 @@ if (action === 'getDashboardStats') {
 
           const rcpt = rList[0];
 
+          // Voided Receipt Lock (Block textbook claim for cancelled/voided receipts)
+
+          const isVoidedRcpt = String(rcpt.claim_status || '').toUpperCase() === 'VOIDED' ||
+            String(rcpt.status || '').toUpperCase() === 'VOIDED' ||
+            String(rcpt.edit_notes || '').includes('[ยกเลิกใบเสร็จ');
+
+          if (isVoidedRcpt) {
+            return {
+              success: false,
+              isVoided: true,
+              receiptNo: rcpt.receipt_no || '',
+              buyerName: rcpt.buyer_name || '',
+              buyerId: rcpt.student_id || '',
+              itemTitle: rcpt.item_name || 'ตำราเรียน',
+              message: `ไม่สามารถจ่ายตำราได้: ใบเสร็จเลขที่ ${rcpt.receipt_no || '-'} ถูกยกเลิก (VOID) แล้ว`
+            };
+          }
+
           // Auto-resolve exact course materials from courses table if material_type is generic or missing
 
           let effectiveMaterial = rcpt.material_type || '';
@@ -33221,13 +33239,18 @@ if (action === 'getDashboardStats') {
           const claimNow = new Date().toISOString();
           const claimOperator = params.operatorName || (params.operatorUsername ? `${params.operatorUsername} (${params.operatorRole || 'Staff'})` : 'ฝ่ายทะเบียนและตำราเรียน');
 
-          await _supabase.from('receipts').update({
+          const { error: claimUpdateErr } = await _supabase.from('receipts').update({
             claim_status: 'CLAIMED',
 
             claimed_at: claimNow,
 
             claimed_by: claimOperator
           }).eq('id', rcpt.id);
+
+          if (claimUpdateErr) {
+            console.error('[verifyAndClaimTextbook] update error:', claimUpdateErr);
+            return { success: false, message: 'บันทึกการรับตำราไม่สำเร็จ: ' + (claimUpdateErr.message || 'Database error') };
+          }
 
           try {
             const actor = getAuditActor({ operator: claimOperator });
@@ -33284,35 +33307,33 @@ if (action === 'getDashboardStats') {
         }
 
         if (action === 'getTextbookClaimLogs') {
-          let query = _supabase.from('receipts').select('*').gte('receipt_no', '6900000').lt('receipt_no', '7000000');
-
-          if (params && params.search) {
-            const s = sanitizePostgrestSearchToken(params.search);
-
-            if (s) {
-              if (/^\d+$/.test(s) && s.length === 7) {
-                query = query.or(`receipt_no.eq.${s},student_id.eq.${s}`);
-              } else {
-                query = query.or(`receipt_no.ilike.%${s}%,student_id.ilike.%${s}%,buyer_name.ilike.%${s}%`);
+          let data = [];
+          try {
+            data = await fetchAllPaginatedSupabaseRows(() => {
+              let query = _supabase.from('receipts').select('*').gte('receipt_no', '6900000').lt('receipt_no', '7000000');
+              if (params && params.search) {
+                const s = sanitizePostgrestSearchToken(params.search);
+                if (s) {
+                  if (/^\d+$/.test(s) && s.length === 7) {
+                    query = query.or(`receipt_no.eq.${s},student_id.eq.${s}`);
+                  } else {
+                    query = query.or(`receipt_no.ilike.%${s}%,student_id.ilike.%${s}%,buyer_name.ilike.%${s}%`);
+                  }
+                }
               }
-            }
-          }
-
-          const { data, error } = await query
-
-            .order('receipt_no', { ascending: false })
-
-            .limit(300);
-
-          if (error) {
+              return query.order('receipt_no', { ascending: false });
+            }, 1000, 20000);
+          } catch (error) {
             console.error('getTextbookClaimLogs Supabase error:', error);
-            return { success: false, message: error.message, logs: [], receipts: [], data: [] };
+            return { success: false, message: error.message || 'Fetch error', logs: [], receipts: [], data: [] };
           }
 
           let mapped = (data || [])
-
-            .filter(r => r.receipt_type !== 'CARD_FEE')
-
+            .filter(r => {
+              if (r.receipt_type === 'CARD_FEE') return false;
+              const isVoided = String(r.claim_status || '').toUpperCase() === 'VOIDED' || String(r.edit_notes || '').includes('[ยกเลิกใบเสร็จ');
+              return !isVoided;
+            })
             .map(r => safeNormalizeReceipt(r));
 
           if (params && params.status) {
@@ -55953,16 +55974,35 @@ if (action === 'getDashboardStats') {
             return;
           }
           box.style.display = 'block';
-          let html = '<div style="font-size:11.5px; font-weight:700; color:var(--accent-emerald); margin-bottom:6px; display:flex; justify-content:space-between;"><span><i class="fa-solid fa-cart-shopping" style="margin-right:4px;"></i>รายการตำราที่เลือก (' + toArabicDigits(cart.length) + ' รายการ)</span><button type="button" onclick="window._rcptBookCart=[]; renderRcptBookCart(); calcReceiptTotals();" style="background:none; border:none; color:#f87171; font-size:11px; cursor:pointer;">ล้างทั้งหมด</button></div>';
+          const totalQty = cart.reduce((s, item) => s + Math.max(1, Number(item.qty) || 1), 0);
+          let html = '<div style="font-size:11.5px; font-weight:700; color:var(--accent-emerald); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;"><span><i class="fa-solid fa-cart-shopping" style="margin-right:4px;"></i>รายการตำราที่เลือก (' + toArabicDigits(cart.length) + ' รายการ / ' + toArabicDigits(totalQty) + ' เล่ม)</span><button type="button" onclick="window._rcptBookCart=[]; renderRcptBookCart(); calcReceiptTotals();" style="background:none; border:none; color:#ef4444; font-size:11px; font-weight:700; cursor:pointer;">ล้างทั้งหมด</button></div>';
           cart.forEach((b, idx) => {
-            const sub = (Number(b.price) || 0) * (Number(b.qty) || 1);
-            html += '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 0; border-bottom:1px dashed rgba(255,255,255,0.08); font-size:12px;">' +
-              '<span style="color:var(--text-main); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(b.name) + ' <span style="color:var(--text-muted);">x' + toArabicDigits(b.qty) + '</span></span>' +
-              '<span style="color:#fbbf24; font-family:monospace; font-weight:600;">฿' + toArabicDigits(sub.toLocaleString()) + '</span>' +
-              '<button type="button" onclick="removeBookFromRcptCart(' + idx + ')" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#f87171; border-radius:4px; padding:1px 6px; font-size:11px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>' +
+            const qty = Math.max(1, Number(b.qty) || 1);
+            const price = Math.max(0, Number(b.price) || 0);
+            const sub = price * qty;
+            html += '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:5px 0; border-bottom:1px dashed rgba(148,163,184,0.25); font-size:12px;">' +
+              '<div style="flex:1; min-width:0;">' +
+                '<div style="color:var(--text-main); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escapeHtml(b.name) + '</div>' +
+                '<div style="color:var(--text-muted); font-size:11px;">@฿' + toArabicDigits(price.toLocaleString()) + ' / เล่ม</div>' +
+              '</div>' +
+              '<div style="display:inline-flex; align-items:center; gap:3px;">' +
+                '<button type="button" onclick="updateRcptBookCartQty(' + idx + ', ' + (qty - 1) + ')" style="width:22px; height:22px; border-radius:4px; border:1px solid rgba(148,163,184,0.35); background:var(--bg-card); color:var(--text-main); font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;">-</button>' +
+                '<input type="number" min="1" value="' + qty + '" onchange="updateRcptBookCartQty(' + idx + ', this.value)" style="width:38px; height:22px; text-align:center; font-size:11.5px; font-weight:700; border:1px solid rgba(148,163,184,0.35); border-radius:4px; background:var(--bg-card); color:var(--text-main); padding:0 2px;">' +
+                '<button type="button" onclick="updateRcptBookCartQty(' + idx + ', ' + (qty + 1) + ')" style="width:22px; height:22px; border-radius:4px; border:1px solid rgba(148,163,184,0.35); background:var(--bg-card); color:var(--text-main); font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;">+</button>' +
+              '</div>' +
+              '<span style="color:var(--color-gold); font-family:monospace; font-weight:700; min-width:64px; text-align:right;">฿' + toArabicDigits(sub.toLocaleString()) + '</span>' +
+              '<button type="button" onclick="removeBookFromRcptCart(' + idx + ')" title="ลบรายการ" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.35); color:#ef4444; border-radius:4px; padding:2px 6px; font-size:11px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>' +
               '</div>';
           });
           box.innerHTML = html;
+        }
+
+        function updateRcptBookCartQty(idx, newQty) {
+          if (!Array.isArray(window._rcptBookCart) || !window._rcptBookCart[idx]) return;
+          const q = Math.max(1, Math.floor(Number(newQty) || 1));
+          window._rcptBookCart[idx].qty = q;
+          renderRcptBookCart();
+          calcReceiptTotals();
         }
 
         function addBookToRcptCart() {
@@ -55994,6 +56034,7 @@ if (action === 'getDashboardStats') {
         }
 
         window.addBookToRcptCart = addBookToRcptCart;
+        window.updateRcptBookCartQty = updateRcptBookCartQty;
         window.removeBookFromRcptCart = removeBookFromRcptCart;
         window.renderRcptBookCart = renderRcptBookCart;
 
@@ -59645,6 +59686,9 @@ if (action === 'getDashboardStats') {
         const term = (searchInput ? searchInput.value : '').toLowerCase().trim();
         const statusFilter = (statusSelect ? statusSelect.value : 'ALL').toUpperCase();
         const filtered = (cachedTextbookClaimLogs || []).filter(row => {
+          const isVoided = String(row.claimStatus || '').toUpperCase() === 'VOIDED' || String(row.editNotes || '').includes('[ยกเลิกใบเสร็จ');
+          if (isVoided) return false;
+
           // Status matching
 
           const isClaimed = String(row.claimStatus || '').toUpperCase() === 'CLAIMED';
@@ -59711,7 +59755,7 @@ if (action === 'getDashboardStats') {
 
         // Receipt Badge
 
-        const receiptBadgeHtml = '<span style="display:inline-flex; align-items:center; gap:6px; font-family:monospace; font-weight:800; font-size:13px; color:#0F172A; background:rgba(215,166,0,0.14); border:1px solid rgba(180,83,9,0.38); padding:4px 11px; border-radius:7px; letter-spacing:0.4px; white-space:nowrap !important; word-break:keep-all !important; font-variant-numeric:tabular-nums;"><i class="fa-solid fa-receipt" style="font-size:10.5px; opacity:0.85;"></i>' + escapeHtml(toArabicDigits(row.receiptNo || '-')) + '</span>';
+        const receiptBadgeHtml = '<span style="display:inline-flex; align-items:center; gap:6px; font-family:monospace; font-weight:800; font-size:13px; color:var(--text-main); background:rgba(215,166,0,0.14); border:1px solid rgba(180,83,9,0.38); padding:4px 11px; border-radius:7px; letter-spacing:0.4px; white-space:nowrap !important; word-break:keep-all !important; font-variant-numeric:tabular-nums;"><i class="fa-solid fa-receipt" style="font-size:10.5px; opacity:0.85;"></i>' + escapeHtml(toArabicDigits(row.receiptNo || '-')) + '</span>';
 
         // Buyer ID Badge
 
@@ -59767,12 +59811,17 @@ if (action === 'getDashboardStats') {
         } else {
           statusColHtml = '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:4px;">' +
 
-            '<span style="background:rgba(245,158,11,0.15); color:#0F172A; border:1px solid rgba(180,83,9,0.35); padding:3px 10px; border-radius:12px; font-weight:700; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-regular fa-clock"></i> ยังไม่ได้รับ</span>' +
+            '<span style="background:#FEF3C7; color:#92400E; border:1px solid rgba(180,83,9,0.35); padding:3px 10px; border-radius:12px; font-weight:700; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-regular fa-clock"></i> ยังไม่ได้รับ</span>' +
 
             '<button type="button" class="oca-btn-gold-submit" style="padding:3px 9px; font-size:11px; border-radius:6px; background:#B45309 !important; border:none; color:#ffffff !important; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.25);" onclick="handleScannedQrToken(\'' + escapeHtml(row.receiptNo) + '\')"><i class="fa-solid fa-barcode"></i> ตัดจ่ายตำรา</button>' +
 
             '</div>';
         }
+
+        const rawItemStr = String(row.itemName || '-');
+        const itemDisplayHtml = (rawItemStr.includes(',') && rawItemStr.includes('เล่ม)'))
+          ? rawItemStr.split(',').map(part => '<div style="font-size:12.5px; color:var(--text-main); line-height:1.4;">• ' + escapeHtml(part.trim()) + '</div>').join('')
+          : '<span style="font-size:13px; color:var(--text-main);">' + escapeHtml(rawItemStr) + '</span>';
 
         tr.innerHTML =
 
@@ -59784,7 +59833,7 @@ if (action === 'getDashboardStats') {
 
           '<td style="padding:13px 14px !important; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle; min-width:160px; white-space:nowrap;"><strong style="color:var(--text-main); font-size:13px;">' + escapeHtml(row.buyerName || '-') + '</strong></td>' +
 
-          '<td style="padding:13px 14px !important; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle; min-width:180px;"><span style="font-size:13px; color:var(--text-main);">' + escapeHtml(row.itemName || '-') + '</span>' + matBadge + '</td>' +
+          '<td style="padding:13px 14px !important; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle; min-width:180px; max-width:340px; white-space:normal; word-break:break-word;">' + itemDisplayHtml + matBadge + '</td>' +
 
           '<td style="padding:13px 14px !important; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle; min-width:150px; white-space:nowrap;">' + officerHtml + '</td>' +
 
@@ -60195,7 +60244,9 @@ if (action === 'getDashboardStats') {
             bookPart = s.split('และ')[0].trim();
           }
 
-          if (bookPart === 'หนังสือ' || bookPart === 'หนังสือเรียน' || bookPart === 'หนังสืออย่างเดียว') {
+          if (bookPart === 'หนังสือ' && fallbackCourseTitle && (fallbackCourseTitle.includes('เล่ม)') || fallbackCourseTitle.includes(','))) {
+            fallbackCourseTitle.split(',').map(x => x.trim()).filter(Boolean).forEach(bItem => items.push(bItem));
+          } else if (bookPart === 'หนังสือ' || bookPart === 'หนังสือเรียน' || bookPart === 'หนังสืออย่างเดียว') {
             items.push('หนังสือเรียนประจำหลักสูตร 1 เล่ม');
           } else if (bookPart.indexOf('กู่เจิง') !== -1) {
             items.push(bookPart.indexOf('เล่ม') !== -1 ? bookPart : (bookPart + ' 1 เล่ม'));
@@ -60244,6 +60295,7 @@ if (action === 'getDashboardStats') {
           summary: items.join(' + ')
         };
       }
+      window.parseCourseMaterialItems = parseCourseMaterialItems;
 
       function renderMaterialClaimBox(matType, courseName = '') {
         const parsed = parseCourseMaterialItems(matType, courseName);
@@ -60335,6 +60387,25 @@ if (action === 'getDashboardStats') {
 
         .then(res => {
           if (!card || !content) return;
+
+          if (res && res.isVoided) {
+            displayClaimFeedbackCard('error',
+              '<div style="font-size:17px; font-weight:800; color:#ef4444; display:flex; align-items:center; gap:8px;">' +
+              '  <span><i class="fa-solid fa-ban" style="margin-right:6px;"></i> ใบเสร็จถูกยกเลิก (VOID) ไม่สามารถจ่ายตำราได้</span>' +
+              '</div>' +
+              '<div style="font-size:13px; color:var(--text-main); margin-top:6px; line-height:1.5;">' +
+              '  เลขที่ใบเสร็จ: <strong>' + toArabicDigits(res.receiptNo || '-') + '</strong><br>' +
+              '  ผู้รับ: <strong>' + escapeHtml(res.buyerName || '-') + '</strong>' +
+              '</div>'
+            );
+            showClaimAlertPopup(
+              'ใบเสร็จถูกยกเลิก (VOID)',
+              res.message || 'ไม่สามารถจ่ายตำราได้เนื่องจากใบเสร็จนี้ถูกยกเลิกแล้ว',
+              'fa-ban',
+              '#ef4444'
+            );
+            return;
+          }
 
           if (res && res.studentDropped) {
             displayClaimFeedbackCard('error',
@@ -96360,7 +96431,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=190';
+      const swPath = basePath + 'sw.js?v=191';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -96369,7 +96440,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (190):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (191):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
@@ -96432,7 +96503,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       </div>
 
       <!-- Modal Body (List of Pending Cards) -->
-      <div id="boxPendingSlipsList" style="padding:20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:16px;">
+      <div id="boxPendingSlipsList" class="oca-custom-scrollbar" style="padding:20px; max-height:520px; overflow-y:auto !important; flex:1; display:flex; flex-direction:column; gap:16px; padding-right:4px; scrollbar-gutter:stable;">
         <div style="text-align:center; padding:40px 10px; color:var(--text-muted);">
           <i class="fa-solid fa-spinner fa-spin" style="font-size:24px; margin-bottom:8px;"></i>
           <div>กำลังโหลดรายการสลิปที่รอตรวจสอบ...</div>
