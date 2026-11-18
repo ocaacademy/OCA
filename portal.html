@@ -14009,7 +14009,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '191';
+      var LATEST_VERSION = '192';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -28605,39 +28605,71 @@ body.printing-report #printReportContainer {
       if (!studentId || typeof _supabase === 'undefined' || !_supabase) return [];
       const sId = String(studentId).trim();
       if (!sId) return [];
-      const controller = (typeof window !== 'undefined' && typeof window.AbortController === 'function') ? new window.AbortController() : null;
-      const timeoutId = controller ? setTimeout(() => { try { controller.abort(); } catch (_) {} }, 4000) : null;
-      try {
-        let query = _supabase.from('receipts')
-          .select(selectCols)
-          .eq('student_id', sId)
-          .gte('created_at', '2024-01-01T00:00:00Z')
-          .limit(maxRows);
-        if (controller && typeof query.abortSignal === 'function') {
-          query = query.abortSignal(controller.signal);
+      const now = new Date();
+      const currentYear = Math.max(2024, now.getUTCFullYear());
+      const windows = [];
+      for (let y = currentYear; y >= 2024; y--) {
+        const includeH2 = (y < currentYear || now.getUTCMonth() >= 6);
+        if (includeH2) {
+          windows.push({
+            gte: `${y}-07-01T00:00:00Z`,
+            lt: y === currentYear ? null : `${y + 1}-01-01T00:00:00Z`
+          });
         }
-        const res = await query;
-        if (res && res.error) console.warn('[fetchStudentReceiptsSafely] query warning:', res.error);
-        const rawList = (res && Array.isArray(res.data)) ? res.data : [];
-        const map = new Map();
-        rawList.forEach(r => {
-          if (r && r.receipt_no && !map.has(r.receipt_no)) map.set(r.receipt_no, r);
-          else if (r && !r.receipt_no) map.set(`row_${map.size}`, r);
+        windows.push({
+          gte: `${y}-01-01T00:00:00Z`,
+          lt: (y === currentYear && !includeH2) ? null : `${y}-07-01T00:00:00Z`
         });
-        const list = Array.from(map.values());
-        list.sort((a, b) => {
-          const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const tB = b.created_at ? new Date(b.created_at).getTime() : 0;
-          if (tB !== tA) return tB - tA;
-          return String(b.receipt_no || '').localeCompare(String(a.receipt_no || ''));
-        });
-        return list.slice(0, maxRows);
-      } catch (err) {
-        console.warn('[fetchStudentReceiptsSafely] aborted or failed:', err);
-        return [];
-      } finally {
-        if (timeoutId) clearTimeout(timeoutId);
       }
+
+      const fetchWindow = async (win) => {
+        const controller = (typeof window !== 'undefined' && typeof window.AbortController === 'function') ? new window.AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => { try { controller.abort(); } catch (_) {} }, 2500) : null;
+        try {
+          let query = _supabase.from('receipts')
+            .select(selectCols)
+            .eq('student_id', sId)
+            .gte('created_at', win.gte)
+            .limit(maxRows);
+          if (win.lt) query = query.lt('created_at', win.lt);
+          if (controller && typeof query.abortSignal === 'function') {
+            query = query.abortSignal(controller.signal);
+          }
+          const res = await query;
+          if (res && res.error) {
+            const msg = String(res.error.message || '');
+            if (!msg.includes('AbortError') && !msg.includes('aborted')) {
+              console.warn('[fetchStudentReceiptsSafely] query warning:', res.error);
+            }
+            return [];
+          }
+          return (res && Array.isArray(res.data)) ? res.data : [];
+        } catch (err) {
+          const msg = String((err && err.message) || err || '');
+          if (!msg.includes('AbortError') && !msg.includes('aborted')) {
+            console.warn('[fetchStudentReceiptsSafely] aborted or failed:', err);
+          }
+          return [];
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
+      };
+
+      const chunks = await Promise.all(windows.map(fetchWindow));
+      const rawList = chunks.flat();
+      const map = new Map();
+      rawList.forEach(r => {
+        if (r && r.receipt_no && !map.has(r.receipt_no)) map.set(r.receipt_no, r);
+        else if (r && !r.receipt_no) map.set(`row_${map.size}`, r);
+      });
+      const list = Array.from(map.values());
+      list.sort((a, b) => {
+        const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        if (tB !== tA) return tB - tA;
+        return String(b.receipt_no || '').localeCompare(String(a.receipt_no || ''));
+      });
+      return list.slice(0, maxRows);
     }
     if (typeof window !== 'undefined') {
       window.fetchStudentReceiptsSafely = fetchStudentReceiptsSafely;
@@ -96431,7 +96463,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=191';
+      const swPath = basePath + 'sw.js?v=192';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -96440,7 +96472,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (191):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (192):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
