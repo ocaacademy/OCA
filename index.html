@@ -14009,7 +14009,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '196';
+      var LATEST_VERSION = '197';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -26203,8 +26203,8 @@ body.printing-report #printReportContainer {
                     </div>
                   </div>
                   <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; padding-top:12px; border-top:1px solid #E5E7EB;">
-                    <button type="button" onclick="goToKioskStep(2)" style="background:#FFFFFF; color:#374151; border:1.5px solid #D1D5DB; border-radius:10px; padding:10px 18px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
-                      <i class="fa-solid fa-arrow-left"></i> <span id="lblKioskBackStep3">ย้อนกลับ: เปลี่ยนคอร์สเรียน</span>
+                    <button type="button" id="btnKioskBackStep3" onclick="goToKioskStep(2)" style="background:#FFFFFF; color:#374151; border:1.5px solid #D1D5DB; border-radius:10px; padding:10px 18px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                      <i class="fa-solid fa-arrow-left"></i> <span id="lblKioskBackStep3">กลับไปเลือกคอร์ส / ตำราเพิ่ม</span>
                     </button>
                     <button type="button" id="btnKioskNextStep3" onclick="goToKioskStep(4)" style="background:linear-gradient(135deg, #047857 0%, #065F46 100%); color:#FFFFFF; border:2px solid #D7A600; border-radius:12px; padding:12px 24px; font-size:14px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
                       <span id="lblKioskNextStep3">ถัดไป: สรุปยอดเงินและแนบสลิป</span> <i class="fa-solid fa-arrow-right"></i>
@@ -26760,9 +26760,14 @@ body.printing-report #printReportContainer {
 
               <!-- Submit & Reset Action Area -->
               <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px; flex-wrap:wrap; gap:12px; padding-top:16px; border-top:1px solid #E5E7EB;">
-                <button type="button" onclick="if(typeof goToKioskStep==='function'){goToKioskStep(3);}else{goToPubRegStep(2);}" style="background:#FFFFFF; color:#374151; border:1.5px solid #D1D5DB; border-radius:10px; padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
-                  <i class="fa-solid fa-arrow-left"></i> <span id="lblBtnBackStep3">ย้อนกลับ: แก้ไขเวลาและกลุ่มเรียน</span>
-                </button>
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
+                  <button type="button" id="btnPubBackStep3" onclick="if(typeof goToKioskStep==='function'){goToKioskStep(3);}else{goToPubRegStep(2);}" style="background:#FFFFFF; color:#374151; border:1.5px solid #D1D5DB; border-radius:10px; padding:10px 16px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
+                    <i class="fa-solid fa-arrow-left"></i> <span id="lblBtnBackStep3">ย้อนกลับ: แก้ไขเวลาและกลุ่มเรียน</span>
+                  </button>
+                  <button type="button" id="btnPubAddMoreFromStep4" onclick="if(typeof goToKioskStep==='function'){goToKioskStep(2);}else{goToPubRegStep(2);}" style="background:#ECFDF5; color:#065F46; border:1.5px solid #10B981; border-radius:10px; padding:10px 16px; font-size:13px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                    <span id="lblBtnAddMoreStep4">+ เลือกคอร์ส / ตำราเพิ่ม</span>
+                  </button>
+                </div>
 
                 <button type="submit" id="btnSubmitPublicRegister" style="flex:1 1 240px; max-width:380px; height:50px; background:linear-gradient(135deg, #047857 0%, #065F46 100%); color:#FFFFFF; border:2px solid #D7A600; border-radius:12px; font-size:15px; font-weight:800; cursor:pointer; box-shadow:0 6px 20px rgba(4,120,87,0.3); display:inline-flex; align-items:center; justify-content:center; gap:10px; transition:all 0.2s ease;">
                   <i class="fa-solid fa-paper-plane"></i> <span id="lblBtnSubmitText">บันทึกข้อมูลและส่งใบสมัคร</span>
@@ -60583,6 +60588,17 @@ if (action === 'getDashboardStats') {
       let s = (rawType || '').toString().trim();
       if (!s && fallbackCourseTitle) s = fallbackCourseTitle.trim();
 
+      let extraCourses = [];
+      if (editNotes) {
+        const ecMatch = String(editNotes).match(/\[EXTRA_COURSES:(\[[^\]]*\])\]/);
+        if (ecMatch && ecMatch[1]) {
+          try {
+            const cArr = JSON.parse(ecMatch[1]);
+            if (Array.isArray(cArr)) extraCourses = cArr.filter(x => x && (x.id || x.code || x.name));
+          } catch (_) {}
+        }
+      }
+
       let extraBooks = Array.isArray(extraBooksOverride) ? extraBooksOverride : [];
       if (extraBooks.length === 0 && editNotes) {
         const ebMatch = String(editNotes).match(/\[EXTRA_BOOKS:(\[[^\]]*\])\]/);
@@ -60622,6 +60638,15 @@ if (action === 'getDashboardStats') {
       let hasNotebook = false;
 
       if (s && s.indexOf('ไม่มีอุปกรณ์') === -1 && s.indexOf('ไม่รับ') === -1) {
+        if (extraCourses.length > 0) {
+          hasBook = true;
+          extraCourses.forEach(c => {
+            const cCode = c.code || c.id || '';
+            const cName = c.name || cCode || 'หลักสูตร';
+            const cQty = Math.max(1, Number(c.qty) || 1);
+            courseItems.push((cCode ? `[${cCode}] ` : '') + `${cName} × ${cQty} ชุด`);
+          });
+        } else {
         // 1. ตรวจจับหนังสือเรียน / ตำราเรียนประจำหลักสูตร
         if (s.indexOf('หนังสือ') !== -1 || s.indexOf('แบบเรียน') !== -1 || s.indexOf('ตำรา') !== -1) {
           hasBook = true;
@@ -60660,6 +60685,7 @@ if (action === 'getDashboardStats') {
         }
         if (courseItems.length === 0) {
           courseItems.push(s);
+        }
         }
       }
 
@@ -73284,7 +73310,8 @@ if (action === 'getDashboardStats') {
 
       btnNextStep2: 'ถัดไป: สรุปยอดเงินและแนบสลิป',
 
-      btnBackStep3: 'ย้อนกลับ: แก้ไขคอร์สเรียน',
+      btnBackStep3: 'ย้อนกลับ: แก้ไขเวลาและกลุ่มเรียน',
+      btnAddMoreStep4: '+ เลือกคอร์ส / ตำราเพิ่ม',
 
       // Section 1: Personal Details
 
@@ -73569,7 +73596,8 @@ if (action === 'getDashboardStats') {
 
       btnNextStep2: 'Next: Payment & Slip',
 
-      btnBackStep3: 'Back: Select Course',
+      btnBackStep3: 'Back: Schedule & Group',
+      btnAddMoreStep4: '+ Add More Courses / Books',
 
       // Section 1: Personal Details
 
@@ -73854,7 +73882,8 @@ if (action === 'getDashboardStats') {
 
       btnNextStep2: '下一步: 支付与凭证',
 
-      btnBackStep3: '上一步: 选课安排',
+      btnBackStep3: '上一步: 修改时间与班级',
+      btnAddMoreStep4: '+ 增选课程 / 教材',
 
       // Section 1: Personal Details
 
@@ -74328,6 +74357,7 @@ if (action === 'getDashboardStats') {
     setTxt('lblBtnBackStep2', dict.btnBackStep2);
     setTxt('lblBtnNextStep2', dict.btnNextStep2);
     setTxt('lblBtnBackStep3', dict.btnBackStep3);
+    setTxt('lblBtnAddMoreStep4', dict.btnAddMoreStep4);
 
     // Action Buttons & Security
 
@@ -74908,7 +74938,7 @@ if (action === 'getDashboardStats') {
       if (alertBox) alertBox.style.display = 'none';
 
       // Reset Kiosk Cart & Course Context
-      window._pubKioskCart = { course: null, books: [] };
+      window._pubKioskCart = typeof createEmptyPubKioskCart === 'function' ? createEmptyPubKioskCart() : { courses: [], books: [] };
       if (window._pubKioskContext) {
         window._pubKioskContext.selectedCourse = null;
         window._pubKioskContext.selectedScheduleId = '';
@@ -75535,10 +75565,12 @@ function openPublicRegisterView() {
       if (sel && sel.value !== curVal) sel.value = curVal;
       const isShip = curVal === 'จัดส่งตามที่อยู่' || curVal.indexOf('จัดส่ง') !== -1;
       const shipRate = getEffectivePublicShippingFee();
-      const cartShip = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { course: null, books: [] };
+      const cartShip = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { courses: [], books: [] };
       const extraBooksQty = (cartShip.books || []).reduce((s, b) => s + Math.max(1, Number(b.qty) || 1), 0);
-      const hasCourseShip = Boolean((window._pubKioskContext && window._pubKioskContext.selectedCourse) || cartShip.course || (document.getElementById('selPubCourse')?.value || '').trim());
-      const shipUnits = (hasCourseShip ? 1 : 0) + extraBooksQty;
+      const coursesListShip = Array.isArray(cartShip.courses) ? cartShip.courses : (cartShip.course ? [cartShip.course] : []);
+      const coursesQtyShip = coursesListShip.reduce((s, c) => s + Math.max(1, Number(c.qty) || 1), 0);
+      const hasCourseShip = coursesQtyShip > 0 || Boolean((window._pubKioskContext && window._pubKioskContext.selectedCourse) || (document.getElementById('selPubCourse')?.value || '').trim());
+      const shipUnits = (coursesQtyShip > 0 ? coursesQtyShip : (hasCourseShip ? 1 : 0)) + extraBooksQty;
       const shipFee = shipRate * Math.max(1, shipUnits);
       const badge = document.getElementById('lblPubDeliveryShipFeeBadge');
       if (badge) badge.textContent = shipFee > 0 ? `+฿${shipFee.toLocaleString()}` : '฿0';
@@ -76090,7 +76122,7 @@ function openPublicRegisterView() {
         step3SchedTitle: '1. เลือกรอบเวลาเรียนที่เปิดสอน (Available Schedules)',
         step3GroupTitle: '2. เลือกกลุ่มเรียน / อาจารย์ผู้สอน / ห้องเรียน (Group & Instructor)',
         notesLabel: 'หมายเหตุ / พื้นฐานภาษาจีนเดิม (ถ้ามี)',
-        backStep3: 'ย้อนกลับ: เปลี่ยนคอร์สเรียน',
+        backStep3: 'กลับไปเลือกคอร์ส / ตำราเพิ่ม',
         nextStep3: 'ถัดไป: สรุปยอดเงินและแนบสลิป',
         takenBadge: '✓ เรียนแล้ว',
         takenWatermark: '✓ เรียนแล้ว',
@@ -76159,7 +76191,11 @@ function openPublicRegisterView() {
         cartCourseTag: 'คอร์สเรียน',
         cartExtraBooksTag: 'ตำราเรียนซื้อเพิ่ม',
         step3DeliveryBooksOnlyTitle: 'วิธีรับตำราเรียน (Textbook Delivery Method)',
-        shipPerBookNote: '(เล่มละ ฿{rate})'
+        shipPerBookNote: '(เล่มละ ฿{rate})',
+        step3CartSummaryEdit: 'แก้ไข / เลือกเพิ่ม',
+        step3CartCoursesTag: 'คอร์สที่เลือก',
+        coursePerUnit: 'คอร์ส',
+        addCourseToCart: '+ เลือกคอร์ส'
       },
       en: {
         lookupTitle: 'Returning Student Lookup',
@@ -76176,7 +76212,7 @@ function openPublicRegisterView() {
         step3SchedTitle: '1. Select Available Class Schedule',
         step3GroupTitle: '2. Select Class Group / Instructor / Classroom',
         notesLabel: 'Notes / Prior Chinese Background (Optional)',
-        backStep3: 'Back: Change Course',
+        backStep3: 'Back: Add More Courses / Books',
         nextStep3: 'Next: Payment & Slip Upload',
         takenBadge: '✓ Previously Taken',
         takenWatermark: '✓ Previously Taken',
@@ -76245,7 +76281,11 @@ function openPublicRegisterView() {
         cartCourseTag: 'Course',
         cartExtraBooksTag: 'Extra Textbooks',
         step3DeliveryBooksOnlyTitle: 'Textbook Delivery Method',
-        shipPerBookNote: '(฿{rate}/book)'
+        shipPerBookNote: '(฿{rate}/book)',
+        step3CartSummaryEdit: 'Edit / Add More',
+        step3CartCoursesTag: 'Selected Courses',
+        coursePerUnit: 'courses',
+        addCourseToCart: '+ Select Course'
       },
       zh: {
         lookupTitle: '老生档案查询 (Returning Student Lookup)',
@@ -76262,7 +76302,7 @@ function openPublicRegisterView() {
         step3SchedTitle: '1. 选择开班上课时间段 (Available Schedules)',
         step3GroupTitle: '2. 选择班级 / 授课老师 / 教室 (Group & Instructor)',
         notesLabel: '备注 / 中文基础说明（选填）',
-        backStep3: '返回：重选课程',
+        backStep3: '返回增选课程 / 教材',
         nextStep3: '下一步：核对费用并上传回执',
         takenBadge: '✓ 已修课程',
         takenWatermark: '✓ 已修课程',
@@ -76331,7 +76371,11 @@ function openPublicRegisterView() {
         cartCourseTag: '课程',
         cartExtraBooksTag: '加购教材',
         step3DeliveryBooksOnlyTitle: '教材领取方式',
-        shipPerBookNote: '(每本 ฿{rate})'
+        shipPerBookNote: '(每本 ฿{rate})',
+        step3CartSummaryEdit: '修改 / 增选',
+        step3CartCoursesTag: '已选课程',
+        coursePerUnit: '门',
+        addCourseToCart: '+ 选课'
       }
     };
 
@@ -78081,16 +78125,156 @@ function openPublicRegisterView() {
     }
     window.getKioskCourseCategoryTheme = getKioskCourseCategoryTheme;
 
-    window._pubKioskCart = window._pubKioskCart || { course: null, books: [] };
+    function createEmptyPubKioskCart() {
+      return {
+        courses: [],
+        books: [],
+        get course() { return this.courses.length ? this.courses[0] : null; },
+        set course(val) {
+          if (!val) { this.courses = []; return; }
+          const key = String(val.id || val.code || val.name || '');
+          const existing = this.courses.find(c => String(c.id || c.code || c.name || '') === key);
+          if (!existing) {
+            this.courses = [{
+              id: val.id || val.code || '',
+              code: val.code || val.id || '',
+              name: val.name || val.code || val.id || '',
+              price: Math.max(0, Number(val.price) || 0),
+              qty: Math.max(1, Number(val.qty || 1)),
+              ...val
+            }];
+          }
+        }
+      };
+    }
+    window.createEmptyPubKioskCart = createEmptyPubKioskCart;
+
+    window._pubKioskCart = (window._pubKioskCart && Array.isArray(window._pubKioskCart.courses))
+      ? window._pubKioskCart
+      : createEmptyPubKioskCart();
 
     function getPubKioskCart() {
       if (!window._pubKioskCart || typeof window._pubKioskCart !== 'object') {
-        window._pubKioskCart = { course: null, books: [] };
+        window._pubKioskCart = createEmptyPubKioskCart();
+      }
+      if (!Array.isArray(window._pubKioskCart.courses)) {
+        const legacyCourse = window._pubKioskCart.course || null;
+        const legacyBooks = Array.isArray(window._pubKioskCart.books) ? window._pubKioskCart.books : [];
+        const fresh = createEmptyPubKioskCart();
+        if (legacyCourse) fresh.course = legacyCourse;
+        fresh.books = legacyBooks;
+        window._pubKioskCart = fresh;
       }
       if (!Array.isArray(window._pubKioskCart.books)) window._pubKioskCart.books = [];
       return window._pubKioskCart;
     }
     window.getPubKioskCart = getPubKioskCart;
+
+    function syncPubCourseSelectFromCart() {
+      const cart = getPubKioskCart();
+      const firstCourse = cart.courses[0] || null;
+      if (!window._pubKioskContext) window._pubKioskContext = { mode: window._pubStudentMode || 'new' };
+      window._pubKioskContext.selectedCourse = firstCourse;
+      const selC = document.getElementById('selPubCourse');
+      if (selC) {
+        if (!firstCourse) {
+          selC.value = '';
+        } else {
+          const targetName = firstCourse.name || firstCourse.code || firstCourse.id || '';
+          let matched = false;
+          for (const opt of selC.options) {
+            if (opt.value === targetName || (opt.dataset && (opt.dataset.courseId === firstCourse.id || opt.dataset.courseId === firstCourse.code))) {
+              selC.value = opt.value;
+              matched = true;
+              break;
+            }
+          }
+          if (!matched && targetName) {
+            const opt = document.createElement('option');
+            opt.value = targetName;
+            opt.textContent = targetName;
+            if (firstCourse.id || firstCourse.code) opt.dataset.courseId = firstCourse.id || firstCourse.code;
+            selC.appendChild(opt);
+            selC.value = targetName;
+          }
+        }
+      }
+    }
+
+    function getPubKioskCartCourseQty(courseKey) {
+      if (!courseKey) return 0;
+      const target = String(courseKey).trim().toUpperCase();
+      const cart = getPubKioskCart();
+      const found = cart.courses.find(c =>
+        String(c.id || '').trim().toUpperCase() === target ||
+        String(c.code || '').trim().toUpperCase() === target ||
+        String(c.name || '').trim().toUpperCase() === target
+      );
+      return found ? Math.max(0, Number(found.qty) || 0) : 0;
+    }
+    window.getPubKioskCartCourseQty = getPubKioskCartCourseQty;
+
+    function addCourseToPubKioskCart(courseObj) {
+      if (!courseObj) return;
+      const cart = getPubKioskCart();
+      const keyId = String(courseObj.id || courseObj.code || courseObj.name || '').trim().toUpperCase();
+      const existing = cart.courses.find(c =>
+        (keyId && String(c.id || '').trim().toUpperCase() === keyId) ||
+        (keyId && String(c.code || '').trim().toUpperCase() === keyId) ||
+        (keyId && String(c.name || '').trim().toUpperCase() === keyId)
+      );
+      if (existing) {
+        existing.qty = Math.max(1, Number(existing.qty) || 1) + 1;
+      } else {
+        cart.courses.push({
+          ...courseObj,
+          id: courseObj.id || courseObj.code || courseObj.name || '',
+          code: courseObj.code || courseObj.id || '',
+          name: courseObj.name || courseObj.code || courseObj.id || '',
+          price: Math.max(0, Number(courseObj.price) || 0),
+          qty: 1
+        });
+      }
+      syncPubCourseSelectFromCart();
+      renderPubKioskFloatingCart();
+      if ((window._pubKioskContext?.selectedCategory || '') !== 'textbooks' && typeof renderKioskCourseGrid === 'function') {
+        renderKioskCourseGrid();
+      }
+      if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
+    }
+    window.addCourseToPubKioskCart = addCourseToPubKioskCart;
+
+    function updatePubKioskCartCourseQty(courseKey, deltaOrQty, isAbsolute = false) {
+      const target = String(courseKey || '').trim().toUpperCase();
+      if (!target) return;
+      const cart = getPubKioskCart();
+      const idx = cart.courses.findIndex(c =>
+        String(c.id || '').trim().toUpperCase() === target ||
+        String(c.code || '').trim().toUpperCase() === target ||
+        String(c.name || '').trim().toUpperCase() === target
+      );
+      if (idx === -1) return;
+      const nextQty = isAbsolute
+        ? Math.floor(Number(deltaOrQty) || 0)
+        : (Math.max(1, Number(cart.courses[idx].qty) || 1) + Number(deltaOrQty));
+      if (nextQty <= 0) {
+        cart.courses.splice(idx, 1);
+      } else {
+        cart.courses[idx].qty = nextQty;
+      }
+      syncPubCourseSelectFromCart();
+      renderPubKioskFloatingCart();
+      if ((window._pubKioskContext?.selectedCategory || '') !== 'textbooks' && typeof renderKioskCourseGrid === 'function') {
+        renderKioskCourseGrid();
+      }
+      if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
+    }
+    window.updatePubKioskCartCourseQty = updatePubKioskCartCourseQty;
+
+    function removePubKioskCartCourse(courseKey) {
+      updatePubKioskCartCourseQty(courseKey, 0, true);
+    }
+    window.removePubKioskCartCourse = removePubKioskCartCourse;
 
     function getPubKioskCartBookQty(bookId) {
       const cart = getPubKioskCart();
@@ -78140,22 +78324,21 @@ function openPublicRegisterView() {
 
     function clearPubKioskCartCourse() {
       const cart = getPubKioskCart();
-      cart.course = null;
-      if (window._pubKioskContext) window._pubKioskContext.selectedCourse = null;
-      const selC = document.getElementById('selPubCourse');
-      if (selC) selC.value = '';
+      cart.courses = [];
+      syncPubCourseSelectFromCart();
       renderPubKioskFloatingCart();
+      if ((window._pubKioskContext?.selectedCategory || '') !== 'textbooks' && typeof renderKioskCourseGrid === 'function') {
+        renderKioskCourseGrid();
+      }
       if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
     }
     window.clearPubKioskCartCourse = clearPubKioskCartCourse;
 
     function clearPubKioskCart() {
-      window._pubKioskCart = { course: null, books: [] };
-      if (window._pubKioskContext) window._pubKioskContext.selectedCourse = null;
-      const selC = document.getElementById('selPubCourse');
-      if (selC) selC.value = '';
+      window._pubKioskCart = createEmptyPubKioskCart();
+      syncPubCourseSelectFromCart();
       renderPubKioskFloatingCart();
-      if ((window._pubKioskContext?.selectedCategory || '') === 'textbooks') renderKioskCourseGrid('textbooks');
+      if (typeof renderKioskCourseGrid === 'function') renderKioskCourseGrid();
       if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
     }
     window.clearPubKioskCart = clearPubKioskCart;
@@ -78163,8 +78346,9 @@ function openPublicRegisterView() {
     function proceedPubKioskCartToStep3() {
       const cart = getPubKioskCart();
       if (!window._pubKioskContext) window._pubKioskContext = { mode: window._pubStudentMode || 'new' };
-      if (cart.course) {
-        window._pubKioskContext.selectedCourse = cart.course;
+      if (cart.courses.length > 0) {
+        window._pubKioskContext.selectedCourse = cart.courses[0];
+        syncPubCourseSelectFromCart();
         goToKioskStep(3);
       } else if (cart.books.length > 0) {
         window._pubKioskContext.selectedCourse = null;
@@ -78181,9 +78365,9 @@ function openPublicRegisterView() {
       const box = document.getElementById('boxKioskFloatingCart');
       if (!box) return;
       const cart = getPubKioskCart();
-      const hasCourse = Boolean(cart.course);
-      const books = cart.books || [];
-      if (!hasCourse && books.length === 0) {
+      const courses = Array.isArray(cart.courses) ? cart.courses : [];
+      const books = Array.isArray(cart.books) ? cart.books : [];
+      if (courses.length === 0 && books.length === 0) {
         box.style.display = 'none';
         box.innerHTML = '';
         return;
@@ -78192,49 +78376,68 @@ function openPublicRegisterView() {
       const lang = (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
       const mode = window._pubStudentMode === 'returning' ? 'returning' : 'new';
       const ctx = window._pubKioskContext || {};
-      let courseNet = 0;
-      let courseHtml = '';
-      if (hasCourse) {
-        const c = cart.course;
+      let coursesTuitionNet = 0;
+      let regFeeOnce = 0;
+      let coursesQty = 0;
+      const coursesHtml = courses.map((c, idx) => {
+        const cQty = Math.max(1, Number(c.qty) || 1);
+        coursesQty += cQty;
         const pricing = computeKioskCoursePricing(c, ctx.selectedScheduleId || '', mode, ctx);
-        courseNet = Math.max(0, Number(pricing.netTotal) || 0);
+        const unitTuition = Math.max(0, Number(pricing.netTuition) || 0);
+        if (idx === 0) regFeeOnce = Math.max(0, Number(pricing.regFee) || 0);
+        const lineTuition = unitTuition * cQty;
+        coursesTuitionNet += lineTuition;
         const cTitle = translateCourseTitle(c.name || c.code || c.id, lang, c);
-        courseHtml = `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:8px; padding:6px 10px; font-size:12.5px;">
-          <div style="min-width:0; flex:1;"><span style="background:#D1FAE5; color:#065F46; border:1px solid #6EE7B7; font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:999px; margin-right:6px;">${escapeHtml(d.cartCourseTag || 'คอร์สเรียน')}</span><strong style="color:#0F172A;">${escapeHtml((c.code ? '[' + c.code + '] ' : '') + cTitle)}</strong></div>
-          <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-            <strong style="color:#047857;">฿${courseNet.toLocaleString()}</strong>
-            <button type="button" onclick="clearPubKioskCartCourse()" aria-label="ลบคอร์ส" style="background:#FEE2E2; color:#991B1B; border:1px solid #FCA5A5; border-radius:6px; width:24px; height:24px; cursor:pointer; font-weight:800;">×</button>
+        const safeCKey = escapeHtml(String(c.id || c.code || c.name || '')).replace(/'/g, "\\'");
+        return `<div class="oca-cart-course-row" data-course-key="${escapeHtml(String(c.code || c.id || ''))}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:8px; padding:6px 10px; font-size:12.5px;">
+          <div style="min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            <span style="background:#D1FAE5; color:#065F46; border:1px solid #6EE7B7; font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:999px; margin-right:6px;">${escapeHtml(d.cartCourseTag || 'คอร์สเรียน')}</span>
+            <strong style="color:#0F172A;">${escapeHtml((c.code ? '[' + c.code + '] ' : '') + cTitle)}</strong>
+          </div>
+          <div style="display:inline-flex; align-items:center; gap:5px; flex-shrink:0;">
+            <button type="button" class="oca-cart-course-dec" onclick="updatePubKioskCartCourseQty('${safeCKey}', -1)" aria-label="ลดจำนวนคอร์ส" style="width:24px; height:24px; border-radius:6px; border:1px solid #047857; background:#FFFFFF; color:#047857; font-weight:900; cursor:pointer;">-</button>
+            <span class="oca-cart-course-qty" style="min-width:20px; text-align:center; font-weight:900; color:#0F172A;">${cQty}</span>
+            <button type="button" class="oca-cart-course-inc" onclick="updatePubKioskCartCourseQty('${safeCKey}', 1)" aria-label="เพิ่มจำนวนคอร์ส" style="width:24px; height:24px; border-radius:6px; border:none; background:#047857; color:#FFFFFF; font-weight:900; cursor:pointer;">+</button>
+            <strong class="oca-cart-course-line-total" style="color:#047857; min-width:64px; text-align:right;">฿${lineTuition.toLocaleString()}</strong>
+            <button type="button" class="oca-cart-course-del" onclick="removePubKioskCartCourse('${safeCKey}')" aria-label="ลบคอร์ส" style="background:#FEE2E2; color:#991B1B; border:1px solid #FCA5A5; border-radius:6px; width:24px; height:24px; cursor:pointer; font-weight:800;">×</button>
           </div>
         </div>`;
-      }
+      }).join('');
       const booksTotal = books.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
       const booksQty = books.reduce((s, b) => s + Math.max(1, Number(b.qty) || 1), 0);
       const booksHtml = books.map(b => {
         const safeId = escapeHtml(String(b.id)).replace(/'/g, "\\'");
-        const sub = (Number(b.price) || 0) * (Number(b.qty) || 1);
-        return `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; background:#F8FAFC; border:1px solid #CBD5E1; border-radius:8px; padding:5px 10px; font-size:12px;">
+        const bQty = Math.max(1, Number(b.qty) || 1);
+        const sub = (Number(b.price) || 0) * bQty;
+        return `<div class="oca-cart-book-row" data-book-id="${escapeHtml(String(b.id || b.code || ''))}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; background:#F8FAFC; border:1px solid #CBD5E1; border-radius:8px; padding:5px 10px; font-size:12px;">
           <div style="min-width:0; flex:1; color:#0F172A; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📘 ${escapeHtml(b.title)}</div>
-          <div style="display:inline-flex; align-items:center; gap:4px; flex-shrink:0;">
-            <button type="button" onclick="updatePubKioskCartBookQty('${safeId}', -1)" style="width:22px; height:22px; border-radius:6px; border:1px solid #CBD5E1; background:#FFFFFF; color:#0F172A; font-weight:800; cursor:pointer;">-</button>
-            <span style="min-width:20px; text-align:center; font-weight:800; color:#0F172A;">${b.qty}</span>
-            <button type="button" onclick="updatePubKioskCartBookQty('${safeId}', 1)" style="width:22px; height:22px; border-radius:6px; border:1px solid #CBD5E1; background:#FFFFFF; color:#0F172A; font-weight:800; cursor:pointer;">+</button>
-            <strong style="color:#0369A1; min-width:56px; text-align:right;">฿${sub.toLocaleString()}</strong>
+          <div style="display:inline-flex; align-items:center; gap:5px; flex-shrink:0;">
+            <button type="button" class="oca-cart-book-dec" onclick="updatePubKioskCartBookQty('${safeId}', -1)" aria-label="ลดจำนวนตำรา" style="width:24px; height:24px; border-radius:6px; border:1px solid #CBD5E1; background:#FFFFFF; color:#0F172A; font-weight:800; cursor:pointer;">-</button>
+            <span class="oca-cart-book-qty" style="min-width:20px; text-align:center; font-weight:800; color:#0F172A;">${bQty}</span>
+            <button type="button" class="oca-cart-book-inc" onclick="updatePubKioskCartBookQty('${safeId}', 1)" aria-label="เพิ่มจำนวนตำรา" style="width:24px; height:24px; border-radius:6px; border:none; background:#0369A1; color:#FFFFFF; font-weight:800; cursor:pointer;">+</button>
+            <strong class="oca-cart-book-line-total" style="color:#0369A1; min-width:64px; text-align:right;">฿${sub.toLocaleString()}</strong>
+            <button type="button" class="oca-cart-book-del" onclick="updatePubKioskCartBookQty('${safeId}', 0, true)" aria-label="ลบตำรา" style="background:#FEE2E2; color:#991B1B; border:1px solid #FCA5A5; border-radius:6px; width:24px; height:24px; cursor:pointer; font-weight:800;">×</button>
           </div>
         </div>`;
       }).join('');
-      const grandSubtotal = courseNet + booksTotal;
+      const grandSubtotal = coursesTuitionNet + regFeeOnce + booksTotal;
+      const regNoteBadge = (coursesQty > 0 && regFeeOnce > 0)
+        ? `<span style="background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; font-size:11px; font-weight:800; padding:1px 8px; border-radius:999px;">${escapeHtml((d.newRegFeePrefix || '+แรกเข้า ฿') + regFeeOnce.toLocaleString())}</span>`
+        : '';
       box.style.display = 'block';
       box.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
-        <div style="font-size:13.5px; font-weight:800; color:#065F46; display:flex; align-items:center; gap:7px;">
+        <div style="font-size:13.5px; font-weight:800; color:#065F46; display:flex; align-items:center; flex-wrap:wrap; gap:7px;">
           <i class="fa-solid fa-cart-shopping"></i>
           <span>${escapeHtml(d.cartTitle || 'ตะกร้าลงทะเบียนของคุณ')}</span>
+          ${coursesQty > 0 ? `<span style="background:#D1FAE5; color:#065F46; border:1px solid #6EE7B7; font-size:11px; font-weight:800; padding:1px 8px; border-radius:999px;">${coursesQty} ${escapeHtml(d.coursePerUnit || (lang === 'zh' ? '门' : (lang === 'en' ? 'courses' : 'คอร์ส')))}</span>` : ''}
           ${booksQty > 0 ? `<span style="background:#E0F2FE; color:#0369A1; border:1px solid #BAE6FD; font-size:11px; font-weight:800; padding:1px 8px; border-radius:999px;">${booksQty} ${lang === 'zh' ? '本' : (lang === 'en' ? 'books' : 'เล่ม')}</span>` : ''}
+          ${regNoteBadge}
         </div>
         <button type="button" onclick="clearPubKioskCart()" style="background:#FFFFFF; color:#DC2626; border:1px solid #FCA5A5; border-radius:8px; padding:4px 10px; font-size:11.5px; font-weight:700; cursor:pointer;">${escapeHtml(d.cartClearBtn || 'ล้างตะกร้า')}</button>
       </div>
-      <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px; max-height:160px; overflow-y:auto;">${courseHtml}${booksHtml}</div>
+      <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px; max-height:190px; overflow-y:auto;">${coursesHtml}${booksHtml}</div>
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; padding-top:8px; border-top:1px dashed #CBD5E1;">
-        <div style="font-size:14px; font-weight:800; color:#0F172A;">${lang === 'zh' ? '小计：' : (lang === 'en' ? 'Subtotal: ' : 'รวมเบื้องต้น: ')}<span style="font-size:18px; font-weight:900; color:#047857;">฿${grandSubtotal.toLocaleString()}</span></div>
+        <div style="font-size:14px; font-weight:800; color:#0F172A;">${lang === 'zh' ? '小计：' : (lang === 'en' ? 'Subtotal: ' : 'รวมเบื้องต้น: ')}<span id="lblKioskCartSubtotal" style="font-size:18px; font-weight:900; color:#047857;">฿${grandSubtotal.toLocaleString()}</span></div>
         <button type="button" id="btnKioskCartProceedStep3" onclick="proceedPubKioskCartToStep3()" style="background:linear-gradient(135deg, #047857 0%, #065F46 100%); color:#FFFFFF; border:2px solid #D7A600; border-radius:10px; padding:9px 18px; font-size:13.5px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
           <span>${escapeHtml(d.cartProceedBtn || 'ดำเนินการต่อ (ขั้นตอนที่ 3) →')}</span>
         </button>
@@ -78509,7 +78712,10 @@ function openPublicRegisterView() {
           : '';
         const titleStr = translateCourseTitle(c.name || codeStr, lang, c);
         const pricing = computeKioskCoursePricing(c, '', mode, ctx);
-        const isSelected = ctx.selectedCourse && (ctx.selectedCourse.id === c.id || ctx.selectedCourse.code === c.code);
+        const cCartKey = String(c.id || c.code || c.name || '');
+        const safeCourseKey = escapeHtml(cCartKey).replace(/'/g, "\\'");
+        const cCartQty = getPubKioskCartCourseQty(cCartKey);
+        const isSelected = cCartQty > 0;
         const isTaken = Boolean(pricing.isPreviouslyTaken || c.isTaken || c.hasTakenBefore);
         const cNormCode = extractKioskCourseCode(c);
         const isRecCourse = (!isTaken) && (
@@ -78573,7 +78779,14 @@ function openPublicRegisterView() {
               ${halfBtnHtml}
             </div>
             <div class="oca-kiosk-card-footer" style="border-top:1px solid #F1F5F9; padding-top:10px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
-              ${regTag}
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                ${regTag}
+                ${cCartQty > 0 ? `<div class="oca-kiosk-course-stepper" onclick="event.stopPropagation();" style="display:inline-flex; align-items:center; gap:5px; background:#ECFDF5; border:1.5px solid #047857; border-radius:8px; padding:2px 6px;">
+                  <button type="button" onclick="event.stopPropagation(); updatePubKioskCartCourseQty('${safeCourseKey}', -1);" aria-label="ลดจำนวนคอร์ส" style="width:22px; height:22px; border-radius:5px; border:1px solid #047857; background:#FFFFFF; color:#047857; font-weight:900; cursor:pointer; line-height:1;">-</button>
+                  <span style="min-width:16px; text-align:center; font-size:12.5px; font-weight:900; color:#0F172A;">${cCartQty}</span>
+                  <button type="button" onclick="event.stopPropagation(); updatePubKioskCartCourseQty('${safeCourseKey}', 1);" aria-label="เพิ่มจำนวนคอร์ส" style="width:22px; height:22px; border-radius:5px; border:none; background:#047857; color:#FFFFFF; font-weight:900; cursor:pointer; line-height:1;">+</button>
+                </div>` : `<span style="display:inline-flex; align-items:center; background:#F0FDF4; color:#065F46; border:1px solid #A7F3D0; border-radius:8px; padding:3px 9px; font-size:11px; font-weight:800;">${escapeHtml(d.addCourseToCart || '+ เลือกคอร์ส')}</span>`}
+              </div>
               ${priceRowHtml}
             </div>
           </div>
@@ -78611,16 +78824,7 @@ function openPublicRegisterView() {
       const c = window._pendingKioskDuplicateCourse;
       closeKioskDuplicateCourseModal();
       if (c) {
-        if (!window._pubKioskContext) window._pubKioskContext = { mode: window._pubStudentMode || 'new' };
-        window._pubKioskContext.selectedCourse = c;
-        getPubKioskCart().course = c;
-        window._pubKioskContext.selectedScheduleId = '';
-        window._pubKioskContext.selectedScheduleName = '';
-        window._pubKioskContext.selectedGroupJson = null;
-        window._pubKioskContext.selectedLearningMode = '';
-        const selLm = document.getElementById('selPubLearningMode');
-        if (selLm) selLm.value = '';
-        goToKioskStep(3);
+        addCourseToPubKioskCart(c);
       }
     }
     window.confirmKioskDuplicateCourse = confirmKioskDuplicateCourse;
@@ -78674,25 +78878,19 @@ function openPublicRegisterView() {
           return;
         }
       }
-      if (!window._pubKioskContext) window._pubKioskContext = { mode: window._pubStudentMode || 'new' };
-      window._pubKioskContext.selectedCourse = course;
-      getPubKioskCart().course = course;
-      window._pubKioskContext.selectedScheduleId = '';
-      window._pubKioskContext.selectedScheduleName = '';
-      window._pubKioskContext.selectedGroupJson = null;
-      window._pubKioskContext.selectedLearningMode = '';
-      const selLm = document.getElementById('selPubLearningMode');
-      if (selLm) selLm.value = '';
-      goToKioskStep(3);
+      addCourseToPubKioskCart(course);
     }
     window.selectKioskCourse = selectKioskCourse;
 
     function renderKioskStep3ScheduleAndGroups() {
       const ctx = window._pubKioskContext || {};
-      const cart = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { course: null, books: [] };
-      const course = ctx.selectedCourse || cart.course || null;
+      const cart = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { courses: [], books: [] };
+      const cartCourses = (Array.isArray(cart.courses) && cart.courses.length > 0)
+        ? cart.courses
+        : (ctx.selectedCourse ? [{ ...ctx.selectedCourse, qty: Math.max(1, Number(ctx.selectedCourse.qty) || 1) }] : []);
+      const course = cartCourses[0] || ctx.selectedCourse || null;
       const extraBooks = Array.isArray(cart.books) ? cart.books : [];
-      const isBooksOnly = !course && extraBooks.length > 0;
+      const isBooksOnly = cartCourses.length === 0 && extraBooks.length > 0;
       const summaryBox = document.getElementById('boxKioskStep3CourseSummary');
       const schedBox = document.getElementById('boxKioskScheduleCards');
       const groupBox = document.getElementById('boxKioskGroupCards');
@@ -78720,14 +78918,17 @@ function openPublicRegisterView() {
         const extraQty = extraBooks.reduce((s, b) => s + Math.max(1, Number(b.qty) || 1), 0);
         if (summaryBox) {
           const listHtml = extraBooks.map(b => `<div style="font-size:12.5px; color:#334155;">• ${escapeHtml(b.title)} × ${b.qty} (฿${((Number(b.price) || 0) * (Number(b.qty) || 1)).toLocaleString()})</div>`).join('');
-          summaryBox.innerHTML = `<div>
+          summaryBox.innerHTML = `<div style="flex:1; min-width:220px;">
             <div style="font-size:11.5px; color:#0369A1; font-weight:800;">${escapeHtml(d.catTextbooks || 'ซื้อตำราเรียน')} (${extraQty} ${lang === 'zh' ? '本' : (lang === 'en' ? 'books' : 'เล่ม')})</div>
             <div style="font-size:15px; font-weight:800; color:#0F172A; margin-bottom:4px;">${escapeHtml(d.cartExtraBooksTag || 'ตำราเรียนที่เลือก')}</div>
             ${listHtml}
           </div>
-          <div style="text-align:right;">
-            <div style="font-size:18px; font-weight:900; color:#047857;">฿${extraTotal.toLocaleString()}</div>
-            <div style="font-size:11.5px; color:#334155; font-weight:700;">${lang === 'zh' ? '不含注册费' : (lang === 'en' ? 'No Reg. Fee' : 'ไม่มีค่าแรกเข้า')}</div>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <button type="button" id="btnKioskStep3EditCart" onclick="goToKioskStep(2)" style="background:#FFFFFF; color:#065F46; border:1.5px solid #10B981; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap;">${escapeHtml(d.step3CartSummaryEdit || 'แก้ไข / เลือกเพิ่ม')}</button>
+            <div style="text-align:right;">
+              <div style="font-size:18px; font-weight:900; color:#047857;">฿${extraTotal.toLocaleString()}</div>
+              <div style="font-size:11.5px; color:#334155; font-weight:700;">${lang === 'zh' ? '不含注册费' : (lang === 'en' ? 'No Reg. Fee' : 'ไม่มีค่าแรกเข้า')}</div>
+            </div>
           </div>`;
         }
         const btnNextStep3B = document.getElementById('btnKioskNextStep3');
@@ -78738,7 +78939,20 @@ function openPublicRegisterView() {
       }
       if (!course) return;
       const mode = window._pubStudentMode === 'returning' ? 'returning' : 'new';
-      const pricing = computeKioskCoursePricing(course, ctx.selectedScheduleId, mode, ctx);
+      let totalCourseNetTuition = 0;
+      let regFeeOnce = 0;
+      let totalCourseQty = 0;
+      const courseBadgesHtml = cartCourses.map((cItem, cIdx) => {
+        const cQty = Math.max(1, Number(cItem.qty) || 1);
+        totalCourseQty += cQty;
+        const cPricing = computeKioskCoursePricing(cItem, ctx.selectedScheduleId, mode, ctx);
+        if (cIdx === 0) regFeeOnce = Math.max(0, Number(cPricing.regFee) || 0);
+        const lineTuition = Math.max(0, Number(cPricing.netTuition) || 0) * cQty;
+        totalCourseNetTuition += lineTuition;
+        const cItemCode = cItem.code || cItem.id || '';
+        const cItemTitle = translateCourseTitle(cItem.name || cItemCode, lang, cItem);
+        return `<div style="font-size:12.5px; color:#0F172A; font-weight:700;">• ${escapeHtml((cItemCode ? '[' + cItemCode + '] ' : '') + cItemTitle)} <span style="color:#047857; font-weight:800;">× ${cQty}</span> <span style="color:#475569; font-weight:600;">(฿${lineTuition.toLocaleString()})</span></div>`;
+      }).join('');
       const extraBooksSum = extraBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
       const extraBooksQty = extraBooks.reduce((s, b) => s + Math.max(1, Number(b.qty) || 1), 0);
       if (summaryBox) {
@@ -78764,16 +78978,19 @@ function openPublicRegisterView() {
           halfBadgeHtml = `<div style="margin-top:4px;"><span style="display:inline-flex; align-items:center; gap:4px; background:#EFF6FF; color:#1D4ED8; border:1px solid #93C5FD; font-size:11px; font-weight:800; padding:2px 8px; border-radius:6px;">📘 ${escapeHtml(badgeText)}</span></div>`;
         }
         const extraBooksBadgeHtml = extraBooksQty > 0
-          ? `<div style="margin-top:4px; font-size:12px; color:#0369A1; font-weight:700;">+ ${escapeHtml(d.cartExtraBooksTag || 'ตำราเรียนซื้อเพิ่ม')}: ${extraBooksQty} ${lang === 'zh' ? '本' : (lang === 'en' ? 'books' : 'เล่ม')} (+฿${extraBooksSum.toLocaleString()})</div>`
+          ? `<div style="margin-top:4px; font-size:12px; color:#0369A1; font-weight:700;">+ ${escapeHtml(d.cartExtraBooksTag || 'ตำราเรียนซื้อเพิ่ม')}: ${extraBooks.map(b => `${escapeHtml(b.title)} × ${b.qty}`).join(', ')} (+฿${extraBooksSum.toLocaleString()})</div>`
           : '';
-        summaryBox.innerHTML = `<div>
-          <div style="font-size:11.5px; color:#047857; font-weight:800;">${escapeHtml(cCode)}</div>
-          <div style="font-size:16px; font-weight:800; color:#0F172A;">${escapeHtml(translateCourseTitle(course.name || cCode, lang, course))}</div>
+        summaryBox.innerHTML = `<div style="flex:1; min-width:220px;">
+          <div style="font-size:11.5px; color:#047857; font-weight:800; margin-bottom:3px;">${escapeHtml(d.step3CartCoursesTag || 'คอร์สที่เลือก')} (${totalCourseQty} ${escapeHtml(d.coursePerUnit || (lang === 'zh' ? '门' : (lang === 'en' ? 'courses' : 'คอร์ส')))}${extraBooksQty > 0 ? ` • ${extraBooksQty} ${lang === 'zh' ? '本教材' : (lang === 'en' ? 'books' : 'เล่ม')}` : ''})</div>
+          ${courseBadgesHtml}
           ${halfBadgeHtml}${extraBooksBadgeHtml}
         </div>
-        <div style="text-align:right;">
-          <div style="font-size:18px; font-weight:900; color:#047857;">฿${(pricing.netTotal + extraBooksSum).toLocaleString()}</div>
-          <div style="font-size:11.5px; color:#334155; font-weight:700;">${pricing.isReturning ? d.freeRegFee : (d.newRegFeePrefix + pricing.regFee.toLocaleString())}</div>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <button type="button" id="btnKioskStep3EditCart" onclick="goToKioskStep(2)" style="background:#FFFFFF; color:#065F46; border:1.5px solid #10B981; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap;">${escapeHtml(d.step3CartSummaryEdit || 'แก้ไข / เลือกเพิ่ม')}</button>
+          <div style="text-align:right;">
+            <div style="font-size:18px; font-weight:900; color:#047857;">฿${(totalCourseNetTuition + regFeeOnce + extraBooksSum).toLocaleString()}</div>
+            <div style="font-size:11.5px; color:#334155; font-weight:700;">${regFeeOnce === 0 ? d.freeRegFee : (d.newRegFeePrefix + regFeeOnce.toLocaleString())}</div>
+          </div>
         </div>`;
       }
       const allScheds = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList) && cachedSchedulesList.length > 0)
@@ -78838,7 +79055,7 @@ function openPublicRegisterView() {
       }
 
       if (btnNextStep3) btnNextStep3.disabled = false;
-      if (!ctx.selectedScheduleId && schedList.length > 0) {
+      if ((!ctx.selectedScheduleId || !schedList.some(s => s.id === ctx.selectedScheduleId)) && schedList.length > 0) {
         ctx.selectedScheduleId = schedList[0].id;
         ctx.selectedScheduleName = schedList[0].name;
       }
@@ -79016,8 +79233,9 @@ function openPublicRegisterView() {
         if (typeof syncPubDeliveryUI === 'function') syncPubDeliveryUI();
       } else if (step === 4) {
         const ctx4 = window._pubKioskContext || {};
-        const cart4 = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { course: null, books: [] };
-        const isBooksOnly4 = !ctx4.selectedCourse && !cart4.course && Array.isArray(cart4.books) && cart4.books.length > 0;
+        const cart4 = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { courses: [], books: [] };
+        const hasAnyCourse4 = Boolean(ctx4.selectedCourse || (Array.isArray(cart4.courses) && cart4.courses.length > 0));
+        const isBooksOnly4 = !hasAnyCourse4 && Array.isArray(cart4.books) && cart4.books.length > 0;
         if (!isBooksOnly4) {
           if (!document.getElementById('selPubSchedule')?.value || !document.getElementById('selPubCourse')?.value) {
             if (typeof showToast === 'function') showToast('กรุณาเลือกเวลาเรียนและคอร์ส', 'โปรดเลือกรอบเวลาเรียนให้เรียบร้อยก่อน', 'warning');
@@ -79174,10 +79392,23 @@ function openPublicRegisterView() {
 
     function getPubRegCartInfo() {
       const ctxCourse = (window._pubKioskContext && window._pubKioskContext.selectedCourse) || null;
-      const cartSub = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { course: null, books: [] };
+      const cartSub = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { courses: [], books: [] };
       const extraCartBooks = Array.isArray(cartSub.books) ? cartSub.books : [];
-      const selCourse = (document.getElementById('selPubCourse')?.value || (ctxCourse && (ctxCourse.name || ctxCourse.code || ctxCourse.id)) || (cartSub.course && (cartSub.course.name || cartSub.course.code || cartSub.course.id)) || '').trim();
-      return { selCourse, isBooksOnlyOrder: !selCourse && extraCartBooks.length > 0, extraCartBooks, cartCourse: cartSub.course || ctxCourse };
+      const rawCourses = (Array.isArray(cartSub.courses) && cartSub.courses.length > 0)
+        ? cartSub.courses
+        : (ctxCourse ? [ctxCourse] : []);
+      const cartCourses = rawCourses.map(c => ({
+        ...c,
+        id: c.id || c.code || '',
+        code: c.code || c.id || '',
+        name: c.name || c.code || c.id || '',
+        price: Math.max(0, Number(c.price) || 0),
+        qty: Math.max(1, Number(c.qty) || 1)
+      }));
+      const totalCourseQty = cartCourses.reduce((s, c) => s + Math.max(1, Number(c.qty) || 1), 0);
+      const firstC = cartCourses[0] || ctxCourse;
+      const selCourse = (document.getElementById('selPubCourse')?.value || (firstC && (firstC.name || firstC.code || firstC.id)) || '').trim();
+      return { selCourse, isBooksOnlyOrder: !selCourse && extraCartBooks.length > 0, extraCartBooks, cartCourse: firstC, cartCourses, totalCourseQty };
     }
 
     async function submitPublicRegister() {
@@ -79236,7 +79467,7 @@ function openPublicRegisterView() {
       const district = (document.getElementById('selPubDistrict')?.value || document.getElementById('txtPubDistrict')?.value || '').trim();
       const province = (document.getElementById('selPubProvince')?.value || document.getElementById('txtPubProvince')?.value || '').trim();
       const postalCode = (document.getElementById('selPubPostalCode')?.value || document.getElementById('txtPubPostalCode')?.value || '').trim();
-      const { selCourse, isBooksOnlyOrder, extraCartBooks, cartCourse: ctxCourse } = getPubRegCartInfo();
+      const { selCourse, isBooksOnlyOrder, extraCartBooks, cartCourse: ctxCourse, cartCourses, totalCourseQty } = getPubRegCartInfo();
       const selSchedule = (document.getElementById('selPubSchedule')?.value || (window._pubKioskContext && window._pubKioskContext.selectedScheduleName) || '').trim();
       const userNotes = sanitizeInputText(document.getElementById('txtPubNotes')?.value || '');
       const companyName = (document.getElementById('txtPubCompanyName')?.value || document.getElementById('txtPubCorpName')?.value || '').trim();
@@ -79445,6 +79676,8 @@ function openPublicRegisterView() {
 
         isBooksOnly: isBooksOnlyOrder,
 
+        extraCourses: cartCourses,
+
         extraBooks: extraCartBooks,
 
         userNotes: typeof sanitizeInputText === 'function' ? sanitizeInputText(userNotes) : userNotes,
@@ -79534,27 +79767,39 @@ function openPublicRegisterView() {
               }
               if (typeof stopOnlineRegCamera === 'function') stopOnlineRegCamera();
 
-              // 2. Resolve expected tuition fee from selected course (reflecting Kids vs Adult normal discount) + extra textbooks
-              let regCourseObj = ctxCourse || null;
-              if (!isBooksOnlyOrder && !regCourseObj && typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
-                regCourseObj = cachedCoursesList.find(c => c.name === selCourse || c.code === selCourse || c.id === selCourse);
-              }
+              // 2. Resolve expected tuition fee from selected courses (reflecting Kids vs Adult normal discount) + extra textbooks
+              const effectiveCoursesList = (!isBooksOnlyOrder && Array.isArray(cartCourses) && cartCourses.length > 0)
+                ? cartCourses
+                : (!isBooksOnlyOrder && (ctxCourse || selCourse) ? [ctxCourse || { name: selCourse, code: selCourse, price: 2200, qty: 1 }] : []);
               let regBaseFee = 0;
               let regDiscAmt = 0;
-              if (!isBooksOnlyOrder) {
-                regBaseFee = (regCourseObj && regCourseObj.price && !isNaN(Number(regCourseObj.price)))
-                  ? Number(regCourseObj.price)
-                  : ((window._pubKioskContext && window._pubKioskContext.selectedCourse && window._pubKioskContext.selectedCourse.price && !isNaN(Number(window._pubKioskContext.selectedCourse.price)))
-                    ? Number(window._pubKioskContext.selectedCourse.price)
-                    : 2200);
-                const pubSchedId = (window._pubKioskContext && window._pubKioskContext.selectedScheduleId)
-                  ? window._pubKioskContext.selectedScheduleId
-                  : (typeof getSelectedScheduleId === 'function' ? getSelectedScheduleId('selPubSchedule') : '');
-                const regDisc = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(regCourseObj || selCourse, pubSchedId) : null;
-                if (regDisc && regDisc.active && regDisc.amount > 0) {
-                  regDiscAmt = Number(regDisc.amount);
+              const pubSchedId = (window._pubKioskContext && window._pubKioskContext.selectedScheduleId)
+                ? window._pubKioskContext.selectedScheduleId
+                : (typeof getSelectedScheduleId === 'function' ? getSelectedScheduleId('selPubSchedule') : '');
+              effectiveCoursesList.forEach(cItem => {
+                let resolvedC = cItem;
+                if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
+                  const mC = cachedCoursesList.find(c =>
+                    (cItem.id && c.id === cItem.id) ||
+                    (cItem.code && c.code === cItem.code) ||
+                    c.name === cItem.name || c.code === cItem.name || c.id === cItem.name
+                  );
+                  if (mC) resolvedC = Object.assign({}, mC, cItem);
                 }
-              }
+                const unitPrice = (resolvedC && resolvedC.price !== undefined && resolvedC.price !== null && !isNaN(Number(resolvedC.price)))
+                  ? Number(resolvedC.price)
+                  : 2200;
+                const cQty = Math.max(1, Number(cItem.qty) || 1);
+                regBaseFee += unitPrice * cQty;
+                const regDisc = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(resolvedC || selCourse, pubSchedId) : null;
+                if (regDisc && regDisc.active && regDisc.amount > 0) {
+                  regDiscAmt += Number(regDisc.amount) * cQty;
+                }
+              });
+              const resolvedCourseQty = isBooksOnlyOrder ? 0 : Math.max(1, totalCourseQty || effectiveCoursesList.reduce((s, c) => s + Math.max(1, Number(c.qty) || 1), 0));
+              const itemizedCourseLabel = (effectiveCoursesList.length > 1 || resolvedCourseQty > 1)
+                ? effectiveCoursesList.map(c => `${c.code || c.name || c.id}${Number(c.qty) > 1 ? ' x' + c.qty : ''}`).join(', ')
+                : selCourse;
               const isReturningPub = window._pubStudentMode === 'returning';
               const pubRegFee = isBooksOnlyOrder ? 0 : (isReturningPub ? 0 : (typeof getEffectivePublicRegFee === 'function' ? getEffectivePublicRegFee() : 300));
               const extraBooksTotal = extraCartBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
@@ -79562,7 +79807,7 @@ function openPublicRegisterView() {
               const pubDeliveryMethod = (document.getElementById('selPubDelivery')?.value || (window._pubKioskContext && window._pubKioskContext.deliveryMethod) || 'รับเองที่สถาบัน');
               const isPubShipping = pubDeliveryMethod === 'จัดส่งตามที่อยู่' || pubDeliveryMethod.indexOf('จัดส่ง') !== -1;
               const pubShipRate = typeof getEffectivePublicShippingFee === 'function' ? getEffectivePublicShippingFee() : 100;
-              const pubShipUnits = (isBooksOnlyOrder ? 0 : 1) + extraBooksQty;
+              const pubShipUnits = resolvedCourseQty + extraBooksQty;
               const pubShippingFee = isPubShipping ? (pubShipRate * Math.max(1, pubShipUnits)) : 0;
               const expectedFee = Math.max(0, regBaseFee - regDiscAmt) + pubRegFee + extraBooksTotal + pubShippingFee;
 
@@ -79596,7 +79841,9 @@ function openPublicRegisterView() {
 
                     email: email,
 
-                    course: selCourse,
+                    course: itemizedCourseLabel || selCourse,
+
+                    extraCourses: effectiveCoursesList,
 
                     schedule: selSchedule,
 
@@ -95258,13 +95505,16 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const dict = (typeof OCA_REG_I18N !== 'undefined' && OCA_REG_I18N[currentRegLanguage]) || {};
       const lang = (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
       const ctxCourse = (window._pubKioskContext && window._pubKioskContext.selectedCourse) || null;
-      const cartFee = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { course: null, books: [] };
-      const effectiveCourse = ctxCourse || cartFee.course || null;
+      const cartFee = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { courses: [], books: [] };
+      const effectiveCourse = ctxCourse || (Array.isArray(cartFee.courses) ? cartFee.courses[0] : cartFee.course) || null;
       const extraBooks = Array.isArray(cartFee.books) ? cartFee.books : [];
       const extraBooksTotal = extraBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
       const extraBooksQty = extraBooks.reduce((s, b) => s + Math.max(1, Number(b.qty) || 1), 0);
+      const cartCoursesList = (Array.isArray(cartFee.courses) && cartFee.courses.length > 0)
+        ? cartFee.courses
+        : (effectiveCourse ? [{ ...effectiveCourse, qty: Math.max(1, Number(effectiveCourse.qty) || 1) }] : []);
       const effectiveVal = val || (effectiveCourse ? (effectiveCourse.name || effectiveCourse.code || effectiveCourse.id || '') : '');
-      const hasCourseFee = Boolean(effectiveVal);
+      const hasCourseFee = cartCoursesList.length > 0 || Boolean(effectiveVal);
       const isBooksOnlyFee = !hasCourseFee && extraBooks.length > 0;
 
       if (!hasCourseFee && !isBooksOnlyFee) {
@@ -95278,53 +95528,57 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         return;
       }
 
-      let fee = hasCourseFee ? 4000 : 0;
-      let courseTitle = effectiveVal;
-      let foundCourse = null;
-
-      if (hasCourseFee && effectiveCourse && (
-        !val ||
-        effectiveCourse.name === effectiveVal ||
-        effectiveCourse.code === effectiveVal ||
-        effectiveCourse.id === effectiveVal ||
-        (optCourseId && (effectiveCourse.id === optCourseId || effectiveCourse.code === optCourseId))
-      )) {
-        foundCourse = effectiveCourse;
-      }
-
-      if (hasCourseFee && typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
-        const cachedMatch = cachedCoursesList.find(c =>
-          (optCourseId && (c.id === optCourseId || c.code === optCourseId)) ||
-          c.name === effectiveVal ||
-          c.code === effectiveVal ||
-          c.id === effectiveVal
-        );
-        if (cachedMatch) {
-          foundCourse = foundCourse ? Object.assign({}, cachedMatch, foundCourse) : cachedMatch;
-        }
-      }
-
-      if (hasCourseFee && foundCourse) {
-        if (foundCourse.price !== undefined && foundCourse.price !== null && !isNaN(Number(foundCourse.price))) {
-          fee = Number(foundCourse.price);
-        }
-        const dispName = (typeof translateCourseTitle === 'function')
-          ? translateCourseTitle(foundCourse.name || foundCourse.code || effectiveVal, lang, foundCourse)
-          : (foundCourse.name || effectiveVal);
-        courseTitle = (foundCourse.code ? `[${foundCourse.code}] ` : '') + dispName;
-      }
-
       const pubSchedId = (window._pubKioskContext && window._pubKioskContext.selectedScheduleId)
         ? window._pubKioskContext.selectedScheduleId
         : (typeof getSelectedScheduleId === 'function' ? getSelectedScheduleId('selPubSchedule') : '');
-      const discInfo = hasCourseFee && typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(foundCourse || effectiveVal, pubSchedId) : { amount: 0, isKids: false, active: false, label: '' };
-      const discAmt = (hasCourseFee && discInfo && discInfo.active) ? Math.max(0, Number(discInfo.amount || 0)) : 0;
+
+      let fee = 0;
+      let discAmt = 0;
+      let totalCourseQty = 0;
+      let lastDiscInfo = { amount: 0, isKids: false, active: false, label: '' };
+      const resolvedCourseItems = [];
+
+      if (hasCourseFee) {
+        const sourceCourses = cartCoursesList.length > 0
+          ? cartCoursesList
+          : [{ id: optCourseId, code: optCourseId, name: effectiveVal, price: 4000, qty: 1 }];
+
+        sourceCourses.forEach(rawC => {
+          let foundCourse = rawC;
+          if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
+            const cachedMatch = cachedCoursesList.find(c =>
+              (rawC.id && (c.id === rawC.id || c.code === rawC.id)) ||
+              (rawC.code && (c.id === rawC.code || c.code === rawC.code)) ||
+              c.name === rawC.name || c.code === rawC.name || c.id === rawC.name
+            );
+            if (cachedMatch) foundCourse = Object.assign({}, cachedMatch, rawC);
+          }
+          const unitPrice = (foundCourse.price !== undefined && foundCourse.price !== null && !isNaN(Number(foundCourse.price)))
+            ? Number(foundCourse.price)
+            : 4000;
+          const cQty = Math.max(1, Number(rawC.qty) || 1);
+          const dInfo = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(foundCourse || effectiveVal, pubSchedId) : { amount: 0, isKids: false, active: false, label: '' };
+          const unitDisc = (dInfo && dInfo.active) ? Math.max(0, Number(dInfo.amount || 0)) : 0;
+          if (dInfo && (dInfo.active || dInfo.expired)) lastDiscInfo = dInfo;
+          const dispName = (typeof translateCourseTitle === 'function')
+            ? translateCourseTitle(foundCourse.name || foundCourse.code || effectiveVal, lang, foundCourse)
+            : (foundCourse.name || effectiveVal);
+          const itemLabel = (foundCourse.code ? `[${foundCourse.code}] ` : '') + dispName;
+          fee += unitPrice * cQty;
+          discAmt += unitDisc * cQty;
+          totalCourseQty += cQty;
+          resolvedCourseItems.push({ label: itemLabel, qty: cQty, linePrice: unitPrice * cQty, unitDisc: unitDisc * cQty });
+        });
+      }
+
+      const courseTitle = resolvedCourseItems.map(c => `${c.label}${c.qty > 1 ? ' ×' + c.qty : ''}`).join(', ') || effectiveVal;
+      const discInfo = lastDiscInfo;
       const isReturningPub = window._pubStudentMode === 'returning';
       const pubRegFee = hasCourseFee ? (isReturningPub ? 0 : (typeof getEffectivePublicRegFee === 'function' ? getEffectivePublicRegFee() : 300)) : 0;
       const deliveryMethod = (document.getElementById('selPubDelivery')?.value || (window._pubKioskContext && window._pubKioskContext.deliveryMethod) || 'รับเองที่สถาบัน');
       const isShipping = deliveryMethod === 'จัดส่งตามที่อยู่' || deliveryMethod.indexOf('จัดส่ง') !== -1 || deliveryMethod.indexOf('ส่ง') !== -1;
       const shipRate = typeof getEffectivePublicShippingFee === 'function' ? getEffectivePublicShippingFee() : 100;
-      const shipUnits = (hasCourseFee ? 1 : 0) + extraBooksQty;
+      const shipUnits = totalCourseQty + extraBooksQty;
       const pubShippingFee = isShipping ? (shipRate * Math.max(1, shipUnits)) : 0;
       const netTuitionAfterDisc = hasCourseFee ? Math.max(0, fee - discAmt) : 0;
       const netFee = Math.max(0, netTuitionAfterDisc + pubRegFee + extraBooksTotal + pubShippingFee);
@@ -95392,7 +95646,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
         brk.style.display = 'block';
         const courseRowsHtml = hasCourseFee
-          ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>${escapeHtml(lblTuition)} (${escapeHtml(courseTitle)})</span><strong>฿${fee.toLocaleString()}</strong></div>` +
+          ? resolvedCourseItems.map(ci => `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>${escapeHtml(lblTuition)} (${escapeHtml(ci.label)}${ci.qty > 1 ? ' × ' + ci.qty : ''})</span><strong>฿${ci.linePrice.toLocaleString()}</strong></div>`).join('') +
             (discAmt > 0 ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#047857;"><span>${escapeHtml(lblDisc)}</span><strong>-฿${discAmt.toLocaleString()}</strong></div>` : '') +
             `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:${pubRegFee > 0 ? '#92400E' : '#1E40AF'};"><span>${escapeHtml(lblReg)}</span><strong>฿${pubRegFee.toLocaleString()}</strong></div>`
           : '';
@@ -95929,6 +96183,15 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       if (m.shippingFee !== undefined) compact.sf = Number(m.shippingFee || 0);
       if (m.deliveryMethod) compact.dm = String(m.deliveryMethod).slice(0, 30);
       if (m.isBooksOnly) compact.bo = 1;
+      if (Array.isArray(m.extraCourses) && m.extraCourses.length > 0) {
+        compact.ec = m.extraCourses.map(c => ({
+          i: String(c.id || c.code || '').slice(0, 24),
+          c: String(c.code || c.id || '').slice(0, 16),
+          n: String(c.name || c.code || '').slice(0, 32),
+          q: Math.max(1, Number(c.qty) || 1),
+          p: Math.max(0, Number(c.price) || 0)
+        }));
+      }
       if (Array.isArray(m.extraBooks) && m.extraBooks.length > 0) {
         compact.eb = m.extraBooks.map(b => ({
           i: String(b.id || b.code || '').slice(0, 24),
@@ -96019,6 +96282,15 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               if (extra.sf !== undefined) item.shippingFee = Number(extra.sf || 0);
               if (extra.dm) item.deliveryMethod = extra.dm;
               if (extra.bo) item.isBooksOnly = true;
+              if (Array.isArray(extra.ec)) {
+                item.extraCourses = extra.ec.map(c => ({
+                  id: c.i || c.c || '',
+                  code: c.c || c.i || '',
+                  name: c.n || c.c || c.i || '',
+                  qty: Math.max(1, Number(c.q) || 1),
+                  price: Math.max(0, Number(c.p) || 0)
+                }));
+              }
               if (Array.isArray(extra.eb)) {
                 item.extraBooks = extra.eb.map(b => ({
                   id: b.i || '',
@@ -96730,24 +97002,32 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     }
 
     function mergeSlipBooks(rcPayload, info, sv, appBaseFee, canonicalCourseCode) {
+      const appExtraCourses = Array.isArray(info.extraCourses) ? info.extraCourses : [];
       const appExtraBooks = Array.isArray(info.extraBooks) ? info.extraBooks : [];
-      const appIsBooksOnly = Boolean(info.isBooksOnly || (!info.course && appExtraBooks.length > 0));
-      if (appExtraBooks.length === 0 && !appIsBooksOnly) return rcPayload;
+      const appIsBooksOnly = Boolean(info.isBooksOnly || (!info.course && appExtraCourses.length === 0 && appExtraBooks.length > 0));
+      const hasMultiCourses = appExtraCourses.length > 1 || appExtraCourses.some(c => Number(c.qty) > 1);
+      if (!hasMultiCourses && appExtraBooks.length === 0 && !appIsBooksOnly) return rcPayload;
       const appOtherRegFee = Number(info.otherRegFee || 0) || appExtraBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
       const appShippingFee = Number(info.shippingFee || 0);
       const appDeliveryRaw = String(info.deliveryMethod || 'รับเอง');
       const appIsShip = appDeliveryRaw === 'จัดส่งตามที่อยู่' || appDeliveryRaw.indexOf('จัดส่ง') !== -1 || appDeliveryRaw.indexOf('ส่ง') !== -1;
       const appDeliveryMethod = appIsShip ? 'ส่งไปตามที่อยู่' : 'รับเอง';
+      const extraCoursesJsonTag = hasMultiCourses
+        ? `[EXTRA_COURSES:${JSON.stringify(appExtraCourses.map(c => ({ id: c.id || c.code || '', code: c.code || c.id || '', name: c.name || c.code || '', qty: Number(c.qty) || 1, price: Number(c.price) || 0 })))}]`
+        : '';
       const extraBooksJsonTag = appExtraBooks.length > 0
         ? `[EXTRA_BOOKS:${JSON.stringify(appExtraBooks.map(b => ({ id: b.id || b.code || '', name: b.title || b.name || '', qty: Number(b.qty) || 1, price: Number(b.price) || 0 })))}]`
         : '';
-      const combinedEditNotes = [sv.editNotes, extraBooksJsonTag].filter(Boolean).join(' ');
+      const combinedEditNotes = [sv.editNotes, extraCoursesJsonTag, extraBooksJsonTag].filter(Boolean).join(' ');
+      const extraCoursesItemSummary = hasMultiCourses
+        ? appExtraCourses.map(c => `${c.code || c.name || c.id}${Number(c.qty) > 1 ? ' x' + c.qty : ''}`).join(', ')
+        : (info.course || '');
       const extraBooksItemSummary = appExtraBooks.length > 0
         ? appExtraBooks.map(b => `${b.title || b.name || b.id} x${b.qty || 1}`).join(', ')
         : '';
       const combinedCourseName = appIsBooksOnly
         ? (`ค่าตำราเรียน: ${extraBooksItemSummary}`)
-        : (extraBooksItemSummary ? `${info.course || ''} + ตำราเพิ่ม: ${extraBooksItemSummary}` : (info.course || ''));
+        : (extraBooksItemSummary ? `${extraCoursesItemSummary} + ตำราเพิ่ม: ${extraBooksItemSummary}` : extraCoursesItemSummary);
       const overrides = {
         deliveryMethod: appDeliveryMethod,
         shippingFee: appShippingFee,
@@ -96767,11 +97047,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         overrides.baseAmount = appOtherRegFee;
         overrides.regFee = 0;
         overrides.discountNormal = 0;
-      } else if (extraBooksItemSummary) {
+      } else if (extraBooksItemSummary || hasMultiCourses) {
         overrides.courseName = combinedCourseName;
         overrides.course = combinedCourseName;
         overrides.baseAmount = appBaseFee;
-        overrides.courseId = canonicalCourseCode || info.course || '';
+        overrides.courseId = hasMultiCourses
+          ? appExtraCourses.map(c => c.code || c.id).filter(Boolean).join(',')
+          : (canonicalCourseCode || info.course || '');
       }
       return Object.assign(rcPayload, overrides);
     }
@@ -97377,7 +97659,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=196';
+      const swPath = basePath + 'sw.js?v=197';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -97386,7 +97668,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (196):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (197):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
