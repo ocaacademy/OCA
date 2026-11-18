@@ -13697,7 +13697,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '174';
+      var LATEST_VERSION = '175';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -27715,14 +27715,22 @@ body.printing-report #printReportContainer {
 
       // 2. ดำเนินการอัปเดตโมดูลที่เกี่ยวข้องทันทีแบบ Real-time (In-memory updates)
       if (table === 'receipts') {
-        if (payload && payload.new && Array.isArray(receiptHistoryCachedLogs)) {
-          const norm = (typeof normalizeReceiptObject === 'function') ? normalizeReceiptObject(payload.new) : payload.new;
-          const idx = receiptHistoryCachedLogs.findIndex(r => r.receiptNo === norm.receiptNo);
+        if (payload && Array.isArray(receiptHistoryCachedLogs)) {
+          if (payload.eventType === 'DELETE' && payload.old) {
+            const oldRcNo = payload.old.receipt_no || payload.old.receiptNo;
+            const oldId = payload.old.id;
+            receiptHistoryCachedLogs = receiptHistoryCachedLogs.filter(r =>
+              (oldRcNo ? r.receiptNo !== oldRcNo : true) && (oldId ? r.id !== oldId : true)
+            );
+          } else if (payload.new) {
+            const norm = (typeof normalizeReceiptObject === 'function') ? normalizeReceiptObject(payload.new) : payload.new;
+            const idx = receiptHistoryCachedLogs.findIndex(r => r.receiptNo === norm.receiptNo);
 
-          if (idx !== -1) {
-            receiptHistoryCachedLogs[idx] = Object.assign({}, receiptHistoryCachedLogs[idx], norm);
-          } else if (payload.eventType === 'INSERT') {
-            receiptHistoryCachedLogs.unshift(norm);
+            if (idx !== -1) {
+              receiptHistoryCachedLogs[idx] = Object.assign({}, receiptHistoryCachedLogs[idx], norm);
+            } else if (payload.eventType === 'INSERT') {
+              receiptHistoryCachedLogs.unshift(norm);
+            }
           }
 
           if (typeof filterReceiptHistoryTable === 'function') filterReceiptHistoryTable(true);
@@ -27730,7 +27738,9 @@ body.printing-report #printReportContainer {
       } else if (table === 'fee_settings' || table === 'system_settings') {
         // Realtime General Fee Settings Sync Handler
 
-        const pKey = payload && payload.new && payload.new.key;
+        const isDeleteEv = !!(payload && payload.eventType === 'DELETE');
+        const activeFeeRow = isDeleteEv ? (payload && payload.old) : (payload && payload.new);
+        const pKey = activeFeeRow && activeFeeRow.key;
         const feeWhitelist = [
           'tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'shippingFee',
           'discountNormal', 'discountKids', 'discountOther',
@@ -27741,7 +27751,7 @@ body.printing-report #printReportContainer {
           (typeof pKey === 'string' && (pKey.startsWith('course_audience_') || pKey.startsWith('course_disc_')))
         );
 
-        if (payload && payload.new && isFeeWhitelisted) {
+        if (!isDeleteEv && payload && payload.new && isFeeWhitelisted) {
           const k = payload.new.key;
           const amt = Number(payload.new.amount) || 0;
           const m = payload.new.mode || 'always';
@@ -27848,11 +27858,37 @@ body.printing-report #printReportContainer {
           }
         }
 
-        if (payload && payload.new && payload.new.key) {
-          const fk = String(payload.new.key);
-          if (fk.startsWith('cg_chunk_') || fk.startsWith('sched_chunk_') || fk.startsWith('course_') || fk === 'schedule_courses_by_term_map' || fk === 'schedule_courses_map') {
+        if (pKey) {
+          const fk = String(pKey);
+          if (fk.startsWith('cg_chunk_') || fk.startsWith('sched_chunk_') || fk.startsWith('course_') || fk === 'schedule_courses_by_term_map' || fk === 'schedule_courses_map' || fk.startsWith('term_open_date_') || fk.startsWith('term_close_date_') || fk === 'term_dates_by_year') {
             _lastCoursesManagerLoadedAt = 0;
             if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
+            if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
+            if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
+          } else if (fk.startsWith('pending_slip')) {
+            if (typeof window.loadPendingSlipsQueue === 'function') window.loadPendingSlipsQueue();
+            if (typeof renderFinancialEmbeddedSlipsQueue === 'function') renderFinancialEmbeddedSlipsQueue();
+          } else if (fk.startsWith('tb:')) {
+            const tabTb = document.getElementById('tabTextbooks');
+            if (tabTb && tabTb.classList.contains('active') && typeof loadTextbooksData === 'function') {
+              loadTextbooksData();
+            }
+          } else if (fk === 'cfg_cashier_payee' && !isDeleteEv && activeFeeRow) {
+            const modeParts = String(activeFeeRow.mode || 'dynamic:').split(':');
+            window._ocaPayeeSetting = {
+              mode: modeParts[0] || 'dynamic',
+              name: activeFeeRow.name || '',
+              staffUsername: modeParts[1] || ''
+            };
+            try { localStorage.setItem('oca_cashier_payee', JSON.stringify(window._ocaPayeeSetting)); } catch (_) {}
+            const txtCashier = document.getElementById('txtRcptCashier');
+            if (txtCashier && typeof getEffectivePayeeName === 'function') txtCashier.value = getEffectivePayeeName();
+          } else if (fk.startsWith('disc_rule_custom_')) {
+            if (typeof loadCustomDiscountRules === 'function') loadCustomDiscountRules();
+            if (typeof calcReceiptTotals === 'function') calcReceiptTotals();
+          } else if (fk.startsWith('custom_fee_')) {
+            if (typeof loadCustomGeneralFeeItems === 'function') loadCustomGeneralFeeItems();
+            if (typeof calcReceiptTotals === 'function') calcReceiptTotals();
           }
         }
       } else if (table === 'courses') {
@@ -27863,11 +27899,13 @@ body.printing-report #printReportContainer {
             if (payload.eventType === 'INSERT' && item && item.is_active !== false) {
               const cId = item.id || item.code;
               const idx = cachedCoursesList.findIndex(c => c.id === cId || c.code === cId);
+              const prevAud = (idx !== -1 && cachedCoursesList[idx]) ? (cachedCoursesList[idx].target_audience || cachedCoursesList[idx].targetAudience) : undefined;
+              const resolvedAud = item.target_audience || prevAud || ((typeof isKidsCourse === 'function' && isKidsCourse(item)) ? 'kids' : 'adult');
               const mapped = {
                 ...item,
                 level: item.level || (typeof detectCourseLevel === 'function' ? detectCourseLevel(item) : 'คอร์สขั้นต้น'),
-                target_audience: item.target_audience || 'adult',
-                targetAudience: item.target_audience || 'adult',
+                target_audience: resolvedAud,
+                targetAudience: resolvedAud,
                 materialType: item.linked_book || item.materialType || 'ไม่มีอุปกรณ์',
                 linkedBook: item.linked_book || ''
               };
@@ -27882,11 +27920,13 @@ body.printing-report #printReportContainer {
               if (item.is_active === false) {
                 if (idx !== -1) cachedCoursesList.splice(idx, 1);
               } else {
+                const prevAud = (idx !== -1 && cachedCoursesList[idx]) ? (cachedCoursesList[idx].target_audience || cachedCoursesList[idx].targetAudience) : undefined;
+                const resolvedAud = item.target_audience || prevAud || ((typeof isKidsCourse === 'function' && isKidsCourse(item)) ? 'kids' : 'adult');
                 const mapped = {
                   ...item,
                   level: item.level || (typeof detectCourseLevel === 'function' ? detectCourseLevel(item) : 'คอร์สขั้นต้น'),
-                  target_audience: item.target_audience || 'adult',
-                  targetAudience: item.target_audience || 'adult',
+                  target_audience: resolvedAud,
+                  targetAudience: resolvedAud,
                   materialType: item.linked_book || item.materialType || 'ไม่มีอุปกรณ์',
                   linkedBook: item.linked_book || ''
                 };
@@ -27957,6 +27997,11 @@ body.printing-report #printReportContainer {
         if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus('silent');
         if (typeof loadReceiptsHistoryTable === 'function') loadReceiptsHistoryTable(true);
         if (typeof window.loadPendingSlipsQueue === 'function') window.loadPendingSlipsQueue();
+      } else if (table === 'textbooks') {
+        const tabTb = document.getElementById('tabTextbooks');
+        if (tabTb && tabTb.classList.contains('active') && typeof loadTextbooksData === 'function') {
+          loadTextbooksData();
+        }
       } else if (table === 'staff_users') {
         if (payload && (payload.new || payload.record)) {
           const userObj = payload.new || payload.record;
@@ -27965,6 +28010,9 @@ body.printing-report #printReportContainer {
             handleRealtimeStaffPermissionsUpdate(userObj);
           }
         }
+        if (typeof loadUsersList === 'function') loadUsersList(true, true);
+        if (typeof populateClassroomInstructors === 'function') populateClassroomInstructors();
+        if (typeof populateGlobalLecturerAndRoomDatalists === 'function') populateGlobalLecturerAndRoomDatalists();
       } else if (table === 'security_audit_logs' || table === 'audit_logs') {
         if (payload && payload.new && payload.new.action === 'CONFIG_CHANGE') {
           if (typeof loadConfigAuditTrail === 'function') {
@@ -30331,21 +30379,22 @@ if (action === 'getDashboardStats') {
           let totalRevenue = 0;
 
           try {
-            // High-speed single indexed query with memory aggregation (prevents PostgREST 500 timeout)
-
-            const { data: revData } = await _supabase.from('receipts')
-
-              .select('learning_mode, delivery_method, claim_status, grand_total')
-
-              .gte('receipt_no', minYrId)
-
-              .lt('receipt_no', maxYrId)
-
-              .limit(50000);
-
-            if (revData && revData.length > 0) {
+            // Paginated indexed query with memory aggregation (avoids PostgREST 1,000-row cap)
+            let revFrom = 0;
+            const revPageSize = 1000;
+            while (revFrom < 50000) {
+              const { data: revData, error: revErr } = await _supabase.from('receipts')
+                .select('learning_mode, delivery_method, claim_status, grand_total')
+                .gte('receipt_no', minYrId)
+                .lt('receipt_no', maxYrId)
+                .order('receipt_no', { ascending: true })
+                .range(revFrom, revFrom + revPageSize - 1);
+              if (revErr) throw revErr;
+              if (!Array.isArray(revData) || revData.length === 0) break;
               for (let i = 0; i < revData.length; i++) {
                 const r = revData[i];
+                const cs = String(r.claim_status || '').trim().toUpperCase();
+                if (cs === 'VOIDED') continue;
                 const mode = String(r.learning_mode || '').trim();
                 if (mode === 'Online') rcOnlineCount++;
                 else if (mode === 'Hybrid') rcHybridCount++;
@@ -30353,11 +30402,12 @@ if (action === 'getDashboardStats') {
                 const dm = String(r.delivery_method || '').trim();
                 if (dm.includes('รับเอง') || dm === 'Pickup') pickupCount++;
                 else if (dm) shippingCount++;
-                const cs = String(r.claim_status || '').trim().toUpperCase();
                 if (cs === 'CLAIMED' || cs.includes('รับแล้ว')) claimedCount++;
                 else pendingCount++;
                 totalRevenue += (Number(r.grand_total) || 0);
               }
+              if (revData.length < revPageSize) break;
+              revFrom += revPageSize;
             }
           } catch (eRc) {
             console.warn('[Report Receipts Aggregation Fallback]', eRc);
@@ -32314,7 +32364,7 @@ if (action === 'getDashboardStats') {
               console.warn('[updateStudentProfile] learning_mode sync warning:', syncLmErr);
             }
           }
-          return { success: !error };
+          return { success: !error, message: error ? (error.message || 'ไม่สามารถอัปเดตข้อมูลนักศึกษาได้') : '' };
         }
 
         // --- 12. STUDENT REPORT ---
@@ -33493,7 +33543,20 @@ if (action === 'getDashboardStats') {
             }]);
           } catch (_) {}
 
-          const { data: fees } = await _supabase.from('fee_settings').select('*').limit(1000);
+          const fees = [];
+          let feeFrom = 0;
+          const feePageSize = 1000;
+          while (feeFrom < 20000) {
+            const { data: feeBatch, error: feeFetchErr } = await _supabase
+              .from('fee_settings')
+              .select('*')
+              .order('key', { ascending: true })
+              .range(feeFrom, feeFrom + feePageSize - 1);
+            if (feeFetchErr) throw feeFetchErr;
+            if (Array.isArray(feeBatch) && feeBatch.length > 0) fees.push(...feeBatch);
+            if (!Array.isArray(feeBatch) || feeBatch.length < feePageSize) break;
+            feeFrom += feePageSize;
+          }
           const feeObj = {};
 
           if (fees) {
@@ -37401,6 +37464,22 @@ if (action === 'getDashboardStats') {
 
     window.onEnrollScheduleChanged = onEnrollScheduleChanged;
 
+    /**
+     * Fetch all rows from a PostgREST query using .range() pagination to avoid the 1,000-row cap.
+     */
+    async function fetchAllPaginatedSupabaseRows(buildQueryFn, pageSize = 1000, maxRows = 20000) {
+      const allRows = [];
+      let offset = 0;
+      while (offset < maxRows) {
+        const { data, error } = await buildQueryFn().range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        if (Array.isArray(data) && data.length > 0) allRows.push(...data);
+        if (!Array.isArray(data) || data.length < pageSize) break;
+        offset += pageSize;
+      }
+      return allRows;
+    }
+
     async function populateEnrollCoursesAndSchedules() {
       const selCourse = document.getElementById('selEnrollCourse');
       const selSchedule = document.getElementById('selEnrollSchedule');
@@ -37431,11 +37510,14 @@ if (action === 'getDashboardStats') {
 
           if (!window._ocaScheduleCoursesByTermMap || Object.keys(window._ocaScheduleCoursesByTermMap).length === 0) {
             try {
-              const { data: feeData, error: feeErr } = await _supabase
-                .from('fee_settings')
-                .select('key, name, amount')
-                .or('key.in.(schedule_courses_by_term_map,schedule_courses_map),key.like.sched_chunk_%,key.like.cg_chunk_%');
-              if (!feeErr && Array.isArray(feeData)) {
+              const feeData = await fetchAllPaginatedSupabaseRows(() =>
+                _supabase
+                  .from('fee_settings')
+                  .select('key, name, amount')
+                  .or('key.in.(schedule_courses_by_term_map,schedule_courses_map),key.like.sched_chunk_%,key.like.cg_chunk_%')
+                  .order('key', { ascending: true })
+              );
+              if (Array.isArray(feeData) && feeData.length > 0) {
                 if (typeof reassembleChunkedFeeMap === 'function') {
                   const chunkedSched = reassembleChunkedFeeMap('sched_chunk_', feeData);
                   if (chunkedSched && Object.keys(chunkedSched).length > 0) {
@@ -37513,18 +37595,26 @@ if (action === 'getDashboardStats') {
 
               .from('courses')
 
-              .select('id, code, name, price, is_active')
+              .select('id, code, name, price, linked_book, is_active')
 
               .eq('is_active', true)
 
               .order('id');
 
             if (!resC.error && Array.isArray(resC.data)) {
-              const activeDbCourses = resC.data.filter(c => c && c.is_active !== false && !c.is_legacy_archive);
+              const activeDbCourses = resC.data
+                .filter(c => c && c.is_active !== false && !c.is_legacy_archive)
+                .map(c => ({
+                  ...c,
+                  materialType: c.linked_book || c.materialType || 'ไม่มีอุปกรณ์',
+                  linkedBook: c.linked_book || ''
+                }));
               coursesList = activeDbCourses;
               cachedCoursesList = activeDbCourses;
               try {
-                const { data: dRows } = await _supabase.from('fee_settings').select('key, name, amount').like('key', 'course_disc_%');
+                const dRows = await fetchAllPaginatedSupabaseRows(() =>
+                  _supabase.from('fee_settings').select('key, name, amount').like('key', 'course_disc_%').order('key', { ascending: true })
+                );
                 if (dRows && Array.isArray(dRows)) {
                   const dMap = {};
                   dRows.forEach(f => {
@@ -37552,7 +37642,9 @@ if (action === 'getDashboardStats') {
                   }
                 } catch (_) {}
 
-                const { data: aRows } = await _supabase.from('fee_settings').select('key, name').like('key', 'course_audience_%');
+                const aRows = await fetchAllPaginatedSupabaseRows(() =>
+                  _supabase.from('fee_settings').select('key, name').like('key', 'course_audience_%').order('key', { ascending: true })
+                );
                 if (aRows && Array.isArray(aRows)) {
                   aRows.forEach(f => {
                     const cid = f.key.replace('course_audience_', '').trim();
@@ -38722,6 +38814,7 @@ if (action === 'getDashboardStats') {
             const savedStudentId = res.studentId || studentId;
             hideDuplicateWarningBox();
             cachedSearchStudentsData = [];
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
 
             if (typeof loadAllStudentsStatus === 'function') {
               try { loadAllStudentsStatus(true); } catch (_) {}
@@ -41516,6 +41609,7 @@ if (action === 'getDashboardStats') {
             if (res && res.success && res.selectedStudent && res.selectedStudent.profile) {
               const p = res.selectedStudent.profile;
               populateEditStudentForm(p);
+              modal.style.display = 'flex';
               modal.classList.add('active');
             } else {
               showModal('ไม่พบข้อมูล', 'ไม่สามารถดึงข้อมูลนักศึกษารหัส ' + toArabicDigits(studentId) + ' ได้', '⚠️');
@@ -41529,6 +41623,7 @@ if (action === 'getDashboardStats') {
       }
 
       populateEditStudentForm(student);
+      modal.style.display = 'flex';
       modal.classList.add('active');
     }
     window.editStudentProfile = openEditStudentModal;
@@ -41758,11 +41853,11 @@ if (action === 'getDashboardStats') {
         inpEditLm.value = (normLm === 'Online' || normLm === 'Onsite' || normLm === 'Hybrid') ? normLm : 'Onsite';
         if (student.studentId && typeof fetchStudentReceiptsSafely === 'function') {
           const targetSid = student.studentId;
-          fetchStudentReceiptsSafely(targetSid, 'receipt_no,receipt_type,learning_mode,status,year_be,term', 20)
+          fetchStudentReceiptsSafely(targetSid, 'receipt_no,receipt_type,learning_mode,claim_status,year_be,term', 20)
             .then(rcList => {
               const curId = document.getElementById('inpEditStudentId')?.value;
               if (curId !== targetSid || !Array.isArray(rcList)) return;
-              const latestTuition = rcList.find(r => r && String(r.status || '').toUpperCase() !== 'VOIDED' && String(r.receipt_type || 'tuition').toLowerCase() === 'tuition' && (r.learning_mode === 'Online' || r.learning_mode === 'Onsite' || r.learning_mode === 'Hybrid'));
+              const latestTuition = rcList.find(r => r && String(r.claim_status || r.status || '').toUpperCase() !== 'VOIDED' && String(r.receipt_type || 'tuition').toLowerCase() === 'tuition' && (r.learning_mode === 'Online' || r.learning_mode === 'Onsite' || r.learning_mode === 'Hybrid'));
               if (latestTuition && latestTuition.learning_mode) {
                 inpEditLm.value = latestTuition.learning_mode;
               }
@@ -45497,7 +45592,7 @@ if (action === 'getDashboardStats') {
           }
 
           if (res.scheduleCoursesByTermMap && typeof res.scheduleCoursesByTermMap === 'object') {
-            window._ocaScheduleCoursesByTermMap = Object.assign(window._ocaScheduleCoursesByTermMap || {}, res.scheduleCoursesByTermMap);
+            window._ocaScheduleCoursesByTermMap = res.scheduleCoursesByTermMap;
 
             try {
               localStorage.setItem('oca_schedule_courses_by_term_v1', JSON.stringify(window._ocaScheduleCoursesByTermMap));
@@ -45505,7 +45600,7 @@ if (action === 'getDashboardStats') {
           }
 
           if (res.courseGroupInstructorByTermMap && typeof res.courseGroupInstructorByTermMap === 'object') {
-            window._courseGroupInstructorByTermMap = Object.assign(window._courseGroupInstructorByTermMap || {}, res.courseGroupInstructorByTermMap);
+            window._courseGroupInstructorByTermMap = res.courseGroupInstructorByTermMap;
 
             try {
               localStorage.setItem('oca_course_group_instructor_map_v1', JSON.stringify(window._courseGroupInstructorByTermMap));
@@ -49545,8 +49640,6 @@ if (action === 'getDashboardStats') {
       if (typeof renderCoursesTable === 'function') renderCoursesTable(cachedCoursesList);
       if (typeof renderSchedulesTable === 'function') renderSchedulesTable(cachedSchedulesList);
       if (typeof loadReceiptCoursesDropdown === 'function') loadReceiptCoursesDropdown();
-      if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
-      if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
 
       callGasApi('saveCourse', { id, code: id, originalId: origId, name, price, desc, materialType, level, target_audience: targetAudience, targetAudience, custom_discount_normal: customDiscountNormal, customDiscountNormal, is_active: isActive })
 
@@ -62651,11 +62744,19 @@ if (action === 'getDashboardStats') {
         let checkedSlips = [];
 
         if (typeof _supabase !== 'undefined' && _supabase) {
-          const [resAllSlips, resChecked] = await Promise.all([
-            _supabase.from('fee_settings').select('*').like('key', 'pending_slip%').order('updated_at', { ascending: false }).limit(2000),
+          const [fetchedAllSlips, resChecked] = await Promise.all([
+            (async () => {
+              try {
+                return await fetchAllPaginatedSupabaseRows(() =>
+                  _supabase.from('fee_settings').select('*').like('key', 'pending_slip%').order('updated_at', { ascending: false })
+                );
+              } catch (_) {
+                return [];
+              }
+            })(),
             _supabase.from('fee_settings').select('*').like('key', 'receipt_slip:%').order('updated_at', { ascending: false }).limit(30)
           ]);
-          if (resAllSlips && Array.isArray(resAllSlips.data)) allSlipRows = resAllSlips.data;
+          if (Array.isArray(fetchedAllSlips)) allSlipRows = fetchedAllSlips;
           if (resChecked && Array.isArray(resChecked.data)) checkedSlips = resChecked.data;
         }
 
@@ -74374,11 +74475,14 @@ function openPublicRegisterView() {
           }
 
           try {
-            const { data: feeData, error: feeErr } = await _supabase
-              .from('fee_settings')
-              .select('key, name, amount')
-              .or('key.in.(schedule_courses_by_term_map,schedule_courses_map),key.like.sched_chunk_%,key.like.cg_chunk_%');
-            if (!feeErr && Array.isArray(feeData)) {
+            const feeData = await fetchAllPaginatedSupabaseRows(() =>
+              _supabase
+                .from('fee_settings')
+                .select('key, name, amount')
+                .or('key.in.(schedule_courses_by_term_map,schedule_courses_map),key.like.sched_chunk_%,key.like.cg_chunk_%')
+                .order('key', { ascending: true })
+            );
+            if (Array.isArray(feeData) && feeData.length > 0) {
               if (typeof reassembleChunkedFeeMap === 'function') {
                 const chunkedSched = reassembleChunkedFeeMap('sched_chunk_', feeData);
                 if (chunkedSched && Object.keys(chunkedSched).length > 0) {
@@ -74471,17 +74575,24 @@ function openPublicRegisterView() {
 
               .from('courses')
 
-              .select('id, code, name, price, is_active')
+              .select('id, code, name, price, linked_book, is_active')
 
               .eq('is_active', true)
 
               .order('id');
 
             if (!error && Array.isArray(data) && data.length > 0) {
-              coursesList = data;
-              cachedCoursesList = data;
+              const mappedPublicCourses = data.map(c => ({
+                ...c,
+                materialType: c.linked_book || c.materialType || 'ไม่มีอุปกรณ์',
+                linkedBook: c.linked_book || ''
+              }));
+              coursesList = mappedPublicCourses;
+              cachedCoursesList = mappedPublicCourses;
               try {
-                const { data: dRows } = await _supabase.from('fee_settings').select('key, name, amount').like('key', 'course_disc_%');
+                const dRows = await fetchAllPaginatedSupabaseRows(() =>
+                  _supabase.from('fee_settings').select('key, name, amount').like('key', 'course_disc_%').order('key', { ascending: true })
+                );
                 if (dRows && Array.isArray(dRows)) {
                   const dMap = {};
                   dRows.forEach(f => {
@@ -74509,7 +74620,9 @@ function openPublicRegisterView() {
                   }
                 } catch (_) {}
 
-                const { data: aRows } = await _supabase.from('fee_settings').select('key, name').like('key', 'course_audience_%');
+                const aRows = await fetchAllPaginatedSupabaseRows(() =>
+                  _supabase.from('fee_settings').select('key, name').like('key', 'course_audience_%').order('key', { ascending: true })
+                );
                 if (aRows && Array.isArray(aRows)) {
                   aRows.forEach(f => {
                     const cid = f.key.replace('course_audience_', '').trim();
@@ -93626,9 +93739,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const resAllSlipRows = await _supabase.from('fee_settings').select('*').like('key', 'pending_slip%').order('updated_at', { ascending: false }).limit(2000);
-          const allSlipRows = Array.isArray(resAllSlipRows?.data) ? resAllSlipRows.data : [];
-          const error = resAllSlipRows?.error;
+          const allSlipRows = await fetchAllPaginatedSupabaseRows(() =>
+            _supabase.from('fee_settings').select('*').like('key', 'pending_slip%').order('updated_at', { ascending: false })
+          );
+          const error = null;
           const pendingSids = Array.from(new Set(
             allSlipRows
               .filter(r => r.key && r.key.startsWith('pending_slip:'))
@@ -94490,7 +94604,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=174';
+      const swPath = basePath + 'sw.js?v=175';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -94499,7 +94613,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (174):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (175):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
