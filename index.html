@@ -13940,7 +13940,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '180';
+      var LATEST_VERSION = '181';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -25914,8 +25914,8 @@ body.printing-report #printReportContainer {
                     </div>
                   </div>
                   <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
-                    <input type="text" id="inpKioskStudentSearch" class="oca-reg-input" style="flex:1 1 260px; min-width:0;" placeholder="พิมพ์ชื่อ, รหัส น.ศ., เลขบัตร ปชช., เบอร์โทร หรือพาสปอร์ต..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault(); searchKioskReturningStudent();}">
-                    <button type="button" id="btnKioskSearchStudent" onclick="searchKioskReturningStudent()" style="background:#1D4ED8; color:#FFFFFF; border:none; border-radius:10px; padding:10px 18px; font-size:13.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;">
+                    <input type="text" id="inpKioskStudentSearch" class="oca-reg-input" style="flex:1 1 260px; min-width:0;" placeholder="พิมพ์ชื่อ, รหัส น.ศ., เลขบัตร ปชช., เบอร์โทร หรือพาสปอร์ต..." autocomplete="off" oninput="scheduleKioskReturningAutoLookup(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault(); window._lastKioskAutoLookupQuery=''; clearTimeout(window._kioskAutoLookupTimer); searchKioskReturningStudent();}">
+                    <button type="button" id="btnKioskSearchStudent" onclick="window._lastKioskAutoLookupQuery=''; clearTimeout(window._kioskAutoLookupTimer); searchKioskReturningStudent()" style="background:#1D4ED8; color:#FFFFFF; border:none; border-radius:10px; padding:10px 18px; font-size:13.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;">
                       <i class="fa-solid fa-magnifying-glass"></i> <span id="lblKioskSearchBtn">ค้นหาประวัติ</span>
                     </button>
                     <button type="button" id="btnKioskScanCard" onclick="toggleKioskCardScanInput()" style="background:#0F172A; color:#FFFFFF; border:none; border-radius:10px; padding:10px 16px; font-size:13.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;">
@@ -76015,6 +76015,35 @@ function openPublicRegisterView() {
     }
     window.getKioskStudentAvatarHtml = getKioskStudentAvatarHtml;
 
+    function scheduleKioskReturningAutoLookup(rawVal) {
+      const q = String(rawVal || '').trim();
+      clearTimeout(window._kioskAutoLookupTimer);
+      if (q.length < 6) {
+        window._lastKioskAutoLookupQuery = '';
+        return;
+      }
+      let delayMs = 0;
+      if (/^\d+$/.test(q)) {
+        if (q.length === 7) delayMs = 400;
+        else if (q.length === 13) delayMs = 250;
+        else return;
+      } else if (/[A-Za-z]/.test(q) && q.length >= 6) {
+        delayMs = 650;
+      } else {
+        return;
+      }
+      if (q === window._lastKioskAutoLookupQuery || q === window._kioskLookupInFlightQuery) return;
+      window._kioskAutoLookupTimer = setTimeout(() => {
+        const curInp = document.getElementById('inpKioskStudentSearch');
+        const curQ = String(curInp ? curInp.value : q).trim();
+        if (curQ !== q) return;
+        if (curQ === window._lastKioskAutoLookupQuery || curQ === window._kioskLookupInFlightQuery) return;
+        window._lastKioskAutoLookupQuery = curQ;
+        searchKioskReturningStudent();
+      }, delayMs);
+    }
+    window.scheduleKioskReturningAutoLookup = scheduleKioskReturningAutoLookup;
+
     async function searchKioskReturningStudent(queryOverride) {
       const inp = document.getElementById('inpKioskStudentSearch');
       const resultsBox = document.getElementById('boxKioskLookupResults');
@@ -76024,6 +76053,8 @@ function openPublicRegisterView() {
         inp?.focus();
         return;
       }
+      window._kioskLookupInFlightQuery = rawQ;
+      try {
       if (resultsBox) {
         resultsBox.style.display = 'flex';
         resultsBox.innerHTML = '<div style="padding:12px; text-align:center; color:#1D4ED8; font-weight:700;"><i class="fa-solid fa-spinner fa-spin"></i> กำลังค้นหาข้อมูล...</div>';
@@ -76173,6 +76204,9 @@ function openPublicRegisterView() {
           </div>
         </button>`;
       }).join('');
+      } finally {
+        if (window._kioskLookupInFlightQuery === rawQ) window._kioskLookupInFlightQuery = '';
+      }
     }
     window.searchKioskReturningStudent = searchKioskReturningStudent;
 
@@ -95259,7 +95293,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=180';
+      const swPath = basePath + 'sw.js?v=181';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -95268,7 +95302,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (180):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (181):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
