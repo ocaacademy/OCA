@@ -13697,7 +13697,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '171';
+      var LATEST_VERSION = '172';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -74596,7 +74596,9 @@ function openPublicRegisterView() {
         halfBookFilterBanner: 'กำลังแสดงคอร์สแบ่งครึ่งเล่มของหนังสือ',
         showAllCoursesBtn: '← กลับไปดูคอร์สทั้งหมด',
         noCoursesFound: 'ไม่พบคอร์สเรียนในหมวดหมู่นี้',
+        noTakenCoursesFound: 'ยังไม่มีประวัติคอร์สที่เคยเรียนแล้ว',
         catAll: 'ทั้งหมด',
+        catTaken: 'คอร์สที่เรียนแล้ว',
         catKids: 'คอร์สเด็ก',
         catBeginner: 'คอร์สขั้นต้น',
         catInter: 'คอร์สขั้นกลาง',
@@ -74667,7 +74669,9 @@ function openPublicRegisterView() {
         halfBookFilterBanner: 'Showing half-book courses for book',
         showAllCoursesBtn: '← Back to All Courses',
         noCoursesFound: 'No courses found in this category',
+        noTakenCoursesFound: 'No completed or previously taken courses found',
         catAll: 'All Courses',
+        catTaken: 'Completed / Taken Courses',
         catKids: 'Kids Courses',
         catBeginner: 'Beginner',
         catInter: 'Intermediate',
@@ -74738,7 +74742,9 @@ function openPublicRegisterView() {
         halfBookFilterBanner: '正在显示教材的半册课程',
         showAllCoursesBtn: '← 返回查看全部课程',
         noCoursesFound: '未找到该分类下的课程',
+        noTakenCoursesFound: '暂无已学课程记录',
         catAll: '全部课程',
+        catTaken: '已学课程',
         catKids: '少儿课程',
         catBeginner: '初级课程',
         catInter: '中级课程',
@@ -76102,6 +76108,7 @@ function openPublicRegisterView() {
       const d = getKioskI18nDict();
       const map = {
         'ทั้งหมด': d.catAll,
+        'taken': d.catTaken,
         'คอร์สเด็ก': d.catKids,
         'คอร์สขั้นต้น': d.catBeginner,
         'คอร์สขั้นกลาง': d.catInter,
@@ -76118,13 +76125,27 @@ function openPublicRegisterView() {
     function renderKioskCourseCategories() {
       const container = document.getElementById('pubKioskCategoryList');
       if (!container) return;
-      const cats = (typeof getAvailableCourseCategories === 'function') ? getAvailableCourseCategories() : ['ทั้งหมด', 'คอร์สเด็ก', 'คอร์สขั้นต้น', 'คอร์สขั้นกลาง', 'คอร์สขั้นสูง', 'คอร์สสนทนา', 'ติวสอบวัดระดับ HSK'];
+      const baseCats = (typeof getAvailableCourseCategories === 'function') ? getAvailableCourseCategories() : ['ทั้งหมด', 'คอร์สเด็ก', 'คอร์สขั้นต้น', 'คอร์สขั้นกลาง', 'คอร์สขั้นสูง', 'คอร์สสนทนา', 'ติวสอบวัดระดับ HSK'];
+      const cats = [];
+      baseCats.forEach(c => {
+        cats.push(c);
+        if (c === 'ทั้งหมด' && !baseCats.includes('taken')) {
+          cats.push('taken');
+        }
+      });
+      if (!cats.includes('taken')) cats.unshift('taken');
       const ctx = window._pubKioskContext || {};
       const activeCat = ctx.selectedCategory || 'ทั้งหมด';
+      const activeCourses = getKioskActiveCourses();
+      const takenCount = activeCourses.filter(course => Boolean(getKioskCourseOverlapReason(course, ctx))).length;
       container.innerHTML = cats.map(cat => {
         const isAct = (cat === activeCat);
         const label = getKioskCategoryDisplayLabel(cat);
-        return `<button type="button" class="oca-kiosk-cat-btn${isAct ? ' active' : ''}" role="tab" aria-selected="${isAct ? 'true' : 'false'}" onclick="selectKioskCategory('${escapeHtml(cat).replace(/'/g, "\\'")}')">${escapeHtml(label)}</button>`;
+        const safeCat = escapeHtml(cat).replace(/'/g, "\\'");
+        if (cat === 'taken') {
+          return `<button type="button" class="oca-kiosk-cat-btn${isAct ? ' active' : ''}" data-kiosk-cat="taken" role="tab" aria-selected="${isAct ? 'true' : 'false'}" onclick="selectKioskCategory('${safeCat}')"><span style="display:inline-flex; align-items:center; gap:7px; min-width:0;"><i class="fa-solid fa-circle-check" aria-hidden="true" style="color:${isAct ? '#FFFFFF' : '#059669'}; flex-shrink:0;"></i><span>${escapeHtml(label)}</span></span><span class="oca-kiosk-cat-count" style="font-size:11px; font-weight:800; padding:1px 8px; border-radius:999px; background:${isAct ? 'rgba(255,255,255,0.22)' : '#ECFDF5'}; color:${isAct ? '#FFFFFF' : '#065F46'}; border:1px solid ${isAct ? 'rgba(255,255,255,0.35)' : '#A7F3D0'}; flex-shrink:0;">${takenCount}</span></button>`;
+        }
+        return `<button type="button" class="oca-kiosk-cat-btn${isAct ? ' active' : ''}" data-kiosk-cat="${escapeHtml(cat)}" role="tab" aria-selected="${isAct ? 'true' : 'false'}" onclick="selectKioskCategory('${safeCat}')">${escapeHtml(label)}</button>`;
       }).join('');
     }
     window.renderKioskCourseCategories = renderKioskCourseCategories;
@@ -76406,7 +76427,11 @@ function openPublicRegisterView() {
           if (!halfFilter.codes.includes(cCode)) return false;
         }
         const cat = (typeof detectCourseLevel === 'function') ? detectCourseLevel(c) : (c.level || 'คอร์สขั้นต้น');
-        if (!halfFilter && activeCat !== 'ทั้งหมด' && cat !== activeCat) return false;
+        if (!halfFilter && activeCat === 'taken') {
+          if (!getKioskCourseOverlapReason(c, ctx)) return false;
+        } else if (!halfFilter && activeCat !== 'ทั้งหมด' && cat !== activeCat) {
+          return false;
+        }
         if (filterText) {
           const hay = `${c.code || ''} ${c.id || ''} ${c.name || ''}`.toLowerCase();
           if (!hay.includes(filterText)) return false;
@@ -76455,8 +76480,11 @@ function openPublicRegisterView() {
           </div>`
         : '';
       if (filtered.length === 0) {
+        const emptyMsg = activeCat === 'taken'
+          ? (d.noTakenCoursesFound || 'ยังไม่มีประวัติคอร์สที่เคยเรียนแล้ว')
+          : (d.noCoursesFound || 'ไม่พบคอร์สเรียนในหมวดหมู่นี้');
         grid.innerHTML = halfFilterBannerHtml + `<div style="grid-column:1/-1; padding:32px 20px; text-align:center; background:#F8FAFC; border:1.5px dashed #CBD5E1; border-radius:12px; color:#475569; font-weight:700; display:flex; flex-direction:column; align-items:center; gap:12px;">
-          <div style="font-size:15px; color:#334155;">${escapeHtml(d.noCoursesFound || 'ไม่พบคอร์สเรียนในหมวดหมู่นี้')}</div>
+          <div style="font-size:15px; color:#334155;">${escapeHtml(emptyMsg)}</div>
           <button type="button" onclick="resetKioskCourseFilters()" style="background:#047857; color:#FFFFFF; border:none; border-radius:8px; padding:8px 18px; font-size:13px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 4px rgba(4,120,87,0.2);">
             ${escapeHtml(d.showAllCoursesBtn || '← กลับไปดูคอร์สทั้งหมด')}
           </button>
@@ -94270,7 +94298,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=171';
+      const swPath = basePath + 'sw.js?v=172';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -94279,7 +94307,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (171):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (172):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
