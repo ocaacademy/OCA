@@ -14003,7 +14003,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '186';
+      var LATEST_VERSION = '187';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -15884,6 +15884,7 @@ body.printing-report #printReportContainer {
 
               <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                 <span class="oca-badge-status-active" id="srStatus" style="font-size:12px; padding:5px 12px;">-</span>
+                <span id="srCreditBadge" style="display:none; font-size:12px; padding:5px 12px; border-radius:999px; background:#DCFCE7; color:#166534; border:1px solid #10B981; font-weight:700;"></span>
                 <div class="oca-action-toolbar" style="padding:5px 7px; gap:6px;">
                   <button type="button" class="oca-action-btn oca-action-btn--renew" style="height:32px; padding:0 13px; font-size:12.5px;" onclick="quickRenewStudentFromCard()">
                     <i class="fa-solid fa-bolt"></i> ต่อคอร์สด่วน
@@ -26627,6 +26628,11 @@ body.printing-report #printReportContainer {
 
                   <input type="file" id="filePubSlipInput" accept="image/*" onchange="handlePubSlipUpload(this)" style="display:none;" />
 
+                  <div id="boxPubExactTransferNotice" style="background:#FEF3C7; border:1px solid #F59E0B; border-radius:8px; padding:8px 12px; margin-top:10px; font-size:12px; color:#78350F; display:flex; align-items:flex-start; gap:8px; line-height:1.45;">
+                    <i class="fa-solid fa-circle-info" style="color:#B45309; margin-top:2px; flex-shrink:0;"></i>
+                    <span id="lblPubExactTransferNotice">กรุณาโอนยอดสุทธิตรงตามที่ระบบแจ้ง (หากโอนขาดหรือโอนเกิน เจ้าหน้าที่จะติดต่อเพื่อชำระส่วนต่างหรือโอนคืน)</span>
+                  </div>
+
                 </div>
               </div>
 
@@ -31861,7 +31867,9 @@ if (action === 'getDashboardStats') {
 
             email: (params.email && params.email.includes('@')) ? params.email.trim() : null,
 
-            email_status: (params.email && params.email.includes('@')) ? 'PROCESSING' : 'NO_EMAIL'
+            email_status: (params.email && params.email.includes('@')) ? 'PROCESSING' : 'NO_EMAIL',
+
+            ...(params.editNotes || params.edit_notes ? { edit_notes: String(params.editNotes || params.edit_notes) } : {})
           };
 
           // Optimistic Concurrency Retry for Receipt No (Solves Scenarios 6 & 23)
@@ -41270,6 +41278,20 @@ if (action === 'getDashboardStats') {
       const elAddress = document.getElementById('srAddress');
       const elNotes = document.getElementById('srNotes');
       const elStatus = document.getElementById('srStatus');
+      const elCreditBadge = document.getElementById('srCreditBadge');
+      if (elCreditBadge) {
+        elCreditBadge.style.display = 'none';
+        elCreditBadge.textContent = '';
+        if (s && s.studentId && typeof _supabase !== 'undefined' && _supabase) {
+          _supabase.from('fee_settings').select('amount').eq('key', 'student_credit_' + s.studentId).maybeSingle()
+            .then(({ data: crData, error: crErr }) => {
+              if (!crErr && crData && Number(crData.amount) > 0 && activeSearchStudent && activeSearchStudent.studentId === s.studentId) {
+                elCreditBadge.textContent = '💰 เครดิตสะสม: ฿' + Number(crData.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 });
+                elCreditBadge.style.display = 'inline-flex';
+              }
+            }).then(null, () => {});
+        }
+      }
       const elDeliveryBadge = document.getElementById('srDeliveryBadge');
       const elClassroom = document.getElementById('srClassroomNumber');
       const elClassroomSub = document.getElementById('srClassroomSubInfo');
@@ -63187,10 +63209,14 @@ if (action === 'getDashboardStats') {
         }
 
         const urlMap = new Map();
+        const varMap = new Map();
         allSlipRows.forEach(u => {
           if (u.key && u.key.startsWith('pending_slip_url:')) {
             const sid = u.key.replace('pending_slip_url:', '');
             if (sid && u.name) urlMap.set(sid, toPublicStorageUrl(u.name));
+          } else if (u.key && u.key.startsWith('pending_slip_var:')) {
+            const sid = u.key.replace('pending_slip_var:', '');
+            if (sid && Number(u.amount) > 0) varMap.set(sid, Number(u.amount));
           }
         });
         const pendingRows = allSlipRows.filter(r => r.key && r.key.startsWith('pending_slip:'));
@@ -63202,6 +63228,7 @@ if (action === 'getDashboardStats') {
           if (!item.slipUrl && urlMap.has(sid)) {
             item.slipUrl = urlMap.get(sid);
           }
+          item.varianceShortfall = varMap.get(sid) || 0;
           if (item.slipUrl) item.slipUrl = toPublicStorageUrl(item.slipUrl);
           return item;
         });
@@ -63284,10 +63311,13 @@ if (action === 'getDashboardStats') {
               <div style="background:var(--bg-app); border:1px solid #F59E0B; border-radius:10px; padding:12px 14px; display:flex; gap:12px; align-items:center;">
                 <div style="flex-shrink:0;">${slipThumb}</div>
                 <div style="flex:1; min-width:0;">
-                  <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
-                    <span style="display:inline-flex; align-items:center; gap:4px; background:rgba(245,158,11,0.15); border:1px solid #F59E0B; color:#B45309; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:4px;">
-                      ⏳ รอตรวจสอบ
-                    </span>
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                      <span style="display:inline-flex; align-items:center; gap:4px; background:rgba(245,158,11,0.15); border:1px solid #F59E0B; color:#B45309; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:4px;">
+                        ⏳ รอตรวจสอบ
+                      </span>
+                      ${item.varianceShortfall > 0 ? `<span style="display:inline-flex; align-items:center; gap:4px; background:#FEF3C7; border:1px solid #D97706; color:#78350F; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:4px;">⚠️ โอนขาด -฿${Number(item.varianceShortfall).toLocaleString('th-TH', { minimumFractionDigits: 2 })} รอโอนเพิ่ม</span>` : ''}
+                    </div>
                     <strong style="font-size:14px; font-weight:800; color:#D97706; font-family:monospace;">฿${expectedFee}</strong>
                   </div>
                   <div style="font-size:13px; font-weight:700; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
@@ -63306,7 +63336,7 @@ if (action === 'getDashboardStats') {
                       : ((item.groupSection || item.instructorName) ? `<span style="background:rgba(16,185,129,0.16); color:var(--accent-emerald); border:1px solid #10B981; padding:1px 6px; border-radius:5px; font-size:10.5px; font-weight:700;">👥 กลุ่ม: ${escapeHtml(item.groupSection || '-')}${item.instructorName ? ' (อ.' + escapeHtml(item.instructorName) + ')' : ''}</span>` : '')}
                   </div>
                   <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-                    <button type="button" class="btn-approve-slip oca-btn-success" data-action="approve" data-sid="${sid}" onclick="approvePendingSlip(this.dataset.sid)" style="flex:1; border-radius:6px; padding:6px 10px; font-size:11.5px;">
+                    <button type="button" class="btn-approve-slip oca-btn-success" data-action="approve" data-sid="${sid}" onclick="openVerifySlipVarianceModal(this.dataset.sid)" style="flex:1; border-radius:6px; padding:6px 10px; font-size:11.5px;">
                       <i class="fa-solid fa-check-circle"></i> อนุมัติ / ออกใบเสร็จ
                     </button>
                     <button type="button" class="oca-btn-danger" data-sid="${sid}" onclick="rejectPendingSlip(this.dataset.sid)" style="border-radius:6px; padding:6px 10px; font-size:11.5px;">
@@ -72834,6 +72864,8 @@ if (action === 'getDashboardStats') {
 
       slipAttachedSuccess: '✓ แนบรูปภาพสลิปเรียบร้อย (คลิกเพื่อเปลี่ยนรูป)',
 
+      exactTransferNotice: 'กรุณาโอนยอดสุทธิตรงตามที่ระบบแจ้ง (หากโอนขาดหรือโอนเกิน เจ้าหน้าที่จะติดต่อเพื่อชำระส่วนต่างหรือโอนคืน)',
+
       // Validation alerts
 
       valCourse: 'กรุณาเลือกหลักสูตรที่ต้องการสมัคร',
@@ -73117,6 +73149,8 @@ if (action === 'getDashboardStats') {
 
       slipAttachedSuccess: '✓ Slip attached successfully (Click to change)',
 
+      exactTransferNotice: 'Please transfer the exact net amount shown (if underpaid or overpaid, staff will contact you to settle the difference or refund).',
+
       // Validation alerts
 
       valCourse: 'Please select a course of study',
@@ -73399,6 +73433,8 @@ if (action === 'getDashboardStats') {
       slipSub: '系统将核验凭证并将正式收据发送至您的电子邮箱',
 
       slipAttachedSuccess: '✓ 转账凭证已上传成功 (点击可更换)',
+
+      exactTransferNotice: '请按系统显示的净额准确转账（若多付或少付，工作人员将联系您补差额或退还余款）。',
 
       // Validation alerts
 
@@ -73689,6 +73725,7 @@ if (action === 'getDashboardStats') {
     setTxt('lblPubSlipPrompt', dict.slipPrompt);
     setTxt('lblPubSlipSub', dict.slipSub);
     setTxt('lblPubSlipAttachedSuccess', dict.slipAttachedSuccess);
+    setTxt('lblPubExactTransferNotice', dict.exactTransferNotice);
 
     // Stepper & Step Buttons
 
@@ -94482,7 +94519,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           ['modalChangeSecurityPin', 'closeChangeSecurityPinModal'],
           ['modalSystemManual', 'closeSystemManualModal'],
           ['modalDropStudentReason', 'closeDropStudentModal'],
-          ['modalTransferCourse', 'closeTransferCourseModal']
+          ['modalTransferCourse', 'closeTransferCourseModal'],
+          ['modalVerifySlipVariance', 'closeVerifySlipVarianceModal']
         ];
         closeMap.forEach(([id, fnName]) => {
           const el = document.getElementById(id);
@@ -94688,10 +94726,14 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           });
           const resPendingStudents = { data: pendingStudentsList };
           const urlMap = new Map();
+          const varMap = new Map();
           allSlipRows.forEach(u => {
             if (u.key && u.key.startsWith('pending_slip_url:')) {
               const sid = u.key.replace('pending_slip_url:', '');
               if (sid && u.name) urlMap.set(sid, toPublicStorageUrl(u.name));
+            } else if (u.key && u.key.startsWith('pending_slip_var:')) {
+              const sid = u.key.replace('pending_slip_var:', '');
+              if (sid && Number(u.amount) > 0) varMap.set(sid, Number(u.amount));
             }
           });
 
@@ -94701,6 +94743,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               const sid = (r.key || '').replace('pending_slip:', '');
               const item = parsePendingSlipRows(sid, r, allSlipRows);
               item.slipUrl = item.slipUrl ? toPublicStorageUrl(item.slipUrl) : (urlMap.get(sid) || '');
+              item.varianceShortfall = varMap.get(sid) || 0;
               return item;
             }).filter(Boolean);
           }
@@ -94884,6 +94927,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
                   <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; margin-bottom:4px;">
                     <div style="font-size:11.5px; font-weight:700; color:#F59E0B;">⚠️ สถานะการตรวจสอบความถูกต้อง:</div>
                     <div style="display:flex; gap:5px; flex-wrap:wrap;">
+                      ` + (item.varianceShortfall > 0 ? `<span style="background:#FEF3C7; border:1px solid #D97706; color:#78350F; font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:4px;">⚠️ โอนขาด -฿` + Number(item.varianceShortfall).toLocaleString('th-TH', { minimumFractionDigits: 2 }) + ` รอโอนเพิ่ม</span>` : ``) + `
                       <span style="background:rgba(16,185,129,0.15); border:1px solid #10B981; color:var(--accent-emerald); font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px;">✓ EMVCo Bank QR Verified</span>
                       <span style="background:rgba(56,189,248,0.15); border:1px solid #38BDF8; color:#38BDF8; font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px;">✓ ไม่พบสลิปซ้ำ (Unique Hash)</span>
                     </div>
@@ -94906,7 +94950,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               <button type="button" data-sid="` + sid + `" onclick="rejectPendingSlip(this.dataset.sid)" style="background:rgba(239,68,68,0.18); color:#F87171; border:1px solid #EF4444; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
                 <i class="fa-solid fa-circle-xmark"></i> ไม่อนุมัติ / ปฏิเสธสลิป
               </button>
-              <button type="button" class="btn-approve-slip" data-action="approve" data-sid="` + sid + `" onclick="approvePendingSlip(this.dataset.sid)" style="background:#10B981; color:#FFFFFF; border:none; border-radius:8px; padding:8px 18px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(16,185,129,0.3);">
+              <button type="button" class="btn-approve-slip" data-action="approve" data-sid="` + sid + `" onclick="openVerifySlipVarianceModal(this.dataset.sid)" style="background:#10B981; color:#FFFFFF; border:none; border-radius:8px; padding:8px 18px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(16,185,129,0.3);">
                 <i class="fa-solid fa-check-circle"></i> ยืนยันยอดเงินและส่งใบเสร็จเข้าเมล
               </button>
             </div>
@@ -94940,7 +94984,400 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       return { appBaseFee: basePrice, appDiscFee: dAmt, appGrandTotal: g };
     }
 
-    async function approvePendingSlip(studentId) {
+    function closeVerifySlipVarianceModal() {
+      const m = document.getElementById('modalVerifySlipVariance');
+      if (m) {
+        m.style.display = 'none';
+        m.classList.remove('active');
+      }
+      if (document.body) document.body.style.overflow = '';
+    }
+    window.closeVerifySlipVarianceModal = closeVerifySlipVarianceModal;
+
+    function buildVerifySlipLineMessage(ctx, actualAmt, shortfall) {
+      const sName = (ctx && ctx.info && ctx.info.fullName) ? ctx.info.fullName : '-';
+      const sid = (ctx && ctx.studentId) ? ctx.studentId : '-';
+      const course = (ctx && ctx.info && ctx.info.course) ? ctx.info.course : '-';
+      const expStr = Number(ctx?.expectedFee || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 });
+      const actStr = Number(actualAmt || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 });
+      const shortStr = Number(shortfall || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 });
+      return `เรียนคุณ ${sName} (รหัส ${sid})\nทางโรงเรียน OCA ตรวจสอบสลิปโอนเงินหลักสูตร "${course}" แล้ว\n• ยอดค่าเล่าเรียนสุทธิ: ฿${expStr}\n• ยอดที่โอนเข้ามา: ฿${actStr}\n• ยอดค้างชำระส่วนต่าง: ฿${shortStr}\n\nกรุณาโอนชำระส่วนต่างจำนวน ฿${shortStr} เข้าบัญชี:\nโรงเรียนวิทยาสถานแห่งวัฒนธรรมตะวันออก (ธ.กรุงไทย / รหัสร้านค้า: VJO99300GS018788116)\nและส่งสลิปส่วนต่างกลับมาทาง LINE นี้เพื่อออกใบเสร็จรับเงินฉบับสมบูรณ์ครับ/ค่ะ`;
+    }
+
+    function onVerifySlipVarianceModeChange() {
+      const ctx = window._activeVerifySlipCtx;
+      if (!ctx) return;
+      const underMode = document.querySelector('input[name="underVarianceMode"]:checked')?.value || 'topup';
+      const boxTopup = document.getElementById('boxVerifyUnderTopup');
+      const boxWait = document.getElementById('boxVerifyUnderWaitLine');
+      const boxRej = document.getElementById('boxVerifyUnderReject');
+      if (boxTopup) boxTopup.style.display = underMode === 'topup' ? 'block' : 'none';
+      if (boxWait) boxWait.style.display = underMode === 'wait_line' ? 'block' : 'none';
+      if (boxRej) boxRej.style.display = underMode === 'reject' ? 'block' : 'none';
+
+      const overMode = document.querySelector('input[name="overVarianceMode"]:checked')?.value || 'refund';
+      const boxRefund = document.getElementById('boxVerifyOverRefund');
+      const boxCredit = document.getElementById('boxVerifyOverCredit');
+      if (boxRefund) boxRefund.style.display = overMode === 'refund' ? 'block' : 'none';
+      if (boxCredit) boxCredit.style.display = overMode === 'credit' ? 'block' : 'none';
+    }
+    window.onVerifySlipVarianceModeChange = onVerifySlipVarianceModeChange;
+
+    function onVerifySlipActualAmountInput() {
+      const ctx = window._activeVerifySlipCtx;
+      if (!ctx) return;
+      const inp = document.getElementById('inpVerifySlipActualAmount');
+      const actualAmt = Math.max(0, Number(inp ? inp.value : 0) || 0);
+      const expectedAmt = Math.max(0, Number(ctx.expectedFee || 0));
+      const diff = Math.round((actualAmt - expectedAmt) * 100) / 100;
+
+      const banner = document.getElementById('boxVerifySlipVarianceBanner');
+      const pExact = document.getElementById('panelVerifySlipExact');
+      const pUnder = document.getElementById('panelVerifySlipUnder');
+      const pOver = document.getElementById('panelVerifySlipOver');
+      if (pExact) pExact.style.display = 'none';
+      if (pUnder) pUnder.style.display = 'none';
+      if (pOver) pOver.style.display = 'none';
+
+      if (Math.abs(diff) < 0.01) {
+        if (banner) {
+          banner.style.background = '#DCFCE7';
+          banner.style.borderColor = '#10B981';
+          banner.style.color = '#166534';
+          banner.innerHTML = '<i class="fa-solid fa-circle-check"></i> <span>ยอดตรงตามกำหนด (฿0.00)</span>';
+        }
+        if (pExact) pExact.style.display = 'block';
+      } else if (diff < 0) {
+        const shortfall = Math.abs(diff);
+        const shortFmt = shortfall.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+        if (banner) {
+          banner.style.background = '#FEE2E2';
+          banner.style.borderColor = '#EF4444';
+          banner.style.color = '#991B1B';
+          banner.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>โอนขาด -฿${shortFmt} (ต้องชำระส่วนต่างเพิ่ม ฿${shortFmt})</span>`;
+        }
+        if (pUnder) pUnder.style.display = 'block';
+        const txtLine = document.getElementById('txtVerifyUnderLineMsg');
+        if (txtLine) txtLine.value = buildVerifySlipLineMessage(ctx, actualAmt, shortfall);
+        const lblShort = document.getElementById('lblVerifyUnderRejectPreview');
+        if (lblShort) lblShort.textContent = `เหตุผลที่จะระบุ: "ยอดโอนไม่ครบตามกำหนด (ขาด ฿${shortFmt})"`;
+      } else {
+        const excess = diff;
+        const excFmt = excess.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+        if (banner) {
+          banner.style.background = '#FEF3C7';
+          banner.style.borderColor = '#F59E0B';
+          banner.style.color = '#78350F';
+          banner.innerHTML = `<i class="fa-solid fa-coins"></i> <span>โอนเกิน +฿${excFmt} (ยอดส่วนเกิน ฿${excFmt})</span>`;
+        }
+        if (pOver) pOver.style.display = 'block';
+        const lblCredit = document.getElementById('lblVerifyOverCreditAmount');
+        if (lblCredit) lblCredit.textContent = `+฿${excFmt}`;
+      }
+      onVerifySlipVarianceModeChange();
+    }
+    window.onVerifySlipActualAmountInput = onVerifySlipActualAmountInput;
+
+    function copyVerifySlipLineMsg() {
+      const txt = document.getElementById('txtVerifyUnderLineMsg')?.value || '';
+      if (!txt) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(() => {
+          if (typeof showToast === 'function') showToast('คัดลอกข้อความ LINE แล้ว', 'สามารถนำไปวางส่งให้นักศึกษาได้ทันที', '📋', 2500);
+        }).catch(() => {});
+      }
+    }
+    window.copyVerifySlipLineMsg = copyVerifySlipLineMsg;
+
+    async function openVerifySlipVarianceModal(studentId, preloadedItem = null) {
+      if (!studentId) return;
+      let info = preloadedItem ? { ...preloadedItem } : { studentId: studentId, fullName: '-', phone: '', lineId: '', email: '', course: '-', schedule: '-', expectedFee: 0, slipUrl: '', slipRef: '' };
+      let stRow = null;
+      if (!preloadedItem && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const [{ data: slipRows, error: slipErr }, { data: fetchedSt, error: stErr }] = await Promise.all([
+            _supabase.from('fee_settings').select('*').like('key', 'pending_slip%:' + studentId),
+            _supabase.from('students').select('*').eq('student_id', studentId).maybeSingle()
+          ]);
+          if (slipErr) console.warn('[openVerifySlipVarianceModal] slip fetch warning:', slipErr);
+          if (stErr) console.warn('[openVerifySlipVarianceModal] student fetch warning:', stErr);
+          stRow = fetchedSt || null;
+          const allSidRows = Array.isArray(slipRows) ? slipRows : [];
+          const fRow = allSidRows.find(r => r.key === 'pending_slip:' + studentId) || null;
+          const urlRow = allSidRows.find(r => r.key === 'pending_slip_url:' + studentId) || null;
+          if (fRow || allSidRows.length > 0) {
+            info = { ...info, ...parsePendingSlipRows(studentId, fRow, allSidRows) };
+          }
+          if (!info.slipUrl && urlRow && urlRow.name) {
+            info.slipUrl = toPublicStorageUrl(urlRow.name);
+          }
+          if (stRow) {
+            info.fullName = (info.fullName && info.fullName !== '-') ? info.fullName : ((typeof formatStudentNameWithPrefix === 'function' ? formatStudentNameWithPrefix(stRow.prefix, stRow.full_name) : stRow.full_name) || '-');
+            info.phone = info.phone || stRow.phone_number || '';
+            info.email = info.email || stRow.email || '';
+            info.lineId = info.lineId || stRow.line_id || '';
+            info.course = (info.course && info.course !== '-') ? info.course : (stRow.current_course || '-');
+            info.schedule = (info.schedule && info.schedule !== '-') ? info.schedule : (stRow.current_schedule || '-');
+          }
+        } catch (err) {
+          console.warn('[openVerifySlipVarianceModal] fetch error:', err);
+        }
+      }
+
+      let expectedFee = Number(info.expectedFee || 0);
+      if (!expectedFee || info.expectedFee === undefined || info.expectedFee === null) {
+        let cMatch = null;
+        if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
+          cMatch = cachedCoursesList.find(c => c.name === info.course || c.code === info.course || c.id === info.course);
+        }
+        const isRet = !!(info.isReturning || info.studentMode === 'returning' || (stRow && stRow.status && stRow.status !== 'PENDING_PAYMENT_VERIFICATION'));
+        const regItem = (typeof globalFeePresets !== 'undefined' && globalFeePresets && globalFeePresets.items && globalFeePresets.items.regFee) || {};
+        const regSt = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(regItem) : { active: true };
+        const defReg = regSt.active ? Number(regItem.amount ?? globalFeePresets?.regFee ?? 0) : 0;
+        const appReg = (info.regFee !== undefined && info.regFee !== null) ? Number(info.regFee) : (isRet ? 0 : defReg);
+        const dObj = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(cMatch || info.course, info.schedule) : null;
+        expectedFee = resolveApprovedSlipFallbackAmounts(info, cMatch, appReg, dObj).appGrandTotal;
+      }
+
+      window._activeVerifySlipCtx = { studentId, info, expectedFee };
+
+      let modal = document.getElementById('modalVerifySlipVariance');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modalVerifySlipVariance';
+        modal.style.cssText = 'position:fixed; inset:0; z-index:99999; background:rgba(2,6,23,0.78); backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center; padding:16px;';
+        document.body.appendChild(modal);
+      }
+
+      const safeSid = escapeHtml(studentId);
+      const safeName = escapeHtml(info.fullName || '-');
+      const safeCourse = escapeHtml(info.course || '-');
+      const safeSched = escapeHtml(info.schedule || '-');
+      const safeRef = escapeHtml(info.slipRef || '-');
+      const safeSlipUrl = escapeHtml(info.slipUrl || '');
+      const initialActual = Number(info.slipAmount || expectedFee || 0);
+
+      modal.innerHTML = `
+        <div style="background:var(--bg-card); color:var(--text-main); border:1px solid var(--border-soft); border-radius:16px; max-width:860px; width:100%; max-height:90vh; overflow-y:auto; padding:22px; box-shadow:0 24px 60px rgba(0,0,0,0.45);">
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-soft); padding-bottom:12px; margin-bottom:16px; gap:10px;">
+            <div style="font-size:17px; font-weight:800; color:var(--text-main); display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <i class="fa-solid fa-scale-balanced" style="color:#047857;"></i>
+              <span>ตรวจสอบยอดโอนและกระทบยอดสลิป</span>
+              <span style="background:#FEF3C7; color:#78350F; border:1px solid #F59E0B; font-family:monospace; font-size:12.5px; font-weight:800; padding:2px 9px; border-radius:999px;">${safeSid}</span>
+            </div>
+            <button type="button" onclick="closeVerifySlipVarianceModal()" style="background:var(--bg-subcard); color:var(--text-main); border:1px solid var(--border-soft); border-radius:8px; width:32px; height:32px; font-size:16px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;" title="ปิดหน้าต่าง">✕</button>
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:18px; align-items:start;">
+            <div style="background:var(--bg-subcard); border:1px solid var(--border-soft); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:12px;">
+              <div style="text-align:center;">
+                ${safeSlipUrl
+                  ? `<img src="${safeSlipUrl}" data-url="${safeSlipUrl}" alt="Slip Preview" onclick="zoomSlipModal(this.dataset.url)" style="max-height:290px; width:100%; object-fit:contain; border-radius:10px; border:1px solid var(--border-soft); background:#FFFFFF; cursor:pointer;" title="คลิกเพื่อขยายภาพสลิป" />
+                     <div style="font-size:11.5px; color:#0284C7; font-weight:700; margin-top:6px; cursor:pointer;" data-url="${safeSlipUrl}" onclick="zoomSlipModal(this.dataset.url)"><i class="fa-solid fa-magnifying-glass-plus"></i> คลิกเพื่อขยายภาพสลิป</div>`
+                  : `<div style="height:200px; border-radius:10px; border:1px dashed var(--border-soft); display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text-muted); font-size:13px; gap:6px;"><i class="fa-solid fa-receipt" style="font-size:28px;"></i><span>ไม่มีรูปภาพสลิปแนบ</span></div>`}
+              </div>
+              <div style="border-top:1px solid var(--border-soft); padding-top:10px; font-size:12.5px; line-height:1.65;">
+                <div><span style="color:var(--text-muted);">รหัส / ชื่อนักศึกษา:</span> <strong style="color:var(--text-main);">[${safeSid}] ${safeName}</strong></div>
+                <div><span style="color:var(--text-muted);">หลักสูตร:</span> <strong style="color:var(--text-main);">${safeCourse}</strong></div>
+                <div><span style="color:var(--text-muted);">รอบเวลาเรียน:</span> <span style="color:var(--text-main);">${safeSched}</span></div>
+                <div><span style="color:var(--text-muted);">Ref สลิป:</span> <span style="font-family:monospace; color:var(--text-main);">${safeRef}</span></div>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <div style="background:var(--bg-subcard); border:1px solid var(--border-soft); border-radius:12px; padding:14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                  <span style="font-size:13px; font-weight:700; color:var(--text-muted);">ยอดที่ต้องชำระสุทธิ (Expected):</span>
+                  <strong style="font-size:22px; font-weight:800; color:var(--text-main); font-family:monospace;">฿${expectedFee.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</strong>
+                </div>
+                <label for="inpVerifySlipActualAmount" style="display:block; font-size:13px; font-weight:700; color:var(--text-main); margin-bottom:6px;">
+                  ยอดโอนจริงตามสลิป (บาท) *
+                </label>
+                <input type="number" id="inpVerifySlipActualAmount" class="oca-input" step="0.01" min="0" value="${initialActual}" oninput="onVerifySlipActualAmountInput()" style="width:100%; box-sizing:border-box; font-size:18px; font-weight:800; font-family:monospace; padding:10px 12px;" />
+              </div>
+
+              <div id="boxVerifySlipVarianceBanner" style="border-radius:10px; border:1.5px solid #10B981; background:#DCFCE7; color:#166534; padding:10px 14px; font-size:13.5px; font-weight:800; display:flex; align-items:center; gap:8px;"></div>
+
+              <div id="panelVerifySlipExact" style="display:none; background:var(--bg-subcard); border:1px solid var(--border-soft); border-radius:12px; padding:14px;">
+                <div style="font-size:12.5px; color:var(--text-muted); margin-bottom:12px;">ยอดโอนตรงกับยอดค่าเล่าเรียนสุทธิ สามารถอนุมัติและออกใบเสร็จรับเงินได้ทันที</div>
+                <button type="button" id="btnSubmitVerifyExact" onclick="submitVerifySlipVariance('exact')" style="width:100%; background:#047857; color:#FFFFFF; border:none; border-radius:10px; padding:11px 16px; font-size:14px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px;">
+                  <i class="fa-solid fa-check-circle"></i> ยืนยันยอดตรง & ออกใบเสร็จ
+                </button>
+              </div>
+
+              <div id="panelVerifySlipUnder" style="display:none; background:var(--bg-subcard); border:1px solid #FCA5A5; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <div style="font-size:13px; font-weight:800; color:var(--text-main);">เลือกวิธีจัดการกรณียอดโอนขาด:</div>
+                <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; cursor:pointer;">
+                  <input type="radio" name="underVarianceMode" value="topup" checked onchange="onVerifySlipVarianceModeChange()" />
+                  <span>1. รับชำระส่วนต่างเพิ่มหน้างาน (เงินสด / โอนเพิ่ม)</span>
+                </label>
+                <div id="boxVerifyUnderTopup" style="padding:10px; border-radius:8px; background:var(--bg-card); border:1px solid var(--border-soft); display:flex; flex-direction:column; gap:8px;">
+                  <select id="selVerifyUnderMethod" class="oca-input" style="width:100%; box-sizing:border-box;">
+                    <option value="CASH">เงินสดหน้างาน (บันทึก HYBRID)</option>
+                    <option value="TRANSFER">โอนเพิ่มหน้างาน (บันทึก TRANSFER)</option>
+                  </select>
+                  <input type="text" id="inpVerifyUnderRef" class="oca-input" placeholder="เลขอ้างอิง/หมายเหตุเพิ่มเติม (ถ้ามี)" style="width:100%; box-sizing:border-box;" />
+                  <button type="button" onclick="submitVerifySlipVariance('topup')" style="width:100%; background:#047857; color:#FFFFFF; border:none; border-radius:8px; padding:10px 14px; font-size:13.5px; font-weight:800; cursor:pointer;">
+                    ยืนยันรับส่วนต่าง & ออกใบเสร็จเต็มยอด
+                  </button>
+                </div>
+
+                <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; cursor:pointer;">
+                  <input type="radio" name="underVarianceMode" value="wait_line" onchange="onVerifySlipVarianceModeChange()" />
+                  <span>2. ค้างรอโอนเพิ่ม + คัดลอกข้อความแจ้ง LINE</span>
+                </label>
+                <div id="boxVerifyUnderWaitLine" style="display:none; padding:10px; border-radius:8px; background:var(--bg-card); border:1px solid var(--border-soft);">
+                  <textarea id="txtVerifyUnderLineMsg" class="oca-input" rows="5" readonly style="width:100%; font-size:12px; line-height:1.45; margin-bottom:8px;"></textarea>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button type="button" onclick="copyVerifySlipLineMsg()" style="flex:1; background:#065F46; color:#FFFFFF; border:none; border-radius:8px; padding:9px 12px; font-size:12.5px; font-weight:700; cursor:pointer;">
+                      <i class="fa-brands fa-line"></i> คัดลอกข้อความแจ้งนักศึกษา (LINE)
+                    </button>
+                    <button type="button" onclick="submitVerifySlipVariance('wait_line')" style="flex:1; background:#B45309; color:#FFFFFF; border:none; border-radius:8px; padding:9px 12px; font-size:12.5px; font-weight:700; cursor:pointer;">
+                      บันทึกค้างรอโอนเพิ่ม
+                    </button>
+                  </div>
+                </div>
+
+                <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; cursor:pointer;">
+                  <input type="radio" name="underVarianceMode" value="reject" onchange="onVerifySlipVarianceModeChange()" />
+                  <span>3. ปฏิเสธสลิป (ปลดล็อคสลิป)</span>
+                </label>
+                <div id="boxVerifyUnderReject" style="display:none; padding:10px; border-radius:8px; background:var(--bg-card); border:1px solid var(--border-soft);">
+                  <div id="lblVerifyUnderRejectPreview" style="font-size:12px; color:var(--text-muted); margin-bottom:8px;"></div>
+                  <button type="button" onclick="submitVerifySlipVariance('reject')" style="width:100%; background:#DC2626; color:#FFFFFF; border:none; border-radius:8px; padding:9px 14px; font-size:13px; font-weight:800; cursor:pointer;">
+                    ไปที่หน้าต่างปฏิเสธสลิป (ปลดล็อคสลิป)
+                  </button>
+                </div>
+              </div>
+
+              <div id="panelVerifySlipOver" style="display:none; background:var(--bg-subcard); border:1px solid #F59E0B; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <div style="font-size:13px; font-weight:800; color:var(--text-main);">เลือกวิธีจัดการกรณียอดโอนเกิน:</div>
+                <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; cursor:pointer;">
+                  <input type="radio" name="overVarianceMode" value="refund" checked onchange="onVerifySlipVarianceModeChange()" />
+                  <span>1. คืนเงินทอน / โอนคืนส่วนเกิน</span>
+                </label>
+                <div id="boxVerifyOverRefund" style="padding:10px; border-radius:8px; background:var(--bg-card); border:1px solid var(--border-soft); display:flex; flex-direction:column; gap:8px;">
+                  <select id="selVerifyOverRefundMethod" class="oca-input" style="width:100%; box-sizing:border-box;">
+                    <option value="คืนเงินสดหน้าเคาน์เตอร์">คืนเงินสดหน้าเคาน์เตอร์</option>
+                    <option value="โอนคืนบัญชีผู้เรียน">โอนคืนบัญชีผู้เรียน</option>
+                  </select>
+                  <input type="text" id="inpVerifyOverRefundNote" class="oca-input" placeholder="หมายเหตุการคืนเงิน (ถ้ามี)" style="width:100%; box-sizing:border-box;" />
+                  <button type="button" onclick="submitVerifySlipVariance('refund')" style="width:100%; background:#047857; color:#FFFFFF; border:none; border-radius:8px; padding:10px 14px; font-size:13.5px; font-weight:800; cursor:pointer;">
+                    ยืนยันคืนส่วนเกิน & ออกใบเสร็จ
+                  </button>
+                </div>
+
+                <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; cursor:pointer;">
+                  <input type="radio" name="overVarianceMode" value="credit" onchange="onVerifySlipVarianceModeChange()" />
+                  <span>2. เก็บส่วนเกินเป็นเครดิตสะสม (<span id="lblVerifyOverCreditAmount" style="color:#047857;">+฿0.00</span>) เพื่อหักคอร์สถัดไป</span>
+                </label>
+                <div id="boxVerifyOverCredit" style="display:none; padding:10px; border-radius:8px; background:var(--bg-card); border:1px solid var(--border-soft);">
+                  <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">ระบบจะบันทึกยอดส่วนเกินเข้าเครดิตสะสมของนักศึกษา (${safeSid}) และออกใบเสร็จรับเงินตามยอดสุทธิ</div>
+                  <button type="button" onclick="submitVerifySlipVariance('credit')" style="width:100%; background:#B45309; color:#FFFFFF; border:none; border-radius:8px; padding:10px 14px; font-size:13.5px; font-weight:800; cursor:pointer;">
+                    บันทึกเครดิตสะสม & ออกใบเสร็จ
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+      modal.style.display = 'flex';
+      modal.classList.add('active');
+      onVerifySlipActualAmountInput();
+    }
+    window.openVerifySlipVarianceModal = openVerifySlipVarianceModal;
+
+    async function submitVerifySlipVariance(actionMode) {
+      const ctx = window._activeVerifySlipCtx;
+      if (!ctx || !ctx.studentId) return;
+      const studentId = ctx.studentId;
+      const actualTransfer = Math.max(0, Number(document.getElementById('inpVerifySlipActualAmount')?.value || 0) || 0);
+      const expectedFee = Math.max(0, Number(ctx.expectedFee || 0));
+      const diff = Math.round((actualTransfer - expectedFee) * 100) / 100;
+
+      if (actionMode === 'reject') {
+        const shortfallFmt = Math.abs(diff).toLocaleString('th-TH', { minimumFractionDigits: 2 });
+        closeVerifySlipVarianceModal();
+        if (typeof rejectPendingSlip === 'function') {
+          await rejectPendingSlip(studentId, `ยอดโอนไม่ครบตามกำหนด (ขาด ฿${shortfallFmt})`);
+        }
+        return;
+      }
+
+      if (actionMode === 'wait_line') {
+        const shortfall = Math.max(0, Math.round((expectedFee - actualTransfer) * 100) / 100);
+        try {
+          if (typeof _supabase !== 'undefined' && _supabase) {
+            const { error: varErr } = await _supabase.from('fee_settings').upsert([{
+              key: 'pending_slip_var:' + studentId,
+              name: ('โอนขาด รอโอนเพิ่ม ' + studentId).slice(0, 90),
+              amount: shortfall,
+              mode: String(actualTransfer).slice(0, 90),
+              updated_at: new Date().toISOString()
+            }], { onConflict: 'key' });
+            if (varErr) throw varErr;
+            if (typeof broadcastOcaDataSync === 'function') {
+              broadcastOcaDataSync('fee_settings', 'UPSERT', { key: 'pending_slip_var:' + studentId });
+            }
+          }
+          closeVerifySlipVarianceModal();
+          if (typeof showToast === 'function') {
+            showToast('บันทึกสถานะรอโอนเพิ่มแล้ว', `รหัส ${studentId} ค้างโอนเพิ่ม ฿${shortfall.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`, '⏳', 3500);
+          }
+          if (typeof loadPendingSlipsQueue === 'function') loadPendingSlipsQueue();
+          if (typeof renderFinancialEmbeddedSlipsQueue === 'function') renderFinancialEmbeddedSlipsQueue();
+        } catch (err) {
+          console.error('[submitVerifySlipVariance wait_line] error:', err);
+          if (typeof showToast === 'function') showToast('บันทึกไม่สำเร็จ', err.message || 'เกิดข้อผิดพลาด', '❌', 4000);
+        }
+        return;
+      }
+
+      const varianceOpts = {
+        mode: actionMode,
+        actualTransfer,
+        expectedFee,
+        diff,
+        topupMethod: document.getElementById('selVerifyUnderMethod')?.value || 'CASH',
+        topupRef: (document.getElementById('inpVerifyUnderRef')?.value || '').trim(),
+        refundMethod: document.getElementById('selVerifyOverRefundMethod')?.value || 'คืนเงินสดหน้าเคาน์เตอร์',
+        refundNote: (document.getElementById('inpVerifyOverRefundNote')?.value || '').trim()
+      };
+      closeVerifySlipVarianceModal();
+      await approvePendingSlip(studentId, varianceOpts);
+    }
+    window.submitVerifySlipVariance = submitVerifySlipVariance;
+
+    function resolveSlipVarianceOptions(varianceOpts, resolvedGrandTotal) {
+      let paymentMethod = 'TRANSFER';
+      let editNotes = '';
+      let actualSlipAmount = Number(resolvedGrandTotal || 0);
+      let creditExcessToSave = 0;
+      if (varianceOpts && typeof varianceOpts === 'object') {
+        const actAmt = Math.max(0, Number(varianceOpts.actualTransfer || 0));
+        actualSlipAmount = actAmt > 0 ? actAmt : resolvedGrandTotal;
+        if (varianceOpts.mode === 'topup') {
+          const shortfall = Math.max(0, Math.round((resolvedGrandTotal - actAmt) * 100) / 100);
+          const tMethod = varianceOpts.topupMethod === 'CASH' ? 'CASH' : 'TRANSFER';
+          paymentMethod = tMethod === 'CASH' ? 'HYBRID' : 'TRANSFER';
+          const tLabel = tMethod === 'CASH' ? 'เงินสดหน้างาน' : 'โอนเพิ่มหน้างาน';
+          const tRef = varianceOpts.topupRef ? ' Ref:' + varianceOpts.topupRef : '';
+          editNotes = `[สลิปหลัก ฿${actAmt.toLocaleString('th-TH', { minimumFractionDigits: 2 })} + รับส่วนต่างเพิ่ม ฿${shortfall.toLocaleString('th-TH', { minimumFractionDigits: 2 })} (${tLabel}${tRef})]`;
+        } else if (varianceOpts.mode === 'refund') {
+          const excess = Math.max(0, Math.round((actAmt - resolvedGrandTotal) * 100) / 100);
+          const rNote = varianceOpts.refundNote ? ' - ' + varianceOpts.refundNote : '';
+          editNotes = `[ยอดสลิปจริง ฿${actAmt.toLocaleString('th-TH', { minimumFractionDigits: 2 })} | ยอดใบเสร็จ ฿${resolvedGrandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} | คืนส่วนเกิน ฿${excess.toLocaleString('th-TH', { minimumFractionDigits: 2 })} (${varianceOpts.refundMethod || 'คืนเงินสดหน้าเคาน์เตอร์'}${rNote})]`;
+        } else if (varianceOpts.mode === 'credit') {
+          const excess = Math.max(0, Math.round((actAmt - resolvedGrandTotal) * 100) / 100);
+          creditExcessToSave = excess;
+          editNotes = `[เก็บเครดิตสะสม +฿${excess.toLocaleString('th-TH', { minimumFractionDigits: 2 })}]`;
+        }
+      }
+      return { paymentMethod, editNotes, actualSlipAmount, creditExcessToSave };
+    }
+
+    async function approvePendingSlip(studentId, varianceOpts = null) {
       if (!studentId) return;
 
       // In-Flight Memory Set Lock to prevent duplicate concurrent approval & email dispatch
@@ -95053,40 +95490,19 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           if (mCode) canonicalCourseCode = mCode[1].toUpperCase();
         }
 
+        const rTotal = appGrandTotal !== undefined ? appGrandTotal : (info.expectedFee !== undefined && info.expectedFee !== null ? Number(info.expectedFee) : 0);
+        const sv = resolveSlipVarianceOptions(varianceOpts, rTotal);
         const rcPayload = {
-          receiptNo: undefined,
-          type: 'tuition',
-          yearBE: yearBE,
-          term: term,
-          studentId: studentId,
-          room: info.room || '',
-          buyerId: studentId,
-          fullName: corpBuyerName,
-          buyerName: corpBuyerName,
-          cashierName: effectiveCashier,
-          address: corpBuyerAddress,
-          phone: info.phone || '',
-          email: info.email || '',
-          sendEmail: true,
-          courseId: canonicalCourseCode || info.course || '',
-          itemCode: canonicalCourseCode || info.course || '',
-          courseName: info.course || '',
-          course: info.course || '',
-          schedule: info.schedule || '',
-          scheduleName: info.schedule || '',
-          materialType: 'รับเอกสารที่โรงเรียน',
-          deliveryMethod: 'รับเอง',
-          learningMode: info.learningMode || 'Onsite',
+          receiptNo: undefined, type: 'tuition', yearBE, term, studentId, room: info.room || '',
+          buyerId: studentId, fullName: corpBuyerName, buyerName: corpBuyerName, cashierName: effectiveCashier,
+          address: corpBuyerAddress, phone: info.phone || '', email: info.email || '', sendEmail: true,
+          courseId: canonicalCourseCode || info.course || '', itemCode: canonicalCourseCode || info.course || '',
+          courseName: info.course || '', course: info.course || '', schedule: info.schedule || '', scheduleName: info.schedule || '',
+          materialType: 'รับเอกสารที่โรงเรียน', deliveryMethod: 'รับเอง', learningMode: info.learningMode || 'Onsite',
           baseAmount: appBaseFee !== undefined ? appBaseFee : (info.expectedFee !== undefined && info.expectedFee !== null ? Number(info.expectedFee) : 0),
-          regFee: appRegFee,
-          cardFee: 0,
-          otherRegFee: 0,
-          transferFee: 0,
-          discountNormal: appDiscFee,
-          discountOther: 0,
-          grandTotal: appGrandTotal !== undefined ? appGrandTotal : (info.expectedFee !== undefined && info.expectedFee !== null ? Number(info.expectedFee) : 0),
-          paymentMethod: 'TRANSFER',
-          paymentRef: info.slipRef || 'ONLINE_SLIP_VERIFIED'
+          regFee: appRegFee, cardFee: 0, otherRegFee: 0, transferFee: 0, discountNormal: appDiscFee, discountOther: 0,
+          grandTotal: rTotal, paymentMethod: sv.paymentMethod, paymentRef: info.slipRef || 'ONLINE_SLIP_VERIFIED',
+          ...(sv.editNotes ? { editNotes: sv.editNotes } : {})
         };
         const rcRes = await callGasApi('saveReceipt', rcPayload, 'POST');
         if (!rcRes || !rcRes.success) {
@@ -95121,7 +95537,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             const { error: slipUpsertErr } = await _supabase.from('fee_settings').upsert([{
               key: 'receipt_slip:' + rcRes.receiptNo,
               name: storageRelativePath,
-              amount: Number(appGrandTotal || info.expectedFee || rcPayload.grandTotal || 0),
+              amount: Number(sv.actualSlipAmount || appGrandTotal || info.expectedFee || rcPayload.grandTotal || 0),
               mode: String(info.slipRef || 'ONLINE_VERIFIED').slice(0, 90),
               updated_at: new Date().toISOString()
             }], { onConflict: 'key' });
@@ -95129,12 +95545,34 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             if (window._receiptSlipsMap) {
               window._receiptSlipsMap.set(String(rcRes.receiptNo), {
                 name: storageRelativePath,
-                amount: Number(appGrandTotal || info.expectedFee || rcPayload.grandTotal || 0),
+                amount: Number(sv.actualSlipAmount || appGrandTotal || info.expectedFee || rcPayload.grandTotal || 0),
                 mode: String(info.slipRef || 'ONLINE_VERIFIED')
               });
             }
           } catch (slipUpsertErr) {
             console.warn('[approvePendingSlip] receipt_slip upsert error:', slipUpsertErr);
+          }
+
+          if (sv.creditExcessToSave > 0) {
+            const creditKey = 'student_credit_' + studentId;
+            const { data: existingCreditRow, error: readCreditErr } = await _supabase
+              .from('fee_settings')
+              .select('amount')
+              .eq('key', creditKey)
+              .maybeSingle();
+            if (readCreditErr) throw readCreditErr;
+            const newCreditTotal = Math.round(((Number(existingCreditRow?.amount || 0)) + sv.creditExcessToSave) * 100) / 100;
+            const { error: creditUpsertErr } = await _supabase.from('fee_settings').upsert([{
+              key: creditKey,
+              name: ('เครดิตสะสม นศ. ' + studentId).slice(0, 90),
+              amount: newCreditTotal,
+              mode: String(rcRes.receiptNo || 'SLIP_OVERPAY').slice(0, 90),
+              updated_at: new Date().toISOString()
+            }], { onConflict: 'key' });
+            if (creditUpsertErr) throw creditUpsertErr;
+            if (typeof broadcastOcaDataSync === 'function') {
+              broadcastOcaDataSync('fee_settings', 'UPSERT', { key: creditKey });
+            }
           }
         }
 
@@ -95191,7 +95629,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     /**
      * Reject Pending Slip Modal + Contact Info Popup & Audit Trail
      */
-    async function rejectPendingSlip(studentId) {
+    async function rejectPendingSlip(studentId, prefillReason = '') {
       if (!studentId) return;
       let info = { studentId: studentId, fullName: '-', phone: '', lineId: '', email: '', course: '-', expectedFee: 0 };
       if (typeof _supabase !== 'undefined' && _supabase) {
@@ -95263,9 +95701,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               <option value="ยอดเงินไม่ถูกต้อง">ยอดเงินไม่ถูกต้อง</option>
               <option value="สลิปไม่ชัดเจน">สลิปไม่ชัดเจน / อ่านข้อมูลไม่ได้</option>
               <option value="สลิปซ้ำ/ปลอม">สลิปซ้ำ / ไม่พบรายการโอนจริง</option>
-              <option value="อื่นๆ">อื่นๆ (ระบุเพิ่มเติมด้านล่าง)</option>
+              <option value="อื่นๆ"${prefillReason ? ' selected' : ''}>อื่นๆ (ระบุเพิ่มเติมด้านล่าง)</option>
             </select>
-            <textarea id="txtRejectSlipNote" class="oca-input" rows="2" style="width:100%; resize:vertical;" placeholder="รายละเอียดเพิ่มเติม...">ยอดเงินไม่ถูกต้อง</textarea>
+            <textarea id="txtRejectSlipNote" class="oca-input" rows="2" style="width:100%; resize:vertical;" placeholder="รายละเอียดเพิ่มเติม...">${escapeHtml(prefillReason || 'ยอดเงินไม่ถูกต้อง')}</textarea>
           </div>
           <div style="display:flex; justify-content:flex-end; gap:10px;">
             <button type="button" onclick="document.getElementById('modalRejectPendingSlip').style.display='none'" style="background:var(--bg-subcard); color:var(--text-main); border:none; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer;">ยกเลิก</button>
@@ -95297,6 +95735,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             .delete()
             .like('key', 'pending_slip%:' + studentId);
           if (delErr) throw delErr;
+          const { error: unlockErr } = await _supabase
+            .from('fee_settings')
+            .delete()
+            .eq('name', ('LOCKED:' + studentId).slice(0, 90));
+          if (unlockErr) console.warn('[confirmRejectPendingSlip] slip unlock warning:', unlockErr);
 
           try {
             const actor = typeof getAuditActor === 'function' ? getAuditActor() : { username: 'staff', fullName: 'Staff', role: 'CASHIER', deviceId: '', deviceInfo: '' };
@@ -95535,7 +95978,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=186';
+      const swPath = basePath + 'sw.js?v=187';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -95544,7 +95987,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (186):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (187):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
