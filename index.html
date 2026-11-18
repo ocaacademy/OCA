@@ -893,8 +893,8 @@
   #oca-app-root .oca-btn-notif-clear,
 
   .oca-btn-notif-clear {
-    background: #0284C7 !important;
-    border: 1.5px solid #0284C7 !important;
+    background: #0369A1 !important;
+    border: 1.5px solid #0369A1 !important;
     color: #FFFFFF !important;
     font-size: 12px !important;
     font-weight: 700 !important;
@@ -923,11 +923,12 @@
   #oca-app-root .oca-notif-list,
 
   .oca-notif-list {
-    max-height: 400px !important;
+    max-height: 420px !important;
     overflow-y: auto !important;
-    padding: 14px 18px !important;
+    padding: 14px 20px 14px 18px !important;
     background: #F8FAFC !important;
     scrollbar-width: thin !important;
+    scrollbar-gutter: stable;
     box-sizing: border-box !important;
   }
 
@@ -1033,7 +1034,7 @@
 
   .oca-notif-time {
     font-size: 10.5px !important;
-    color: #94A3B8 !important;
+    color: #475569 !important;
     margin-top: 6px !important;
     font-weight: 600 !important;
     display: inline-flex !important;
@@ -13905,7 +13906,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '176';
+      var LATEST_VERSION = '177';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -14421,10 +14422,10 @@ body.printing-report #printReportContainer {
                   </div>
                 </div>
 
-                <button type="button" class="oca-btn-notif-clear" onclick="markAllNotificationsAsRead(event)" style="background:#0284C7 !important; color:#FFFFFF !important; border:1.5px solid #0284C7 !important; font-weight:700 !important; font-size:12px !important; border-radius:9999px !important; padding:6px 16px !important; cursor:pointer !important; box-shadow:0 2px 6px rgba(2,132,199,0.3) !important;">อ่านทั้งหมด</button>
+                <button type="button" class="oca-btn-notif-clear" onclick="markAllNotificationsAsRead(event)" style="background:#0369A1 !important; color:#FFFFFF !important; border:1.5px solid #0369A1 !important; font-weight:700 !important; font-size:12px !important; border-radius:9999px !important; padding:6px 16px !important; cursor:pointer !important; box-shadow:0 2px 6px rgba(3,105,161,0.3) !important;">อ่านทั้งหมด</button>
               </div>
 
-              <div class="oca-notif-list" id="listNotifications">
+              <div class="oca-notif-list oca-custom-scrollbar" id="listNotifications" style="max-height: 420px; overflow-y: auto !important;">
                 <div style="text-align:center; padding:32px 20px; color:#94A3B8; font-size:12.5px;">
                   <i class="fa-regular fa-bell-slash" style="font-size:28px; margin-bottom:8px; display:block; opacity:0.5;"></i>
 
@@ -89860,8 +89861,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       try {
         const list = JSON.parse(localStorage.getItem('oca_notifications') || '[]');
         list.unshift(notifItem);
-        if (list.length > 80) list.pop();
-        localStorage.setItem('oca_notifications', JSON.stringify(list));
+        const sortedList = sortNotificationsNewestFirst(list).slice(0, 80);
+        localStorage.setItem('oca_notifications', JSON.stringify(sortedList));
       } catch (_) {}
 
       // 2. Update Bell UI on current screen
@@ -89948,8 +89949,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
         if (!exists) {
           list.unshift(notifItem);
-          if (list.length > 80) list.pop();
-          localStorage.setItem('oca_notifications', JSON.stringify(list));
+          const sortedList = sortNotificationsNewestFirst(list).slice(0, 80);
+          localStorage.setItem('oca_notifications', JSON.stringify(sortedList));
         }
       } catch (_) {}
 
@@ -89988,6 +89989,28 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     window.onRealtimeTeacherActivityReceived = onRealtimeTeacherActivityReceived;
 
     /**
+     * Sorts notifications strictly newest-to-oldest (descending by created_at, then id)
+     */
+    function sortNotificationsNewestFirst(list) {
+      if (!Array.isArray(list)) return [];
+      return list.slice().sort((a, b) => {
+        const aTime = a && a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bTime = b && b.created_at ? new Date(b.created_at).getTime() : 0;
+        const safeA = Number.isFinite(aTime) ? aTime : 0;
+        const safeB = Number.isFinite(bTime) ? bTime : 0;
+        if (safeB !== safeA) return safeB - safeA;
+        const aId = a && a.id != null ? String(a.id) : '';
+        const bId = b && b.id != null ? String(b.id) : '';
+        const aNum = Number(aId);
+        const bNum = Number(bId);
+        if (Number.isFinite(aNum) && Number.isFinite(bNum) && bNum !== aNum) {
+          return bNum - aNum;
+        }
+        return bId.localeCompare(aId);
+      });
+    }
+
+    /**
 
      * Renders Notification Bell icon, badge count and dropdown items
 
@@ -90002,6 +90025,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       try {
         notifications = JSON.parse(localStorage.getItem('oca_notifications') || '[]');
       } catch (_) {}
+
+      notifications = sortNotificationsNewestFirst(notifications);
 
       const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -90043,7 +90068,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         return;
       }
 
-      listEl.innerHTML = notifications.slice(0, 25).map(n => {
+      listEl.innerHTML = notifications.slice(0, 50).map(n => {
         let iconHtml = '<div class="oca-notif-icon" style="background:#F1F5F9; color:#64748B;"><i class="fa-solid fa-bell"></i></div>';
         let title = 'กิจกรรมครูผู้สอน';
 
@@ -94812,7 +94837,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=176';
+      const swPath = basePath + 'sw.js?v=177';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -94821,7 +94846,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (176):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (177):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
