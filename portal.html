@@ -14009,7 +14009,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '193';
+      var LATEST_VERSION = '194';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -20690,6 +20690,23 @@ body.printing-report #printReportContainer {
 
               </div>
             </div>
+          </div>
+
+          <!-- Quick-Jump Shortcut: Textbook Pricing Menu (Separate from Courses) -->
+          <div id="cardSettingsTextbookPricingShortcut" style="background:var(--bg-card); border:1px solid var(--border-soft); border-radius:12px; padding:12px 16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:38px; height:38px; border-radius:10px; background:rgba(16,185,129,0.14); border:1px solid rgba(16,185,129,0.35); color:var(--accent-emerald); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;">
+                <i class="fa-solid fa-tags"></i>
+              </div>
+              <div>
+                <div style="font-size:13.5px; font-weight:700; color:var(--text-main);">ตั้งค่าราคาตำราเรียน (แยกจากคอร์สเรียน)</div>
+                <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">แก้ไขราคาจำหน่ายตำราเรียนแต่ละเล่มในคลังตำรา และซิงก์ไปหน้าออกใบเสร็จแบบเรียลไทม์</div>
+              </div>
+            </div>
+            <button type="button" id="btnSettingsGoToTextbookPricing" class="oca-btn-gold-submit" onclick="goToTextbookPricingCatalog()" style="height:36px; padding:0 16px; font-size:12.5px; font-weight:700; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;">
+              <i class="fa-solid fa-book-open"></i>
+              <span>เปิดเมนูตั้งค่าราคาตำราเรียน</span>
+            </button>
           </div>
 
           <!-- SUBTAB 1: USERS & MENU PERMISSION MANAGEMENT -->
@@ -28251,6 +28268,9 @@ body.printing-report #printReportContainer {
             if (tabTb && tabTb.classList.contains('active') && typeof loadTextbooksData === 'function') {
               loadTextbooksData();
             }
+            if (typeof loadReceiptBooksDropdown === 'function') {
+              loadReceiptBooksDropdown();
+            }
           } else if (fk === 'cfg_cashier_payee' && !isDeleteEv && activeFeeRow) {
             const modeParts = String(activeFeeRow.mode || 'dynamic:').split(':');
             window._ocaPayeeSetting = {
@@ -28383,6 +28403,9 @@ body.printing-report #printReportContainer {
         const tabTb = document.getElementById('tabTextbooks');
         if (tabTb && tabTb.classList.contains('active') && typeof loadTextbooksData === 'function') {
           loadTextbooksData();
+        }
+        if (typeof loadReceiptBooksDropdown === 'function') {
+          loadReceiptBooksDropdown();
         }
       } else if (table === 'staff_users') {
         if (payload && (payload.new || payload.record)) {
@@ -34441,12 +34464,14 @@ if (action === 'getDashboardStats') {
                 const fullKey = bId.startsWith('tb:') ? bId : ('tb:' + bId);
                 const title = (params.title || bId).toString().trim().slice(0, 90);
                 const price = Number(params.price) || 0;
-                const stock = String(params.stock !== undefined ? params.stock : 0).slice(0, 90);
+                const stockNum = parseInt(params.stock !== undefined ? params.stock : 0, 10) || 0;
+                const linkedCourseId = (params.linkedCourseId || '').toString().trim().replace(/\|/g, '');
+                const modeVal = (linkedCourseId ? `${stockNum}|${linkedCourseId}` : String(stockNum)).slice(0, 90);
                 const { error: insErr } = await _supabase.from('fee_settings').upsert({
                   key: fullKey,
                   name: title,
                   amount: price,
-                  mode: stock,
+                  mode: modeVal,
 
                   start_date: null,
 
@@ -34465,6 +34490,10 @@ if (action === 'getDashboardStats') {
             if (Array.isArray(tbRows) && tbRows.length > 0) {
               list = tbRows.map(r => {
                 const cleanId = r.key.replace(/^tb:/, '');
+                const modeStr = String(r.mode || '0');
+                const modeParts = modeStr.split('|');
+                const parsedStock = parseInt(modeParts[0], 10) || 0;
+                const parsedLinkedCourseId = modeParts.length > 1 ? modeParts.slice(1).join('|').trim() : '';
 
                 return {
                   id: cleanId,
@@ -34475,7 +34504,9 @@ if (action === 'getDashboardStats') {
 
                   price: Number(r.amount) || 0,
 
-                  stock: parseInt(r.mode, 10) || 0,
+                  stock: parsedStock,
+
+                  linkedCourseId: parsedLinkedCourseId,
 
                   unit: 'เล่ม'
                 };
@@ -34485,7 +34516,13 @@ if (action === 'getDashboardStats') {
             if (action === 'saveTextbook' || action === 'deleteTextbook') {
               if (typeof broadcastOcaDataSync === 'function') {
                 const tbKeyId = (params && (params.id || params.code || params.bookId || ''))?.toString().trim();
+                const fullTbKey = tbKeyId.startsWith('tb:') ? tbKeyId : ('tb:' + tbKeyId);
                 broadcastOcaDataSync('textbooks', action === 'deleteTextbook' ? 'DELETE' : 'UPDATE', { id: tbKeyId });
+                broadcastOcaDataSync('fee_settings', action === 'deleteTextbook' ? 'DELETE' : 'UPDATE', {
+                  key: fullTbKey,
+                  name: (params && params.title) ? String(params.title).slice(0, 90) : tbKeyId,
+                  amount: Number(params && params.price) || 0
+                });
               }
             }
 
@@ -55426,6 +55463,13 @@ if (action === 'getDashboardStats') {
     }
 
     function loadReceiptBooksDropdown() {
+      const selCatBefore = document.getElementById('selRcptCatalogBook');
+      const selLinkedBefore = document.getElementById('selRcptLinkedBook');
+      const prevCatVal = selCatBefore ? selCatBefore.value : '';
+      const prevLinkedVal = selLinkedBefore ? selLinkedBefore.value : '';
+      const prevBookObj = (prevCatVal && Array.isArray(receiptBooksList)) ? receiptBooksList.find(b => b.id === prevCatVal) : null;
+      const prevCatalogPrice = prevBookObj ? Number(prevBookObj.price || 0) : null;
+
       callGasApi('getTextbooksAndInventory')
 
         .then(res => {
@@ -55449,6 +55493,8 @@ if (action === 'getDashboardStats') {
 
                 if (curRcptCourse) {
                   onReceiptCourseChanged();
+                } else if (prevLinkedVal && receiptBooksList.some(b => b.id === prevLinkedVal)) {
+                  selLinked.value = prevLinkedVal;
                 } else {
                   selLinked.selectedIndex = 1;
                 }
@@ -55464,7 +55510,21 @@ if (action === 'getDashboardStats') {
                 opt.textContent = b.title + ' (' + Number(b.price).toLocaleString() + ' ฿)';
                 selCat.appendChild(opt);
               });
-              if (receiptBooksList.length > 0) selCat.selectedIndex = 1;
+              if (prevCatVal && receiptBooksList.some(b => b.id === prevCatVal)) {
+                selCat.value = prevCatVal;
+              } else if (receiptBooksList.length > 0) {
+                selCat.selectedIndex = 1;
+              }
+
+              const selectedBook = receiptBooksList.find(b => b.id === selCat.value);
+              const inpP = document.getElementById('inpRcptBookPrice');
+              if (selectedBook && inpP) {
+                const curInputVal = Number(inpP.value);
+                const isNotOverridden = !prevCatVal || prevCatalogPrice === null || curInputVal === prevCatalogPrice || inpP.value === '' || curInputVal === 350;
+                if (isNotOverridden) {
+                  inpP.value = Number(selectedBook.price || 0);
+                }
+              }
             }
 
             calcReceiptTotals();
@@ -59502,11 +59562,15 @@ if (action === 'getDashboardStats') {
 
           '<td style="padding:14px 16px !important; text-align:center;">' +
 
-            '<span style="display:inline-flex; align-items:center; justify-content:center; font-family:\'JetBrains Mono\',monospace; font-size:13px; font-weight:800; color:var(--accent-emerald); background:rgba(16,185,129,0.14); border:1px solid rgba(16,185,129,0.35); padding:4px 14px; border-radius:999px; min-width:72px;">' +
+            '<div style="display:inline-flex; align-items:center; justify-content:center; gap:6px;">' +
 
-              '฿' + toArabicDigits(Number(b.price || 0).toLocaleString('en-US')) +
+              '<span style="font-family:\'JetBrains Mono\',monospace; font-size:13px; font-weight:800; color:var(--accent-emerald);">฿</span>' +
 
-            '</span>' +
+              '<input type="number" min="0" step="1" class="oca-input oca-tb-quick-price-inp" data-tb-id="' + escapeHtml(b.id) + '" value="' + Number(b.price || 0) + '" aria-label="ราคาตำราเรียน ' + escapeHtml(b.title) + '" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); const btn=this.nextElementSibling; if(btn) quickSaveTextbookPrice(\'' + escapeHtml(b.id) + '\', btn);}" style="width:92px; height:32px; text-align:right; font-family:\'JetBrains Mono\',monospace; font-size:13px; font-weight:700; padding:4px 8px;">' +
+
+              '<button type="button" class="oca-btn-action-edit" onclick="quickSaveTextbookPrice(\'' + escapeHtml(b.id) + '\', this)" style="height:32px; padding:0 10px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;" title="บันทึกราคา"><i class="fa-solid fa-floppy-disk"></i> <span>บันทึก</span></button>' +
+
+            '</div>' +
 
           '</td>' +
 
@@ -59534,7 +59598,87 @@ if (action === 'getDashboardStats') {
 
         '</tr>';
       }).join('');
+      if (typeof translateContainerTree === 'function' && window._currentSystemLang && window._currentSystemLang !== 'th') {
+        translateContainerTree(tbody, window._currentSystemLang);
+      }
     }
+
+    async function quickSaveTextbookPrice(tbId, btnEl) {
+      if (!tbId) return;
+      const tr = btnEl ? btnEl.closest('tr') : null;
+      const inp = tr ? tr.querySelector('.oca-tb-quick-price-inp') : null;
+      const rawStr = inp ? String(inp.value).trim() : '';
+      const rawVal = rawStr !== '' ? Number(rawStr) : -1;
+      if (!Number.isFinite(rawVal) || rawVal < 0) {
+        if (typeof showToast === 'function') showToast('กรุณาระบุราคาที่ถูกต้อง', '', '⚠️');
+        return;
+      }
+      const newPrice = Math.max(0, Math.round(rawVal));
+      if (inp) inp.value = newPrice;
+      const book = Array.isArray(receiptBooksList) ? receiptBooksList.find(x => x.id === tbId) : null;
+      const origHtml = btnEl ? btnEl.innerHTML : '';
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+      }
+      try {
+        const res = await callGasApi('saveTextbook', {
+          id: tbId,
+          title: book ? book.title : tbId,
+          linkedCourseId: book ? (book.linkedCourseId || '') : '',
+          price: newPrice,
+          stock: book ? (book.stock ?? 0) : 0,
+          unit: book ? (book.unit || 'เล่ม') : 'เล่ม'
+        }, 'POST');
+        if (res && res.success) {
+          if (book) book.price = newPrice;
+          if (Array.isArray(res.textbooks)) receiptBooksList = res.textbooks;
+          if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('textbooks');
+          if (typeof loadReceiptBooksDropdown === 'function') loadReceiptBooksDropdown();
+          const heroPricePill = document.getElementById('tbCatalogHeroPriceRangePill');
+          if (heroPricePill && Array.isArray(receiptBooksList) && receiptBooksList.length > 0) {
+            const prices = receiptBooksList.map(b => Number(b.price || 0)).filter(p => p > 0);
+            if (prices.length > 0) {
+              const minP = Math.min(...prices);
+              const maxP = Math.max(...prices);
+              const priceText = minP === maxP ? ('฿' + toArabicDigits(minP.toLocaleString('en-US'))) : ('ช่วงราคา ฿' + toArabicDigits(minP.toLocaleString('en-US')) + ' – ฿' + toArabicDigits(maxP.toLocaleString('en-US')));
+              heroPricePill.innerHTML = '<i class="fa-solid fa-tags" style="font-size:11px;"></i><span>' + priceText + '</span>';
+            }
+          }
+          if (typeof showToast === 'function') {
+            showToast('บันทึกราคาตำราสำเร็จ!', (book ? book.title : tbId) + ' (฿' + toArabicDigits(newPrice.toLocaleString('en-US')) + ')', '✅');
+          }
+        } else {
+          if (typeof showToast === 'function') showToast('บันทึกราคาไม่สำเร็จ', (res && res.message) || '', '❌');
+        }
+      } catch (err) {
+        console.warn('quickSaveTextbookPrice error:', err);
+        if (typeof showToast === 'function') showToast('เกิดข้อผิดพลาดในการบันทึกราคา', '', '❌');
+      } finally {
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.innerHTML = origHtml;
+        }
+      }
+    }
+
+    function goToTextbookPricingCatalog() {
+      if (typeof switchNav === 'function') switchNav('textbooks');
+      setTimeout(() => {
+        if (typeof switchTextbooksSubTab === 'function') {
+          switchTextbooksSubTab('catalog');
+        } else {
+          const secScan = document.getElementById('secTbScanner');
+          const secCat = document.getElementById('secTbCatalog');
+          if (secScan) secScan.style.display = 'none';
+          if (secCat) secCat.style.display = 'block';
+          if (typeof loadTextbooksData === 'function') loadTextbooksData();
+        }
+      }, 50);
+    }
+
+    window.quickSaveTextbookPrice = quickSaveTextbookPrice;
+    window.goToTextbookPricingCatalog = goToTextbookPricingCatalog;
 
     function loadTextbooksData() {
       callGasApi('getTextbooksAndInventory')
@@ -84436,6 +84580,10 @@ function openPublicRegisterView() {
         "จัดส่งตำราเรียนถึงบ้านตามที่อยู่ที่ลงทะเบียน": "按报名登记地址邮寄教材到家",
         "ที่อยู่สำหรับจัดส่งตำราเรียน:": "教材邮寄地址：",
         "แก้ไขที่อยู่": "修改地址",
+        "ตั้งค่าราคาตำราเรียน (แยกจากคอร์สเรียน)": "教材价格设置（与课程分开）",
+        "แก้ไขราคาจำหน่ายตำราเรียนแต่ละเล่มในคลังตำรา และซิงก์ไปหน้าออกใบเสร็จแบบเรียลไทม์": "在教材目录中修改各教材售价，并实时同步至收据开具页面",
+        "เปิดเมนูตั้งค่าราคาตำราเรียน": "打开教材价格设置菜单",
+        "บันทึกราคา": "保存价格",
       },
       en: {
         "STAFF AUTHENTICATION": "STAFF AUTHENTICATION",
@@ -86727,6 +86875,10 @@ function openPublicRegisterView() {
         "จัดส่งตำราเรียนถึงบ้านตามที่อยู่ที่ลงทะเบียน": "Deliver textbooks to your registered address",
         "ที่อยู่สำหรับจัดส่งตำราเรียน:": "Textbook Shipping Address:",
         "แก้ไขที่อยู่": "Edit Address",
+        "ตั้งค่าราคาตำราเรียน (แยกจากคอร์สเรียน)": "Textbook Pricing Settings (Separate from Courses)",
+        "แก้ไขราคาจำหน่ายตำราเรียนแต่ละเล่มในคลังตำรา และซิงก์ไปหน้าออกใบเสร็จแบบเรียลไทม์": "Edit individual textbook prices in the catalog with real-time sync to Receipts",
+        "เปิดเมนูตั้งค่าราคาตำราเรียน": "Open Textbook Pricing",
+        "บันทึกราคา": "Save Price",
       }
     };
     window.OCA_INNER_CONTENT_I18N = OCA_INNER_CONTENT_I18N;
@@ -96469,7 +96621,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=193';
+      const swPath = basePath + 'sw.js?v=194';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -96478,7 +96630,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (193):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (194):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
