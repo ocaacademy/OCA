@@ -13697,7 +13697,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '173';
+      var LATEST_VERSION = '174';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -22871,14 +22871,37 @@ body.printing-report #printReportContainer {
           <option value="F">กลุ่ม F</option>
           <option value="G">กลุ่ม G</option>
           <option value="H">กลุ่ม H</option>
-          <option value="Online">Online</option>
+          <option value="I">กลุ่ม I</option>
+          <option value="J">กลุ่ม J</option>
+          <option value="K">กลุ่ม K</option>
+          <option value="L">กลุ่ม L</option>
+          <option value="M">กลุ่ม M</option>
+          <option value="N">กลุ่ม N</option>
+          <option value="O">กลุ่ม O</option>
+          <option value="P">กลุ่ม P</option>
+          <option value="Q">กลุ่ม Q</option>
+          <option value="R">กลุ่ม R</option>
+          <option value="S">กลุ่ม S</option>
+          <option value="T">กลุ่ม T</option>
+          <option value="U">กลุ่ม U</option>
+          <option value="V">กลุ่ม V</option>
+          <option value="W">กลุ่ม W</option>
+          <option value="X">กลุ่ม X</option>
+          <option value="Y">กลุ่ม Y</option>
+          <option value="Z">กลุ่ม Z</option>
           <option value="1">กลุ่ม 1</option>
           <option value="2">กลุ่ม 2</option>
           <option value="3">กลุ่ม 3</option>
           <option value="4">กลุ่ม 4</option>
           <option value="5">กลุ่ม 5</option>
-          <option value="พิเศษ">พิเศษ</option>
+          <option value="6">กลุ่ม 6</option>
+          <option value="7">กลุ่ม 7</option>
+          <option value="8">กลุ่ม 8</option>
+          <option value="9">กลุ่ม 9</option>
+          <option value="10">กลุ่ม 10</option>
+          <option value="Online">Online</option>
           <option value="VIP">VIP</option>
+          <option value="พิเศษ">พิเศษ</option>
         </datalist>
         <datalist id="ocaGlobalLecturerDatalist"></datalist>
         <datalist id="ocaGlobalRoomDatalist"></datalist>
@@ -29222,7 +29245,20 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
           }
 
           const { data: schedules } = await _supabase.from('schedules').select('*').eq('is_active', true).order('id', { ascending: true });
-          const { data: fees } = await _supabase.from('fee_settings').select('*').limit(1000);
+          const fees = [];
+          let feeFrom = 0;
+          const feePageSize = 1000;
+          while (feeFrom < 20000) {
+            const { data: feeBatch, error: feeErr } = await _supabase
+              .from('fee_settings')
+              .select('*')
+              .order('key', { ascending: true })
+              .range(feeFrom, feeFrom + feePageSize - 1);
+            if (feeErr) throw feeErr;
+            if (Array.isArray(feeBatch) && feeBatch.length > 0) fees.push(...feeBatch);
+            if (!Array.isArray(feeBatch) || feeBatch.length < feePageSize) break;
+            feeFrom += feePageSize;
+          }
           let matrixDiscountMap = {};
           let courseLevelMap = {};
           let courseDiscMap = {};
@@ -47618,12 +47654,52 @@ if (action === 'getDashboardStats') {
     let _ocaCourseSchedActiveCode = '';
     let _ocaCourseSchedPinned = false;
 
+    function resolveCoursePopoverTermYear(termVal, yearVal) {
+      const activeTermInfo = (typeof resolveCurrentAcademicTerm === 'function')
+        ? resolveCurrentAcademicTerm(
+            typeof cachedTermOpenDates !== 'undefined' ? cachedTermOpenDates : null,
+            typeof cachedTermCloseDates !== 'undefined' ? cachedTermCloseDates : null
+          )
+        : { yearBE: 2569, term: 5 };
+      const curY = String(
+        yearVal ||
+        document.getElementById('selCourseFilterYear')?.value ||
+        document.getElementById('selScheduleConfigYear')?.value ||
+        activeTermInfo.yearBE ||
+        '2569'
+      ).trim();
+      const curT = String(
+        termVal ||
+        document.getElementById('selCourseFilterTerm')?.value ||
+        document.getElementById('selScheduleConfigTerm')?.value ||
+        activeTermInfo.term ||
+        '5'
+      ).trim();
+      return { curY, curT };
+    }
+
+    function findFallbackCourseGroupsAcrossTerms(cCode, sId, preferYear) {
+      const byTerm = window._courseGroupInstructorByTermMap || {};
+      const keys = Object.keys(byTerm);
+      const sortedKeys = [
+        ...keys.filter(k => k.startsWith(String(preferYear || '') + '_')).sort().reverse(),
+        ...keys.filter(k => !k.startsWith(String(preferYear || '') + '_')).sort().reverse()
+      ];
+      const pairKey = `${cCode}::${sId}`;
+      for (const k of sortedKeys) {
+        const tMap = byTerm[k];
+        if (tMap && Array.isArray(tMap[pairKey]) && tMap[pairKey].length > 0) {
+          return JSON.parse(JSON.stringify(tMap[pairKey]));
+        }
+      }
+      return null;
+    }
+
     function getCourseScheduleRowsData(courseCode, termVal, yearVal) {
       const cCode = String(courseCode || '').trim().toUpperCase();
-      const curY = yearVal || document.getElementById('selScheduleConfigYear')?.value || window._activeTermYear || '2569';
-      const curT = termVal || document.getElementById('selScheduleConfigTerm')?.value || window._activeTerm || '5';
+      const { curY, curT } = resolveCoursePopoverTermYear(termVal, yearVal);
       const matchedScheds = [];
-      const map = window._ocaScheduleCoursesMap || (typeof getScheduleCoursesMapForTerm === 'function' ? getScheduleCoursesMapForTerm() : {});
+      const map = (typeof getScheduleCoursesMapForTerm === 'function' ? getScheduleCoursesMapForTerm(curT, curY) : null) || window._ocaScheduleCoursesMap || {};
 
       if (cCode && map && typeof map === 'object') {
         Object.keys(map).forEach(sId => {
@@ -47649,9 +47725,17 @@ if (action === 'getDashboardStats') {
         const schedObj = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList) ? cachedSchedulesList.find(x => x.id === sId) : null) ||
                          (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES) ? OFFICIAL_DEFAULT_SCHEDULES.find(x => x.id === sId) : null);
         const schedName = schedObj ? (schedObj.name || schedObj.day_time || sId) : sId;
-        const groups = (typeof getCourseGroupInstructorList === 'function')
+        let groups = (typeof getCourseGroupInstructorList === 'function')
           ? getCourseGroupInstructorList(cCode, sId, curT, curY)
           : [{ section: 'A', lecturerName: '', room: '' }];
+
+        const isEmptyDefault = Array.isArray(groups) && groups.length === 1 && !String(groups[0]?.lecturerName || '').trim() && !String(groups[0]?.room || '').trim() && (String(groups[0]?.section || 'A').trim() === 'A');
+        if (isEmptyDefault) {
+          const fallbackGroups = findFallbackCourseGroupsAcrossTerms(cCode, sId, curY);
+          if (Array.isArray(fallbackGroups) && fallbackGroups.length > 0) {
+            groups = fallbackGroups;
+          }
+        }
 
         if (!Array.isArray(groups) || groups.length === 0) {
           rows.push({ schedId: sId, schedName, section: 'A', lecturerName: 'ไม่ระบุ', room: '-' });
@@ -48185,7 +48269,7 @@ if (action === 'getDashboardStats') {
 
       rows.forEach(r => {
         const sId = (r.querySelector('.sel-cm-sched')?.value || '').trim();
-        const sec = (r.querySelector('.sel-cm-sec')?.value || 'A').trim();
+        const sec = (typeof getCourseModalRowSectionValue === 'function') ? getCourseModalRowSectionValue(r) : (r.querySelector('.sel-cm-sec')?.value || 'A').trim();
         const lec = (r.querySelector('.sel-cm-instructor')?.value || '').trim();
         const rm = (r.querySelector('.sel-cm-room')?.value || '').trim();
 
@@ -48443,33 +48527,102 @@ if (action === 'getDashboardStats') {
 
     window.buildScheduleSelectOptionsHtml = buildScheduleSelectOptionsHtml;
 
+    const OCA_PRESET_SECTIONS = [
+      ...Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)),
+      ...Array.from({ length: 10 }, (_, i) => String(i + 1)),
+      'Online',
+      'VIP',
+      'พิเศษ'
+    ];
+
+    function normalizePresetSectionValue(rawSec) {
+      const s = String(rawSec || 'A').trim();
+      if (!s) return 'A';
+      const upper = s.toUpperCase();
+      if (upper === 'ONLINE') return 'Online';
+      if (upper === 'VIP') return 'VIP';
+      if (s === 'พิเศษ') return 'พิเศษ';
+      if (/^[A-Z]$/.test(upper)) return upper;
+      if (/^([1-9]|10)$/.test(s)) return s;
+      return null;
+    }
+
+    function getCourseModalRowSectionValue(row) {
+      if (!row) return 'A';
+      const sel = row.querySelector('.sel-cm-sec');
+      const rawSel = (sel?.value || '').trim();
+      if (rawSel === '__CUSTOM__') {
+        const customVal = (row.querySelector('.sel-cm-sec-custom')?.value || '').trim();
+        return customVal || 'A';
+      }
+      return rawSel || 'A';
+    }
+
+    window.getCourseModalRowSectionValue = getCourseModalRowSectionValue;
+
+    function handleCourseModalSecChange(selEl) {
+      if (!selEl) return;
+      const cell = selEl.parentElement;
+      const customWrap = cell ? cell.querySelector('.cm-sec-custom-wrap') : null;
+      const customInp = cell ? cell.querySelector('.sel-cm-sec-custom') : null;
+      if (selEl.value === '__CUSTOM__') {
+        selEl.style.display = 'none';
+        if (customWrap) customWrap.style.display = 'flex';
+        if (customInp) {
+          customInp.focus();
+          customInp.select();
+        }
+      } else {
+        if (customWrap) customWrap.style.display = 'none';
+        selEl.style.display = '';
+      }
+      if (typeof updateCourseLivePreview === 'function') updateCourseLivePreview();
+    }
+
+    window.handleCourseModalSecChange = handleCourseModalSecChange;
+
+    function resetCourseModalSecToSelect(btnEl) {
+      const cell = btnEl ? btnEl.closest('.cm-sec-cell') : null;
+      if (!cell) return;
+      const sel = cell.querySelector('.sel-cm-sec');
+      const customWrap = cell.querySelector('.cm-sec-custom-wrap');
+      const customInp = cell.querySelector('.sel-cm-sec-custom');
+      if (customWrap) customWrap.style.display = 'none';
+      if (customInp) customInp.value = '';
+      if (sel) {
+        sel.value = 'A';
+        sel.style.display = '';
+        sel.focus();
+      }
+      if (typeof updateCourseLivePreview === 'function') updateCourseLivePreview();
+    }
+
+    window.resetCourseModalSecToSelect = resetCourseModalSecToSelect;
+
     function buildSectionSelectOptionsHtml(selectedSection) {
-      const selVal = String(selectedSection || 'A').trim().toUpperCase();
-      const standardSecs = [
-        ...Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)),
-        'ONLINE',
-        ...Array.from({ length: 10 }, (_, i) => String(i + 1))
-      ];
-      let hasSelected = false;
+      const rawSec = String(selectedSection || 'A').trim();
+      const normPreset = normalizePresetSectionValue(rawSec);
+      const isCustom = (rawSec === '__CUSTOM__' || normPreset === null);
       let options = '';
 
-      standardSecs.forEach(sec => {
-        const isSel = (sec === selVal);
-        if (isSel) hasSelected = true;
-        const displaySec = sec === 'ONLINE' ? 'Online' : sec;
-        options += '<option value="' + sec + '"' + (isSel ? ' selected' : '') + '>กลุ่ม ' + displaySec + '</option>';
+      OCA_PRESET_SECTIONS.forEach(sec => {
+        const isSel = (!isCustom && sec === normPreset);
+        const label = (sec === 'Online' || sec === 'VIP' || sec === 'พิเศษ') ? sec : ('กลุ่ม ' + sec);
+        options += '<option value="' + escapeHtml(sec) + '"' + (isSel ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
       });
 
-      if (selVal && !hasSelected) {
-        options += '<option value="' + escapeHtml(selVal) + '" selected>กลุ่ม ' + escapeHtml(selVal) + '</option>';
-      }
-
+      options += '<option value="__CUSTOM__"' + (isCustom ? ' selected' : '') + '>อื่นๆ (ระบุเอง)...</option>';
       return options;
     }
 
     window.buildSectionSelectOptionsHtml = buildSectionSelectOptionsHtml;
 
     function buildCourseModalGroupRowInnerHtml(schedId, sec, lec, room, rem) {
+      const rawSec = String(sec || 'A').trim() || 'A';
+      const normPreset = normalizePresetSectionValue(rawSec);
+      const isCustom = (rawSec === '__CUSTOM__' || normPreset === null);
+      const customInitVal = (isCustom && rawSec !== '__CUSTOM__') ? rawSec : '';
+
       return '<div style="width:4%; text-align:center; min-width:0;">' +
 
         '  <input type="checkbox" class="chk-cm-row-select" style="cursor:pointer; accent-color:#10b981;" title="เลือกแถวนี้">' +
@@ -48486,9 +48639,21 @@ if (action === 'getDashboardStats') {
 
         '</div>' +
 
-        '<div style="width:14%; min-width:0;">' +
+        '<div class="cm-sec-cell" style="width:14%; min-width:0;">' +
 
-        '  <input type="text" class="oca-input sel-cm-sec" list="ocaGlobalSectionDatalist" value="' + escapeHtml(sec || 'A') + '" placeholder="กลุ่ม เช่น A, B, Online" oninput="updateCourseLivePreview();" onchange="updateCourseLivePreview();" style="width:100%; height:32px; font-size:12px; padding:2px 4px; color-scheme:light; background-color:#ffffff; background:#ffffff; color:#0f172a; border-radius:6px; font-weight:700; text-align:center;">' +
+        '  <select class="oca-input sel-cm-sec" onchange="handleCourseModalSecChange(this);" style="width:100%; height:32px; font-size:12px; padding:2px 4px; color-scheme:light; background-color:#ffffff; background:#ffffff; color:#0f172a; border-radius:6px; font-weight:700;' + (isCustom ? ' display:none;' : '') + '">' +
+
+        buildSectionSelectOptionsHtml(rawSec) +
+
+        '  </select>' +
+
+        '  <div class="cm-sec-custom-wrap" style="display:' + (isCustom ? 'flex' : 'none') + '; align-items:center; gap:3px; width:100%;">' +
+
+        '    <input type="text" class="oca-input sel-cm-sec-custom" value="' + escapeHtml(customInitVal) + '" placeholder="ระบุกลุ่ม..." oninput="updateCourseLivePreview();" onchange="updateCourseLivePreview();" style="width:100%; min-width:0; height:32px; font-size:12px; padding:2px 5px; color-scheme:light; background-color:#ffffff; background:#ffffff; color:#0f172a; border-radius:6px; font-weight:700; text-align:center;">' +
+
+        '    <button type="button" onclick="resetCourseModalSecToSelect(this)" title="กลับไปเลือกรายการ" style="flex-shrink:0; width:24px; height:32px; border-radius:6px; border:1px solid #cbd5e1; background:#f8fafc; color:#0f172a; cursor:pointer; font-size:11px; display:inline-flex; align-items:center; justify-content:center;"><i class="fa-solid fa-list"></i></button>' +
+
+        '  </div>' +
 
         '</div>' +
 
@@ -48590,7 +48755,7 @@ if (action === 'getDashboardStats') {
 
         rows.forEach(r => {
           const rowSched = (r.querySelector('.sel-cm-sched')?.value || '').trim().toUpperCase();
-          const rowSec = (r.querySelector('.sel-cm-sec')?.value || '').trim().toUpperCase();
+          const rowSec = (typeof getCourseModalRowSectionValue === 'function' ? getCourseModalRowSectionValue(r) : (r.querySelector('.sel-cm-sec')?.value || '')).trim().toUpperCase();
           const matchSched = (targetSched === 'ALL' || rowSched === targetSched);
           const matchSec = (targetSec === 'ALL' || rowSec === targetSec);
 
@@ -48891,7 +49056,8 @@ if (action === 'getDashboardStats') {
         const sameSchedRows = Array.from(rows).filter(r => r.querySelector('.sel-cm-sched')?.value === chosenSched);
 
         if (sameSchedRows.length > 0) {
-          const lastSec = (sameSchedRows[sameSchedRows.length - 1].querySelector('.sel-cm-sec')?.value || '').trim().toUpperCase();
+          const lastRow = sameSchedRows[sameSchedRows.length - 1];
+          const lastSec = (typeof getCourseModalRowSectionValue === 'function' ? getCourseModalRowSectionValue(lastRow) : (lastRow.querySelector('.sel-cm-sec')?.value || '')).trim().toUpperCase();
 
           if (lastSec && lastSec >= 'A' && lastSec < 'Z') {
             nextSec = String.fromCharCode(lastSec.charCodeAt(0) + 1);
@@ -49215,7 +49381,7 @@ if (action === 'getDashboardStats') {
 
     window.closeCourseModal = closeCourseModal;
 
-    function submitCourseForm(e) {
+    async function submitCourseForm(e) {
       if (e) e.preventDefault();
       const modal = document.getElementById('modalCourse');
       const id = (document.getElementById('inpCourseId')?.value || '').replace(/[()]/g, '').trim().toUpperCase();
@@ -49252,7 +49418,7 @@ if (action === 'getDashboardStats') {
 
       matrixRows.forEach(r => {
         const sId = (r.querySelector('.sel-cm-sched')?.value || '').trim().toUpperCase();
-        const sec = (r.querySelector('.sel-cm-sec')?.value || 'A').trim().toUpperCase();
+        const sec = (typeof getCourseModalRowSectionValue === 'function' ? getCourseModalRowSectionValue(r) : (r.querySelector('.sel-cm-sec')?.value || 'A')).trim().toUpperCase();
         const lec = (r.querySelector('.sel-cm-instructor')?.value || '').trim();
         const room = (r.querySelector('.sel-cm-room')?.value || '').trim();
         const rem = (r.querySelector('.inp-cm-group-rem')?.value || 'ปกติ').trim();
@@ -49310,19 +49476,25 @@ if (action === 'getDashboardStats') {
       });
       const activeKey = `${curYear}_${curTerm}`;
       window._ocaScheduleCoursesMap = window._ocaScheduleCoursesByTermMap[activeKey];
-      if (typeof saveScheduleCoursesMapToSupabase === 'function') saveScheduleCoursesMapToSupabase();
+      try {
+        if (typeof saveScheduleCoursesMapToSupabase === 'function') await saveScheduleCoursesMapToSupabase();
 
-      // Save course group and instructor configurations atomically (single batch upsert)
-      if (typeof saveCourseModalMatrix === 'function') {
-        saveCourseModalMatrix(id, schedGroupsMap, curTerm, curYear, applyAllInYear, origId);
-      } else if (typeof saveCourseGroupInstructorList === 'function') {
-        allKnownSchedList.forEach(s => {
-          const sId = s.id;
-          const grps = schedGroupsMap[sId] || [];
-          saveCourseGroupInstructorList(id, sId, grps, curTerm, curYear, applyAllInYear);
-        });
-        const allCombinedGroups = Object.values(schedGroupsMap).flat();
-        saveCourseGroupInstructorList(id, 'ALL', allCombinedGroups, curTerm, curYear, applyAllInYear);
+        // Save course group and instructor configurations atomically (single batch upsert)
+        if (typeof saveCourseModalMatrix === 'function') {
+          await saveCourseModalMatrix(id, schedGroupsMap, curTerm, curYear, applyAllInYear, origId);
+        } else if (typeof saveCourseGroupInstructorList === 'function') {
+          for (const s of allKnownSchedList) {
+            const sId = s.id;
+            const grps = schedGroupsMap[sId] || [];
+            await saveCourseGroupInstructorList(id, sId, grps, curTerm, curYear, applyAllInYear);
+          }
+          const allCombinedGroups = Object.values(schedGroupsMap).flat();
+          await saveCourseGroupInstructorList(id, 'ALL', allCombinedGroups, curTerm, curYear, applyAllInYear);
+        }
+      } catch (matrixErr) {
+        if (btnSubmit) btnSubmit.disabled = false;
+        showModal('ข้อผิดพลาด', 'ไม่สามารถบันทึกกลุ่มเรียนและอาจารย์ผู้สอนได้: ' + (matrixErr?.message || matrixErr || ''), '❌');
+        return;
       }
 
       // Immediate optimistic update
@@ -49930,6 +50102,7 @@ if (action === 'getDashboardStats') {
         }
       } catch (err) {
         console.warn('[CourseModalMatrix] Save error:', err);
+        throw err;
       }
     }
 
@@ -94317,7 +94490,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=173';
+      const swPath = basePath + 'sw.js?v=174';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -94326,7 +94499,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (173):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (174):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
