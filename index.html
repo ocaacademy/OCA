@@ -2379,8 +2379,32 @@
       padding: 4px 10px !important;
       text-align: left !important;
       font-variant-numeric: tabular-nums;
-      line-height: normal;
+      line-height: 1.2;
       box-sizing: border-box;
+    }
+
+    #oca-app-root input[type="date"],
+    #viewPublicRegister input[type="date"] {
+      display: inline-flex !important;
+      align-items: center !important;
+      line-height: 1.2 !important;
+    }
+
+    input[type="date"]::-webkit-date-and-time-value {
+      text-align: left !important;
+      display: flex !important;
+      align-items: center !important;
+      min-height: 100% !important;
+      margin: 0 !important;
+    }
+
+    input[type="date"]::-webkit-datetime-edit,
+    input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+      display: inline-flex !important;
+      align-items: center !important;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+      line-height: 1.2 !important;
     }
 
     input[type="date"][data-oca-date-empty="true"]::before,
@@ -10509,8 +10533,6 @@ body.printing-report #printReportContainer {
 
   #oca-app-root input[type="number"],
 
-  #oca-app-root input[type="date"],
-
   #oca-app-root input[type="email"],
 
   #oca-app-root input[type="password"],
@@ -10522,6 +10544,18 @@ body.printing-report #printReportContainer {
     height: auto !important;
     font-size: clamp(14px, 3.5vw, 16px) !important;
     line-height: 1.4 !important;
+    box-sizing: border-box !important;
+    padding: 8px 12px;
+  }
+
+  #oca-app-root input[type="date"],
+  #viewPublicRegister input[type="date"] {
+    min-height: 44px !important;
+    height: auto !important;
+    font-size: clamp(14px, 3.5vw, 16px) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1.2 !important;
     box-sizing: border-box !important;
     padding: 8px 12px;
   }
@@ -13906,7 +13940,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '178';
+      var LATEST_VERSION = '179';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -75423,13 +75457,15 @@ function openPublicRegisterView() {
       setT('lblKioskDupModalBody', d.dupModalBody);
       setT('btnKioskDupCancel', d.dupCancel);
       setT('btnKioskDupConfirm', d.dupConfirm);
-      const step2Visible = document.getElementById('pubKioskStep2Courses')?.style.display === 'block';
+      const step2El = document.getElementById('pubKioskStep2Courses');
+      const step2Visible = step2El && step2El.style.display !== 'none';
       if (step2Visible) {
-        renderKioskCourseCategories();
-        renderKioskCourseGrid();
+        if (typeof renderKioskCourseCategories === 'function') renderKioskCourseCategories();
+        if (typeof renderKioskCourseGrid === 'function') renderKioskCourseGrid();
       }
-      const step3Visible = document.getElementById('pubKioskStep3Schedule')?.style.display === 'block';
-      if (step3Visible) {
+      const step3El = document.getElementById('pubKioskStep3Schedule');
+      const step3Visible = step3El && step3El.style.display !== 'none';
+      if (step3Visible && typeof renderKioskStep3ScheduleAndGroups === 'function') {
         renderKioskStep3ScheduleAndGroups();
       }
     }
@@ -83649,6 +83685,55 @@ function openPublicRegisterView() {
         "การกดขยับระยะจะบันทึกขึ้นระบบกลางอัตโนมัติทันที และมีผลกับทุกเครื่องที่ใช้รุ่นเครื่องพิมพ์เดียวกัน": "微调打印边距将立即自动保存至云端系统，并对所有使用相同打印机型号的设备生效",
         "เป็นการสรุปยอดรวมทั้งวันตามวันที่เลือก หลังบันทึกปิดยอดแล้วยังสามารถออกใบเสร็จเพิ่มเติมในวันเดียวกันได้": "汇总所选日期的全天收支总额，完成结账记录后当天仍可继续开立后续收据",
         "การยกเลิกจะเก็บประวัติเดิมไว้ตรวจสอบบัญชี (Soft-Void) ไม่สามารถนำเลขที่ใบเสร็จเดิมกลับมาออกซ้ำได้": "作废操作将保留原历史记录以供账目审计（软作废），原收据编号不可重复使用",
+        "แจ้งขอบเขตการให้บริการลงทะเบียนออนไลน์ (Online Registration Policy)": "在线报名服务范围说明",
+        "• ระบบออนไลน์รองรับเฉพาะ": "• 在线系统仅支持",
+        "สมัครเรียนใหม่ (New Enrollment)": "新生报名",
+        "และ": "与",
+        "ต่อคอร์ส — นักศึกษาเก่า (Course Renewal)": "老生续报课程",
+        "เท่านั้น": "。",
+        "• กรณี": "• 如需办理",
+        "ดรอปเรียน (Drop)": "退课",
+        "หรือ": "或",
+        "ย้ายคอร์ส / ย้ายกลุ่มเรียน (Course / Group Transfer)": "转课 / 转班",
+        "กรุณาติดต่อเจ้าหน้าที่โดยตรง (Staff-only)": "请联系工作人员办理",
+        "เชื้อชาติ (Ethnicity)": "民族",
+        "สัญชาติ (Nationality)": "国籍",
+        "เลขพาสปอร์ต (Passport No.)": "护照号码",
+        "ชื่อผู้ติดต่อฉุกเฉิน (Emergency Contact)": "紧急联系人姓名",
+        "ความสัมพันธ์ (Relationship)": "与本人关系",
+        "เปลี่ยนประเภทผู้สมัคร (นักศึกษาใหม่ / นักศึกษาเก่า)": "更换报名类型（新生 / 老生）",
+        "ย้อนกลับไปเลือกประเภทผู้สมัคร": "返回选择报名类型",
+        "สัดส่วน 3:4": "3:4 比例",
+        "คำนวณราคาและค่าแรกเข้าอัตโนมัติตามสถานะผู้เรียน": "根据学员身份自动计算学费与注册费",
+        "1. เลือกรอบเวลาเรียนที่เปิดสอน (Available Schedules)": "1. 选择可选上课时间",
+        "2. เลือกกลุ่มเรียน / อาจารย์ผู้สอน / ห้องเรียน (Group & Instructor)": "2. 选择班级 / 授课教师 / 教室",
+        "3. เลือกรูปแบบการเรียน (1. ONLINE / 2. ONSITE / 3. HYBRID)": "3. 选择上课方式（1. 线上 / 2. 线下 / 3. 混合）",
+        "ยังไม่มีการแจ้งเตือนใหม่": "暂无新通知",
+        "กิจกรรมครูผู้สอน": "教师动态",
+        "รับทราบ นร. ใหม่": "新生确认",
+        "บันทึกการเช็คชื่อ": "考勤记录",
+        "ประสานงานติดต่อ นร.": "联系学员",
+        "ลงเวลาเข้า-ออกงาน": "考勤打卡",
+        "ยังไม่เปิดรอบสอนในภาคเรียนนี้": "本学期暂未开设班级",
+        "หนังสือและสมุด": "教材与练习本",
+        "ทุกคอร์สที่เปิดสอน": "全部开设课程",
+        "ยังไม่มีรอบเวลาเรียน กรุณากด \"+ เพิ่มรอบเวลา\"": "暂无上课时间段，请点击“+ 添加时间段”",
+        "ผู้ดูแลระบบ": "系统管理员",
+        "เจ้าหน้าที่การเงิน": "财务专员",
+        "เจ้าหน้าที่": "工作人员",
+        "อาจารย์ผู้สอน": "授课教师",
+        "กฎหลัก": "核心规则",
+        "นาย": "先生",
+        "นาง": "女士",
+        "นางสาว": "小姐",
+        "เด็กชาย": "男童",
+        "เด็กหญิง": "女童",
+        "-- เลือก --": "-- 请选择 --",
+        "เลือกคำนำหน้า": "选择称谓",
+        "เลือกวันเวลาเรียน": "选择上课时间",
+        "ครึ่งแรก": "上半期",
+        "ครึ่งหลัง": "下半期",
+        "฿0 (รวมในค่าเรียน)": "0 泰铢（已含在学费中）",
       },
       en: {
         "STAFF AUTHENTICATION": "STAFF AUTHENTICATION",
@@ -85856,6 +85941,55 @@ function openPublicRegisterView() {
         "การกดขยับระยะจะบันทึกขึ้นระบบกลางอัตโนมัติทันที และมีผลกับทุกเครื่องที่ใช้รุ่นเครื่องพิมพ์เดียวกัน": "Nudging print margins auto-saves to the central system immediately and applies to all devices using the same printer model.",
         "เป็นการสรุปยอดรวมทั้งวันตามวันที่เลือก หลังบันทึกปิดยอดแล้วยังสามารถออกใบเสร็จเพิ่มเติมในวันเดียวกันได้": "Summarizes the entire day's revenue for the selected date. Additional receipts can still be issued for the same day after closing.",
         "การยกเลิกจะเก็บประวัติเดิมไว้ตรวจสอบบัญชี (Soft-Void) ไม่สามารถนำเลขที่ใบเสร็จเดิมกลับมาออกซ้ำได้": "Voiding retains original audit history for accounting inspection (Soft-Void); the original receipt number cannot be reissued.",
+        "แจ้งขอบเขตการให้บริการลงทะเบียนออนไลน์ (Online Registration Policy)": "Online Registration Policy",
+        "• ระบบออนไลน์รองรับเฉพาะ": "• Online registration supports only",
+        "สมัครเรียนใหม่ (New Enrollment)": "New Enrollment",
+        "และ": "and",
+        "ต่อคอร์ส — นักศึกษาเก่า (Course Renewal)": "Course Renewal (Returning Students)",
+        "เท่านั้น": "only.",
+        "• กรณี": "• For",
+        "ดรอปเรียน (Drop)": "Course Drop",
+        "หรือ": "or",
+        "ย้ายคอร์ส / ย้ายกลุ่มเรียน (Course / Group Transfer)": "Course / Group Transfer",
+        "กรุณาติดต่อเจ้าหน้าที่โดยตรง (Staff-only)": "please contact our staff directly.",
+        "เชื้อชาติ (Ethnicity)": "Ethnicity",
+        "สัญชาติ (Nationality)": "Nationality",
+        "เลขพาสปอร์ต (Passport No.)": "Passport No.",
+        "ชื่อผู้ติดต่อฉุกเฉิน (Emergency Contact)": "Emergency Contact Name",
+        "ความสัมพันธ์ (Relationship)": "Relationship",
+        "เปลี่ยนประเภทผู้สมัคร (นักศึกษาใหม่ / นักศึกษาเก่า)": "Change Applicant Type (New / Returning)",
+        "ย้อนกลับไปเลือกประเภทผู้สมัคร": "Back to Applicant Type",
+        "สัดส่วน 3:4": "3:4 Ratio",
+        "คำนวณราคาและค่าแรกเข้าอัตโนมัติตามสถานะผู้เรียน": "Tuition and registration fee calculated automatically by student status",
+        "1. เลือกรอบเวลาเรียนที่เปิดสอน (Available Schedules)": "1. Select Available Schedule",
+        "2. เลือกกลุ่มเรียน / อาจารย์ผู้สอน / ห้องเรียน (Group & Instructor)": "2. Select Group / Instructor / Classroom",
+        "3. เลือกรูปแบบการเรียน (1. ONLINE / 2. ONSITE / 3. HYBRID)": "3. Select Learning Mode (1. ONLINE / 2. ONSITE / 3. HYBRID)",
+        "ยังไม่มีการแจ้งเตือนใหม่": "No new notifications",
+        "กิจกรรมครูผู้สอน": "Instructor Activity",
+        "รับทราบ นร. ใหม่": "New Student Acknowledged",
+        "บันทึกการเช็คชื่อ": "Attendance Recorded",
+        "ประสานงานติดต่อ นร.": "Student Contacted",
+        "ลงเวลาเข้า-ออกงาน": "Timesheet Check-in/out",
+        "ยังไม่เปิดรอบสอนในภาคเรียนนี้": "No schedules open this term",
+        "หนังสือและสมุด": "Textbooks & Workbooks",
+        "ทุกคอร์สที่เปิดสอน": "All Offered Courses",
+        "ยังไม่มีรอบเวลาเรียน กรุณากด \"+ เพิ่มรอบเวลา\"": "No schedules yet. Click \"+ Add Schedule\"",
+        "ผู้ดูแลระบบ": "Administrator",
+        "เจ้าหน้าที่การเงิน": "Cashier",
+        "เจ้าหน้าที่": "Staff",
+        "อาจารย์ผู้สอน": "Instructor",
+        "กฎหลัก": "Core Rule",
+        "นาย": "Mr.",
+        "นาง": "Mrs.",
+        "นางสาว": "Miss",
+        "เด็กชาย": "Master",
+        "เด็กหญิง": "Miss (Child)",
+        "-- เลือก --": "-- Select --",
+        "เลือกคำนำหน้า": "Select Prefix",
+        "เลือกวันเวลาเรียน": "Select Schedule",
+        "ครึ่งแรก": "First Half",
+        "ครึ่งหลัง": "Second Half",
+        "฿0 (รวมในค่าเรียน)": "฿0 (Included in tuition)",
       }
     };
     window.OCA_INNER_CONTENT_I18N = OCA_INNER_CONTENT_I18N;
@@ -86007,11 +86141,52 @@ function openPublicRegisterView() {
       res = res.replace(/^([0-9,]+)\s*รายการ$/, (m, n) => (lang === 'zh' ? `${n} 项` : `${n} items`));
       res = res.replace(/^ทั้งหมด\s*([0-9,]+)\s*รายการ$/, (m, n) => (lang === 'zh' ? `共 ${n} 项` : `Total ${n} items`));
       res = res.replace(/^([0-9,]+)\s*คอร์ส$/, (m, n) => (lang === 'zh' ? `${n} 门课程` : `${n} courses`));
+      res = res.replace(/^([0-9,]+)\s*\/\s*([0-9,]+)\s*คอร์ส$/, (m, a, b) => (lang === 'zh' ? `${a} / ${b} 门课程` : `${a} / ${b} courses`));
+      res = res.replace(/^เปิดรับ\s*([0-9,]+)\s*คอร์ส$/, (m, n) => (lang === 'zh' ? `开放 ${n} 门课程` : `Open: ${n} courses`));
       res = res.replace(/^([0-9,]+)\s*กลุ่ม$/, (m, n) => (lang === 'zh' ? `${n} 个班级` : `${n} sections`));
+      res = res.replace(/^([0-9,]+)\s*รอบเวลา\s*[·•]\s*([0-9,]+)\s*กลุ่มเรียน$/, (m, a, b) => (lang === 'zh' ? `${a} 个时段 · ${b} 个班级` : `${a} schedules · ${b} groups`));
+      res = res.replace(/^([0-9,]+)\s*รอบเวลา$/, (m, n) => (lang === 'zh' ? `${n} 个时段` : `${n} schedules`));
+      res = res.replace(/^([0-9,]+)\s*กลุ่มเรียน$/, (m, n) => (lang === 'zh' ? `${n} 个班级` : `${n} groups`));
+      res = res.replace(/^([0-9,]+)\s*รอบ$/, (m, n) => (lang === 'zh' ? `${n} 个时段` : `${n} schedules`));
+      res = res.replace(/^([0-9,]+)\s*ฉบับ$/, (m, n) => (lang === 'zh' ? `${n} 份` : `${n} receipts`));
+      res = res.replace(/^กลุ่ม\s+([A-Za-z0-9ก-ฮ]+)$/, (m, g) => (lang === 'zh' ? `${g}班` : `Group ${g}`));
+      res = res.replace(/^ลด\s*-฿([0-9,\.]+)$/, (m, x) => (lang === 'zh' ? `立减 -฿${x}` : `Save -฿${x}`));
+      res = res.replace(/^\+\s*ค่าแรกเข้า\s*฿([0-9,\.]+)$/, (m, x) => (lang === 'zh' ? `+ 注册费 ฿${x}` : `+ Reg. Fee ฿${x}`));
+      res = res.replace(/^ทุกเมนู\s*\(([0-9,]+)\s*\/\s*([0-9,]+)\)$/, (m, a, b) => (lang === 'zh' ? `全部菜单 (${a}/${b})` : `All Menus (${a}/${b})`));
+      res = res.replace(/^\+([0-9,]+)\s*เมนูย่อย$/, (m, n) => (lang === 'zh' ? `+${n} 个子菜单` : `+${n} submenus`));
+      res = res.replace(/^เข้าสู่ระบบล่าสุด:\s*(.+)$/, (m, rest) => (lang === 'zh' ? `最近登录：${rest}` : `Last login: ${rest}`));
+      res = res.replace(/^เล่ม\s*([0-9]+)\s*เต็ม\s*\(([0-9,]+)\s*ชม\.\)$/, (m, x, y) => (lang === 'zh' ? `第 ${x} 册全册（${y} 课时）` : `Book ${x} Full (${y} hrs)`));
+      res = res.replace(/^\(เทอม\s*([0-9]+)\/(25\d{2})\)$/, (m, t, y) => (lang === 'zh' ? `（第 ${t} 学期 / ${y}）` : `(Term ${t}/${y})`));
       res = res.replace(/^([0-9,]+)\s*ครั้ง\s*\(ปกติ\)$/, (m, n) => (lang === 'zh' ? `${n} 次（正常）` : `${n} times (Normal)`));
       res = res.replace(/^⏳\s*รายการรอตรวจสอบ\s*\(([0-9,]+)\)$/, (m, n) => (lang === 'zh' ? `⏳ 待审核项目 (${n})` : `⏳ Pending Verification (${n})`));
       res = res.replace(/^✓\s*สลิปที่ตรวจแล้ว\s*\(([0-9,]+)\)$/, (m, n) => (lang === 'zh' ? `✓ 已核验凭证 (${n})` : `✓ Verified Slips (${n})`));
       res = res.replace(/^เลขที่\s+(.+)$/, (m, r) => (lang === 'zh' ? `编号 ${r}` : `Receipt No. ${r}`));
+
+      // Common Thai schedule day/time & half-term tokens
+      if (/(จันทร์|อังคาร|พุธ|พฤหัส|ศุกร์|เสาร์|อาทิตย์|ครึ่งแรก|ครึ่งหลัง|น\.)/.test(res)) {
+        const dayPairs = [
+          ['จันทร์และพุธ', lang === 'zh' ? '周一和周三' : 'Mon & Wed'],
+          ['อังคารและพฤหัสบดี', lang === 'zh' ? '周二和周四' : 'Tue & Thu'],
+          ['อังคารและพฤหัส', lang === 'zh' ? '周二和周四' : 'Tue & Thu'],
+          ['เสาร์และอาทิตย์', lang === 'zh' ? '周六和周日' : 'Sat & Sun'],
+          ['จันทร์-ศุกร์', lang === 'zh' ? '周一至周五' : 'Mon-Fri'],
+          ['จันทร์ - ศุกร์', lang === 'zh' ? '周一至周五' : 'Mon-Fri'],
+          ['พฤหัสบดี', lang === 'zh' ? '周四' : 'Thu'],
+          ['จันทร์', lang === 'zh' ? '周一' : 'Mon'],
+          ['อังคาร', lang === 'zh' ? '周二' : 'Tue'],
+          ['พุธ', lang === 'zh' ? '周三' : 'Wed'],
+          ['พฤหัส', lang === 'zh' ? '周四' : 'Thu'],
+          ['ศุกร์', lang === 'zh' ? '周五' : 'Fri'],
+          ['เสาร์', lang === 'zh' ? '周六' : 'Sat'],
+          ['อาทิตย์', lang === 'zh' ? '周日' : 'Sun'],
+          ['ครึ่งแรก', lang === 'zh' ? '上半期' : 'First Half'],
+          ['ครึ่งหลัง', lang === 'zh' ? '下半期' : 'Second Half']
+        ];
+        for (const [thDay, repDay] of dayPairs) {
+          if (res.includes(thDay)) res = res.split(thDay).join(repDay);
+        }
+        res = res.replace(/\s*น\.(?=\s|$|\))/g, '');
+      }
 
       if (res !== trimmed) {
         return str.replace(trimmed, res);
@@ -86062,23 +86237,26 @@ function openPublicRegisterView() {
 
       // 2. Walk Attributes: placeholder, title, aria-label
       const attrElements = container.querySelectorAll('[placeholder], [title], [aria-label]');
+      const attrDatasetMap = { 'placeholder': 'ocaOrigPh', 'title': 'ocaOrigTitle', 'aria-label': 'ocaOrigAria' };
       attrElements.forEach(el => {
         if (el.classList.contains('chinese-calligraphy') || el.hasAttribute('data-i18n-locked') || el.closest('.chinese-calligraphy') || el.closest('[data-i18n-locked]')) return;
         ['placeholder', 'title', 'aria-label'].forEach(attr => {
           if (el.hasAttribute(attr)) {
             const dataKey = 'data-i18n-orig-' + attr;
-            let orig = el.getAttribute(dataKey);
+            const dsKey = attrDatasetMap[attr];
+            let orig = el.dataset[dsKey] || el.getAttribute(dataKey);
             if (!orig) {
               orig = getThaiSourceString(el.getAttribute(attr));
-              el.setAttribute(dataKey, orig);
             } else {
               orig = getThaiSourceString(orig);
-              el.setAttribute(dataKey, orig);
             }
+            el.setAttribute(dataKey, orig);
+            el.dataset[dsKey] = orig;
             if (lang === 'th') {
               const thVal = getThaiSourceString(orig) || getThaiSourceString(el.getAttribute(attr)) || orig;
               el.setAttribute(attr, thVal);
               el.setAttribute(dataKey, thVal);
+              el.dataset[dsKey] = thVal;
             } else {
               el.setAttribute(attr, translateSingleString(orig, lang));
             }
@@ -86090,18 +86268,19 @@ function openPublicRegisterView() {
       const options = container.querySelectorAll('option');
       options.forEach(opt => {
         if (opt.closest('.chinese-calligraphy') || opt.closest('[data-i18n-locked]')) return;
-        let orig = opt.getAttribute('data-i18n-orig-text');
-        if (!opt.hasAttribute('data-i18n-orig-text')) {
+        let orig = opt.dataset.ocaOrigText || opt.getAttribute('data-i18n-orig-text');
+        if (!opt.hasAttribute('data-i18n-orig-text') && !opt.dataset.ocaOrigText) {
           orig = getThaiSourceString(opt.textContent);
-          opt.setAttribute('data-i18n-orig-text', orig);
         } else {
           orig = getThaiSourceString(orig);
-          opt.setAttribute('data-i18n-orig-text', orig);
         }
+        opt.setAttribute('data-i18n-orig-text', orig);
+        opt.dataset.ocaOrigText = orig;
         if (lang === 'th') {
           const thVal = getThaiSourceString(orig) || getThaiSourceString(opt.textContent) || orig;
           opt.textContent = thVal;
           opt.setAttribute('data-i18n-orig-text', thVal);
+          opt.dataset.ocaOrigText = thVal;
         } else {
           opt.textContent = translateSingleString(orig, lang);
         }
@@ -86257,8 +86436,11 @@ function openPublicRegisterView() {
       window._ocaModalAutoTranslatorInstalled = true;
 
       const enhanceModal = typeof installOcaFormalModalEnhancer === 'function' ? installOcaFormalModalEnhancer() : null;
-      const observerConfig = { attributes: true, subtree: true, attributeFilter: ['style', 'class'], childList: true };
+      const observerConfig = { attributes: true, subtree: true, attributeFilter: ['style', 'class'], childList: true, characterData: true };
       let isMutating = false;
+      let pendingRoots = new Set();
+      let debounceTimer = null;
+      let observer = null;
 
       function onModalTriggered(modal) {
         if (!isOcaRootModalElement(modal)) return;
@@ -86269,9 +86451,37 @@ function openPublicRegisterView() {
         }
       }
 
-      const observer = new MutationObserver(mutations => {
+      function flushPendingTranslations() {
+        debounceTimer = null;
+        if (pendingRoots.size === 0 || isMutating || !observer) return;
+        const curL = window._currentSystemLang || 'th';
+        if (curL === 'th' || typeof translateContainerTree !== 'function') {
+          pendingRoots.clear();
+          return;
+        }
+        const roots = Array.from(pendingRoots);
+        pendingRoots.clear();
+        isMutating = true;
+        observer.disconnect();
+        try {
+          for (const root of roots) {
+            if (root && root.isConnected) {
+              translateContainerTree(root, curL);
+            }
+          }
+        } finally {
+          observer.takeRecords();
+          isMutating = false;
+          if (document.body) {
+            observer.observe(document.body, observerConfig);
+          }
+        }
+      }
+
+      observer = new MutationObserver(mutations => {
         if (isMutating) return;
         const triggeredModals = new Set();
+        const curL = window._currentSystemLang || 'th';
         for (const m of mutations) {
           if (m.type === 'attributes' && (m.attributeName === 'style' || m.attributeName === 'class')) {
             const el = m.target;
@@ -86280,29 +86490,50 @@ function openPublicRegisterView() {
               if (disp !== 'none') {
                 triggeredModals.add(el);
               }
+            } else if (el && el.id === 'ocaCourseSchedPopover' && curL !== 'th') {
+              const disp = window.getComputedStyle(el).display;
+              if (disp !== 'none') pendingRoots.add(el);
             }
-          } else if (m.type === 'childList') {
-            for (const node of m.addedNodes) {
-              if (isOcaRootModalElement(node)) {
-                triggeredModals.add(node);
+          } else if (m.type === 'childList' || m.type === 'characterData') {
+            if (m.type === 'childList') {
+              for (const node of m.addedNodes) {
+                if (isOcaRootModalElement(node)) {
+                  triggeredModals.add(node);
+                }
+              }
+            }
+            if (curL !== 'th') {
+              const targetEl = m.type === 'characterData' ? (m.target && m.target.parentElement) : m.target;
+              if (targetEl && targetEl.nodeType === 1) {
+                const tag = targetEl.tagName;
+                if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SCRIPT' && tag !== 'STYLE' && !targetEl.isContentEditable && !targetEl.closest('.chinese-calligraphy, [data-i18n-locked]')) {
+                  const scopeRoot = targetEl.closest('#ocaCourseSchedPopover, #listNotifications, #viewMainApp, #viewPublicRegister, #oca-app-root, .oca-custom-modal-backdrop, [id^="modal"]');
+                  if (scopeRoot) {
+                    const isLargeShell = (scopeRoot.id === 'viewMainApp' || scopeRoot.id === 'viewPublicRegister' || scopeRoot.id === 'oca-app-root');
+                    pendingRoots.add(isLargeShell ? targetEl : scopeRoot);
+                  }
+                }
               }
             }
           }
         }
-        if (triggeredModals.size === 0) return;
-
-        isMutating = true;
-        observer.disconnect();
-        try {
-          for (const modal of triggeredModals) {
-            onModalTriggered(modal);
+        if (triggeredModals.size > 0) {
+          isMutating = true;
+          observer.disconnect();
+          try {
+            for (const modal of triggeredModals) {
+              onModalTriggered(modal);
+            }
+          } finally {
+            observer.takeRecords();
+            isMutating = false;
+            if (document.body) {
+              observer.observe(document.body, observerConfig);
+            }
           }
-        } finally {
-          observer.takeRecords();
-          isMutating = false;
-          if (document.body) {
-            observer.observe(document.body, observerConfig);
-          }
+        }
+        if (pendingRoots.size > 0 && !debounceTimer) {
+          debounceTimer = setTimeout(flushPendingTranslations, 60);
         }
       });
 
@@ -86913,19 +87144,28 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         if (txtWelcome) txtWelcome.textContent = topDict.welcomeBtn;
         const btnWelcome = document.querySelector('.oca-btn-welcome');
         if (btnWelcome) {
-          if (topThDict && topThDict.welcomeTitle) btnWelcome.setAttribute('data-i18n-orig-title', topThDict.welcomeTitle);
+          if (topThDict && topThDict.welcomeTitle) {
+            btnWelcome.setAttribute('data-i18n-orig-title', topThDict.welcomeTitle);
+            btnWelcome.dataset.ocaOrigTitle = topThDict.welcomeTitle;
+          }
           btnWelcome.title = topDict.welcomeTitle;
         }
         const txtLogout = document.getElementById('txtTopbarLogout');
         if (txtLogout) txtLogout.textContent = topDict.logoutBtn;
         const btnLogout = document.getElementById('btnTopbarLogout');
         if (btnLogout) {
-          if (topThDict && topThDict.logoutTitle) btnLogout.setAttribute('data-i18n-orig-title', topThDict.logoutTitle);
+          if (topThDict && topThDict.logoutTitle) {
+            btnLogout.setAttribute('data-i18n-orig-title', topThDict.logoutTitle);
+            btnLogout.dataset.ocaOrigTitle = topThDict.logoutTitle;
+          }
           btnLogout.title = topDict.logoutTitle;
         }
         const btnNotif = document.getElementById('btnTopbarNotification');
         if (btnNotif) {
-          if (topThDict && topThDict.notifTitle) btnNotif.setAttribute('data-i18n-orig-title', topThDict.notifTitle);
+          if (topThDict && topThDict.notifTitle) {
+            btnNotif.setAttribute('data-i18n-orig-title', topThDict.notifTitle);
+            btnNotif.dataset.ocaOrigTitle = topThDict.notifTitle;
+          }
           btnNotif.title = topDict.notifTitle;
         }
         const txtPwa = document.getElementById('txtPwaStatusLabel');
@@ -87381,6 +87621,20 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       }
 
       // Reactive re-renders of dynamic components
+      if (!window._isOcaRealtimeTick) {
+        if (typeof renderNotificationBell === 'function') {
+          try { renderNotificationBell(false); } catch(_) {}
+        }
+        if (typeof renderCoursesTable === 'function' && document.getElementById('tbodyCourses')) {
+          try {
+            const cSearch = document.getElementById('txtSearchCourse')?.value || '';
+            renderCoursesTable(null, cSearch);
+          } catch(_) {}
+        }
+        if (typeof renderSchedulesTable === 'function' && document.getElementById('tbodySchedules') && typeof cachedSchedulesList !== 'undefined') {
+          try { renderSchedulesTable(cachedSchedulesList); } catch(_) {}
+        }
+      }
       if (typeof filterReceiptHistoryTable === 'function') {
         try { filterReceiptHistoryTable(); } catch(_) {}
       }
@@ -95005,7 +95259,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=178';
+      const swPath = basePath + 'sw.js?v=179';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -95014,7 +95268,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (178):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (179):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
