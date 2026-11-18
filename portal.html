@@ -11264,6 +11264,11 @@ body.printing-report #printReportContainer {
       .oca-subnav-bar {
         display: none !important;
       }
+
+      #tabReport .oca-table-scroll-container {
+        max-height: none !important;
+        overflow: visible !important;
+      }
     }
 
 </style>
@@ -14004,7 +14009,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '188';
+      var LATEST_VERSION = '189';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -14563,7 +14568,7 @@ body.printing-report #printReportContainer {
       <!-- Main Canvas -->
       <div class="oca-content-canvas">
         <!-- [ANCHOR: GLOBAL_ACTIVE_TERM_BANNER] -->
-        <div id="ocaGlobalActiveTermBanner" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; padding:10px 16px; border-radius:12px; background:linear-gradient(135deg, rgba(215,166,0,0.14) 0%, rgba(4,40,32,0.85) 100%); border:1px solid rgba(215,166,0,0.45); box-shadow:0 4px 12px rgba(0,0,0,0.18);">
+        <div id="ocaGlobalActiveTermBanner" class="no-print" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; padding:10px 16px; border-radius:12px; background:linear-gradient(135deg, rgba(215,166,0,0.14) 0%, rgba(4,40,32,0.85) 100%); border:1px solid rgba(215,166,0,0.45); box-shadow:0 4px 12px rgba(0,0,0,0.18);">
           <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:rgba(215,166,0,0.2); color:var(--color-gold); font-size:13px;"><i class="fa-solid fa-calendar-check"></i></span>
             <span id="txtGlobalActiveTermBanner" style="font-size:13px; font-weight:700; color:#FFFFFF; text-shadow:0 1px 3px rgba(0,0,0,0.6);">กำลังเปิดรับสมัคร: เทอม 5 / 2569 (รหัส น.ศ. 695XXXX)</span>
@@ -62793,7 +62798,7 @@ if (action === 'getDashboardStats') {
 
         pagesHtml += `
 
-          <div class="oca-a4-page" style="page-break-after:${isLastPage ? 'auto' : 'always'}; width:${isPrintMode ? '100%' : '210mm'}; max-width:100%; min-height:${isPrintMode ? '280mm' : '297mm'}; padding:5mm 6mm 5mm 6mm; box-sizing:border-box; background:#ffffff; color:#000000; font-family:'Sarabun', Arial, sans-serif; font-size:12px; position:relative; display:flex; flex-direction:column; justify-content:space-between; ${pageShadowAndMargin}">
+          <div class="oca-a4-page" style="page-break-after:${isLastPage ? 'auto' : 'always'}; width:${isPrintMode ? '100%' : '210mm'}; max-width:100%; min-height:${isPrintMode ? '278mm' : '297mm'}; padding:5mm 6mm 5mm 6mm; box-sizing:border-box; background:#ffffff; color:#000000; font-family:'Sarabun', Arial, sans-serif; font-size:12px; position:relative; display:flex; flex-direction:column; justify-content:space-between; ${pageShadowAndMargin}">
             <div>
               <!-- Top Header -->
               ${buildOfficialOcaPrintHeaderHtml('', '')}
@@ -63145,7 +63150,7 @@ if (action === 'getDashboardStats') {
 
               .oca-a4-page {
                 width: 100% !important;
-                min-height: calc(297mm - 10mm) !important;
+                min-height: calc(297mm - 16mm) !important;
                 padding: 1mm 2mm !important;
                 box-shadow: none !important;
                 margin: 0 !important;
@@ -65782,6 +65787,24 @@ if (action === 'getDashboardStats') {
     }
     window.printFinanceTermReport = printFinanceTermReport;
 
+    function runOcaInlinePrint(bodyClass, printContainer, pStyle) {
+      let cleaned = false;
+      let fallbackTimer = null;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        document.body.classList.remove(bodyClass);
+        if (printContainer) printContainer.innerHTML = '';
+        if (pStyle) pStyle.remove();
+        window.removeEventListener('afterprint', cleanup);
+        clearTimeout(fallbackTimer);
+      };
+      fallbackTimer = setTimeout(cleanup, 60000);
+      window.addEventListener('afterprint', cleanup, { once: true });
+      document.body.classList.add(bodyClass);
+      window.print();
+    }
+
     function executeFinanceA4Print(docHtml, auditAction = 'PRINT_FINANCE_REPORT') {
       const printContainer = document.getElementById('printReportContainer');
       if (!printContainer) return;
@@ -65793,14 +65816,7 @@ if (action === 'getDashboardStats') {
       }
       pStyle.textContent = '@page { size: A4 portrait; margin: 6mm; }';
       printContainer.innerHTML = docHtml;
-      document.body.classList.add('printing-report');
-      window.print();
-
-      setTimeout(() => {
-        document.body.classList.remove('printing-report');
-        printContainer.innerHTML = '';
-        if (pStyle) pStyle.remove();
-      }, 1200);
+      runOcaInlinePrint('printing-report', printContainer, pStyle);
 
       if (typeof logSecurityAuditAction === 'function') {
         logSecurityAuditAction(auditAction, 'Financial A4 Print executed', 1);
@@ -65886,14 +65902,7 @@ if (action === 'getDashboardStats') {
       wrap.insertAdjacentHTML('beforeend', footerHtml);
       printContainer.innerHTML = '';
       printContainer.appendChild(wrap);
-      document.body.classList.add('printing-report');
-      window.print();
-
-      setTimeout(() => {
-        document.body.classList.remove('printing-report');
-        printContainer.innerHTML = '';
-        if (pStyle) pStyle.remove();
-      }, 1200);
+      runOcaInlinePrint('printing-report', printContainer, pStyle);
 
       if (typeof logSecurityAuditAction === 'function') {
         logSecurityAuditAction('PRINT_FINANCIAL_REPORT', 'Filter: ' + filterYearText, 1);
@@ -79682,14 +79691,7 @@ function openPublicRegisterView() {
 
       pStyle.textContent = '@page { size: A4 portrait; margin: 6mm; }';
       printContainer.innerHTML = printHtml;
-      document.body.classList.add('printing-classroom-roster');
-      window.print();
-
-      setTimeout(() => {
-        document.body.classList.remove('printing-classroom-roster');
-        printContainer.innerHTML = '';
-        if (pStyle) pStyle.remove();
-      }, 1200);
+      runOcaInlinePrint('printing-classroom-roster', printContainer, pStyle);
     }
 
     /**
@@ -91409,14 +91411,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
       pStyle.textContent = '@page { size: A4 portrait; margin: 6mm; }';
       printContainer.innerHTML = reportHtml;
-      document.body.classList.add('printing-report');
-      window.print();
-
-      setTimeout(() => {
-        document.body.classList.remove('printing-report');
-        printContainer.innerHTML = '';
-        if (pStyle) pStyle.remove();
-      }, 1200);
+      runOcaInlinePrint('printing-report', printContainer, pStyle);
     }
 
     window.printTeacherActivityTrackerReport = printTeacherActivityTrackerReport;
@@ -93130,14 +93125,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
       pStyle.textContent = '@page { size: A4 portrait; margin: 6mm; }';
       printContainer.innerHTML = reportHtml;
-      document.body.classList.add('printing-report');
-      window.print();
-
-      setTimeout(() => {
-        document.body.classList.remove('printing-report');
-        printContainer.innerHTML = '';
-        if (pStyle) pStyle.remove();
-      }, 1200);
+      runOcaInlinePrint('printing-report', printContainer, pStyle);
     }
 
     window.printCourseAttendanceTrackingReport = printCourseAttendanceTrackingReport;
@@ -95979,7 +95967,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=188';
+      const swPath = basePath + 'sw.js?v=189';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -95988,7 +95976,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (188):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (189):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
