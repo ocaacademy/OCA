@@ -13955,7 +13955,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '183';
+      var LATEST_VERSION = '184';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -25904,7 +25904,7 @@ body.printing-report #printReportContainer {
               </div>
             </div>
 
-            <form id="formPublicRegister" autocomplete="off" style="display:none;" onsubmit="event.preventDefault(); submitPublicRegister();">
+            <form id="formPublicRegister" autocomplete="off" novalidate style="display:none;" onsubmit="event.preventDefault(); submitPublicRegister();">
               <div style="display:none;" aria-hidden="true"><button type="button" id="btnPubModeNew" onclick="selectPublicStudentMode('new')"></button><button type="button" id="btnPubModeRenewal" onclick="selectPublicStudentMode('returning')"></button></div>
               <!-- Online Registration Scope Policy Notice -->
               <div id="boxPubOnlineScopeNotice" style="background:#FFFBEB; border:1.5px solid #F59E0B; border-radius:12px; padding:12px 15px; margin-bottom:14px; display:flex; align-items:flex-start; gap:10px; box-shadow:0 2px 8px rgba(245,158,11,0.08);">
@@ -74527,16 +74527,40 @@ function openPublicRegisterView() {
 
     function resetPublicRegisterForm() {
       if (typeof stopOnlineRegCamera === 'function') stopOnlineRegCamera();
+      window._pubStudentMode = '';
+      window._pubExistingStudentId = '';
+      window._lastPubSubmitTimestamp = 0;
+      if (window._pubKioskContext && typeof window._pubKioskContext === 'object') {
+        window._pubKioskContext = {
+          mode: '',
+          student: null,
+          lifecycle: null,
+          takenCourseCodes: new Set(),
+          takenCourseNames: new Set(),
+          selectedCategory: 'ทั้งหมด',
+          selectedCourse: null,
+          selectedScheduleId: '',
+          selectedScheduleName: '',
+          selectedGroupJson: null,
+          selectedLearningMode: '',
+          halfBookFilter: null
+        };
+      }
       const form = document.getElementById('formPublicRegister');
       if (form) form.reset();
       pubStudentPhotoDataUri = '';
       _rawOriginalPhotoDataUri = '';
+      window._pubCapturedPhotoBlob = null;
       const img = document.getElementById('imgPubPhotoPreview');
       const ico = document.getElementById('icoPubPhotoPlaceholder');
       const btnRetake = document.getElementById('btnRetakeOnlinePhoto');
-      if (img) img.style.display = 'none';
+      const pBox = document.getElementById('boxPubPhotoResult');
+      const pFile = document.getElementById('filePubPhotoInput');
+      if (img) { img.src = ''; img.style.display = 'none'; }
       if (ico) ico.style.display = 'block';
       if (btnRetake) btnRetake.style.display = 'none';
+      if (pBox) pBox.style.display = 'none';
+      if (pFile) pFile.value = '';
       const realBox = document.getElementById('boxPubPhotoRealSystemPreview');
       const realImg = document.getElementById('imgPubPhotoRealSystem');
       const bgPanel = document.getElementById('panelPhotoBgOptions');
@@ -74544,17 +74568,58 @@ function openPublicRegisterView() {
       if (realImg) realImg.src = '';
       if (bgPanel) bgPanel.style.display = 'none';
 
+      pubPaymentSlipDataUri = '';
+      window._pubSlipPhotoBlob = null;
+      const sPrev = document.getElementById('imgPubSlipPreview');
+      const sBox = document.getElementById('boxPubSlipPreviewContainer');
+      const sPrompt = document.getElementById('boxPubSlipEmptyPrompt');
+      const sFile = document.getElementById('filePubSlipInput');
+      if (sPrev) sPrev.src = '';
+      if (sBox) sBox.style.display = 'none';
+      if (sPrompt) sPrompt.style.display = 'block';
+      if (sFile) sFile.value = '';
+
+      const kioskSearch = document.getElementById('inpKioskStudentSearch');
+      const kioskResults = document.getElementById('boxKioskLookupResults');
+      const kioskSelected = document.getElementById('boxKioskSelectedStudent');
+      const kioskContactEdit = document.getElementById('boxKioskQuickContactEdit');
+      if (kioskSearch) kioskSearch.value = '';
+      if (kioskResults) { kioskResults.innerHTML = ''; kioskResults.style.display = 'none'; }
+      if (kioskSelected) kioskSelected.style.display = 'none';
+      if (kioskContactEdit) kioskContactEdit.style.display = 'none';
+
       try {
+        sessionStorage.removeItem('oca_public_reg_draft');
         localStorage.removeItem('oca_public_reg_draft');
+        localStorage.removeItem('oca_pub_reg_draft');
+        localStorage.removeItem('oca_pub_reg_last_cid');
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('oca_reg_cache_') || k.startsWith('oca_pub_reg') || k.startsWith('oca_public_reg'))) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach(k => {
+          try { localStorage.removeItem(k); } catch (_) {}
+        });
       } catch (_) {}
 
       dismissPubRegRestoredAlert();
       const boxForm = document.getElementById('boxPublicRegisterFormBody');
       const boxSuccess = document.getElementById('boxPublicRegisterSuccessBody');
-      if (boxForm) boxForm.style.display = 'block';
       if (boxSuccess) boxSuccess.style.display = 'none';
-      setRegisterLanguage(currentRegLanguage);
+      if (boxForm) boxForm.style.display = 'block';
+      if (typeof syncPublicModeSelectorUI === 'function') syncPublicModeSelectorUI();
+      if (typeof setRegisterLanguage === 'function') setRegisterLanguage(currentRegLanguage);
+      if (typeof window.updateCourseFeeDisplay === 'function') {
+        try { window.updateCourseFeeDisplay(); } catch (_) {}
+      }
+      if (typeof showPublicStep0 === 'function') {
+        showPublicStep0();
+      }
     }
+    window.resetPublicRegisterForm = resetPublicRegisterForm;
 
     /**
 
@@ -95336,7 +95401,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=183';
+      const swPath = basePath + 'sw.js?v=184';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -95345,7 +95410,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (183):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (184):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
