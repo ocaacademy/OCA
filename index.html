@@ -14009,7 +14009,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '195';
+      var LATEST_VERSION = '196';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -60579,6 +60579,206 @@ if (action === 'getDashboardStats') {
       }
     }
 
+    function parseCourseMaterialItems(rawType, fallbackCourseTitle = '', editNotes = '', extraBooksOverride = null) {
+      let s = (rawType || '').toString().trim();
+      if (!s && fallbackCourseTitle) s = fallbackCourseTitle.trim();
+
+      let extraBooks = Array.isArray(extraBooksOverride) ? extraBooksOverride : [];
+      if (extraBooks.length === 0 && editNotes) {
+        const ebMatch = String(editNotes).match(/\[EXTRA_BOOKS:(\[[^\]]*\])\]/);
+        if (ebMatch && ebMatch[1]) {
+          try {
+            const arr = JSON.parse(ebMatch[1]);
+            if (Array.isArray(arr)) extraBooks = arr.filter(x => x && (x.id || x.name));
+          } catch (_) {}
+        }
+      }
+      if (extraBooks.length === 0 && fallbackCourseTitle && String(fallbackCourseTitle).includes('+ ตำราเพิ่ม:')) {
+        const exPart = String(fallbackCourseTitle).split('+ ตำราเพิ่ม:')[1] || '';
+        exPart.split(',').map(x => x.trim()).filter(Boolean).forEach(part => {
+          const m = part.match(/^(.*?)\s*x\s*(\d+)$/i);
+          extraBooks.push({
+            id: '',
+            name: m ? m[1].trim() : part,
+            qty: m ? Math.max(1, parseInt(m[2], 10) || 1) : 1
+          });
+        });
+      }
+
+      if ((!s || s.indexOf('ไม่มีอุปกรณ์') !== -1 || s.indexOf('ไม่รับ') !== -1) && extraBooks.length === 0) {
+        return {
+          items: ['ไม่มีอุปกรณ์ (ผู้เรียนใช้ตำราเดิมต่อเนื่อง ไม่ต้องหยิบอุปกรณ์)'],
+          courseItems: [],
+          extraBooks: [],
+          hasBook: false,
+          hasNotebook: false,
+          isNoMaterial: true,
+          summary: 'ไม่มีอุปกรณ์ (ใช้ตำราเดิม)'
+        };
+      }
+
+      const courseItems = [];
+      let hasBook = false;
+      let hasNotebook = false;
+
+      if (s && s.indexOf('ไม่มีอุปกรณ์') === -1 && s.indexOf('ไม่รับ') === -1) {
+        // 1. ตรวจจับหนังสือเรียน / ตำราเรียนประจำหลักสูตร
+        if (s.indexOf('หนังสือ') !== -1 || s.indexOf('แบบเรียน') !== -1 || s.indexOf('ตำรา') !== -1) {
+          hasBook = true;
+          let bookPart = s;
+          if (s.indexOf('+') !== -1) {
+            bookPart = s.split('+')[0].trim();
+          } else if (s.indexOf('และ') !== -1 && s.indexOf('สมุด') !== -1) {
+            bookPart = s.split('และ')[0].trim();
+          }
+          if (bookPart === 'หนังสือ' && fallbackCourseTitle && (fallbackCourseTitle.includes('เล่ม)') || fallbackCourseTitle.includes(','))) {
+            fallbackCourseTitle.split(',').map(x => x.trim()).filter(Boolean).forEach(bItem => courseItems.push(bItem));
+          } else if (bookPart === 'หนังสือ' || bookPart === 'หนังสือเรียน' || bookPart === 'หนังสืออย่างเดียว') {
+            courseItems.push('หนังสือเรียนประจำหลักสูตร 1 เล่ม');
+          } else {
+            courseItems.push(bookPart.indexOf('เล่ม') !== -1 ? bookPart : (bookPart + ' 1 เล่ม'));
+          }
+        }
+        // 2. ตรวจจับสมุดบันทึก / สมุดคัดลายมือ
+        if (s.indexOf('สมุดช่องใหญ่') !== -1) {
+          hasNotebook = true;
+          courseItems.push('สมุดคัดจีนช่องใหญ่ (ตารางใหญ่) 1 เล่ม');
+        } else if (s.indexOf('สมุดช่องเล็ก') !== -1) {
+          hasNotebook = true;
+          courseItems.push('สมุดคัดจีนช่องเล็ก (ตารางเล็ก) 1 เล่ม');
+        } else if (s.indexOf('สมุด') !== -1 && !hasNotebook) {
+          hasNotebook = true;
+          courseItems.push('สมุดคัดจีน/สมุดบันทึก 1 เล่ม');
+        }
+        // 3. ตรวจจับอุปกรณ์พิเศษ
+        if (s.indexOf('พู่กัน') !== -1) {
+          courseItems.push('ชุดพู่กันจีนและอุปกรณ์ฝึกเขียน 1 ชุด');
+        }
+        if (s.indexOf('กู่เจิง') !== -1 && !hasBook) {
+          hasBook = true;
+          courseItems.push('แบบเรียนพิณกู่เจิง 1 เล่ม');
+        }
+        if (courseItems.length === 0) {
+          courseItems.push(s);
+        }
+      }
+
+      const extraItemsFormatted = extraBooks.map(b => {
+        const bCode = b.id || b.code || '';
+        const bName = b.name || b.title || bCode || 'ตำราเรียน';
+        const bQty = Math.max(1, Number(b.qty) || 1);
+        return (bCode ? `[${bCode}] ` : '') + `${bName} × ${bQty} เล่ม`;
+      });
+      const items = [...courseItems, ...extraItemsFormatted];
+
+      return {
+        items: items,
+        courseItems: courseItems,
+        extraBooks: extraBooks,
+        hasBook: hasBook || extraBooks.length > 0,
+        hasNotebook: hasNotebook,
+        isNoMaterial: false,
+        summary: items.join(' + ')
+      };
+    }
+    window.parseCourseMaterialItems = parseCourseMaterialItems;
+
+    function renderMaterialClaimBox(matType, courseName = '', editNotes = '', extraBooksOverride = null) {
+      const parsed = parseCourseMaterialItems(matType, courseName, editNotes, extraBooksOverride);
+      let icon = '<i class="fa-solid fa-book-bookmark"></i>';
+      let title = parsed.summary;
+      let bg = 'linear-gradient(135deg, rgba(234,179,8,0.22), rgba(202,138,4,0.32))';
+      let border = '#facc15';
+      let textColor = '#fef08a';
+      let note = '';
+
+      if (parsed.isNoMaterial) {
+        icon = '<i class="fa-solid fa-circle-minus"></i>';
+        title = 'ไม่มีอุปกรณ์ (No Materials Required)';
+        bg = 'linear-gradient(135deg, rgba(100,116,139,0.2), rgba(71,85,105,0.3))';
+        border = '#94a3b8';
+        textColor = '#e2e8f0';
+        note = 'คอร์สต่อยอด ไม่ต้องหยิบตำราหรือสมุด ผู้เรียนใช้ตำราเดิม';
+      } else if (parsed.hasBook && parsed.hasNotebook) {
+        icon = '<i class="fa-solid fa-book-bookmark"></i>';
+        title = 'หนังสือเรียน + สมุดประจำหลักสูตร (ครบชุด)';
+        bg = 'linear-gradient(135deg, rgba(16,185,129,0.22), rgba(5,150,105,0.32))';
+        border = '#34d399';
+        textColor = '#a7f3d0';
+        note = 'โปรดตรวจสอบชื่อหนังสือและตารางสมุดให้ตรงกับหลักสูตรของผู้เรียน';
+      } else if (parsed.hasBook) {
+        icon = '<i class="fa-solid fa-book-open"></i>';
+        title = 'หนังสือเรียนประจำหลักสูตร (Textbook Only)';
+        bg = 'linear-gradient(135deg, rgba(59,130,246,0.22), rgba(29,78,216,0.32))';
+        border = '#60a5fa';
+        textColor = '#bfdbfe';
+        note = 'เฉพาะตำราเรียนประจำหลักสูตร (ไม่ต้องจ่ายสมุด)';
+      } else if (parsed.hasNotebook) {
+        icon = '<i class="fa-solid fa-book"></i>';
+        title = 'สมุดคัดลายมือ อย่างเดียว (Notebook Only)';
+        bg = 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(217,119,6,0.32))';
+        border = '#fbbf24';
+        textColor = '#fde68a';
+        note = 'เฉพาะสมุดคัดลายมือ (ไม่ต้องจ่ายหนังสือ)';
+      }
+
+      let itemsHtml = '';
+      if (parsed.extraBooks && parsed.extraBooks.length > 0) {
+        const courseListHtml = parsed.courseItems.length > 0
+          ? '<div style="margin-bottom:8px;"><div style="font-size:12px; font-weight:800; color:#FBBF24; margin-bottom:3px;">[1] ชุดอุปกรณ์ประจำคอร์สเรียน</div>' +
+            parsed.courseItems.map(it =>
+              '<div style="font-size:13.5px; color:var(--text-main); margin-top:3px; font-weight:600; display:flex; align-items:center; gap:8px;">' +
+              '  <i class="fa-solid fa-circle-check" style="color:var(--color-gold); font-size:13px;"></i> ' + escapeHtml(it) +
+              '</div>'
+            ).join('') + '</div>'
+          : '';
+        const extraListHtml = '<div><div style="font-size:12px; font-weight:800; color:#38BDF8; margin-bottom:3px;">[2] ตำราเรียนที่ซื้อเพิ่มในใบเสร็จนี้</div>' +
+          parsed.extraBooks.map(b => {
+            const bCode = b.id || b.code || '';
+            const bName = b.name || b.title || bCode || 'ตำราเรียน';
+            const bQty = Math.max(1, Number(b.qty) || 1);
+            return '<div style="font-size:13.5px; color:var(--text-main); margin-top:3px; font-weight:600; display:flex; align-items:center; gap:8px;">' +
+              '  <i class="fa-solid fa-book" style="color:#38BDF8; font-size:13px;"></i> ' + escapeHtml((bCode ? `[${bCode}] ` : '') + `${bName} × ${bQty} เล่ม`) +
+              '</div>';
+          }).join('') + '</div>';
+        itemsHtml = courseListHtml + extraListHtml;
+      } else {
+        itemsHtml = parsed.items.map(it =>
+          '<div style="font-size:13.5px; color:var(--text-main); margin-top:4px; font-weight:600; display:flex; align-items:center; gap:8px;">' +
+          '  <i class="fa-solid fa-circle-check" style="color:var(--color-gold); font-size:13px;"></i> ' + escapeHtml(it) +
+          '</div>'
+        ).join('');
+      }
+
+      return '<div style="background:' + bg + '; border:2px solid ' + border + '; border-radius:10px; padding:12px 16px; margin:10px 0 12px 0; text-align:left; box-shadow:0 4px 14px rgba(0,0,0,0.35);">' +
+
+             '  <div style="font-size:12px; font-weight:800; color:#fbbf24; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">' +
+
+             '    <i class="fa-solid fa-box-archive"></i> รายการอุปกรณ์ที่ต้องหยิบส่งมอบให้นักศึกษา (' + toArabicDigits(parsed.items.length) + ' รายการ):' +
+
+             '  </div>' +
+
+             '  <div style="font-size:16px; font-weight:900; color:' + textColor + '; display:flex; align-items:center; gap:8px; margin-bottom:6px;">' +
+
+             '    <span style="font-size:20px;">' + icon + '</span>' +
+
+             '    <span>' + escapeHtml(title) + '</span>' +
+
+             '  </div>' +
+
+             '  <div style="background:var(--bg-subcard); border-radius:8px; padding:8px 12px; border:1px dashed ' + border + ';">' +
+
+                  itemsHtml +
+
+             '  </div>' +
+
+             (note ? ('  <div style="font-size:12px; color:var(--text-muted); margin-top:6px; font-style:italic;"><i class="fa-solid fa-circle-info" style="color:var(--color-gold); margin-right:4px;"></i>หมายเหตุ: ' + escapeHtml(note) + '</div>') : '') +
+
+             '</div>';
+    }
+    window.renderMaterialClaimBox = renderMaterialClaimBox;
+    window.verifyAndClaimTextbook = (params) => callGasApi('verifyAndClaimTextbook', params, 'POST');
+
     function handleScannedQrToken(rawToken) {
       const now = Date.now();
 
@@ -60605,204 +60805,6 @@ if (action === 'getDashboardStats') {
         );
         showClaimAlertPopup('สแกนไม่สำเร็จ', 'ไม่พบรหัส QR Code หรือรหัสว่างเปล่า กรุณาสแกนใหม่อีกครั้ง หรือพิมพ์ค้นหาจากเลขที่ใบเสร็จ');
         return;
-      }
-
-      function parseCourseMaterialItems(rawType, fallbackCourseTitle = '', editNotes = '', extraBooksOverride = null) {
-        let s = (rawType || '').toString().trim();
-        if (!s && fallbackCourseTitle) s = fallbackCourseTitle.trim();
-
-        let extraBooks = Array.isArray(extraBooksOverride) ? extraBooksOverride : [];
-        if (extraBooks.length === 0 && editNotes) {
-          const ebMatch = String(editNotes).match(/\[EXTRA_BOOKS:(\[[^\]]*\])\]/);
-          if (ebMatch && ebMatch[1]) {
-            try {
-              const arr = JSON.parse(ebMatch[1]);
-              if (Array.isArray(arr)) extraBooks = arr.filter(x => x && (x.id || x.name));
-            } catch (_) {}
-          }
-        }
-        if (extraBooks.length === 0 && fallbackCourseTitle && String(fallbackCourseTitle).includes('+ ตำราเพิ่ม:')) {
-          const exPart = String(fallbackCourseTitle).split('+ ตำราเพิ่ม:')[1] || '';
-          exPart.split(',').map(x => x.trim()).filter(Boolean).forEach(part => {
-            const m = part.match(/^(.*?)\s*x\s*(\d+)$/i);
-            extraBooks.push({
-              id: '',
-              name: m ? m[1].trim() : part,
-              qty: m ? Math.max(1, parseInt(m[2], 10) || 1) : 1
-            });
-          });
-        }
-
-        if ((!s || s.indexOf('ไม่มีอุปกรณ์') !== -1 || s.indexOf('ไม่รับ') !== -1) && extraBooks.length === 0) {
-          return {
-            items: ['ไม่มีอุปกรณ์ (ผู้เรียนใช้ตำราเดิมต่อเนื่อง ไม่ต้องหยิบอุปกรณ์)'],
-            courseItems: [],
-            extraBooks: [],
-            hasBook: false,
-            hasNotebook: false,
-            isNoMaterial: true,
-            summary: 'ไม่มีอุปกรณ์ (ใช้ตำราเดิม)'
-          };
-        }
-
-        const courseItems = [];
-        let hasBook = false;
-        let hasNotebook = false;
-
-        if (s && s.indexOf('ไม่มีอุปกรณ์') === -1 && s.indexOf('ไม่รับ') === -1) {
-          // 1. ตรวจจับหนังสือเรียน / ตำราเรียนประจำหลักสูตร
-          if (s.indexOf('หนังสือ') !== -1 || s.indexOf('แบบเรียน') !== -1 || s.indexOf('ตำรา') !== -1) {
-            hasBook = true;
-            let bookPart = s;
-            if (s.indexOf('+') !== -1) {
-              bookPart = s.split('+')[0].trim();
-            } else if (s.indexOf('และ') !== -1 && s.indexOf('สมุด') !== -1) {
-              bookPart = s.split('และ')[0].trim();
-            }
-            if (bookPart === 'หนังสือ' && fallbackCourseTitle && (fallbackCourseTitle.includes('เล่ม)') || fallbackCourseTitle.includes(','))) {
-              fallbackCourseTitle.split(',').map(x => x.trim()).filter(Boolean).forEach(bItem => courseItems.push(bItem));
-            } else if (bookPart === 'หนังสือ' || bookPart === 'หนังสือเรียน' || bookPart === 'หนังสืออย่างเดียว') {
-              courseItems.push('หนังสือเรียนประจำหลักสูตร 1 เล่ม');
-            } else {
-              courseItems.push(bookPart.indexOf('เล่ม') !== -1 ? bookPart : (bookPart + ' 1 เล่ม'));
-            }
-          }
-          // 2. ตรวจจับสมุดบันทึก / สมุดคัดลายมือ
-          if (s.indexOf('สมุดช่องใหญ่') !== -1) {
-            hasNotebook = true;
-            courseItems.push('สมุดคัดจีนช่องใหญ่ (ตารางใหญ่) 1 เล่ม');
-          } else if (s.indexOf('สมุดช่องเล็ก') !== -1) {
-            hasNotebook = true;
-            courseItems.push('สมุดคัดจีนช่องเล็ก (ตารางเล็ก) 1 เล่ม');
-          } else if (s.indexOf('สมุด') !== -1 && !hasNotebook) {
-            hasNotebook = true;
-            courseItems.push('สมุดคัดจีน/สมุดบันทึก 1 เล่ม');
-          }
-          // 3. ตรวจจับอุปกรณ์พิเศษ
-          if (s.indexOf('พู่กัน') !== -1) {
-            courseItems.push('ชุดพู่กันจีนและอุปกรณ์ฝึกเขียน 1 ชุด');
-          }
-          if (s.indexOf('กู่เจิง') !== -1 && !hasBook) {
-            hasBook = true;
-            courseItems.push('แบบเรียนพิณกู่เจิง 1 เล่ม');
-          }
-          if (courseItems.length === 0) {
-            courseItems.push(s);
-          }
-        }
-
-        const extraItemsFormatted = extraBooks.map(b => {
-          const bCode = b.id || b.code || '';
-          const bName = b.name || b.title || bCode || 'ตำราเรียน';
-          const bQty = Math.max(1, Number(b.qty) || 1);
-          return (bCode ? `[${bCode}] ` : '') + `${bName} × ${bQty} เล่ม`;
-        });
-        const items = [...courseItems, ...extraItemsFormatted];
-
-        return {
-          items: items,
-          courseItems: courseItems,
-          extraBooks: extraBooks,
-          hasBook: hasBook || extraBooks.length > 0,
-          hasNotebook: hasNotebook,
-          isNoMaterial: false,
-          summary: items.join(' + ')
-        };
-      }
-      window.parseCourseMaterialItems = parseCourseMaterialItems;
-
-      function renderMaterialClaimBox(matType, courseName = '', editNotes = '', extraBooksOverride = null) {
-        const parsed = parseCourseMaterialItems(matType, courseName, editNotes, extraBooksOverride);
-        let icon = '<i class="fa-solid fa-book-bookmark"></i>';
-        let title = parsed.summary;
-        let bg = 'linear-gradient(135deg, rgba(234,179,8,0.22), rgba(202,138,4,0.32))';
-        let border = '#facc15';
-        let textColor = '#fef08a';
-        let note = '';
-
-        if (parsed.isNoMaterial) {
-          icon = '<i class="fa-solid fa-circle-minus"></i>';
-          title = 'ไม่มีอุปกรณ์ (No Materials Required)';
-          bg = 'linear-gradient(135deg, rgba(100,116,139,0.2), rgba(71,85,105,0.3))';
-          border = '#94a3b8';
-          textColor = '#e2e8f0';
-          note = 'คอร์สต่อยอด ไม่ต้องหยิบตำราหรือสมุด ผู้เรียนใช้ตำราเดิม';
-        } else if (parsed.hasBook && parsed.hasNotebook) {
-          icon = '<i class="fa-solid fa-book-bookmark"></i>';
-          title = 'หนังสือเรียน + สมุดประจำหลักสูตร (ครบชุด)';
-          bg = 'linear-gradient(135deg, rgba(16,185,129,0.22), rgba(5,150,105,0.32))';
-          border = '#34d399';
-          textColor = '#a7f3d0';
-          note = 'โปรดตรวจสอบชื่อหนังสือและตารางสมุดให้ตรงกับหลักสูตรของผู้เรียน';
-        } else if (parsed.hasBook) {
-          icon = '<i class="fa-solid fa-book-open"></i>';
-          title = 'หนังสือเรียนประจำหลักสูตร (Textbook Only)';
-          bg = 'linear-gradient(135deg, rgba(59,130,246,0.22), rgba(29,78,216,0.32))';
-          border = '#60a5fa';
-          textColor = '#bfdbfe';
-          note = 'เฉพาะตำราเรียนประจำหลักสูตร (ไม่ต้องจ่ายสมุด)';
-        } else if (parsed.hasNotebook) {
-          icon = '<i class="fa-solid fa-book"></i>';
-          title = 'สมุดคัดลายมือ อย่างเดียว (Notebook Only)';
-          bg = 'linear-gradient(135deg, rgba(245,158,11,0.22), rgba(217,119,6,0.32))';
-          border = '#fbbf24';
-          textColor = '#fde68a';
-          note = 'เฉพาะสมุดคัดลายมือ (ไม่ต้องจ่ายหนังสือ)';
-        }
-
-        let itemsHtml = '';
-        if (parsed.extraBooks && parsed.extraBooks.length > 0) {
-          const courseListHtml = parsed.courseItems.length > 0
-            ? '<div style="margin-bottom:8px;"><div style="font-size:12px; font-weight:800; color:#FBBF24; margin-bottom:3px;">[1] ชุดอุปกรณ์ประจำคอร์สเรียน</div>' +
-              parsed.courseItems.map(it =>
-                '<div style="font-size:13.5px; color:var(--text-main); margin-top:3px; font-weight:600; display:flex; align-items:center; gap:8px;">' +
-                '  <i class="fa-solid fa-circle-check" style="color:var(--color-gold); font-size:13px;"></i> ' + escapeHtml(it) +
-                '</div>'
-              ).join('') + '</div>'
-            : '';
-          const extraListHtml = '<div><div style="font-size:12px; font-weight:800; color:#38BDF8; margin-bottom:3px;">[2] ตำราเรียนที่ซื้อเพิ่มในใบเสร็จนี้</div>' +
-            parsed.extraBooks.map(b => {
-              const bCode = b.id || b.code || '';
-              const bName = b.name || b.title || bCode || 'ตำราเรียน';
-              const bQty = Math.max(1, Number(b.qty) || 1);
-              return '<div style="font-size:13.5px; color:var(--text-main); margin-top:3px; font-weight:600; display:flex; align-items:center; gap:8px;">' +
-                '  <i class="fa-solid fa-book" style="color:#38BDF8; font-size:13px;"></i> ' + escapeHtml((bCode ? `[${bCode}] ` : '') + `${bName} × ${bQty} เล่ม`) +
-                '</div>';
-            }).join('') + '</div>';
-          itemsHtml = courseListHtml + extraListHtml;
-        } else {
-          itemsHtml = parsed.items.map(it =>
-            '<div style="font-size:13.5px; color:var(--text-main); margin-top:4px; font-weight:600; display:flex; align-items:center; gap:8px;">' +
-            '  <i class="fa-solid fa-circle-check" style="color:var(--color-gold); font-size:13px;"></i> ' + escapeHtml(it) +
-            '</div>'
-          ).join('');
-        }
-
-        return '<div style="background:' + bg + '; border:2px solid ' + border + '; border-radius:10px; padding:12px 16px; margin:10px 0 12px 0; text-align:left; box-shadow:0 4px 14px rgba(0,0,0,0.35);">' +
-
-               '  <div style="font-size:12px; font-weight:800; color:#fbbf24; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">' +
-
-               '    <i class="fa-solid fa-box-archive"></i> รายการอุปกรณ์ที่ต้องหยิบส่งมอบให้นักศึกษา (' + toArabicDigits(parsed.items.length) + ' รายการ):' +
-
-               '  </div>' +
-
-               '  <div style="font-size:16px; font-weight:900; color:' + textColor + '; display:flex; align-items:center; gap:8px; margin-bottom:6px;">' +
-
-               '    <span style="font-size:20px;">' + icon + '</span>' +
-
-               '    <span>' + escapeHtml(title) + '</span>' +
-
-               '  </div>' +
-
-               '  <div style="background:var(--bg-subcard); border-radius:8px; padding:8px 12px; border:1px dashed ' + border + ';">' +
-
-                    itemsHtml +
-
-               '  </div>' +
-
-               (note ? ('  <div style="font-size:12px; color:var(--text-muted); margin-top:6px; font-style:italic;"><i class="fa-solid fa-circle-info" style="color:var(--color-gold); margin-right:4px;"></i>หมายเหตุ: ' + escapeHtml(note) + '</div>') : '') +
-
-               '</div>';
       }
 
       const loggedStaff = (typeof getAuthoritativeLoggedInStaff === 'function') ? getAuthoritativeLoggedInStaff() : { fullName: getActiveTextbookClaimStaffName(), username: 'staff', role: 'Staff' };
@@ -97375,7 +97377,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=195';
+      const swPath = basePath + 'sw.js?v=196';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -97384,7 +97386,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (195):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (196):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
