@@ -13906,7 +13906,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '177';
+      var LATEST_VERSION = '178';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -27262,7 +27262,28 @@ body.printing-report #printReportContainer {
     let _isCleaningRealtimeChannel = false;
     let _isConnectingRealtime = false;
     let _realtimeListenersBound = false;
+    const _ocaRealtimeSenderId = window._ocaRealtimeSenderId || (window._ocaRealtimeSenderId = 'tab_' + Math.random().toString(36).slice(2) + '_' + Date.now());
     window._ocaBackgroundTelemetry = window._ocaBackgroundTelemetry || [];
+
+    function broadcastOcaDataSync(table, eventType = 'UPDATE', record = null) {
+      try {
+        if (!table || typeof _ocaRealtimeChannel === 'undefined' || !_ocaRealtimeChannel || typeof _ocaRealtimeChannel.send !== 'function') return;
+        _ocaRealtimeChannel.send({
+          type: 'broadcast',
+          event: 'oca_data_sync',
+          payload: {
+            table: String(table),
+            eventType: String(eventType || 'UPDATE').toUpperCase(),
+            record: record || null,
+            senderId: _ocaRealtimeSenderId,
+            ts: Date.now()
+          }
+        });
+      } catch (err) {
+        console.warn('[Realtime Broadcast] broadcastOcaDataSync error:', err);
+      }
+    }
+    window.broadcastOcaDataSync = broadcastOcaDataSync;
 
     function initOcaRealtimeEngine() {
       if (!_supabase || _ocaRealtimeChannel || _isConnectingRealtime) return;
@@ -27340,91 +27361,40 @@ body.printing-report #printReportContainer {
             }
           })
 
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
-            console.log('[Realtime DB Event] Students updated:', payload.eventType);
-            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
-            handleRealtimeBroadcast('students', payload);
-          })
-
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'receipts' }, (payload) => {
-            console.log('[Realtime DB Event] Receipts updated:', payload.eventType);
+          .on('broadcast', { event: 'oca_data_sync' }, (msg) => {
+            const data = (msg && msg.payload) ? msg.payload : msg;
+            if (!data || !data.table) return;
+            if (data.senderId && data.senderId === _ocaRealtimeSenderId) return;
+            console.log('[Realtime Broadcast] oca_data_sync received:', data.table, data.eventType);
             if (typeof invalidateOcaReportCaches === 'function') {
-          invalidateOcaReportCaches('receipts');
-          invalidateOcaReportCaches('students');
-        }
-            handleRealtimeBroadcast('receipts', payload);
-          })
-
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, (payload) => {
-            console.log('[Realtime DB Event] Courses updated:', payload.eventType);
-            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('courses');
-            handleRealtimeBroadcast('courses', payload);
-          })
-
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'fee_settings' }, (payload) => {
-            console.log('[Realtime DB Event] Fee / Textbooks updated:', payload.eventType);
-            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('fee_settings');
-            handleRealtimeBroadcast('fee_settings', payload);
-          })
-
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, (payload) => {
-            console.log('[Realtime DB Event] Schedules updated:', payload.eventType);
-            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('schedules');
-            handleRealtimeBroadcast('schedules', payload);
-          })
-
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'classrooms' }, (payload) => {
-            console.log('[Realtime DB Event] Classrooms updated:', payload.eventType);
-            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('classrooms');
-            handleRealtimeBroadcast('classrooms', payload);
-          })
-
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'course_offerings' }, (payload) => {
-            console.log('[Realtime DB Event] Course offerings updated:', payload.eventType);
-            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('course_offerings');
-            const tabCourses = document.getElementById('tabCourses');
-            const tabEnroll = document.getElementById('tabEnroll');
-            if ((tabCourses && tabCourses.classList.contains('active')) || (tabEnroll && tabEnroll.classList.contains('active'))) {
-              if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
+              invalidateOcaReportCaches(data.table);
+              if (data.table === 'receipts' || data.table === 'registrations') invalidateOcaReportCaches('students');
             }
-            handleRealtimeBroadcast('course_offerings', payload);
-          })
-
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'textbooks' }, (payload) => {
-            console.log('[Realtime DB Event] Textbooks updated:', payload.eventType);
-            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('textbooks');
-            handleRealtimeBroadcast('textbooks', payload);
-          })
-
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'teacher_attendance' }, (payload) => {
-            console.log('[Realtime DB Event] Teacher attendance updated:', payload.eventType);
-            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('teacher_attendance');
-            handleRealtimeBroadcast('teacher_attendance', payload);
-          })
-
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_users' }, (payload) => {
-            console.log('[Realtime DB Event] Staff users updated:', payload);
-            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('staff_users');
-            handleRealtimeBroadcast('staff_users', payload);
-          })
-
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'security_audit_logs' }, (payload) => {
-            console.log('[Realtime DB Event] Security audit logs updated:', payload.eventType);
-            if (payload && payload.new && payload.new.action && payload.new.action.startsWith('TEACHER_')) {
-              if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('security_audit_logs');
+            if (data.table === 'course_offerings') {
+              const tabCourses = document.getElementById('tabCourses');
+              const tabEnroll = document.getElementById('tabEnroll');
+              if ((tabCourses && tabCourses.classList.contains('active')) || (tabEnroll && tabEnroll.classList.contains('active'))) {
+                if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
+              }
             }
-            handleRealtimeBroadcast('security_audit_logs', payload);
+            handleRealtimeBroadcast(data.table, {
+              eventType: data.eventType || 'UPDATE',
+              new: data.record || null,
+              old: data.record || null
+            });
           })
 
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'shipping_parcels' }, (payload) => {
-            console.log('[Realtime DB Event] Shipping parcels updated:', payload.eventType);
-            handleRealtimeBroadcast('shipping_parcels', payload);
-          })
-
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'textbook_claims' }, (payload) => {
-            console.log('[Realtime DB Event] Textbook claims updated:', payload.eventType);
-            handleRealtimeBroadcast('textbook_claims', payload);
-          })
+          // Broadcast-first table routing (all tables synced via oca_data_sync; postgres_changes disabled on server):
+          // table: 'students' -> invalidateOcaReportCaches('students')
+          // table: 'receipts' -> invalidateOcaReportCaches('receipts')
+          // table: 'courses' -> invalidateOcaReportCaches('courses')
+          // table: 'fee_settings' -> invalidateOcaReportCaches('fee_settings')
+          // table: 'schedules' -> invalidateOcaReportCaches('schedules')
+          // table: 'classrooms' -> invalidateOcaReportCaches('classrooms')
+          // table: 'course_offerings' -> invalidateOcaReportCaches('course_offerings')
+          // table: 'textbooks' -> invalidateOcaReportCaches('textbooks')
+          // table: 'teacher_attendance' -> invalidateOcaReportCaches('teacher_attendance')
+          // table: 'staff_users' -> handleRealtimeBroadcast('staff_users', payload)
 
           .subscribe((status, err) => {
             if (window._ocaBackgroundTelemetry) {
@@ -27908,6 +27878,57 @@ body.printing-report #printReportContainer {
       }, 400);
     }
 
+    function handleRealtimeFeeSettingsExtra(fk, isDeleteEv, activeFeeRow) {
+      if (fk.startsWith('round_open_date_')) {
+        const rKey = fk.replace('round_open_date_', '');
+        if (!window._ocaRoundOpenDatesMap) window._ocaRoundOpenDatesMap = {};
+        if (isDeleteEv || !activeFeeRow || !activeFeeRow.name) delete window._ocaRoundOpenDatesMap[rKey];
+        else window._ocaRoundOpenDatesMap[rKey] = String(activeFeeRow.name).trim();
+        try { localStorage.setItem('oca_round_open_dates_v1', JSON.stringify(window._ocaRoundOpenDatesMap)); } catch (_) {}
+        if (typeof renderRoundOpenDatesInputs === 'function') renderRoundOpenDatesInputs();
+        if (typeof onReceiptScheduleChanged === 'function') onReceiptScheduleChanged();
+        return true;
+      }
+      if (fk.startsWith('cfg_cat_icon_')) {
+        const catKey = fk.replace('cfg_cat_icon_', '');
+        if (catKey && typeof courseCategoryIconsMap === 'object' && courseCategoryIconsMap) {
+          if (isDeleteEv || !activeFeeRow || !activeFeeRow.name) {
+            if (typeof DEFAULT_COURSE_CATEGORY_ICONS === 'object' && DEFAULT_COURSE_CATEGORY_ICONS[catKey]) {
+              courseCategoryIconsMap[catKey] = DEFAULT_COURSE_CATEGORY_ICONS[catKey];
+            }
+          } else {
+            courseCategoryIconsMap[catKey] = String(activeFeeRow.name).trim();
+          }
+          try { localStorage.setItem('oca_course_category_icons', JSON.stringify(courseCategoryIconsMap)); } catch (_) {}
+          if (typeof renderCourseCategoryFilterPills === 'function') renderCourseCategoryFilterPills();
+          if (typeof renderSidebarCourseCategories === 'function') renderSidebarCourseCategories();
+        }
+        return true;
+      }
+      if (fk.startsWith('crm_note_')) {
+        const sid = fk.replace('crm_note_', '');
+        const noteText = (!isDeleteEv && activeFeeRow && activeFeeRow.name) ? String(activeFeeRow.name) : '';
+        if (sid && Array.isArray(_teacherContactsData)) {
+          const hit = _teacherContactsData.find(d => d.student_id === sid);
+          if (hit) hit.crmNote = noteText;
+        }
+        try {
+          const curU = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+          const uname = curU ? curU.username : 'teacher';
+          const current = JSON.parse(localStorage.getItem(`oca_crm_${uname}_${sid}`) || '{}');
+          current.note = noteText;
+          current.updatedAt = new Date().toISOString();
+          localStorage.setItem(`oca_crm_${uname}_${sid}`, JSON.stringify(current));
+        } catch (_) {}
+        const pnlCon = document.getElementById('panelTeacherContacts');
+        if (pnlCon && pnlCon.style.display !== 'none' && typeof renderTeacherContactsTable === 'function' && Array.isArray(_teacherContactsData)) {
+          renderTeacherContactsTable(_teacherContactsData);
+        }
+        return true;
+      }
+      return false;
+    }
+
     function handleRealtimeBroadcast(table, payload) {
       // 1. ตรวจสอบ Brevo Polling
       try {
@@ -28074,6 +28095,8 @@ body.printing-report #printReportContainer {
             if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
             if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
             if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
+          } else if (handleRealtimeFeeSettingsExtra(fk, isDeleteEv, activeFeeRow)) {
+            // Handled by handleRealtimeFeeSettingsExtra
           } else if (fk.startsWith('pending_slip')) {
             if (typeof window.loadPendingSlipsQueue === 'function') window.loadPendingSlipsQueue();
             if (typeof renderFinancialEmbeddedSlipsQueue === 'function') renderFinancialEmbeddedSlipsQueue();
@@ -28092,6 +28115,10 @@ body.printing-report #printReportContainer {
             try { localStorage.setItem('oca_cashier_payee', JSON.stringify(window._ocaPayeeSetting)); } catch (_) {}
             const txtCashier = document.getElementById('txtRcptCashier');
             if (txtCashier && typeof getEffectivePayeeName === 'function') txtCashier.value = getEffectivePayeeName();
+            const payeeModalEl = document.getElementById('modalPayeeSetting');
+            if (payeeModalEl && payeeModalEl.style.display !== 'none' && typeof populatePayeeSettingsInputs === 'function') {
+              populatePayeeSettingsInputs();
+            }
           } else if (fk.startsWith('disc_rule_custom_')) {
             if (typeof loadCustomDiscountRules === 'function') loadCustomDiscountRules();
             if (typeof calcReceiptTotals === 'function') calcReceiptTotals();
@@ -31432,6 +31459,10 @@ if (action === 'getDashboardStats') {
             }
           }
 
+          if (insSuccess && typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('students', 'INSERT', { student_id: assignedStudentId });
+          }
+
           return { success: true, studentId: assignedStudentId };
         }
 
@@ -31899,6 +31930,11 @@ if (action === 'getDashboardStats') {
             }]);
           } catch (auditErr) {
             console.warn('saveReceipt audit log warning:', auditErr);
+          }
+
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('receipts', 'INSERT', receiptData);
+            if (validStudentId) broadcastOcaDataSync('students', 'UPDATE', { student_id: validStudentId });
           }
 
           return {
@@ -32573,6 +32609,9 @@ if (action === 'getDashboardStats') {
               console.warn('[updateStudentProfile] learning_mode sync warning:', syncLmErr);
             }
           }
+          if (!error && typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('students', 'UPDATE', { student_id: cleanSid, ...updateData });
+          }
           return { success: !error, message: error ? (error.message || 'ไม่สามารถอัปเดตข้อมูลนักศึกษาได้') : '' };
         }
 
@@ -33069,6 +33108,11 @@ if (action === 'getDashboardStats') {
             console.warn('verifyAndClaimTextbook audit warning:', tbErr);
           }
 
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('textbook_claims', 'INSERT', { receipt_no: rcpt.receipt_no, student_id: rcpt.student_id });
+            broadcastOcaDataSync('receipts', 'UPDATE', { ...rcpt, claim_status: 'CLAIMED' });
+          }
+
           return {
             success: true,
 
@@ -33335,6 +33379,11 @@ if (action === 'getDashboardStats') {
             }
           }
 
+          if (!updateError && typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('shipping_parcels', 'UPDATE', { receipt_nos: targetIds, status: params.status || 'UPDATED' });
+            broadcastOcaDataSync('receipts', 'UPDATE', { receipt_no: targetIds[0] || '' });
+          }
+
           return { success: !updateError, message: updateError ? updateError.message : 'บันทึกข้อมูลจัดส่งเรียบร้อย' };
         }
 
@@ -33519,11 +33568,18 @@ if (action === 'getDashboardStats') {
             return { success: false, message: error.message };
           }
 
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('courses', 'UPDATE', { id: courseId, code: courseCode, name: params.name, price: Number(params.price) || 0, linked_book: params.materialType || params.linkedBook || '', is_active: true });
+          }
+
           return { success: true };
         }
 
         if (action === 'deleteCourse') {
           await _supabase.from('courses').update({ is_active: false }).eq('id', params.courseId || params.id);
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('courses', 'DELETE', { id: params.courseId || params.id });
+          }
           return { success: true };
         }
 
@@ -33563,11 +33619,18 @@ if (action === 'getDashboardStats') {
             }
           }
 
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('schedules', 'UPDATE', { id: schedId, name: schedName, day_time: params.day_time || params.timeSlot || schedName, learning_mode: params.learningMode || 'Hybrid', is_active: true });
+          }
+
           return { success: true };
         }
 
         if (action === 'deleteSchedule') {
           await _supabase.from('schedules').update({ is_active: false }).eq('id', params.scheduleId || params.id);
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('schedules', 'DELETE', { id: params.scheduleId || params.id });
+          }
           return { success: true };
         }
 
@@ -33813,6 +33876,13 @@ if (action === 'getDashboardStats') {
 
             items: feeObj
           };
+          if (typeof broadcastOcaDataSync === 'function') {
+            if (feeObj.active_academic_term) {
+              broadcastOcaDataSync('fee_settings', 'UPDATE', { key: 'active_academic_term', ...feeObj.active_academic_term });
+            } else {
+              broadcastOcaDataSync('fee_settings', 'UPDATE', { key: 'tuitionFee' });
+            }
+          }
           return { success: true, feeSettings: fullFeeSettings, message: 'บันทึกค่าธรรมเนียมและส่วนลดสำเร็จ' };
         }
 
@@ -34133,6 +34203,10 @@ if (action === 'getDashboardStats') {
             console.warn('voidReceipt audit log error:', auditErr);
           }
 
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('receipts', 'UPDATE', { id: target.id, receipt_no: target.receipt_no, claim_status: 'VOIDED', payment_ref: newPaymentRef });
+          }
+
           return {
             success: true,
             voided: true,
@@ -34205,6 +34279,13 @@ if (action === 'getDashboardStats') {
                   unit: 'เล่ม'
                 };
               });
+            }
+
+            if (action === 'saveTextbook' || action === 'deleteTextbook') {
+              if (typeof broadcastOcaDataSync === 'function') {
+                const tbKeyId = (params && (params.id || params.code || params.bookId || ''))?.toString().trim();
+                broadcastOcaDataSync('textbooks', action === 'deleteTextbook' ? 'DELETE' : 'UPDATE', { id: tbKeyId });
+              }
             }
 
             return {
@@ -34440,6 +34521,10 @@ if (action === 'getDashboardStats') {
               }
             }
 
+            if (typeof broadcastOcaDataSync === 'function') {
+              broadcastOcaDataSync('staff_users', existing && existing.id ? 'UPDATE' : 'INSERT', { username: uname, role: updateData.role, full_name: updateData.full_name });
+            }
+
             return { success: true, message: `บันทึกข้อมูลผู้ใช้งาน ${uname} เรียบร้อยแล้ว` };
           } catch(e) {
             return { success: false, message: e.message };
@@ -34465,6 +34550,9 @@ if (action === 'getDashboardStats') {
               }
 
               if (rpcRes) {
+                if (rpcRes.success && typeof broadcastOcaDataSync === 'function') {
+                  broadcastOcaDataSync('staff_users', 'DELETE', { username: uname });
+                }
                 return rpcRes;
               }
             } catch (err) {
@@ -47459,6 +47547,9 @@ if (action === 'getDashboardStats') {
         if (typeof _supabase !== 'undefined' && _supabase && rows.length > 0) {
           const { error } = await _supabase.from('fee_settings').upsert(rows, { onConflict: 'key' });
           if (error) throw error;
+          rows.forEach(r => {
+            if (typeof broadcastOcaDataSync === 'function') broadcastOcaDataSync('fee_settings', 'UPDATE', r);
+          });
         }
         renderRoundOpenDatesInputs();
         if (typeof onReceiptScheduleChanged === 'function') onReceiptScheduleChanged();
@@ -47634,17 +47725,21 @@ if (action === 'getDashboardStats') {
         }
 
         if (typeof _supabase !== 'undefined' && _supabase) {
-          const { data } = await _supabase.from('fee_settings').select('*').eq('key', 'cfg_course_category_icons').maybeSingle();
-
-          if (data && data.name) {
-            try {
-              const remote = JSON.parse(data.name);
-
-              if (remote && typeof remote === 'object') {
-                courseCategoryIconsMap = Object.assign({}, DEFAULT_COURSE_CATEGORY_ICONS, remote);
-                localStorage.setItem('oca_course_category_icons', JSON.stringify(courseCategoryIconsMap));
+          const { data: catRows, error: catErr } = await _supabase
+            .from('fee_settings')
+            .select('key, name')
+            .like('key', 'cfg_cat_icon_%');
+          if (!catErr && Array.isArray(catRows) && catRows.length > 0) {
+            const remoteMap = {};
+            catRows.forEach(r => {
+              if (r && r.key && r.key.startsWith('cfg_cat_icon_') && r.name) {
+                remoteMap[r.key.replace('cfg_cat_icon_', '')] = String(r.name).trim();
               }
-            } catch (_) {}
+            });
+            if (Object.keys(remoteMap).length > 0) {
+              courseCategoryIconsMap = Object.assign({}, DEFAULT_COURSE_CATEGORY_ICONS, courseCategoryIconsMap, remoteMap);
+              localStorage.setItem('oca_course_category_icons', JSON.stringify(courseCategoryIconsMap));
+            }
           }
         }
       } catch (err) {
@@ -47667,17 +47762,30 @@ if (action === 'getDashboardStats') {
 
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          await _supabase.from('fee_settings').upsert({
-            key: 'cfg_course_category_icons',
-
-            name: 'CUSTOM_CATEGORY_ICONS'.slice(0, 90),
-
-            mode: 'config_json',
-
+          const nowIso = new Date().toISOString();
+          const rows = Object.entries(newIconsMap).map(([catKey, iconVal]) => ({
+            key: `cfg_cat_icon_${String(catKey).slice(0, 50)}`,
+            name: String(iconVal || '').slice(0, 90),
+            mode: 'cat_icon',
             amount: 0,
-
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'key' });
+            updated_at: nowIso
+          }));
+          rows.push({
+            key: 'cfg_course_category_icons',
+            name: 'CUSTOM_CATEGORY_ICONS'.slice(0, 90),
+            mode: 'cat_icon',
+            amount: 0,
+            updated_at: nowIso
+          });
+          if (rows.length > 0) {
+            const { error } = await _supabase.from('fee_settings').upsert(rows, { onConflict: 'key' });
+            if (error) throw error;
+            rows.forEach(r => {
+              if (r.key.startsWith('cfg_cat_icon_') && typeof broadcastOcaDataSync === 'function') {
+                broadcastOcaDataSync('fee_settings', 'UPDATE', r);
+              }
+            });
+          }
         } catch (err) {
           console.warn('saveCourseCategoryIcons error:', err);
         }
@@ -50401,6 +50509,9 @@ if (action === 'getDashboardStats') {
             const tKey = `${y}_${t}`;
             await saveChunkedFeeMapTerm('cg_chunk_', y, t, window._courseGroupInstructorByTermMap[tKey] || {});
           }
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('fee_settings', 'UPDATE', { key: `cg_chunk_${y}` });
+          }
         }
       } catch (err) {
         console.warn('[CourseModalMatrix] Save error:', err);
@@ -52205,6 +52316,9 @@ if (action === 'getDashboardStats') {
             { key: 'schedule_courses_by_term_map', name: ('SCHEDULE_COURSES_MAP_ACTIVE:' + Date.now()).slice(0, 90), mode: 'map', amount: 0, start_date: null, end_date: null, updated_at: new Date().toISOString() }
           ], { onConflict: 'key' });
           if (sumErr) console.warn('[ScheduleCoursesMap] Summary marker warning:', sumErr);
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('fee_settings', 'UPDATE', { key: 'schedule_courses_by_term_map' });
+          }
         }
       } catch (err) {
         console.warn('[ScheduleCoursesMap] Supabase save error:', err);
@@ -68025,13 +68139,16 @@ if (action === 'getDashboardStats') {
             }
           } catch (_) {}
 
-          // Subscribe lightweight Realtime channel while on Login screen
+          // Subscribe lightweight Realtime channel while on Login screen (broadcast replaces key=eq.active_academic_term filter)
           const splitView = document.getElementById('viewLoginSplit');
           if (splitView && splitView.style.display !== 'none' && !window._activeLoginAnalyticsChannel && typeof _supabase.channel === 'function') {
             window._activeLoginAnalyticsChannel = _supabase
               .channel('oca_login_analytics_term_sync')
-              .on('postgres_changes', { event: '*', schema: 'public', table: 'fee_settings', filter: 'key=eq.active_academic_term' }, () => {
-                loadLoginAnalytics(true);
+              .on('broadcast', { event: 'oca_data_sync' }, (msg) => {
+                const data = (msg && msg.payload) ? msg.payload : msg;
+                if (data && data.table === 'fee_settings' && (!data.record || !data.record.key || data.record.key === 'active_academic_term')) {
+                  loadLoginAnalytics(true);
+                }
               })
               .subscribe();
           }
@@ -69215,6 +69332,12 @@ if (action === 'getDashboardStats') {
           ], { onConflict: 'key' });
           if (error) {
             console.warn('fee_settings upsert error:', error);
+          } else if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('fee_settings', 'UPDATE', {
+              key: 'cfg_cashier_payee',
+              mode: `${mode}:${staffVal}`.slice(0, 90),
+              name: payeeName.slice(0, 90)
+            });
           }
         } catch(err) {
           console.warn('Failed to persist payee setting to fee_settings:', err);
@@ -89360,9 +89483,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             try { _supabase.removeChannel(window._activeTeacherContactsChannel); } catch (_) {}
           }
           window._activeTeacherContactsChannel = _supabase.channel('oca_teacher_contacts_realtime_feed')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => debounceSync())
+            .on('broadcast', { event: 'oca_data_sync' }, (msg) => {
+              const d = (msg && msg.payload) ? msg.payload : msg;
+              if (d && d.table === 'students') debounceSync();
+            })
             .subscribe();
-          window._activeOcaChannel = window._activeTeacherContactsChannel;
         }
       } catch (_) {}
 
@@ -89518,7 +89643,24 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         });
       }
 
-      // 5. Merge contacted statuses from CRM notes cache
+      // 5. Merge contacted statuses from CRM notes cache + Supabase fee_settings cloud sync
+
+      const cloudCrmNotesMap = {};
+      if (typeof _supabase !== 'undefined' && _supabase && students.length > 0) {
+        try {
+          const { data: crmRows, error: crmErr } = await _supabase
+            .from('fee_settings')
+            .select('key, name')
+            .like('key', 'crm_note_%');
+          if (!crmErr && Array.isArray(crmRows)) {
+            crmRows.forEach(r => {
+              if (r && r.key && r.key.startsWith('crm_note_')) {
+                cloudCrmNotesMap[r.key.replace('crm_note_', '')] = r.name || '';
+              }
+            });
+          }
+        } catch (_) {}
+      }
 
       _teacherContactsData = students.map(s => {
         let isContacted = false;
@@ -89533,6 +89675,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             crmNote = parsed.note || '';
           }
         } catch (_) {}
+
+        if (cloudCrmNotesMap[s.student_id] !== undefined && cloudCrmNotesMap[s.student_id] !== '') {
+          crmNote = cloudCrmNotesMap[s.student_id];
+        }
 
         return {
           student_id: s.student_id,
@@ -89726,7 +89872,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
     window.toggleTeacherStudentContactStatus = toggleTeacherStudentContactStatus;
 
-    function saveTeacherStudentContactNotes(studentId, notes) {
+    async function saveTeacherStudentContactNotes(studentId, notes) {
       const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
       const uname = user ? user.username : 'teacher';
       const item = _teacherContactsData.find(d => d.student_id === studentId);
@@ -89738,6 +89884,27 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         current.updatedAt = new Date().toISOString();
         localStorage.setItem(`oca_crm_${uname}_${studentId}`, JSON.stringify(current));
       } catch (_) {}
+
+      if (typeof _supabase !== 'undefined' && _supabase && studentId) {
+        try {
+          const cleanNote = String(notes || '').slice(0, 90);
+          const crmRow = {
+            key: `crm_note_${String(studentId).slice(0, 60)}`,
+            name: cleanNote,
+            mode: String(uname || 'teacher').slice(0, 90),
+            amount: 0,
+            updated_at: new Date().toISOString()
+          };
+          const { error } = await _supabase.from('fee_settings').upsert([crmRow], { onConflict: 'key' });
+          if (error) {
+            console.warn('[Teacher CRM] saveTeacherStudentContactNotes cloud error:', error);
+          } else if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('fee_settings', 'UPDATE', crmRow);
+          }
+        } catch (err) {
+          console.warn('[Teacher CRM] saveTeacherStudentContactNotes cloud exception:', err);
+        }
+      }
 
       if (typeof showToast === 'function') {
         showToast('บันทึกหมายเหตุแล้ว', notes ? notes.substring(0, 30) : '-', '✓', 1500);
@@ -91456,12 +91623,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           }
           window._activeAttendanceChannel = _supabase.channel('oca_attendance_realtime_feed')
             .on('broadcast', { event: 'teacher_attendance_updated' }, () => triggerRealtimeRefresh())
-            /* teacher_attendance realtime bypassed */
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security_audit_logs' }, (payload) => {
-              if (payload?.new?.action === 'TEACHER_ATTENDANCE_SAVED') triggerRealtimeRefresh();
-            })
+            /* teacher_attendance & security_audit_logs realtime bypassed; synced via broadcast */
             .subscribe();
-          window._activeOcaChannel = window._activeAttendanceChannel;
         }
       } catch (_) {}
 
@@ -94461,6 +94624,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           .delete()
           .like('key', 'pending_slip%:' + studentId);
 
+        if (typeof broadcastOcaDataSync === 'function') {
+          broadcastOcaDataSync('students', 'UPDATE', { student_id: studentId, status: 'พร้อมเรียน' });
+          broadcastOcaDataSync('fee_settings', 'DELETE', { key: 'pending_slip:' + studentId });
+        }
+
         if (typeof showToast === 'function') {
           const emailNote = rcRes && rcRes.emailSent
             ? ` และส่งเข้าอีเมล ${rcRes.email || info.email || ''} เรียบร้อยแล้ว`
@@ -94837,7 +95005,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=177';
+      const swPath = basePath + 'sw.js?v=178';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -94846,7 +95014,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (177):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (178):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
