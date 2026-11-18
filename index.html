@@ -13955,7 +13955,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '182';
+      var LATEST_VERSION = '183';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -75750,13 +75750,22 @@ function openPublicRegisterView() {
         if (cId && codes.has(cId)) return `คุณเคยเรียนรหัส ${cId} แล้ว`;
         const targetMeta = OCA_BOOK_CURRICULUM_MAP[cCode];
         if (targetMeta && targetMeta.bookKey) {
+          let hasHalf1 = false;
+          let hasHalf2 = false;
+          let half1Code = '';
+          let half2Code = '';
           for (const taken of codes) {
             const tMeta = OCA_BOOK_CURRICULUM_MAP[String(taken || '').trim().toUpperCase()];
             if (!tMeta || tMeta.bookKey !== targetMeta.bookKey) continue;
+            if (tMeta.part === 'half1') { hasHalf1 = true; half1Code = tMeta.code; }
+            if (tMeta.part === 'half2') { hasHalf2 = true; half2Code = tMeta.code; }
             const samePart = tMeta.part === 'full' || tMeta.part === targetMeta.part;
             if (samePart) {
               return `หนังสือเล่ม ${targetMeta.bookKey} ซ้ำกับรหัส ${tMeta.code} ที่คุณเคยเรียนแล้ว`;
             }
+          }
+          if (targetMeta.part === 'full' && hasHalf1 && hasHalf2) {
+            return `คุณเรียนครบทั้ง 2 ครึ่งของหนังสือเล่ม ${targetMeta.bookKey} (${half1Code} + ${half2Code}) แล้ว`;
           }
         }
       }
@@ -75779,19 +75788,48 @@ function openPublicRegisterView() {
         });
       }
       const std = historyCtx?.student || historyCtx?.studentObj || window._pubKioskContext?.student;
-      if (std && std.current_course && std.current_course !== '-' && std.current_course !== 'รอจัดระดับหลักสูตร') {
-        const normCur = extractKioskCourseCode(std.current_course);
+      const stdStatus = String((std && std.status) || '').trim().toUpperCase();
+      const isInactiveStd = stdStatus === 'PENDING_PAYMENT_VERIFICATION' || stdStatus === 'DELETED' || stdStatus === 'CANCELLED';
+      let normCur = '';
+      if (!isInactiveStd && std && std.current_course && std.current_course !== '-' && std.current_course !== 'รอจัดระดับหลักสูตร') {
+        normCur = extractKioskCourseCode(std.current_course);
         if (normCur && !takenCodes.includes(normCur)) takenCodes.push(normCur);
+      }
+      const hasContinuedCourse = (tc) => {
+        const meta = OCA_BOOK_CURRICULUM_MAP[tc];
+        if (!meta || !Array.isArray(meta.nextCodes) || meta.nextCodes.length === 0) return true;
+        return meta.nextCodes.some(nc => takenCodes.includes(nc) || isCoursePreviouslyTaken({ id: nc, code: nc }, historyCtx));
+      };
+      let lastCode = '';
+      if (takenCodes.length > 0) {
+        if (normCur && OCA_BOOK_CURRICULUM_MAP[normCur] && !hasContinuedCourse(normCur)) {
+          lastCode = normCur;
+        }
+        if (!lastCode) {
+          for (let i = 0; i < takenCodes.length; i++) {
+            const tc = takenCodes[i];
+            if (OCA_BOOK_CURRICULUM_MAP[tc] && !hasContinuedCourse(tc)) {
+              lastCode = tc;
+              break;
+            }
+          }
+        }
+        if (!lastCode) lastCode = takenCodes[0];
       }
       const nextSet = new Set();
       const sourceCodes = [];
-      takenCodes.forEach(tc => {
-        const meta = OCA_BOOK_CURRICULUM_MAP[tc];
-        if (meta && Array.isArray(meta.nextCodes) && meta.nextCodes.length > 0) {
-          sourceCodes.push(tc);
-          meta.nextCodes.forEach(nc => nextSet.add(nc));
-        }
-      });
+      if (lastCode && OCA_BOOK_CURRICULUM_MAP[lastCode] && Array.isArray(OCA_BOOK_CURRICULUM_MAP[lastCode].nextCodes) && OCA_BOOK_CURRICULUM_MAP[lastCode].nextCodes.length > 0) {
+        sourceCodes.push(lastCode);
+        OCA_BOOK_CURRICULUM_MAP[lastCode].nextCodes.forEach(nc => nextSet.add(nc));
+      } else {
+        takenCodes.forEach(tc => {
+          const meta = OCA_BOOK_CURRICULUM_MAP[tc];
+          if (meta && Array.isArray(meta.nextCodes) && meta.nextCodes.length > 0 && !hasContinuedCourse(tc)) {
+            sourceCodes.push(tc);
+            meta.nextCodes.forEach(nc => nextSet.add(nc));
+          }
+        });
+      }
       const findCourseByCode = (code) => {
         if (!code) return null;
         const norm = String(code).trim().toUpperCase();
@@ -75827,19 +75865,6 @@ function openPublicRegisterView() {
       }
       let pathway = null;
       if (takenCodes.length > 0) {
-        let lastCode = '';
-        for (let i = takenCodes.length - 1; i >= 0; i--) {
-          const tc = takenCodes[i];
-          const meta = OCA_BOOK_CURRICULUM_MAP[tc];
-          if (meta && Array.isArray(meta.nextCodes) && meta.nextCodes.length > 0) {
-            const hasContinued = meta.nextCodes.some(nc => takenCodes.includes(nc));
-            if (!hasContinued) {
-              lastCode = tc;
-              break;
-            }
-          }
-        }
-        if (!lastCode && takenCodes.length > 0) lastCode = takenCodes[takenCodes.length - 1];
         const lastCourseObj = findCourseByCode(lastCode);
         const lastCourseName = lastCourseObj?.name || (std && std.current_course && String(std.current_course).includes(lastCode) ? std.current_course : lastCode);
         const lastMeta = OCA_BOOK_CURRICULUM_MAP[lastCode] || null;
@@ -95311,7 +95336,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=182';
+      const swPath = basePath + 'sw.js?v=183';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -95320,7 +95345,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (182):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (183):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
