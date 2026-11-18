@@ -13674,7 +13674,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '165';
+      var LATEST_VERSION = '--help';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -27077,7 +27077,10 @@ body.printing-report #printReportContainer {
 
           .on('postgres_changes', { event: '*', schema: 'public', table: 'receipts' }, (payload) => {
             console.log('[Realtime DB Event] Receipts updated:', payload.eventType);
-            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('receipts');
+            if (typeof invalidateOcaReportCaches === 'function') {
+          invalidateOcaReportCaches('receipts');
+          invalidateOcaReportCaches('students');
+        }
             handleRealtimeBroadcast('receipts', payload);
           })
 
@@ -31451,15 +31454,19 @@ if (action === 'getDashboardStats') {
             throw new Error('ไม่สามารถบันทึกใบเสร็จได้ กรุณาลองใหม่อีกครั้ง');
           }
 
-          if ((action === 'renewStudentCourseAndReceipt' || action === 'transferStudentCourseAndReceipt') && validStudentId) {
+          const targetCourse = (params.courseName || params.itemName || params.course || '').trim();
+          const targetSchedule = (params.scheduleName || params.schedule || '').trim();
+          const isTuitionReceipt = String(params.type || params.receipt_type || 'tuition').toLowerCase() === 'tuition';
+
+          if (validStudentId && (action === 'renewStudentCourseAndReceipt' || action === 'transferStudentCourseAndReceipt' || targetCourse || targetSchedule || isTuitionReceipt)) {
             const targetSid = validStudentId;
             const updateObj = {
-              current_course: params.courseName || params.itemName || '',
-              current_schedule: params.scheduleName || params.schedule || '',
               status: 'พร้อมเรียน'
             };
-            if (params.yearBE) updateObj.year_be = Number(params.yearBE);
-            if (params.term) updateObj.term = Number(params.term);
+            if (targetCourse) updateObj.current_course = targetCourse;
+            if (targetSchedule) updateObj.current_schedule = targetSchedule;
+            if (params.yearBE || rcYear) updateObj.year_be = Number(params.yearBE || rcYear);
+            if (params.term || rcTerm) updateObj.term = Number(params.term || rcTerm);
             if (params.address) updateObj.address = params.address;
             if (params.phone) updateObj.phone_number = params.phone;
             if (params.email && params.email.includes('@')) updateObj.email = params.email.trim();
@@ -31471,8 +31478,8 @@ if (action === 'getDashboardStats') {
               const dateStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear() + 543}`;
               const oldC = params.oldCourse || '-';
               const oldS = params.oldSchedule || '-';
-              const newC = params.courseName || params.itemName || '';
-              const newS = params.scheduleName || params.schedule || '';
+              const newC = targetCourse || params.courseName || params.itemName || '';
+              const newS = targetSchedule || params.scheduleName || params.schedule || '';
               const transferNote = `[ย้ายคอร์ส: ${oldC} (${oldS}) -> ${newC} (${newS}) เมื่อ ${dateStr} โดย ${actor.username || actor.fullName}]`;
 
               try {
@@ -31485,9 +31492,11 @@ if (action === 'getDashboardStats') {
             }
 
             const { error: stErr } = await _supabase.from('students').update(updateObj).eq('student_id', targetSid);
-            if (stErr) throw stErr;
+            if (stErr) {
+              console.error('[saveReceipt] Failed to update student enrollment/status:', stErr);
+              throw new Error('ไม่สามารถบันทึกสถานะและคอร์สของนักเรียนได้: ' + (stErr.message || JSON.stringify(stErr)));
+            }
           }
-
           let emailSentResult = false;
           let emailStatusMsg = '';
 
@@ -68517,17 +68526,21 @@ if (action === 'getDashboardStats') {
      */
 
     function getEffectivePayeeName() {
-      // ดึงข้อมูลผู้ใช้งานที่เข้าสู่ระบบปัจจุบันเป็นลำดับแรก (Dynamic Logged-in Staff)
+      // 1. ตรวจสอบการตั้งค่าผู้รับเงินเฉพาะ (Staff / Custom) หากมีการกำหนดไว้ใน window._ocaPayeeSetting
+      if (window._ocaPayeeSetting && (window._ocaPayeeSetting.mode === 'staff' || window._ocaPayeeSetting.mode === 'custom')) {
+        const customOrStaffName = (window._ocaPayeeSetting.name || '').trim();
+        if (customOrStaffName && customOrStaffName !== 'ชื่อ-นามสกุล ผู้รับเงิน') {
+          return customOrStaffName;
+        }
+      }
 
+      // 2. ดึงข้อมูลผู้ใช้งานที่เข้าสู่ระบบปัจจุบันเป็นลำดับแรก (Dynamic Logged-in Staff)
       const authStaff = (typeof getAuthoritativeLoggedInStaff === 'function')
-
         ? getAuthoritativeLoggedInStaff()
-
         : null;
       const loggedName = (authStaff && authStaff.fullName && authStaff.fullName.trim()) ? authStaff.fullName.trim() : '';
 
       // ใส่ ชื่อ - นามสกุล ตามผู้ใช้งานที่ login เข้ามาเสมอ
-
       if (loggedName && loggedName !== 'เจ้าหน้าที่ฝ่ายทะเบียนและตำราเรียน') {
         return loggedName;
       }
@@ -68676,10 +68689,16 @@ if (action === 'getDashboardStats') {
         localStorage.setItem('oca_cashier_payee', JSON.stringify(window._ocaPayeeSetting));
       } catch(_) {}
 
-      if (window._supabase) {
+      const supabaseClient = (typeof _supabase !== 'undefined' && _supabase) ? _supabase : (window._supabase || null);
+      if (supabaseClient) {
         try {
-          const { error } = await _supabase.from('fee_settings').upsert([
-            { key: 'cfg_cashier_payee', mode: `${mode}:${staffVal}`.slice(0, 90), name: payeeName.slice(0, 90) }
+          const { error } = await supabaseClient.from('fee_settings').upsert([
+            {
+              key: 'cfg_cashier_payee',
+              mode: `${mode}:${staffVal}`.slice(0, 90),
+              name: payeeName.slice(0, 90),
+              updated_at: new Date().toISOString()
+            }
           ], { onConflict: 'key' });
           if (error) {
             console.warn('fee_settings upsert error:', error);
@@ -68687,6 +68706,11 @@ if (action === 'getDashboardStats') {
         } catch(err) {
           console.warn('Failed to persist payee setting to fee_settings:', err);
         }
+      }
+
+      const txtCashierInput = document.getElementById('txtRcptCashier');
+      if (txtCashierInput && typeof getEffectivePayeeName === 'function') {
+        txtCashierInput.value = getEffectivePayeeName();
       }
 
       if (typeof closePayeeSettingModal === 'function') {
@@ -68697,7 +68721,6 @@ if (action === 'getDashboardStats') {
       }
       return true;
     }
-
     function openPayeeSettingModal() {
       const m = document.getElementById('modalPayeeSetting');
       if (m) {
@@ -76996,36 +77019,43 @@ function openPublicRegisterView() {
       }
 
       if (!fullName) {
+        window._lastPubSubmitTimestamp = 0;
         showModal('กรุณากรอกข้อมูล / Required', dict.valName, '⚠️');
         return;
       }
 
       if (!citizenRaw) {
+        window._lastPubSubmitTimestamp = 0;
         showModal('กรุณากรอกข้อมูล / Required', dict.valCitizen, '⚠️');
         return;
       }
 
       if (!phone || phone.length < 9) {
+        window._lastPubSubmitTimestamp = 0;
         showModal('กรุณากรอกข้อมูล / Required', dict.valPhone, '⚠️');
         return;
       }
 
       if (!emergencyPhone || emergencyPhone.length < 9) {
+        window._lastPubSubmitTimestamp = 0;
         showModal('กรุณากรอกข้อมูล / Required', dict.valEmergencyPhone, '⚠️');
         return;
       }
 
       if (!email || email.indexOf('@') === -1) {
+        window._lastPubSubmitTimestamp = 0;
         showModal('อีเมลไม่ถูกต้อง / Invalid Email', dict.valEmail, '⚠️');
         return;
       }
 
       if (!lineId) {
+        window._lastPubSubmitTimestamp = 0;
         showModal('กรุณากรอกข้อมูล / Required', dict.valLineId, '⚠️');
         return;
       }
 
       if (!addrLine || !province || !postalCode) {
+        window._lastPubSubmitTimestamp = 0;
         showModal('กรุณาระบุที่อยู่ / Incomplete Address', dict.valAddr, '⚠️');
         return;
       }
@@ -93544,14 +93574,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           info.address = info.address || stRow.address || '';
         }
 
-        // 1. Update Student status to ACTIVE
-        const { error: stUpdErr } = await _supabase
-          .from('students')
-          .update({ status: 'ACTIVE' })
-          .eq('student_id', studentId);
-        if (stUpdErr) console.warn('[Approval] Student status update warning:', stUpdErr);
-
-        // 2. Issue Receipt via saveReceipt (inherit yearBE/term from student record or studentId prefix first)
+        // 1. Derive YearBE and Term (inherit from student record or studentId prefix first)
         let derivedYearBE = Number(info.yearBE || (stRow && stRow.year_be) || 0);
         let derivedTerm = Number(info.term || (stRow && stRow.term) || 0);
         if (!derivedYearBE || !derivedTerm) {
@@ -93564,9 +93587,28 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const resolvedFallback = typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null;
         const yearBE = derivedYearBE || (resolvedFallback && resolvedFallback.yearBE) || 2569;
         const term = derivedTerm || (resolvedFallback && resolvedFallback.term) || 5;
+
+        // 2. Update Student status, course, schedule, and details upon approval
+        const stUpdatePayload = {
+          status: 'พร้อมเรียน',
+          ...(info.course ? { current_course: info.course } : {}),
+          ...(info.schedule ? { current_schedule: info.schedule } : {}),
+          ...(info.address ? { address: info.address } : {}),
+          ...(info.phone ? { phone_number: info.phone } : {}),
+          ...(info.email && info.email.includes('@') ? { email: info.email.trim() } : {}),
+          ...(yearBE ? { year_be: Number(yearBE) } : {}),
+          ...(term ? { term: Number(term) } : {})
+        };
+        const { error: stUpdErr } = await _supabase.from('students').update(stUpdatePayload).eq('student_id', studentId);
+        if (stUpdErr) {
+          console.error('[Approval] Student status/course update error:', stUpdErr);
+          throw new Error('ไม่สามารถบันทึกสถานะและคอร์สของนักเรียนได้: ' + (stUpdErr.message || JSON.stringify(stUpdErr)));
+        }
+
+        // 3. Issue Receipt via saveReceipt
         const effectiveCashier = typeof getEffectivePayeeName === 'function' ? getEffectivePayeeName() : 'เจ้าหน้าที่การเงิน OCA';
         const isCorp = !!(info.isCorporate || info.companyName);
-        const corpBuyerName = isCorp ? (info.companyName + (info.companyBranch ? ' ' + info.companyBranch : '') + (info.companyTaxId ? ' (เลขผู้เสียภาษี: ' + info.companyTaxId + ')' : '') + ' (' + (info.fullName || '-') + ')') : (info.fullName || '');
+        const corpBuyerName = isCorp ? `${info.companyName}${info.companyBranch ? ' ' + info.companyBranch : ''}${info.companyTaxId ? ' (เลขผู้เสียภาษี: ' + info.companyTaxId + ')' : ''} (${info.fullName || '-'})` : (info.fullName || '');
         const corpBuyerAddress = isCorp ? (info.companyAddress || info.address || '-') : (info.address || '-');
         let appBaseFee = 0;
         let appDiscFee = 0;
@@ -93580,7 +93622,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const isReturningSlip = !!(info.isReturning || info.studentMode === 'returning' || (stRow && stRow.status && stRow.status !== 'PENDING_PAYMENT_VERIFICATION'));
         const regFeeItem = (typeof globalFeePresets !== 'undefined' && globalFeePresets && globalFeePresets.items && globalFeePresets.items.regFee) || {};
         const regFeeSt = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(regFeeItem) : { active: true };
-        const defaultRegFee = regFeeSt.active ? Number(regFeeItem.amount !== undefined ? regFeeItem.amount : (globalFeePresets && globalFeePresets.regFee !== undefined && typeof globalFeePresets.regFee !== 'object' ? globalFeePresets.regFee : 0)) : 0;
+        const defaultRegFee = regFeeSt.active ? Number(regFeeItem.amount ?? globalFeePresets?.regFee ?? 0) : 0;
         const appRegFee = (info.regFee !== undefined && info.regFee !== null) ? Number(info.regFee) : (isReturningSlip ? 0 : defaultRegFee);
         const dObj = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(cMatch || info.course, info.schedule) : null;
         ({ appBaseFee, appDiscFee, appGrandTotal } = resolveApprovedSlipFallbackAmounts(info, cMatch, appRegFee, dObj));
@@ -93593,69 +93635,37 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
         const rcPayload = {
           receiptNo: undefined,
-
           type: 'tuition',
-
           yearBE: yearBE,
-
           term: term,
-
           studentId: studentId,
-
-          buyerId: studentId,
-
-          fullName: corpBuyerName,
-
-          buyerName: corpBuyerName,
-
-          cashierName: effectiveCashier,
-
-          address: corpBuyerAddress,
-
-          phone: info.phone || '',
-
-          email: info.email || '',
-
-          sendEmail: true,
-
-          courseId: canonicalCourseCode || info.course || '',
-
-          itemCode: canonicalCourseCode || info.course || '',
-
-          courseName: info.course || '',
-
-          course: info.course || '',
-
-          schedule: info.schedule || '',
-
-          scheduleName: info.schedule || '',
-
           room: info.room || '',
-
+          buyerId: studentId,
+          fullName: corpBuyerName,
+          buyerName: corpBuyerName,
+          cashierName: effectiveCashier,
+          address: corpBuyerAddress,
+          phone: info.phone || '',
+          email: info.email || '',
+          sendEmail: true,
+          courseId: canonicalCourseCode || info.course || '',
+          itemCode: canonicalCourseCode || info.course || '',
+          courseName: info.course || '',
+          course: info.course || '',
+          schedule: info.schedule || '',
+          scheduleName: info.schedule || '',
           materialType: 'รับเอกสารที่โรงเรียน',
-
           deliveryMethod: 'รับเอง',
-
           learningMode: info.learningMode || 'Onsite',
-
           baseAmount: appBaseFee !== undefined ? appBaseFee : (info.expectedFee !== undefined && info.expectedFee !== null ? Number(info.expectedFee) : 0),
-
           regFee: appRegFee,
-
           cardFee: 0,
-
           otherRegFee: 0,
-
           transferFee: 0,
-
           discountNormal: appDiscFee,
-
           discountOther: 0,
-
           grandTotal: appGrandTotal !== undefined ? appGrandTotal : (info.expectedFee !== undefined && info.expectedFee !== null ? Number(info.expectedFee) : 0),
-
           paymentMethod: 'TRANSFER',
-
           paymentRef: info.slipRef || 'ONLINE_SLIP_VERIFIED'
         };
         const rcRes = await callGasApi('saveReceipt', rcPayload, 'POST');
@@ -93667,10 +93677,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         if (rcRes && rcRes.receiptNo) {
           let storageRelativePath = '';
           if (info.slipUrl && typeof info.slipUrl === 'string') {
-            if (info.slipUrl.startsWith('data:')) {
-              if (typeof uploadPaymentSlipToStorage === 'function') {
-                try {
-                  const uploadedUrl = await uploadPaymentSlipToStorage(info.slipUrl, studentId);
+            if (info.slipUrl.startsWith('data:') && typeof uploadPaymentSlipToStorage === 'function') {
+              try {
+                const uploadedUrl = await uploadPaymentSlipToStorage(info.slipUrl, studentId);
                   if (uploadedUrl) {
                     storageRelativePath = uploadedUrl.includes('/student-photos/')
                       ? (uploadedUrl.split('/student-photos/')[1] || '').split('?')[0]
@@ -93679,7 +93688,6 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
                 } catch (upErr) {
                   console.warn('[approvePendingSlip] slip dataURI upload error:', upErr);
                 }
-              }
             } else {
               storageRelativePath = info.slipUrl.includes('/student-photos/') ? (info.slipUrl.split('/student-photos/')[1] || '').split('?')[0] : info.slipUrl;
             }
@@ -94092,7 +94100,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=165';
+      const swPath = basePath + 'sw.js?v=--help';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -94101,7 +94109,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (165):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (--help):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
