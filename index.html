@@ -33039,7 +33039,13 @@ if (action === 'getDashboardStats') {
             stList = (qData || []).filter(s => !isStudentDeleted(s));
             totalCount = stList.length;
           } else if (reqYear === 'ALL') {
-            const totRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', '0000000');
+            let totRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true });
+            if (totRes.error) {
+              totRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true });
+            }
+            if (totRes.error) {
+              totRes = await _supabase.from('students').select('student_id', { count: 'estimated', head: true });
+            }
             const delRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', '6800000').eq('status', 'DELETED');
             const { data: allData } = await _supabase.from('students')
               .select(REPORT_STUDENT_COLS)
