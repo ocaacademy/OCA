@@ -14134,7 +14134,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '206';
+      var LATEST_VERSION = '207';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -18190,10 +18190,27 @@ body.printing-report #printReportContainer {
                         <i class="fa-solid fa-door-open" style="color:var(--color-gold); margin-right:4px;"></i><span id="txtRcptRoomLabel">ห้องเรียน (Room)</span>
                       </label>
 
-                      <input type="text" id="txtRcptRoom" class="oca-input" placeholder="เช่น 401 หรือ Online (เว้นว่างได้)" oninput="updateReceiptLivePreview()" style="height:34px; font-size:12.5px; padding:4px 8px; text-align:left !important;">
+                      <input type="text" id="txtRcptRoom" class="oca-input" readonly placeholder="-" oninput="updateReceiptLivePreview()" style="height:34px; font-size:12.5px; padding:4px 8px; text-align:left !important; background:rgba(148,163,184,0.12); cursor:default;">
                       <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">
                         * หากไม่ได้ระบุ จะพิมพ์ต่อท้ายอัตโนมัติ: <em>"(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)"</em>
                       </div>
+                    </div>
+                  </div>
+
+                  <!-- Class Group & Instructor (v207, readonly sync from Course Management) -->
+                  <div id="boxRcptGroupTeacherRow" style="display:grid; grid-template-columns:0.85fr 1.15fr; gap:8px; margin-bottom:8px;">
+                    <div class="oca-input-group" style="margin-bottom:0;">
+                      <label class="oca-label" id="lblRcptGroup" for="txtRcptGroup" style="font-size:12px; margin-bottom:2px;">
+                        <i class="fa-solid fa-users-rectangle" style="color:var(--color-gold); margin-right:4px;"></i><span id="txtRcptGroupLabel">กลุ่มเรียน (Group)</span>
+                      </label>
+                      <input type="text" id="txtRcptGroup" class="oca-input" readonly placeholder="-" style="height:34px; font-size:12.5px; padding:4px 8px; text-align:left !important; background:rgba(148,163,184,0.12); cursor:default;">
+                      <select id="selRcptGroup" class="oca-input" onchange="onReceiptGroupSelected()" style="display:none; height:34px; font-size:12.5px; padding:4px 8px; text-align:left !important;"></select>
+                    </div>
+                    <div class="oca-input-group" style="margin-bottom:0;">
+                      <label class="oca-label" id="lblRcptTeacher" for="txtRcptTeacher" style="font-size:12px; margin-bottom:2px;">
+                        <i class="fa-solid fa-chalkboard-user" style="color:var(--color-gold); margin-right:4px;"></i><span id="txtRcptTeacherLabel">อาจารย์ผู้สอน (Instructor)</span>
+                      </label>
+                      <input type="text" id="txtRcptTeacher" class="oca-input" readonly placeholder="-" style="height:34px; font-size:12.5px; padding:4px 8px; text-align:left !important; background:rgba(148,163,184,0.12); cursor:default;">
                     </div>
                   </div>
 
@@ -18795,11 +18812,18 @@ body.printing-report #printReportContainer {
                   </div>
                 </div>
 
-                <!-- หมายเหตุ: กำหนดวันเปิดเรียน -->
+                <!-- หมายเหตุ: กำหนดวันเปิดเรียน (2-line compact dot-matrix layout) -->
                 <div id="boxPrevReceiptRemarks" style="background:#f8fafc; border:1px solid #bae6fd; border-radius:4px; padding:6px 12px; margin:6px 0 8px 0; font-size:12px; color:#1e293b;">
-                  <strong>หมายเหตุ:</strong> กำหนดวันเปิดเรียน วันที่ <strong class="oca-receipt-blue" id="lblPrevOpenDate">-</strong>
-                  <span id="boxPrevRoomWrap"> &nbsp;|&nbsp; ห้องเรียน: <strong class="oca-receipt-blue" id="lblPrevRoom">-</strong></span>
-                  <span id="boxPrevNoRoomWrap" style="display:none; color:#0369A1; font-weight:600;"> (ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)</span>
+                  <div>
+                    <strong>หมายเหตุ:</strong> กำหนดวันเปิดเรียน วันที่ <strong class="oca-receipt-blue" id="lblPrevOpenDate">-</strong>
+                    <span id="boxPrevRoomWrap"> &nbsp;|&nbsp; ห้องเรียน: <strong class="oca-receipt-blue" id="lblPrevRoom">-</strong></span>
+                    <span id="boxPrevNoRoomWrap" style="display:none; color:#0369A1; font-weight:600;"> (ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)</span>
+                  </div>
+                  <div id="boxPrevGroupTeacherLine" style="display:none; margin-top:2px; font-size:11.5px; color:#334155;">
+                    <span id="boxPrevGroupWrap" style="display:none;">กลุ่ม: <strong class="oca-receipt-blue" id="lblPrevGroup"></strong></span>
+                    <span id="lblPrevGroupTeacherSep" style="display:none;"> &nbsp;|&nbsp; </span>
+                    <span id="boxPrevTeacherWrap" style="display:none;">อาจารย์ผู้สอน: <strong class="oca-receipt-blue" id="lblPrevTeacher"></strong></span>
+                  </div>
                 </div>
 
                 <!-- Notice & Textbook Delivery Box -->
@@ -24975,7 +24999,6 @@ body.printing-report #printReportContainer {
                   </label>
                 </div>
               </div>
-
               <!-- Fixed Modal Footer -->
               <div style="padding:16px 32px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:flex-end; align-items:center; gap:12px; background:var(--bg-modal-footer); flex-shrink:0;">
                 <button type="button" class="oca-btn-cancel-custom" onclick="closeEditReceiptModal()">ยกเลิก</button>
@@ -24984,13 +25007,9 @@ body.printing-report #printReportContainer {
             </form>
           </div>
         </div>
-
         <!-- ===================================================================
-
              MODAL 5: EDIT STUDENT PROFILE (แก้ไขข้อมูลนักศึกษา)
-
              =================================================================== -->
-
         <div id="modalEditStudent" class="oca-custom-modal-backdrop oca-formal-modal" onclick="if(event.target===this)closeEditStudentModal()" style="padding:16px;">
           <div class="oca-custom-modal-box" style="display:flex; flex-direction:column; padding:0; border-radius:16px; overflow:hidden;">
             <!-- Modal Header (Fixed) -->
@@ -24999,17 +25018,12 @@ body.printing-report #printReportContainer {
                 <div style="font-size:11px; font-weight:700; color:var(--color-gold); text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:6px;">
                   <i class="fa-solid fa-user-pen"></i> จัดการข้อมูลนักศึกษา (Student Profile Editor)
                 </div>
-
                 <h3 style="margin:2px 0 0 0; font-size:17px; font-weight:700; color:var(--text-main);">
-
                   แก้ไขข้อมูลนักศึกษา: <span id="lblEditStudentName" style="color:var(--color-gold-light);">-</span>
-
                 </h3>
               </div>
-
               <button type="button" style="background:transparent; border:none; color:var(--text-muted); font-size:18px; cursor:pointer; line-height:1; padding:6px; border-radius:6px; transition:color 0.2s;" onmouseover="this.style.color='#ffffff'" onmouseout="this.style.color='var(--text-muted)'" onclick="closeEditStudentModal()" title="ปิด">✕</button>
             </div>
-
             <!-- Form & Scrollable Body -->
             <form id="formEditStudent" onsubmit="submitEditStudentForm(event)" style="display:flex; flex-direction:column; flex:1; min-height:0; margin:0; overflow:hidden;">
               <div class="modal-edit-scroll-body">
@@ -25021,10 +25035,8 @@ body.printing-report #printReportContainer {
                         <i class="fa-solid fa-camera" style="color:var(--color-gold);"></i>
                         <span>รูปประจำตัว</span>
                       </span>
-
                       <span class="oca-cam-mirror-tag" style="position:static; font-size:10.5px; padding:2px 6px;">กระจกเงา</span>
                     </div>
-
                     <!-- Camera Screen -->
                     <div class="oca-cam-screen" style="position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center;">
                       <video id="vidEditWebcam" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; transform:scaleX(-1); -webkit-transform:scaleX(-1); display:none;"></video>
@@ -25036,44 +25048,37 @@ body.printing-report #printReportContainer {
                         <div style="font-size:11px; margin-top:2px;">หรือ "เลือกรูป" จากเครื่อง</div>
                       </div>
                     </div>
-
                     <!-- Camera Action Buttons -->
                     <div style="display:flex; flex-direction:column; gap:6px; margin-top:10px;">
                       <button type="button" class="oca-btn-gold-submit" style="width:100%; justify-content:center; padding:8px; font-size:12px;" id="btnToggleEditCam" onclick="toggleEditStudentCamera()">
                         <i class="fa-solid fa-video" style="margin-right:5px;"></i><span id="lblBtnEditCam">เปิดกล้องสด</span>
                       </button>
-
                       <button type="button" class="oca-btn-gold-submit" style="width:100%; justify-content:center; padding:8px; font-size:12px; display:none; background:linear-gradient(135deg, #10b981, #059669);" id="btnEditSnapPhoto" onclick="captureEditStudentPhoto()">
                         <i class="fa-solid fa-camera" style="margin-right:5px;"></i><span>กดถ่ายรูป</span>
                       </button>
-
                       <div style="display:flex; gap:6px;">
                         <input type="file" id="fileEditStudentPhoto" accept="image/*" style="display:none;" onchange="handleEditStudentPhotoFile(event)">
                         <button type="button" class="oca-btn-secondary" style="flex:1; justify-content:center; padding:7px 8px; font-size:11.5px;" onclick="document.getElementById('fileEditStudentPhoto').click()">
                           <i class="fa-solid fa-upload" style="margin-right:4px;"></i>เลือกรูป
                         </button>
-
                         <button type="button" class="oca-btn-cancel-custom" style="padding:7px 10px; font-size:11.5px; display:none;" id="btnRemoveEditPhoto" onclick="removeEditStudentPhoto()" title="ลบรูป">
                           <i class="fa-solid fa-trash-can"></i>
                         </button>
                       </div>
                     </div>
                   </div>
-
                   <!-- Right: All Form Fields (Spacious & Clean Layout) -->
                   <div style="min-width:0; width:100%;">
                     <!-- Section 1: ข้อมูลพื้นฐาน & รหัสประจำตัว -->
                     <div class="oca-edit-section-header">
                       <i class="fa-solid fa-id-card"></i> ข้อมูลพื้นฐาน &amp; รหัสประจำตัว
                     </div>
-
                     <!-- Row 1: ID (130px) + คำนำหน้า (105px) + ชื่อ-นามสกุลไทย (1fr) -->
                     <div class="oca-edit-row-id-name">
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditStudentId">รหัสนักศึกษา (ID)</label>
                         <input type="text" id="inpEditStudentId" class="oca-input" readonly style="background:var(--bg-app); color:var(--color-gold); font-weight:700; font-family:monospace; cursor:not-allowed;">
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditPrefix">คำนำหน้า *</label>
                         <select id="inpEditPrefix" class="oca-input">
@@ -25085,143 +25090,118 @@ body.printing-report #printReportContainer {
                           <option value="">อื่นๆ / ไม่ระบุ</option>
                         </select>
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditFullName">ชื่อ-นามสกุล (ไทย) *</label>
                         <input type="text" id="inpEditFullName" class="oca-input" required placeholder="ชื่อ นามสกุล">
                       </div>
                     </div>
-
                     <!-- Row 2: ชื่ออังกฤษ (1fr) + เลขบัตรประชาชน (1fr) -->
                     <div class="oca-edit-row-2col">
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditFullNameEn">ชื่อ-นามสกุล (อังกฤษ)</label>
                         <input type="text" id="inpEditFullNameEn" class="oca-input" placeholder="e.g. Somchai Rakthai">
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditCitizenId">
-
                           เลขบัตรประชาชน (13 หลัก)
-
                           <i class="fa-solid fa-lock" style="font-size:11px; color:var(--color-gold); margin-left:4px;" title="ล็อกไม่ให้แก้ไข"></i>
                         </label>
-
                         <input type="text" id="inpEditCitizenId" class="oca-input" readonly tabindex="-1" style="background:var(--bg-input-readonly); color:var(--color-gold); font-weight:700; font-family:monospace; cursor:not-allowed;" title="ไม่สามารถแก้ไขเลขประจำตัวประชาชนได้">
                       </div>
                     </div>
-
                     <!-- Row 3: เบอร์โทร (1fr) + รหัสชิป RFID (1fr) -->
                     <div class="oca-edit-row-2col">
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditPhone">เบอร์โทรศัพท์ *</label>
                         <input type="text" id="inpEditPhone" class="oca-input" required placeholder="08XXXXXXXX">
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditSmartCardUid">รหัสชิปบัตร RFID (Mifare UID)</label>
                         <input type="text" id="inpEditSmartCardUid" class="oca-input" placeholder="เช่น 04A1B2C3D4">
                       </div>
                     </div>
-
                     <!-- Row 3b: Extended Student Profile (Item 11) -->
                     <div class="oca-edit-row-2col">
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditEthnicity">เชื้อชาติ</label>
                         <input type="text" id="inpEditEthnicity" class="oca-input" placeholder="เช่น ไทย, จีน">
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditNationality">สัญชาติ</label>
                         <input type="text" id="inpEditNationality" class="oca-input" placeholder="เช่น ไทย">
                       </div>
                     </div>
-
                     <div class="oca-edit-row-2col">
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditBirthDate">วัน/เดือน/ปีเกิด</label>
                         <input type="date" id="inpEditBirthDate" class="oca-input" onchange="const a=document.getElementById('inpEditAge'); if(a) a.value=calcAgeFromBirthDate(this.value);">
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditAge">อายุ (ปี - คำนวณอัตโนมัติ)</label>
                         <input type="text" id="inpEditAge" class="oca-input" readonly placeholder="-" style="background:var(--bg-input-readonly); cursor:not-allowed;">
                       </div>
                     </div>
-
                     <div class="oca-edit-row-2col">
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditPassportNo">เลขพาสปอร์ต</label>
                         <input type="text" id="inpEditPassportNo" class="oca-input" placeholder="Passport No.">
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditEmergencyPhone">เบอร์ติดต่อฉุกเฉิน</label>
                         <input type="text" id="inpEditEmergencyPhone" class="oca-input" placeholder="08XXXXXXXX">
                       </div>
                     </div>
-
                     <div class="oca-edit-row-2col">
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditEmergencyName">ชื่อผู้ติดต่อฉุกเฉิน</label>
                         <input type="text" id="inpEditEmergencyName" class="oca-input" placeholder="ชื่อ-นามสกุล">
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditEmergencyRelation">ความสัมพันธ์</label>
                         <input type="text" id="inpEditEmergencyRelation" class="oca-input" placeholder="เช่น บิดา, มารดา">
                       </div>
                     </div>
-
                     <!-- Section 2: การติดต่อ & ที่อยู่ -->
                     <div class="oca-edit-section-header">
                       <i class="fa-solid fa-address-book" style="color:#38bdf8;"></i> ข้อมูลการติดต่อ &amp; ที่อยู่จัดส่ง
                     </div>
-
                     <!-- Row 4: Email (1fr) + Line ID (1fr) -->
                     <div class="oca-edit-row-2col">
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditEmail">อีเมล (Email)</label>
                         <input type="email" id="inpEditEmail" class="oca-input" placeholder="student@example.com">
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditLineId">LINE ID</label>
                         <input type="text" id="inpEditLineId" class="oca-input" placeholder="@line_id">
                       </div>
                     </div>
-
                     <!-- Row 5: Address (full width) -->
                     <div class="oca-input-group" style="margin-bottom:10px;">
                       <label class="oca-label" for="inpEditAddress">ที่อยู่ (สำหรับการจัดส่งตำราและเอกสาร)</label>
                       <textarea id="inpEditAddress" class="oca-input" rows="2" placeholder="ระบุบ้านเลขที่ ถนน แขวง/ตำบล เขต/อำเภอ จังหวัด รหัสไปรษณีย์" style="resize:vertical; min-height:54px;"></textarea>
                     </div>
-
                     <!-- Section 3: ข้อมูลการศึกษา & การรับตำรา -->
                     <div class="oca-edit-section-header">
                       <i class="fa-solid fa-graduation-cap" style="color:var(--accent-emerald);"></i> ข้อมูลการเรียน, วิธีรับตำรา &amp; สถานะ
                     </div>
-
                     <!-- Row 6: คอร์สเรียน (1fr) + รอบเวลา (1fr) -->
                     <div class="oca-edit-row-2col">
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditCourse">คอร์สเรียน (Course)</label>
                         <input type="text" id="inpEditCourse" class="oca-input" placeholder="เช่น CHN-101">
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditSchedule">รอบเวลา (Schedule)</label>
                         <input type="text" id="inpEditSchedule" class="oca-input" placeholder="เช่น เสาร์ 09:00 - 12:00">
                       </div>
                     </div>
-
                     <!-- Row 7: ปีการศึกษา (120px) + เทอม (100px) + วิธีรับตำรา (1fr) + สถานะ (1fr) -->
                     <div class="oca-edit-row-edu">
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditYearBE">ปีการศึกษา (พ.ศ.)</label>
                         <input type="text" id="inpEditYearBE" class="oca-input" placeholder="2569">
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditTerm">ภาคเรียน (Term)</label>
                         <select id="inpEditTerm" class="oca-input">
@@ -25232,7 +25212,6 @@ body.printing-report #printReportContainer {
                           <option value="5">เทอม 5</option>
                         </select>
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditDeliveryMethod">วิธีรับตำราเรียน *</label>
                         <select id="inpEditDeliveryMethod" class="oca-input">
@@ -25240,7 +25219,6 @@ body.printing-report #printReportContainer {
                           <option value="ส่งตำรา">ส่งตำรา (จัดส่งทางไปรษณีย์ - ไม่มี QR code ในใบเสร็จ)</option>
                         </select>
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpEditStatus">สถานะนักศึกษา *</label>
                         <select id="inpEditStatus" class="oca-input">
@@ -25254,7 +25232,6 @@ body.printing-report #printReportContainer {
                         </select>
                       </div>
                     </div>
-
                     <!-- Row 7b: รูปแบบการเรียน (Learning Mode) -->
                     <div class="oca-edit-row-2col">
                       <div class="oca-input-group">
@@ -25267,7 +25244,6 @@ body.printing-report #printReportContainer {
                       </div>
                       <div></div>
                     </div>
-
                     <!-- Row 8: หมายเหตุ (full width) -->
                     <div class="oca-input-group" style="margin-bottom:6px;">
                       <label class="oca-label" for="inpEditNotes">หมายเหตุ / ข้อมูลเพิ่มเติม (Notes)</label>
@@ -25276,13 +25252,11 @@ body.printing-report #printReportContainer {
                   </div>
                 </div>
               </div>
-
               <!-- Fixed Modal Footer -->
               <div class="modal-footer-edit-student" style="padding:14px 24px; border-top:1px solid var(--border-soft); display:flex; justify-content:space-between; align-items:center; gap:12px; background:var(--bg-app); flex-shrink:0;">
                 <button type="button" class="oca-btn-danger" style="padding:8px 14px; font-size:12.5px;" onclick="confirmDeleteStudentFromEditModal()">
                   <i class="fa-solid fa-trash-can"></i> ลบข้อมูลนักศึกษา
                 </button>
-
                 <div style="display:flex; align-items:center; gap:10px;">
                   <button type="button" class="oca-btn-secondary" onclick="closeEditStudentModal()" style="height:36px; padding:0 16px;">ยกเลิก</button>
                   <button type="submit" id="btnSubmitEditStudent" class="oca-btn-gold-submit" style="padding:8px 22px; font-size:13.5px; display:inline-flex; align-items:center; gap:6px;">
@@ -25293,13 +25267,9 @@ body.printing-report #printReportContainer {
             </form>
           </div>
         </div>
-
         <!-- ===================================================================
-
              MODAL: TRANSFER STUDENT COURSE (ระบบย้ายคอร์สและรอบเวลาเรียน)
-
              =================================================================== -->
-
         <div id="modalTransferCourse" class="oca-custom-modal-backdrop oca-formal-modal" onclick="if(event.target===this)closeTransferCourseModal()" style="display:none; padding:20px;">
           <div class="oca-custom-modal-box" style="max-width:760px; width:100%; max-height:92vh; display:flex; flex-direction:column; padding:0; border-radius:14px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1px solid rgba(96,165,250,0.45); background:var(--bg-card);">
             <!-- Modal Header -->
@@ -25308,17 +25278,12 @@ body.printing-report #printReportContainer {
                 <div style="font-size:12px; font-weight:700; color:#60a5fa; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:6px;">
                   <i class="fa-solid fa-right-left"></i> ระบบย้ายคอร์สและรอบเวลาเรียน (Course & Schedule Transfer)
                 </div>
-
                 <h3 style="margin:2px 0 0 0; font-size:18px; font-weight:700; color:var(--text-main);">
-
                   ย้ายคอร์ส: <span id="lblTransferStudentName" style="color:var(--accent-sky);">-</span>
-
                 </h3>
               </div>
-
               <button type="button" class="oca-btn-icon-close" onclick="closeTransferCourseModal()" title="ปิดหน้าต่าง">✕</button>
             </div>
-
             <!-- Modal Body (Scrollable) -->
             <form onsubmit="submitTransferCourse(event)" style="display:flex; flex-direction:column; overflow:hidden; flex:1;">
               <div style="padding:22px 24px; overflow-y:auto; flex:1;">
@@ -25328,13 +25293,11 @@ body.printing-report #printReportContainer {
                     <span style="color:var(--text-muted);">รหัสนักศึกษา:</span>
                     <strong id="lblTransferStudentId" style="color:var(--color-gold); font-family:monospace; margin-left:4px;">-</strong>
                   </div>
-
                   <div>
                     <span style="color:var(--text-muted);">เลขบัตรประชาชน:</span>
                     <span id="lblTransferCitizenId" style="color:var(--text-main); font-family:monospace; margin-left:4px;">-</span>
                   </div>
                 </div>
-
                 <!-- 2-Column Side-by-side Comparison -->
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">
                   <!-- Left: Current Course -->
@@ -25342,57 +25305,47 @@ body.printing-report #printReportContainer {
                     <div style="font-size:12px; font-weight:700; color:#f87171; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
                       <i class="fa-solid fa-arrow-right-from-bracket"></i> คอร์สและรอบเวลาเดิม (Current)
                     </div>
-
                     <div style="margin-bottom:8px;">
                       <div style="font-size:11px; color:var(--text-muted);">คอร์สเรียนปัจจุบัน:</div>
                       <div id="lblTransferOldCourse" style="font-size:13.5px; font-weight:700; color:var(--text-main);">-</div>
                     </div>
-
                     <div style="margin-bottom:8px;">
                       <div style="font-size:11px; color:var(--text-muted);">รอบเวลาปัจจุบัน:</div>
                       <div id="lblTransferOldSchedule" style="font-size:12.5px; color:var(--text-muted);">-</div>
                     </div>
-
                     <div>
                       <div style="font-size:11px; color:var(--text-muted);">ปี / ภาคเรียน:</div>
                       <div id="lblTransferOldTermYear" style="font-size:12px; color:var(--text-muted);">-</div>
                     </div>
                   </div>
-
                   <!-- Right: New Target Course -->
                   <div style="background:rgba(59,130,246,0.06); border:1.5px solid rgba(59,130,246,0.4); border-radius:10px; padding:14px;">
                     <div style="font-size:12px; font-weight:700; color:#60a5fa; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
                       <i class="fa-solid fa-arrow-right-to-bracket"></i> คอร์สและรอบเวลาใหม่ (Target) *
                     </div>
-
                     <div class="oca-input-group" style="margin-bottom:10px;">
                       <label class="oca-label" for="selTransferNewCourse" style="font-size:11.5px;">เลือกคอร์สใหม่ *</label>
                       <select id="selTransferNewCourse" class="oca-input" style="font-size:12.5px; padding:6px 10px;" required onchange="onTransferDestinationChange()">
                         <option value="">-- เลือกคอร์สเรียนปลายทาง --</option>
                       </select>
                     </div>
-
                     <div class="oca-input-group" style="margin-bottom:10px;">
                       <label class="oca-label" for="selTransferNewSchedule" style="font-size:11.5px;">เลือกรอบเวลาเรียน *</label>
                       <select id="selTransferNewSchedule" class="oca-input" style="font-size:12.5px; padding:6px 10px;" onchange="onTransferDestinationChange()">
                         <option value="">-- เลือกรอบเวลาเรียน --</option>
                       </select>
                     </div>
-
                     <div class="oca-input-group" style="margin-bottom:10px;">
                       <label class="oca-label" for="inpTransferNewRoom" style="font-size:11.5px; color:var(--color-gold); font-weight:700;">
                         <i class="fa-solid fa-door-open"></i> เลขที่ห้องเรียนปลายทาง (New Classroom No.)
                       </label>
-
                       <input type="text" id="inpTransferNewRoom" class="oca-input" placeholder="เช่น 5505 (ระบบค้นหาห้องให้อัตโนมัติ)" style="font-size:13px; padding:7px 10px; font-family:monospace; font-weight:700; color:var(--color-gold-light);">
                     </div>
-
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpTransferNewYearBE" style="font-size:11.5px;">ปีการศึกษา (พ.ศ.)</label>
                         <input type="number" id="inpTransferNewYearBE" class="oca-input" style="font-size:12.5px; padding:5px 8px;">
                       </div>
-
                       <div class="oca-input-group">
                         <label class="oca-label" for="selTransferNewTerm" style="font-size:11.5px;">ภาคเรียน (Term)</label>
                         <select id="selTransferNewTerm" class="oca-input" style="font-size:12.5px; padding:5px 8px;">
@@ -25406,13 +25359,11 @@ body.printing-report #printReportContainer {
                     </div>
                   </div>
                 </div>
-
                 <!-- Transfer Settings Grid -->
                 <div style="background:var(--bg-subcard); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px; margin-bottom:14px;">
                   <div style="font-size:12.5px; font-weight:700; color:var(--color-gold); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
                     <i class="fa-solid fa-sliders"></i> กำหนดเงื่อนไขและค่าธรรมเนียมการย้ายคอร์ส
                   </div>
-
                   <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:10px;">
                     <div class="oca-input-group">
                       <label class="oca-label" for="selTransferFeeType">ค่าธรรมเนียมย้ายคอร์ส (Transfer Fee)</label>
@@ -25422,12 +25373,10 @@ body.printing-report #printReportContainer {
                         <option value="200">200 บาท (ค่าธรรมเนียมย้ายคอร์สพิเศษ)</option>
                         <option value="custom">ระบุจำนวนเงินเอง</option>
                       </select>
-
                       <div id="boxTransferCustomFee" style="display:none; margin-top:6px;">
                         <input type="number" id="inpTransferCustomFee" class="oca-input" placeholder="จำนวนเงินค่าธรรมเนียม (บาท)" min="0">
                       </div>
                     </div>
-
                     <div class="oca-input-group">
                       <label class="oca-label" for="selTransferTextbookOption">การรับตำราเรียน (Textbook Policy)</label>
                       <select id="selTransferTextbookOption" class="oca-input">
@@ -25436,24 +25385,19 @@ body.printing-report #printReportContainer {
                       </select>
                     </div>
                   </div>
-
                   <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
                     <input type="checkbox" id="chkTransferIssueReceipt" checked style="width:16px; height:16px; accent-color:var(--color-gold); cursor:pointer;">
                     <label for="chkTransferIssueReceipt" style="font-size:12.5px; color:var(--text-main); cursor:pointer; user-select:none;">
-
                       ออกใบเสร็จรับเงินสำหรับค่าธรรมเนียมนี้โดยอัตโนมัติ (หากมีค่าธรรมเนียม > 0)
-
                     </label>
                   </div>
                 </div>
-
                 <!-- Reason Notes -->
                 <div class="oca-input-group">
                   <label class="oca-label" for="inpTransferReason">เหตุผลในการขอย้ายคอร์ส / บันทึกเพิ่มเติม (Reason & Remarks) *</label>
                   <input type="text" id="inpTransferReason" class="oca-input" placeholder="เช่น นักศึกษาติดภารกิจงาน, ปรับระดับชั้นเรียน, เวลาเรียนตรงกับวันทำงาน" value="นักศึกษาขอย้ายคอร์สและรอบเวลาเรียน">
                 </div>
               </div>
-
               <!-- Fixed Modal Footer -->
               <div style="padding:16px 24px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:var(--bg-modal-footer); flex-shrink:0;">
                 <button type="button" class="oca-btn-cancel-custom" onclick="closeTransferCourseModal()">
@@ -25471,7 +25415,6 @@ body.printing-report #printReportContainer {
             </form>
           </div>
         </div>
-
         <!-- ===================================================================
              MODAL: DROP STUDENT WITH REASON & REMARKS
              =================================================================== -->
@@ -25511,7 +25454,6 @@ body.printing-report #printReportContainer {
             </form>
           </div>
         </div>
-
         <!-- ===================================================================
              MODAL: ACADEMIC RECORD SUMMARY (MDB ARCHIVE)
              =================================================================== -->
@@ -25552,70 +25494,48 @@ body.printing-report #printReportContainer {
             </form>
           </div>
         </div>
-
         <!-- ===================================================================
-
              MODAL: QUICK EDIT STUDENT CLASSROOM (เปลี่ยน/แก้ไขห้องเรียนเฉพาะบุคคล)
-
              =================================================================== -->
-
         <div id="modalQuickEditRoom" class="oca-custom-modal-backdrop oca-formal-modal" onclick="if(event.target===this)closeQuickEditRoomModal()" style="display:none; padding:20px;">
           <div class="oca-custom-modal-box" style="max-width:480px; width:100%; display:flex; flex-direction:column; padding:0; border-radius:14px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1px solid rgba(215,166,0,0.5); background:var(--bg-card);">
             <div style="padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg, rgba(3,51,42,0.6) 0%, rgba(1,24,19,0.9) 100%);">
               <h3 style="margin:0; font-size:16px; font-weight:700; color:var(--color-gold); display:flex; align-items:center; gap:8px;">
                 <i class="fa-solid fa-door-open"></i> เปลี่ยนห้องเรียน (Classroom Reassignment)
               </h3>
-
               <button type="button" class="oca-btn-icon-close" onclick="closeQuickEditRoomModal()" title="ปิดหน้าต่าง">✕</button>
             </div>
-
             <div style="padding:20px; font-size:13px;">
               <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 14px; margin-bottom:14px; line-height:1.6;">
                 <div><span style="color:var(--text-muted);">นักศึกษา:</span> <strong id="lblQuickEditStudentName" style="color:var(--text-main);">-</strong></div>
                 <div><span style="color:var(--text-muted);">รหัสนักศึกษา:</span> <code id="lblQuickEditStudentId" style="color:var(--color-gold);">-</code></div>
               </div>
-
               <div style="margin-bottom:14px;">
                 <label class="oca-label" for="inpQuickEditNewRoom" style="font-size:12px; color:var(--color-gold); font-weight:700;">
-
                   เลขที่ห้องเรียนใหม่ (New Room No.) *
-
                 </label>
-
                 <input type="text" id="inpQuickEditNewRoom" class="oca-input" placeholder="เช่น 402 หรือ 5505" style="font-size:16px; font-weight:700; font-family:monospace; color:var(--color-gold-light);">
               </div>
-
               <div style="margin-bottom:10px;">
                 <label class="oca-label" for="inpQuickEditReason" style="font-size:12px;">
-
                   เหตุผลในการเปลี่ยนห้องเรียน (Optional)
-
                 </label>
-
                 <input type="text" id="inpQuickEditReason" class="oca-input" placeholder="เช่น ย้ายตามคำขอผู้ปกครอง, สลับกลุ่ม">
               </div>
             </div>
-
             <div style="padding:14px 20px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:flex-end; gap:10px; background:var(--bg-modal-footer);">
               <button type="button" class="oca-btn-cancel-custom" style="padding:7px 16px; font-size:12.5px;" onclick="closeQuickEditRoomModal()">
-
                 ยกเลิก
-
               </button>
-
               <button type="button" id="btnSubmitQuickEditRoom" class="oca-btn-gold-submit" style="padding:7px 20px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px;" onclick="submitQuickEditRoom()">
                 <i class="fa-solid fa-check"></i> บันทึกห้องเรียนใหม่
               </button>
             </div>
           </div>
         </div>
-
         <!-- ===================================================================
-
              MODAL: SHIPPING LABEL A4 PRINT PREVIEW (8 ใบต่อแผ่น A4 แนวตั้ง)
-
              =================================================================== -->
-
         <div id="modalShippingPrintPreview" class="oca-custom-modal-backdrop oca-formal-modal" onclick="if(event.target===this)closeShippingPrintPreview()" style="display:none; padding:20px;">
           <div class="oca-card-section" style="max-width:960px; width:100%; max-height:92vh; display:flex; flex-direction:column; padding:0; overflow:hidden; border:1px solid var(--border-soft); box-shadow:0 25px 50px -12px rgba(0,0,0,0.85);">
             <!-- Modal Header -->
@@ -25627,21 +25547,17 @@ body.printing-report #printReportContainer {
                   <div id="lblShippingPreviewSubtitle" style="font-size:12px; color:var(--text-muted);">ระยะขอบ 1 ซม. พร้อมกรอบสำหรับตัด • ขึ้นบรรทัดใหม่เฉพาะที่อยู่</div>
                 </div>
               </div>
-
               <div style="display:flex; align-items:center; gap:10px;">
                 <button type="button" class="oca-btn-gold-submit" style="padding:8px 20px; font-size:13px; display:inline-flex; align-items:center; gap:6px;" onclick="printShippingFromPreview()">
                   <i class="fa-solid fa-print"></i> พิมพ์เอกสาร (Print)
                 </button>
-
                 <button type="button" style="background:transparent; border:none; color:var(--text-muted); font-size:18px; cursor:pointer; line-height:1; padding:4px;" onclick="closeShippingPrintPreview()" title="ปิด">✕</button>
               </div>
             </div>
-
             <!-- Modal Body (Preview Canvas Container) -->
             <div class="oca-shipping-preview-viewport" id="boxShippingPreviewContent">
               <!-- Sheets will be dynamically rendered here -->
             </div>
-
             <!-- Modal Footer -->
             <div style="padding:12px 24px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:var(--bg-modal-footer);">
               <span id="lblShippingPreviewSummary" style="font-size:12.5px; color:var(--text-muted);">รวมทั้งสิ้น 0 แผ่น A4 (0 ป้าย)</span>
@@ -25654,13 +25570,9 @@ body.printing-report #printReportContainer {
             </div>
           </div>
         </div>
-
         <!-- ===================================================================
-
              MODAL: SMART CARD PRINT ENGINE (POINMAN N15 / CR-80)
-
              =================================================================== -->
-
         <div id="modalCardPrint" class="oca-custom-modal-backdrop oca-formal-modal" onclick="if(event.target===this)closeCardPrintModal()" style="display:none; padding:20px;">
           <div class="oca-custom-modal-box" style="max-width:680px; width:100%; max-height:92vh; display:flex; flex-direction:column; padding:0; border-radius:14px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.45); border:1px solid rgba(215,166,0,0.45); background:var(--bg-card);">
             <!-- Modal Header -->
@@ -25669,29 +25581,24 @@ body.printing-report #printReportContainer {
                 <div style="width:34px; height:34px; border-radius:8px; background:rgba(215,166,0,0.18); border:1px solid var(--color-gold); display:flex; align-items:center; justify-content:center; color:var(--color-gold); font-size:16px;">
                   <i class="fa-solid fa-id-card"></i>
                 </div>
-
                 <div>
                   <div style="font-size:16px; font-weight:700; color:var(--color-gold);">ระบบพิมพ์บัตรประจำตัวนักศึกษา (Card Printer Engine)</div>
                   <div style="font-size:12px; color:var(--text-muted);">เครื่องหลัก: POINMAN N15 (CR-80 85.6 × 54 มม.) พิมพ์ตรงลงบัตรสำเร็จรูปพิมพ์ลายทอง</div>
                 </div>
               </div>
-
               <button type="button" style="background:transparent; border:none; color:var(--text-muted); font-size:18px; cursor:pointer; line-height:1; padding:4px;" onclick="closeCardPrintModal()" title="ปิด">✕</button>
             </div>
-
             <!-- Modal Body (Scrollable) -->
             <div style="padding:20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:16px;">
               <!-- Student Banner Info -->
               <div id="cardPrintStudentBanner" style="display:flex; align-items:center; justify-content:space-between; background:var(--bg-app); border:1px solid var(--border-card); border-radius:10px; padding:12px 16px; flex-wrap:wrap; gap:10px;">
                 <!-- dynamic banner -->
               </div>
-
               <!-- Setting 1: Printer Preset Selection -->
               <div>
                 <label class="oca-label" style="font-size:13px; font-weight:700; color:var(--color-gold); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
                   <i class="fa-solid fa-print"></i> เลือกเครื่องพิมพ์บัตร (Card Printer Preset)
                 </label>
-
                 <div style="display:flex; flex-direction:column; gap:8px;">
                   <button type="button" id="btnPresetPoinman" class="oca-print-preset-card active" style="width:100%; text-align:left; padding:12px 16px; border-radius:8px; border:1.5px solid var(--color-gold); background:var(--bg-app); cursor:pointer;" onclick="selectCardPrinterPreset('poinman_n15')">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -25702,77 +25609,52 @@ body.printing-report #printReportContainer {
                           <div style="font-size:12px; color:var(--text-muted);">CR-80 85.6 × 54 มม. · Direct-to-Card 300 DPI · YMCKO Ribbon</div>
                         </div>
                       </div>
-
                       <span style="background:rgba(16,185,129,0.2); border:1px solid #10b981; color:#15803D; font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px;">เครื่องหลัก</span>
                     </div>
                   </button>
-
                   <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:8px;">
                     <button type="button" id="btnPresetZebra" class="oca-card-toggle-btn" style="padding:8px 10px; font-size:12px; border-radius:6px;" onclick="selectCardPrinterPreset('zebra_zxp')">
-
                       Zebra ZXP 3 / ZC300
-
                     </button>
-
                     <button type="button" id="btnPresetEvolis" class="oca-card-toggle-btn" style="padding:8px 10px; font-size:12px; border-radius:6px;" onclick="selectCardPrinterPreset('evolis')">
-
                       Evolis Zenius / Primacy
-
                     </button>
-
                     <button type="button" id="btnPresetFargo" class="oca-card-toggle-btn" style="padding:8px 10px; font-size:12px; border-radius:6px;" onclick="selectCardPrinterPreset('fargo_dtc')">
-
                       Fargo DTC Series
-
                     </button>
-
                     <button type="button" id="btnPresetGeneric" class="oca-card-toggle-btn" style="padding:8px 10px; font-size:12px; border-radius:6px;" onclick="selectCardPrinterPreset('generic_cr80')">
-
                       เครื่องพิมพ์ CR-80 ทั่วไป
-
                     </button>
                   </div>
                 </div>
               </div>
-
               <!-- Setting 2: Card Stock & Mode Information -->
               <div style="background:var(--bg-app); border:1px solid rgba(215,166,0,0.25); border-radius:10px; padding:12px 16px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                   <div style="font-size:12.5px; color:var(--text-main);">
                     <strong>รูปแบบบัตร:</strong> บัตรสำเร็จรูปพิมพ์ลายทอง (Pre-printed Gold Card Stock)
                   </div>
-
                   <span style="background:rgba(215,166,0,0.18); border:1px solid var(--color-gold); color:var(--color-gold); font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:10px;">
-
                     เฉพาะด้านหน้า (Front-Side Only)
-
                   </span>
                 </div>
-
                 <div style="font-size:12px; color:var(--text-muted); margin-top:6px; line-height:1.5;">
-
                   เครื่องพิมพ์จะพิมพ์เฉพาะตัวอักษรสีดำ (ชื่อ-สกุล, รหัส, วันออกบัตร) และรูปถ่าย โดยเว้นลายทองและหัวกระดาษไว้ ไม่พิมพ์ซ้ำซ้อน
-
                 </div>
               </div>
-
               <!-- Setting 3: Micro-Calibration (ปรับแต่งระยะพิมพ์ละเอียด มม. ผูกตามรุ่นเครื่องพิมพ์) -->
               <div style="background:rgba(215,166,0,0.06); border:1px solid rgba(215,166,0,0.25); border-radius:10px; padding:12px 16px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
                   <div style="font-weight:700; color:var(--color-gold); font-size:12.5px; display:flex; align-items:center; gap:6px;">
                     <i class="fa-solid fa-arrows-up-down-left-right"></i> ระบบปรับชดเชยระยะพิมพ์ละเอียด (Auto-Calibration Preset)
                   </div>
-
                   <div style="display:flex; align-items:center; gap:8px;">
                     <span id="lblModalCardCalibSaveStatus" style="font-size:11px; color:var(--accent-emerald); font-weight:600;">✓ บันทึกอัตโนมัติตามรุ่นเครื่องพิมพ์</span>
                     <button type="button" class="oca-btn-secondary" style="padding:3px 10px; font-size:11.5px;" onclick="resetCardCalibration()">
-
                       คืนค่าเริ่มต้นรุ่นนี้
-
                     </button>
                   </div>
                 </div>
-
                 <div style="display:flex; gap:14px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
                   <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
                     <div style="display:flex; align-items:center; gap:6px;">
@@ -25780,14 +25662,12 @@ body.printing-report #printReportContainer {
                       <input type="number" id="inpCardCalibX" step="0.1" value="0.0" style="width:72px; text-align:center; padding:4px 6px; border-radius:6px; background:var(--bg-input); border:1px solid var(--border-card); color:var(--text-main); font-weight:700; font-family:monospace;" oninput="onCardCalibOffsetChanged()">
                       <span style="font-size:12px; color:var(--text-muted);">มม.</span>
                     </div>
-
                     <div style="display:flex; align-items:center; gap:6px;">
                       <label style="font-size:12px; color:var(--text-muted);">แกน Y (แนวตั้ง):</label>
                       <input type="number" id="inpCardCalibY" step="0.1" value="0.0" style="width:72px; text-align:center; padding:4px 6px; border-radius:6px; background:var(--bg-input); border:1px solid var(--border-card); color:var(--text-main); font-weight:700; font-family:monospace;" oninput="onCardCalibOffsetChanged()">
                       <span style="font-size:12px; color:var(--text-muted);">มม.</span>
                     </div>
                   </div>
-
                   <div style="display:inline-flex; align-items:center; gap:4px;">
                     <button type="button" class="oca-btn-cancel-custom" style="min-height:32px; height:32px; padding:0 12px; font-size:12px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; gap:4px;" onclick="nudgeCardCalibration(-0.2, 0)">◀ ซ้าย</button>
                     <button type="button" class="oca-btn-cancel-custom" style="min-height:32px; height:32px; padding:0 12px; font-size:12px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; gap:4px;" onclick="nudgeCardCalibration(0.2, 0)">ขวา ▶</button>
@@ -25795,99 +25675,70 @@ body.printing-report #printReportContainer {
                     <button type="button" class="oca-btn-cancel-custom" style="min-height:32px; height:32px; padding:0 12px; font-size:12px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; gap:4px;" onclick="nudgeCardCalibration(0, 0.2)">▼ ลง</button>
                   </div>
                 </div>
-
                 <div style="font-size:11.5px; color:var(--text-muted); margin-top:6px;">
-
                   * เมื่อเลือกเครื่องพิมพ์หรือแก้ไขตัวเลข ระบบจะโหลด/บันทึกค่าชดเชยแยกตามรุ่นเครื่องพิมพ์ลงในเครื่องและระบบ Cloud อัตโนมัติทันที
-
                 </div>
               </div>
-
               <!-- Driver Setup Guide for POINMAN N15 (Collapsible Accordion) -->
               <div id="boxPoinmanDriverGuide" style="background:rgba(215, 166, 0, 0.08); border:1px solid rgba(215, 166, 0, 0.28); border-radius:10px; padding:12px 16px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="togglePoinmanGuideHelp()">
                   <div style="font-weight:700; color:var(--color-gold); font-size:12.5px; display:flex; align-items:center; gap:6px;">
                     <i class="fa-solid fa-sliders"></i> คำแนะนำการตั้งค่าไดรเวอร์ POINMAN N15 ในหน้าต่างพิมพ์ Windows
                   </div>
-
                   <i id="iconPoinmanGuideChevron" class="fa-solid fa-chevron-down" style="color:var(--color-gold); font-size:12px; transition:transform 0.2s;"></i>
                 </div>
-
                 <div id="contentPoinmanGuide" style="display:none; margin-top:10px; font-size:12px; color:var(--text-main); line-height:1.6; border-top:1px solid rgba(215, 166, 0, 0.15); padding-top:8px;">
-
                   1. <strong>เครื่องพิมพ์ (Destination):</strong> เลือก <code>POINMAN N15 Card Printer</code> (หรือไดรเวอร์เครื่องพิมพ์บัตร CR-80)<br>
-
                   2. <strong>ขนาดกระดาษ (Paper size):</strong> เลือก <code>CR-80 Card</code> หรือ <code>85.6 x 54 mm</code> (3.375 x 2.125 in)<br>
-
                   3. <strong>ระยะขอบ (Margins):</strong> เลือก <code>None (ไม่มีขอบ / 0)</code><br>
-
                   4. <strong>มาตราส่วน (Scale):</strong> เลือก <code>Default (ค่าเริ่มต้น)</code> หรือ <code>100%</code><br>
-
                   5. <strong>ตัวเลือกการพิมพ์ (Options):</strong><br>
-
                      &nbsp;&nbsp;☑ ติ๊กถูก <strong>กราฟิกพื้นหลัง (Background graphics)</strong> เพื่อให้พิมพ์รูปถ่ายและตัวอักษรคมชัด<br>
-
                      &nbsp;&nbsp;☐ ติ๊กออก <strong>ส่วนหัวและส่วนท้าย (Headers and footers)</strong> เพื่อไม่ให้มี URL หรือวันที่เบราว์เซอร์ติดบนบัตร PVC<br>
-
                   6. <strong>ริบบอน (Ribbon):</strong> ตั้งค่าเป็น <code>YMCKO (Color)</code> ด้านหน้าอย่างเดียว (Single-Sided)
-
                 </div>
               </div>
             </div>
-
             <!-- Modal Footer -->
             <div style="padding:14px 22px; border-top:1px solid var(--border-soft); display:flex; justify-content:space-between; align-items:center; background:var(--bg-app); flex-shrink:0;">
               <button type="button" class="oca-btn-secondary" onclick="closeCardPrintModal()" style="padding:8px 18px; font-size:13px;">
-
                 ยกเลิก
-
               </button>
-
               <button type="button" class="oca-btn-gold-submit" style="padding:9px 24px; font-size:13.5px; display:inline-flex; align-items:center; gap:8px;" onclick="startExecutingCardPrint()">
                 <i class="fa-solid fa-print"></i> สั่งพิมพ์บัตรทันที (Print Now)
               </button>
             </div>
           </div>
         </div>
-
         <!-- ===================================================================
-
              MODAL: EDIT SHIPPING RECIPIENT INFO (แก้ไขข้อมูลผู้รับ / ที่อยู่ / เบอร์โทร)
-
              =================================================================== -->
-
         <div id="modalEditShippingAddress" class="oca-custom-modal-backdrop oca-formal-modal" onclick="if(event.target===this)closeEditShippingModal()" style="display:none; padding:20px;">
           <div class="oca-card-section" style="max-width:540px; width:100%; padding:0; overflow:hidden; border:1px solid var(--border-soft); box-shadow:0 25px 50px -12px rgba(0,0,0,0.85);">
             <div style="padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:var(--bg-modal-header);">
               <div style="font-size:15px; font-weight:700; color:var(--color-gold);">
                 <i class="fa-solid fa-pen-to-square"></i> แก้ไขข้อมูลจัดส่งผู้เรียน
               </div>
-
               <button type="button" style="background:transparent; border:none; color:var(--text-muted); font-size:16px; cursor:pointer;" onclick="closeEditShippingModal()">✕</button>
             </div>
-
             <div style="padding:20px;">
               <input type="hidden" id="hidEditShipOrderId">
               <div class="oca-input-group" style="margin-bottom:12px;">
                 <label class="oca-label" for="inpEditShipFullName">ชื่อ-นามสกุล (ผู้รับ) *</label>
                 <input type="text" id="inpEditShipFullName" class="oca-input" required>
               </div>
-
               <div class="oca-input-group" style="margin-bottom:12px;">
                 <label class="oca-label" for="inpEditShipPhone">เบอร์โทรศัพท์ *</label>
                 <input type="text" id="inpEditShipPhone" class="oca-input" required placeholder="08XXXXXXXX">
               </div>
-
               <div class="oca-input-group" style="margin-bottom:12px;">
                 <label class="oca-label" for="inpEditShipAddress">ที่อยู่จัดส่งพัสดุ * (จะตัดขึ้นบรรทัดใหม่อัตโนมัติ)</label>
                 <textarea id="inpEditShipAddress" class="oca-input" rows="3" style="resize:vertical;" required placeholder="ระบุเลขที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด รหัสไปรษณีย์"></textarea>
               </div>
-
               <div class="oca-input-group" style="margin-bottom:12px;">
                 <label class="oca-label" for="inpEditShipTracking">เลขพัสดุ (Tracking Number)</label>
                 <input type="text" id="inpEditShipTracking" class="oca-input" placeholder="เช่น TH0123456789 หรือ ED123456789TH">
               </div>
-
               <div class="oca-input-group" style="margin-bottom:10px;">
                 <label class="oca-label" for="selEditShipStatus">สถานะการจัดส่ง</label>
                 <select id="selEditShipStatus" class="oca-input">
@@ -25896,7 +25747,6 @@ body.printing-report #printReportContainer {
                   <option value="SHIPPED">จัดส่งแล้ว</option>
                 </select>
               </div>
-
               <div style="margin-bottom:8px; display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:10px 14px; border-radius:6px; border:1px solid rgba(255,255,255,0.1);">
                 <input type="checkbox" id="chkEditShipSendEmail" style="width:16px; height:16px; accent-color:var(--color-gold); cursor:pointer;" checked>
                 <label for="chkEditShipSendEmail" style="font-size:12.5px; color:var(--text-main); cursor:pointer; margin:0;">
@@ -25904,7 +25754,6 @@ body.printing-report #printReportContainer {
                 </label>
               </div>
             </div>
-
             <div style="padding:14px 20px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:flex-end; gap:10px; background:var(--bg-modal-footer);">
               <button type="button" class="oca-btn-cancel-custom" onclick="closeEditShippingModal()">ยกเลิก</button>
               <button type="button" class="oca-btn-gold-submit" style="padding:8px 20px; font-size:13px;" onclick="saveEditShippingModal()">
@@ -25914,84 +25763,64 @@ body.printing-report #printReportContainer {
           </div>
         </div>
     </div>
-
     <!-- Floating Mobile Bottom Navigation Dock (Thumb-Zone Navigation for Small Screens) -->
     <nav class="oca-mobile-bottom-nav" id="ocaMobileBottomNav" aria-label="เมนูลัดมือถือ">
       <button type="button" class="oca-mob-nav-btn active" id="mobNavDash" onclick="switchNav('dashboard')">
         <i class="fa-solid fa-chart-pie"></i>
         <span class="oca-bottom-nav-label" id="lblMobNavDash">แดชบอร์ด</span>
       </button>
-
       <button type="button" class="oca-mob-nav-btn" id="mobNavEnroll" onclick="switchNav('enroll')">
         <i class="fa-solid fa-user-plus"></i>
         <span class="oca-bottom-nav-label" id="lblMobNavEnroll">รับสมัคร</span>
       </button>
-
       <button type="button" class="oca-mob-nav-btn" id="mobNavReceipts" onclick="switchNav('receipts')">
         <i class="fa-solid fa-receipt"></i>
         <span class="oca-bottom-nav-label" id="lblMobNavReceipts">ใบเสร็จ</span>
       </button>
-
       <button type="button" class="oca-mob-nav-btn" id="mobNavShipping" onclick="switchNav('shipping')">
         <i class="fa-solid fa-truck-fast"></i>
         <span class="oca-bottom-nav-label" id="lblMobNavShipping">จัดส่ง</span>
       </button>
-
       <button type="button" class="oca-mob-nav-btn" id="mobNavMore" onclick="toggleSidebar(true, event)">
         <i class="fa-solid fa-bars"></i>
         <span class="oca-bottom-nav-label" id="lblMobNavMore">เมนูอื่น</span>
       </button>
     </nav>
-
     <!-- Toast Notification -->
     <div class="oca-toast-holder" id="toastHolder"></div>
     <!-- =========================================================================
-
          FULLSCREEN WELCOME SCREEN OVERLAY (หน้าต้อนรับ 2K ไร้รอยต่อ ป้องกันจอเขียวโล่ง 100%)
-
          ========================================================================= -->
-
     <div id="viewWelcome" class="oca-welcome-overlay">
       <div class="oca-welcome-stage">
         <!-- Ambient Full-Bleed Backdrop (ขยายแสงและบรรยากาศธรรมชาติเต็มจอ 100vw x 100vh ไร้ขอบดำ/เขียวข้าง) -->
         <div class="oca-welcome-ambient-bg" aria-hidden="true">
           <img id="ocaWelcomeAmbientImg" class="oca-welcome-ambient-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" alt="" />
-
         </div>
-
         <div class="oca-welcome-canvas">
           <svg class="oca-welcome-svg" viewBox="0 0 2752 1536" preserveAspectRatio="xMidYMid meet">
             <defs>
               <linearGradient id="ocaBtnGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stop-color="#0a6237" />
-
                 <stop offset="50%" stop-color="#064726" />
-
                 <stop offset="100%" stop-color="#032b17" />
-
               </linearGradient>
             </defs>
-
             <!-- 2K Background Canvas Image -->
             <image class="oca-welcome-bg-img" href="assets/images/oca_welcome_bg.jpg" x="0" y="0" width="2752" height="1536" pointer-events="none" style="user-select:none;-webkit-user-drag:none;" />
-
             <!-- INTERACTIVE VECTOR WELCOME BUTTON (100% Mathematically Locked to 2752x1536) -->
             <g class="oca-svg-welcome-btn" id="btnWelcomeSvg" onclick="enterDashboard(event)" ontouchend="handleTouchEnter(event)" cursor="pointer" role="button" aria-label="เข้าสู่ระบบ">
               <!-- Extended Hit Target (150, 890, 570, 200) for effortless clicking/tapping -->
               <rect x="150" y="890" width="570" height="200" rx="100" fill="transparent" />
-
               <!-- Radiant Gold Pulse Ring -->
               <rect class="oca-svg-pulse" x="188" y="934" width="492" height="117" rx="58.5" fill="none" stroke="#F7D24C" stroke-width="4" />
-
               <!-- Luxury Emerald Pill Body (covers the AI button completely) -->
               <rect class="oca-svg-pill" x="198" y="944" width="472" height="97" rx="48.5" fill="url(#ocaBtnGrad)" stroke="#E2B34A" stroke-width="3.5" />
-
               <!-- Razor-Sharp Vector Typography -->
               <text x="434" y="1010" fill="#FFF8E7" font-family="'Prompt', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="44" font-weight="700" text-anchor="middle" letter-spacing="4">WELCOME &rarr;</text>
             </g>
           </svg>
         </div>
-
         <!-- SINGLE PWA INSTALL BUTTON ON WELCOME SCREEN -->
         <div class="oca-welcome-pwa-bar" id="welcomePwaBar">
           <button type="button" class="oca-welcome-pwa-btn" id="btnWelcomePwa" onclick="handleWelcomePwaClick(event)" ontouchend="handleWelcomePwaClick(event)" title="ติดตั้งแอปพลิเคชัน OCA ลงในโทรศัพท์">
@@ -25999,24 +25828,20 @@ body.printing-report #printReportContainer {
               <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
               <line x1="12" y1="18" x2="12.01" y2="18"></line>
             </svg>
-
             <span class="oca-welcome-pwa-text">ติดตั้งแอปพลิเคชัน OCA (PWA)</span>
             <span class="oca-welcome-pwa-badge">PWA</span>
           </button>
         </div>
       </div>
-
       <!-- MOBILE PHONE WELCOME (portrait phones only; PC/tablet keep the 2K landscape canvas) -->
       <div class="oca-welcome-mobile-stage" id="ocaWelcomeMobileStage">
         <img class="oca-mob-scene-img" src="assets/images/oca_mob_scene.jpg" alt="Oriental Culture Academy" draggable="false" />
-
         <div class="oca-mob-cta-wrap">
           <button type="button" class="oca-mob-cta" id="btnWelcomeMob" onclick="enterDashboard(event)" ontouchend="handleTouchEnter(event)" aria-label="เข้าสู่ระบบ OCA">
             <span class="oca-mob-cta-text">WELCOME</span>
             <span class="oca-mob-cta-arrow" aria-hidden="true">&rarr;</span>
           </button>
         </div>
-
         <div class="oca-mob-pwa-wrap">
           <button type="button" class="oca-mob-pwa" id="btnWelcomePwaMob" onclick="handleWelcomePwaClick(event)" aria-label="ติดตั้งแอป OCA ลงในโทรศัพท์">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
@@ -26026,19 +25851,12 @@ body.printing-report #printReportContainer {
         </div>
       </div>
     </div>
-
     <!-- =========================================================================
-
          SPLIT-SCREEN LOGIN MODAL (OCA IMPERIAL EMERALD & CHAMPAGNE GOLD LUXURY THEME)
-
          ========================================================================= -->
-
         <!-- =========================================================================
-
          SPLIT-SCREEN LOGIN MODAL (CANVA MODERN LUXURY EDITORIAL STYLE - CONCEPT 1)
-
          ========================================================================= -->
-
     <div id="viewLoginSplit" onclick="if(event.target===this)backToWelcomeScreen()" style="display:none; position:fixed; inset:0; z-index:99990; background:var(--bg-subcard); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); padding:20px; align-items:center; justify-content:center; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans Thai',sans-serif; overflow-y:auto;">
       <div class="oca-login-split-card" style="max-width:960px; width:95%; border-radius:20px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,0.7), 0 0 0 1.5px rgba(215,166,0,0.35); background:#011e17; display:flex; flex-direction:row; flex-wrap:wrap; margin:auto; position:relative; min-height:540px;">
         <!-- LEFT SIDE: EXECUTIVE ANALYTICS DASHBOARD WITH GRAPHS (60%) -->
@@ -26046,11 +25864,8 @@ body.printing-report #printReportContainer {
           <!-- Subtle Chinese Calligraphy & Ambient Watermark -->
           <div style="position:absolute; inset:0; background:radial-gradient(circle at 10% 20%, rgba(12,117,94,0.4) 0%, transparent 60%), radial-gradient(circle at 90% 85%, rgba(215,166,0,0.15) 0%, transparent 50%); pointer-events:none;"></div>
           <div style="position:absolute; right:-20px; top:50%; transform:translateY(-50%); font-family:'Noto Serif TC',serif; font-size:160px; color:rgba(215,166,0,0.03); line-height:1; pointer-events:none; user-select:none; font-weight:900; z-index:1; writing-mode:vertical-rl;">
-
             东方文化
-
           </div>
-
           <!-- SECTION 1: TOP BRANDING & CREST -->
           <div style="position:relative; z-index:2;">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
@@ -26073,7 +25888,6 @@ body.printing-report #printReportContainer {
                 </div>
               </div>
             </div>
-
             <!-- Dashboard Subtitle -->
             <div style="display:flex; justify-content:space-between; align-items:center; margin:0 0 10px 0;">
               <div style="font-size:14.5px; font-weight:800; color:#FAF0D7; letter-spacing:-0.2px;">
@@ -26081,7 +25895,6 @@ body.printing-report #printReportContainer {
               </div>
               <span id="loginLivePulseNotice" style="font-size:9.5px; color:#34d399; font-weight:700; background:rgba(16,185,129,0.14); padding:2px 8px; border-radius:8px; border:1px solid rgba(16,185,129,0.28);">● Realtime Sync</span>
             </div>
-
             <!-- 2 Clean KPI Cards Row: Students + Active Term & Courses -->
             <div class="oca-login-kpi-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
               <!-- KPI 1: Students Total -->
@@ -26094,7 +25907,6 @@ body.printing-report #printReportContainer {
                   <span style="font-size:11.5px; font-weight:600; color:#E5CCA2;">คน</span>
                 </div>
               </div>
-
               <!-- KPI 2: Active Term & Active Courses -->
               <div style="background:rgba(2,45,36,0.72); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:1px solid rgba(16,185,129,0.42); border-radius:14px; padding:12px 14px; box-shadow:0 6px 18px rgba(0,0,0,0.32);">
                 <div style="font-size:10.5px; color:rgba(250,240,215,0.78); font-weight:700;">
@@ -26109,7 +25921,6 @@ body.printing-report #printReportContainer {
               </div>
             </div>
           </div>
-
           <!-- SECTION 2: CENTER ANALYTICS SHOWCASE (5-TERM BAR CHART + HORIZONTAL MODALITY BAR) -->
           <div style="position:relative; z-index:2; margin:14px 0; background:rgba(1,26,20,0.82); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid rgba(215,166,0,0.35); border-radius:16px; padding:14px 16px; box-shadow:0 10px 26px rgba(0,0,0,0.45);">
             <!-- Box Title -->
@@ -26121,7 +25932,6 @@ body.printing-report #printReportContainer {
                 <span style="color:#34d399;">● ภาคเรียนปัจจุบัน</span>
               </span>
             </div>
-
             <!-- 5-Term Vertical Gradient Bar Chart (Numbers Centered Above Each Bar) -->
             <div style="position:relative; margin-bottom:14px;">
               <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; align-items:end; height:106px; padding:18px 8px 6px 8px; border-bottom:1px solid rgba(255,255,255,0.12);">
@@ -26160,7 +25970,6 @@ body.printing-report #printReportContainer {
                 <span id="loginBarLabel5" style="text-align:center;">เทอม 5</span>
               </div>
             </div>
-
             <!-- Horizontal Segmented Progress Bar (Onsite / Online / Hybrid) -->
             <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 12px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:4px;">
@@ -26179,7 +25988,6 @@ body.printing-report #printReportContainer {
               </div>
             </div>
           </div>
-
           <!-- SECTION 3: CLEAN ACADEMIC FOOTER -->
           <div style="position:relative; z-index:2;">
             <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,20,15,0.82); border:1px solid rgba(215,166,0,0.32); border-radius:24px; padding:7px 14px; box-shadow:0 4px 12px rgba(0,0,0,0.35); max-width:100%; box-sizing:border-box; flex-wrap:wrap; gap:8px;">
@@ -26194,7 +26002,6 @@ body.printing-report #printReportContainer {
             </div>
           </div>
         </div>
-
         <!-- RIGHT SIDE: CANVA CLEAN & LUXURY AUTHENTICATION CARD (40%) -->
         <div style="flex:0.95 1 360px; background:#FAF7F2; padding:32px 30px; display:flex; flex-direction:column; justify-content:center; position:relative; color:#1f2937;">
           <!-- 3-Language Switcher (TH / EN / ZH) with National Flags & Protected from TreeWalker -->
@@ -26218,7 +26025,6 @@ body.printing-report #printReportContainer {
           <button type="button" id="btnLoginCloseBtn" onclick="backToWelcomeScreen()" style="position:absolute; top:16px; right:16px; background:transparent; border:none; color:#9ca3af; font-size:18px; cursor:pointer; padding:6px; line-height:1; transition:color 0.15s; border-radius:50%;" onmouseover="this.style.color='#111827'" onmouseout="this.style.color='#9ca3af'" title="ปิด / กลับหน้าต้อนรับ">
             <i class="fa-solid fa-xmark"></i>
           </button>
-
           <!-- Floating Elevated Canva Inner Card -->
           <div style="background:#FFFFFF; border-radius:18px; padding:28px 24px; box-shadow:0 10px 30px rgba(0,0,0,0.06); border:1px solid rgba(229,204,162,0.45);">
             <!-- Header -->
@@ -26227,11 +26033,9 @@ body.printing-report #printReportContainer {
                 <i class="fa-solid fa-shield-halved" style="color:#0F172A; font-size:10px;"></i>
                 <span id="lblLoginStaffAuthBadge" style="font-size:10px; font-weight:800; color:#0F172A; text-transform:uppercase; letter-spacing:0.8px;">STAFF AUTHENTICATION</span>
               </div>
-
               <h2 id="lblLoginWelcomeTitle" style="font-size:26px; font-weight:800; color:#111827; margin:0 0 3px 0; letter-spacing:-0.4px;">Welcome Back!</h2>
               <div id="lblLoginStaffSub" style="font-size:12.5px; color:#6b7280; font-weight:500;">เข้าสู่ระบบบุคลากรสถาบัน</div>
             </div>
-
             <!-- Form -->
             <form id="formStaffLogin" autocomplete="off" onsubmit="event.preventDefault(); submitStaffLogin();">
               <!-- Email / Username -->
@@ -26239,34 +26043,28 @@ body.printing-report #printReportContainer {
                 <label for="txtLoginUsername" id="lblLoginUsername" style="display:block; font-size:12px; font-weight:600; color:#374151; margin-bottom:5px;">
                   ชื่อผู้ใช้งาน หรือ อีเมล (Username / Email)
                 </label>
-
                 <div style="display:flex; border:1.5px solid #E5E7EB; border-radius:10px; overflow:hidden; background:#F9FAFB; height:44px; transition:border-color 0.2s, box-shadow 0.2s;">
                   <div style="width:42px; height:100%; display:flex; align-items:center; justify-content:center; color:#9ca3af; font-size:14px; flex-shrink:0;">
                     <i class="fa-solid fa-user"></i>
                   </div>
-
                   <input type="text" id="txtLoginUsername" placeholder="admin, registrar, cashier ฯลฯ" required autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" style="flex:1; border:none; outline:none; padding:0 12px; font-size:13px; color:#111827; background:transparent; font-family:inherit;">
                 </div>
               </div>
-
               <!-- Password -->
               <div style="margin-bottom:14px;">
                 <label for="txtLoginPassword" id="lblLoginPassword" style="display:block; font-size:12px; font-weight:600; color:#374151; margin-bottom:5px;">
                   รหัสผ่าน (Password)
                 </label>
-
                 <div style="display:flex; border:1.5px solid #E5E7EB; border-radius:10px; overflow:hidden; background:#F9FAFB; height:44px; position:relative; transition:border-color 0.2s, box-shadow 0.2s;">
                   <div style="width:42px; height:100%; display:flex; align-items:center; justify-content:center; color:#9ca3af; font-size:14px; flex-shrink:0;">
                     <i class="fa-solid fa-lock"></i>
                   </div>
-
                   <input type="password" id="txtLoginPassword" placeholder="กรอกรหัสผ่านของคุณ" required autocomplete="new-password" style="flex:1; border:none; outline:none; padding:0 38px 0 12px; font-size:13px; color:#111827; background:transparent; font-family:inherit;">
                   <button type="button" onclick="togglePasswordVisibility('txtLoginPassword', this)" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#9ca3af; cursor:pointer; font-size:13px; padding:4px;" title="แสดง/ซ่อนรหัสผ่าน">
                     <i class="fa-solid fa-eye"></i>
                   </button>
                 </div>
               </div>
-
               <!-- Enterprise Security Notice (Admin-Only Password Reset & Zero-Persistence) -->
           <div style="display:flex; align-items:flex-start; gap:9px; padding:10px 14px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; margin-bottom:18px; font-size:11.5px; color:#475569; line-height:1.5;">
             <i class="fa-solid fa-shield-halved" style="color:#0284C7; font-size:14px; margin-top:2px; flex-shrink:0;"></i>
@@ -26274,7 +26072,6 @@ body.printing-report #printReportContainer {
               <span id="lblLoginForgotNotice">กรณีลืมรหัสผ่าน กรุณาแจ้งผู้ดูแลระบบ (Admin) เพื่อรีเซ็ตรหัสผ่านเท่านั้น</span>
             </div>
           </div>
-
               <!-- Alert Box -->
               <div id="boxLoginAlert" style="display:none; font-size:12px; color:#dc2626; margin-bottom:12px; background:#fef2f2; border:1px solid #fecaca; padding:8px 12px; border-radius:8px; line-height:1.4;"></div>
               <!-- Signature Canva Gold Submit Button -->
@@ -26282,7 +26079,6 @@ body.printing-report #printReportContainer {
                 <span id="txtBtnLoginSubmit">[ เข้าสู่ระบบ (Sign In) → ]</span>
               </button>
             </form>
-
             <!-- Single-Device Security Policy Notice -->
             <div style="margin-top:14px; padding:10px 14px; background:rgba(217,119,6,0.08); border:1px solid rgba(217,119,6,0.25); border-radius:10px; font-size:11.5px; color:#78350f; line-height:1.5; display:flex; align-items:flex-start; gap:8px;">
               <i class="fa-solid fa-shield-halved" style="color:#d97706; font-size:13px; margin-top:2px; flex-shrink:0;"></i>
@@ -26290,12 +26086,9 @@ body.printing-report #printReportContainer {
                 <strong id="lblLoginNoticeTitle" style="color:#b45309; font-weight:700;">หมายเหตุความปลอดภัย:</strong> <span id="lblLoginNoticeDesc">กำหนดให้ 1 บัญชีผู้ใช้งานสามารถเข้าสู่ระบบได้พร้อมกันเพียง <strong>1 เครื่องเท่านั้น</strong> หากมีการเข้าใช้งานจากเครื่องใหม่ เครื่องเดิมจะถูกออกจากระบบโดยอัตโนมัติทันที</span>
               </div>
             </div>
-
             <!-- Bottom Institutional Dignity Footnote -->
             <div style="text-align:center; margin-top:16px; font-size:11px; color:#475569; letter-spacing:0.8px; font-weight:600;">
-
               东方文化书院 · ORIENTAL CULTURE ACADEMY
-
             </div>
           </div>
         </div>
@@ -26303,19 +26096,13 @@ body.printing-report #printReportContainer {
     </div>
   </div>
   </div><!-- /#oca-app-root -->
-
   <!-- Container สำหรับสั่งพิมพ์ใบปะหน้าพัสดุ (8 ใบ ต่อ 1 แผ่น A4 แนวตั้ง ขอบ 1 ซม.) -->
     <!-- =========================================================================
-
          PUBLIC STUDENT ONLINE ENROLLMENT INTERFACE (MOBILE-FIRST)
-
          Accessible via ?page=register or #register without login
-
          ========================================================================= -->
-
     <div id="viewPublicRegister" style="display:none; position:fixed; inset:0; z-index:99995; background:linear-gradient(170deg, #EAF7EE 0%, #DCFCE7 45%, #F0FDF4 100%); overflow-y:auto; padding:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans Thai',sans-serif; color:#1F2937;">
       <style>
-
         .oca-lang-flag-btn {
           display: inline-flex;
           align-items: center;
@@ -26333,37 +26120,31 @@ body.printing-report #printReportContainer {
           transition: all 0.2s ease;
           box-shadow: 0 2px 4px rgba(0,0,0,0.04);
         }
-
         .oca-lang-flag-btn:hover {
           border-color: #10B981;
           background: #F0FDF4;
         }
-
         .oca-lang-flag-btn.active {
           background: #047857;
           color: #FFFFFF;
           border-color: #D7A600;
           box-shadow: 0 0 0 2px rgba(215, 166, 0, 0.35), 0 4px 12px rgba(4, 120, 87, 0.25);
         }
-
         .oca-reg-grid-2 {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 14px;
         }
-
         .oca-reg-grid-3 {
           display: grid;
           grid-template-columns: 1fr 1fr 1fr;
           gap: 14px;
         }
-
         .oca-reg-grid-prefix-name {
           display: grid;
           grid-template-columns: 130px 1fr;
           gap: 12px;
         }
-
         .oca-reg-input {
           width: 100%;
           height: 44px;
@@ -26378,12 +26159,10 @@ body.printing-report #printReportContainer {
           transition: border-color 0.2s, box-shadow 0.2s;
           box-sizing: border-box;
         }
-
         .oca-reg-input:focus {
           border-color: #059669;
           box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
         }
-
         .oca-reg-label {
           display: block;
           font-size: 13px;
@@ -26391,7 +26170,6 @@ body.printing-report #printReportContainer {
           color: #064E3B;
           margin-bottom: 5px;
         }
-
         @media (max-width: 640px) {
           .oca-pub-reg-shell {
             padding: 10px 8px !important;
@@ -26400,85 +26178,69 @@ body.printing-report #printReportContainer {
             grid-template-columns: 1fr !important;
             gap: 10px !important;
           }
-
           .oca-reg-card {
             padding: 18px 14px !important;
             border-radius: 14px !important;
           }
-
           .oca-reg-input {
             height: 46px !important;
             font-size: 15px !important;
           }
         }
-
         .oca-btn-back-step0:hover {
           background: #ECFDF5 !important;
           border-color: #10B981 !important;
           transform: translateY(-1px);
         }
-
       </style>
-
       <div class="oca-pub-reg-shell">
         <!-- Top Toolbar: Language Selector with Flag Buttons (Pure Registration Mode) -->
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
           <button type="button" id="btnTopClearPublicRegister" onclick="clearPublicRegisterForm()" style="background:rgba(239,68,68,0.08); border:1.5px solid #FCA5A5; color:#991B1B; padding:7px 16px; border-radius:20px; font-size:12.5px; font-weight:700; cursor:pointer; display:none; align-items:center; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.06); transition:all 0.2s;" onmouseover="this.style.background='#B91C1C'; this.style.color='#FFFFFF'; this.style.borderColor='#B91C1C';" onmouseout="this.style.background='rgba(239,68,68,0.08)'; this.style.color='#991B1B'; this.style.borderColor='#FCA5A5';">
             <i class="fa-solid fa-rotate-left"></i> <span id="lblTopBtnResetText">ล้างข้อมูลที่เคยกรอก (กรณีใช้เครื่องร่วมกับผู้อื่น)</span>
           </button>
-
           <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
             <!-- Flag Thai Button -->
             <button type="button" class="oca-lang-flag-btn active" id="btnLangTh" data-i18n-locked="true" onclick="setRegisterLanguage('th')" title="ภาษาไทย" aria-label="ภาษาไทย">
               <span style="font-size:19px; line-height:1;">🇹🇭</span>
             </button>
-
             <!-- Flag UK/English Button -->
             <button type="button" class="oca-lang-flag-btn" id="btnLangEn" data-i18n-locked="true" onclick="setRegisterLanguage('en')" title="English" aria-label="English">
               <span style="font-size:19px; line-height:1;">🇬🇧</span>
             </button>
-
             <!-- Flag China/Chinese Button -->
             <button type="button" class="oca-lang-flag-btn" id="btnLangZh" data-i18n-locked="true" onclick="setRegisterLanguage('zh')" title="中文 (简体)" aria-label="中文 (简体)">
               <span style="font-size:19px; line-height:1;">🇨🇳</span>
             </button>
           </div>
         </div>
-
         <!-- Academy Branding Header (Logo + Seal + Chinese Calligraphy) -->
         <div style="background:#FFFFFF; border-radius:18px; border:1.5px solid rgba(16,185,129,0.3); box-shadow:0 10px 30px rgba(4,78,57,0.07); padding:26px 20px; text-align:center; margin-bottom:18px; position:relative;">
           <div style="width:84px; height:84px; border-radius:50%; margin:0 auto 12px; border:2.5px solid #D7A600; padding:2px; background:#FFFFFF; box-shadow:0 6px 18px rgba(4,78,57,0.12);">
             <img src="https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-kJVDLKednw7P" onerror="this.onerror=null; this.src='./oca_logo.png';" style="width:100%; height:100%; object-fit:contain; border-radius:50%;" alt="OCA Academy Crest Logo">
           </div>
-
           <div class="chinese-calligraphy" style="font-size:28px; color:#044E39; font-weight:800; letter-spacing:1.5px;">東方文化書院</div>
           <div style="font-size:17px; font-weight:800; color:#065F46; letter-spacing:1px; margin-top:2px;">ORIENTAL CULTURE ACADEMY</div>
           <div id="lblRegAcademySub" style="font-size:13.5px; color:#4B5563; font-weight:600; margin-top:2px;">โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก</div>
           <div style="margin-top:12px;">
             <span id="lblRegBadgeTitle" style="display:inline-block; background:rgba(4,120,87,0.08); border:1px solid rgba(4,120,87,0.3); color:#047857; font-size:14px; font-weight:800; padding:6px 20px; border-radius:24px;">
-
               📝 ใบสมัครเข้าศึกษาออนไลน์ (Online Admission Application)
-
             </span>
           </div>
         </div>
-
         <!-- Main Form Card -->
         <div class="oca-reg-card" style="background:#FFFFFF; border-radius:18px; border:1.5px solid rgba(16,185,129,0.25); box-shadow:0 12px 36px rgba(4,78,57,0.08); padding:28px 24px; margin-bottom:20px;">
           <!-- Schedule Active Banner -->
           <div id="bannerPubRegOpenSchedule" style="display:none; background:linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); border:1.5px solid #10B981; border-radius:12px; padding:12px 16px; margin-bottom:18px; color:#065F46; font-size:13.5px; font-weight:700; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(16,185,129,0.12);">
           </div>
-
           <!-- Closed / Upcoming Screen Container -->
           <div id="boxPublicRegisterClosedScreen" style="display:none; text-align:center; padding:36px 16px;">
           </div>
-
           <div id="boxPublicRegisterFormBody">
           <!-- Security Layer 3: Invisible Honeypot Trap for Bots (Invisible to Humans) -->
           <div style="opacity:0; position:absolute; top:0; left:0; height:0; width:0; z-index:-1; overflow:hidden;" aria-hidden="true">
             <input type="text" id="inpPubSecurityHoneypot" name="user_bot_trap_field" tabindex="-1" autocomplete="off">
           </div>
-
           <!-- Modern 3-Step Wizard Progress Stepper -->
           <div class="oca-reg-stepper" style="margin-bottom:24px; padding:10px 0 16px 0; border-bottom:1.5px solid rgba(16,185,129,0.2);">
             <div style="display:flex; align-items:center; justify-content:space-between; position:relative; max-width:540px; margin:0 auto;">
@@ -26489,13 +26251,11 @@ body.printing-report #printReportContainer {
                 <div id="stepCircle1" style="width:40px; height:40px; border-radius:50%; background:#047857; color:#FFFFFF; border:3px solid #D7A600; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; box-shadow:0 3px 8px rgba(4,120,87,0.3); transition:all 0.25s;">1</div>
                 <div style="margin-top:6px; font-size:12px; font-weight:700; color:#065F46; text-align:center;"><span id="txtStep1Label">1. ข้อมูลผู้เรียน</span></div>
               </div>
-
               <!-- Step 2 Indicator -->
               <div id="stepIndicator2" class="oca-step-item" onclick="switchPubRegStep(2)" style="position:relative; z-index:3; display:flex; flex-direction:column; align-items:center; cursor:pointer;" title="ขั้นตอนที่ 2: เลือกคอร์สเรียน">
                 <div id="stepCircle2" style="width:40px; height:40px; border-radius:50%; background:#F3F4F6; color:#374151; border:3px solid #E5E7EB; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; transition:all 0.25s;">2</div>
                 <div style="margin-top:6px; font-size:12px; font-weight:600; color:#374151; text-align:center;"><span id="txtStep2Label">2. เลือกคอร์ส</span></div>
               </div>
-
               <!-- Step 3 Indicator -->
               <div id="stepIndicator3" class="oca-step-item" onclick="switchPubRegStep(3)" style="position:relative; z-index:3; display:flex; flex-direction:column; align-items:center; cursor:pointer;" title="ขั้นตอนที่ 3: ชำระเงินและสลิป">
                 <div id="stepCircle3" style="width:40px; height:40px; border-radius:50%; background:#F3F4F6; color:#374151; border:3px solid #E5E7EB; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; transition:all 0.25s;">3</div>
@@ -26503,7 +26263,6 @@ body.printing-report #printReportContainer {
               </div>
             </div>
           </div>
-
             <!-- STEP 0: Student Type Selection (New vs Returning) -->
             <div id="stepPublicStep0" style="margin-bottom:24px;">
               <div style="text-align:center; margin-bottom:18px;">
@@ -26521,7 +26280,6 @@ body.printing-report #printReportContainer {
                   </div>
                   <div style="font-size:12px; color:#334155; line-height:1.5;">• สมัครคอร์สเรียน ซื้อตำราเรียน หรือสอบวัดระดับ HSK / YCT<br>• <span id="lblPubStep0RegFeeNote">ค่าลงทะเบียนแรกเข้าคำนวณตามอัตราปัจจุบัน</span></div>
                 </button>
-
                 <button type="button" id="btnPubStep0Returning" onclick="selectPublicStudentMode('returning')" style="text-align:left; background:#EFF6FF; border:2px solid #3B82F6; border-radius:14px; padding:18px 20px; cursor:pointer; transition:all 0.2s; display:flex; flex-direction:column; gap:8px;">
                   <div style="display:flex; align-items:center; gap:10px;">
                     <span style="width:40px; height:40px; border-radius:10px; background:#1D4ED8; color:#FFFFFF; display:inline-flex; align-items:center; justify-content:center; font-size:18px;"><i class="fa-solid fa-user-graduate"></i></span>
@@ -26534,7 +26292,6 @@ body.printing-report #printReportContainer {
                 </button>
               </div>
             </div>
-
             <form id="formPublicRegister" autocomplete="off" novalidate style="display:none;" onsubmit="event.preventDefault(); submitPublicRegister();">
               <div style="display:none;" aria-hidden="true"><button type="button" id="btnPubModeNew" onclick="selectPublicStudentMode('new')"></button><button type="button" id="btnPubModeRenewal" onclick="selectPublicStudentMode('returning')"></button></div>
               <!-- Online Registration Scope Policy Notice -->
@@ -26656,7 +26413,6 @@ body.printing-report #printReportContainer {
                     </button>
                   </div>
                 </div>
-
                 <!-- STEP 2: Unified Kiosk Course Menu (Left Categories / Right Course Cards) -->
                 <div id="pubKioskStep2Courses" style="display:none; margin-bottom:20px;">
                   <div id="boxKioskStep2StatusBar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; background:#ECFDF5; border:1.5px solid #A7F3D0; border-radius:12px; padding:10px 14px; margin-bottom:14px;">
@@ -26678,7 +26434,6 @@ body.printing-report #printReportContainer {
                     </button>
                   </div>
                 </div>
-
                 <!-- STEP 3: Schedule, Group, Instructor & Classroom Selection -->
                 <div id="pubKioskStep3Schedule" style="display:none; margin-bottom:20px;">
                   <div id="boxKioskStep3CourseSummary" style="background:#ECFDF5; border:1.5px solid #10B981; color:#0F172A; border-radius:12px; padding:14px 16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;"></div>
@@ -26749,68 +26504,48 @@ body.printing-report #printReportContainer {
                 <div style="width:34px; height:34px; border-radius:50%; background:#D1FAE5; color:#047857; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:16px;">
                   <i class="fa-solid fa-lightbulb"></i>
                 </div>
-
                 <div style="flex:1;">
                   <div id="lblPubRegNoteTitle" style="font-size:13.5px; font-weight:800; color:#065F46; margin-bottom:3px;">
-
                     ข้อแนะนำ: สบายใจได้ ระบบช่วยบันทึกข้อมูลให้อัตโนมัติ
-
                   </div>
-
                   <div id="lblPubRegNoteBody" style="font-size:12.5px; color:#047857; line-height:1.55;">
-
                     หากท่านจำเป็นต้องสลับหน้าจอไปถ่ายรูป หรือออกไปเตรียมเอกสาร ไม่ต้องกังวล! ระบบจะช่วยจำข้อมูลที่ท่านกรอกไว้ให้อัตโนมัติ เมื่อกลับเข้ามาเพียงระบุเลขบัตรประชาชน ระบบจะดึงข้อมูลเดิมกลับมาแสดงให้ทันที เพื่อความสะดวกและไม่สร้างข้อมูลซ้ำซ้อน
-
                   </div>
                 </div>
               </div>
-
               <!-- Restored Data Notification Alert -->
               <div id="boxPubRegRestoredAlert" style="display:none; background:#EFF6FF; border:1.5px solid #3B82F6; border-radius:12px; padding:14px 16px; margin-bottom:20px; align-items:flex-start; gap:12px; box-shadow:0 3px 10px rgba(59,130,246,0.1);">
                 <div style="width:34px; height:34px; border-radius:50%; background:#DBEAFE; color:#1D4ED8; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:16px;">
                   <i class="fa-solid fa-clock-rotate-left"></i>
                 </div>
-
                 <div style="flex:1;">
                   <div id="lblPubRegRestoredTitle" style="font-size:13.5px; font-weight:800; color:#1E40AF; margin-bottom:3px;">
-
                     ดึงข้อมูลเดิมที่คุณเคยกรอกไว้เรียบร้อยแล้ว
-
                   </div>
-
                   <div id="lblPubRegRestoredBody" style="font-size:12.5px; color:#1D4ED8; line-height:1.55;">
-
                     ระบบได้นำข้อมูลที่คุณเคยบันทึกค้างไว้มาแสดงในแบบฟอร์มแล้ว ท่านสามารถตรวจสอบความถูกต้อง แนบรูปถ่าย และกดยืนยันการสมัครได้เลย
-
                   </div>
-
                   <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                     <button type="button" onclick="clearPublicRegisterForm()" style="background:#DC2626; color:#FFFFFF; border:none; border-radius:8px; padding:7px 16px; font-size:12.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(220,38,38,0.3); transition:all 0.2s;" onmouseover="this.style.background='#B91C1C';" onmouseout="this.style.background='#DC2626';">
                       <i class="fa-solid fa-trash-can"></i> <span id="lblRestoredClearBtnText">ไม่ใช่ข้อมูลของฉัน (ล้างข้อมูลเพื่อสมัครใหม่)</span>
                     </button>
-
                     <button type="button" onclick="dismissPubRegRestoredAlert()" style="background:#FFFFFF; color:#2563EB; border:1px solid #BFDBFE; border-radius:8px; padding:7px 14px; font-size:12.5px; font-weight:600; cursor:pointer; transition:all 0.2s;">
                       <span id="lblRestoredAcknowledgeBtnText">รับทราบ / ข้อมูลถูกต้อง</span>
                     </button>
                   </div>
                 </div>
-
                 <button type="button" onclick="dismissPubRegRestoredAlert()" style="background:transparent; border:none; color:#60A5FA; cursor:pointer; font-size:18px; padding:2px; line-height:1;" title="ปิดการแจ้งเตือน">
                   <i class="fa-solid fa-xmark"></i>
                 </button>
               </div>
-
               <!-- SECTION 1: Personal Details -->
               <div style="margin-bottom:26px;">
                 <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; border-bottom:2px solid #E5E7EB; padding-bottom:8px;">
                   <span style="width:28px; height:28px; border-radius:50%; background:#047857; color:#FFFFFF; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:800; border:1.5px solid #D7A600;">1</span>
                   <h3 id="lblSec1Heading" style="font-size:16px; font-weight:800; color:#044E39; margin:0;">
-
                     ข้อมูลส่วนตัวผู้สมัคร (Personal Details)
-
                   </h3>
                 </div>
-
                 <!-- Avatar Photo Upload & Live WebRTC Camera -->
                 <div style="display:flex; align-items:flex-start; gap:16px; margin-bottom:18px; background:#F8FAFC; border:1px dashed #CBD5E1; border-radius:12px; padding:14px 18px; flex-wrap:wrap;">
                   <!-- Compact 3:4 Portrait Preview & Viewfinder Box -->
@@ -26823,7 +26558,6 @@ body.printing-report #printReportContainer {
                       <div style="font-size:10px; font-weight:700; color:#94A3B8; margin-top:4px;">สัดส่วน 3:4</div>
                     </div>
                   </div>
-
                   <div style="flex:1; min-width:220px;">
                     <div id="lblPhotoUploadTitle" style="font-size:13.5px; font-weight:700; color:#0F172A;">รูปถ่ายประจำตัวผู้สมัคร (Photo)</div>
                     <div id="lblPhotoUploadHint" style="font-size:12px; color:#64748B; margin-top:2px;">ถ่ายภาพสดผ่านกล้อง หรือเลือกไฟล์รูปภาพ JPG, PNG (ระบบ AI จัดภาพครึ่งตัวบนอัตโนมัติ)</div>
@@ -26832,44 +26566,36 @@ body.printing-report #printReportContainer {
                       <button type="button" id="btnToggleOnlineRegCam" onclick="toggleOnlineRegCamera()" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:#047857; color:#FFFFFF; font-size:12px; font-weight:700; padding:7px 14px; border-radius:6px; border:none; box-shadow:0 2px 6px rgba(4,120,87,0.25);">
                         <i class="fa-solid fa-camera"></i> <span id="lblBtnToggleOnlineRegCam">เปิดกล้องถ่ายรูป</span>
                       </button>
-
                       <button type="button" id="btnSnapOnlineRegPhoto" onclick="captureOnlineRegPhoto()" style="display:none; align-items:center; gap:6px; cursor:pointer; background:#D97706; color:#FFFFFF; font-size:12px; font-weight:700; padding:7px 14px; border-radius:6px; border:none; box-shadow:0 2px 6px rgba(217,119,6,0.25);">
                         <i class="fa-solid fa-circle-dot"></i> <span id="lblBtnSnapOnlineRegPhoto">กดถ่ายภาพ</span>
                       </button>
-
                       <button type="button" id="btnFlipOnlineRegCam" onclick="switchOnlineRegCameraFacing()" style="display:none; align-items:center; gap:6px; cursor:pointer; background:#334155; color:#FFFFFF; font-size:12px; font-weight:700; padding:7px 12px; border-radius:6px; border:none;" title="สลับกล้องหน้า/หลัง">
                         <i class="fa-solid fa-camera-rotate"></i> <span id="lblBtnFlipOnlineRegCam">สลับกล้อง</span>
                       </button>
-
                       <label id="lblBtnOnlineUploadWrapper" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; background:#F1F5F9; color:#334155; font-size:12px; font-weight:700; padding:7px 14px; border-radius:6px; border:1px solid #CBD5E1;">
                         <i class="fa-solid fa-upload"></i> <span id="lblBtnChoosePhoto">เลือกรูปถ่าย / ถ่ายภาพ</span>
                         <input type="file" id="filePubDirectPhoto" accept="image/*" onchange="handlePubPhotoFile(this)" style="display:none;">
                       </label>
-
                       <button type="button" id="btnRetakeOnlinePhoto" onclick="retakeOnlineRegPhoto()" style="display:none; align-items:center; gap:6px; cursor:pointer; background:#E2E8F0; color:#475569; font-size:12px; font-weight:700; padding:7px 12px; border-radius:6px; border:none;">
                         <i class="fa-solid fa-rotate-left"></i> <span id="lblBtnRetakeOnlinePhoto">ถ่ายใหม่</span>
                       </button>
                     </div>
-
                     <!-- AI Studio Background Notification (Compact Inline Badge) -->
                     <div id="panelPhotoBgOptions" style="display:none; margin-top:8px;">
                       <div id="lblPhotoAiProcessing" style="font-size:11.5px; font-weight:700; color:#047857; display:none;">
                         <i class="fa-solid fa-spinner fa-spin" style="margin-right:4px;"></i> <span id="lblPhotoAiProcessingText">AI กำลังจัดภาพครึ่งตัวบนและปรับพื้นหลัง...</span>
                       </div>
-
                       <div id="lblPhotoAiSuccess" style="font-size:11.5px; font-weight:700; color:#047857; display:flex; align-items:center; gap:6px;">
                         <i class="fa-solid fa-circle-check" style="color:#10B981; font-size:13px;"></i>
                         <span id="lblPhotoAiSuccessText">จัดภาพครึ่งตัวบนและปรับพื้นหลังสีแดงเลือดหมูทางการ (#800000) เรียบร้อย</span>
                       </div>
                     </div>
-
                     <!-- Hidden legacy element for JS compatibility -->
                     <div id="boxPubPhotoRealSystemPreview" style="display:none !important;">
                       <img id="imgPubPhotoRealSystem" src="" alt="Actual Processed Photo" style="display:none;" />
                     </div>
                   </div>
                 </div>
-
                 <!-- Prefix & Full Name -->
                 <div class="oca-reg-grid-prefix-name" style="margin-bottom:14px;">
                   <div>
@@ -26882,19 +26608,16 @@ body.printing-report #printReportContainer {
                       <option value="เด็กหญิง">เด็กหญิง (Miss)</option>
                     </select>
                   </div>
-
                   <div>
                     <label class="oca-reg-label" id="lblNameTh">ชื่อ-นามสกุล (ภาษาไทย) *</label>
                     <input type="text" id="txtPubFullName" class="oca-reg-input" autocomplete="off" required onblur="this.value=this.value.trim(); checkAndRestoreExistingStudent(); savePublicRegisterDraft();" oninput="savePublicRegisterDraft()">
                   </div>
                 </div>
-
                 <!-- English / Pinyin Name -->
                 <div style="margin-bottom:14px;">
                   <label class="oca-reg-label" id="lblNameEn">ชื่อ-นามสกุล ภาษาอังกฤษ หรือ พินอิน (English / Pinyin) <span style="font-weight:normal; font-size:12px; color:#6B7280;">(ไม่บังคับใส่)</span></label>
                   <input type="text" id="txtPubNameEn" class="oca-reg-input" autocomplete="off" oninput="savePublicRegisterDraft()">
                 </div>
-
                 <!-- Citizen ID / Passport -->
                 <div style="margin-bottom:14px;">
                   <label class="oca-reg-label" id="lblCitizenId">เลขประจำตัวประชาชน 13 หลัก หรือ เลขหนังสือเดินทาง (Passport) *</label>
@@ -26904,19 +26627,16 @@ body.printing-report #printReportContainer {
                   </select>
                   <input type="text" id="txtPubCitizenId" class="oca-reg-input" maxlength="20" autocomplete="off" required onblur="checkAndRestoreExistingStudent()" oninput="onPubCitizenInput(this)">
                 </div>
-
                 <!-- DOB, Age & Gender -->
                 <div class="oca-reg-grid-3" style="margin-bottom:14px;">
                   <div>
                     <label class="oca-reg-label" id="lblDob">วัน/เดือน/ปีเกิด (Date of Birth)</label>
                     <input type="date" id="txtPubDob" class="oca-reg-input" autocomplete="off" onchange="const a=document.getElementById('txtPubAge'); if(a) a.value=calcAgeFromBirthDate(this.value); savePublicRegisterDraft();">
                   </div>
-
                   <div>
                     <label class="oca-reg-label" id="lblPubAge">อายุ (ปี - คำนวณอัตโนมัติ)</label>
                     <input type="text" id="txtPubAge" class="oca-reg-input" readonly style="background:#F1F5F9; cursor:not-allowed;">
                   </div>
-
                   <div>
                     <label class="oca-reg-label" id="lblGender">เพศ (Gender)</label>
                     <select id="selPubGender" class="oca-reg-input">
@@ -26926,82 +26646,68 @@ body.printing-report #printReportContainer {
                     </select>
                   </div>
                 </div>
-
                 <!-- Ethnicity, Nationality & Passport (Item 11) -->
                 <div class="oca-reg-grid-3" style="margin-bottom:14px;">
                   <div>
                     <label class="oca-reg-label" id="lblPubEthnicity">เชื้อชาติ (Ethnicity)</label>
                     <input type="text" id="txtPubEthnicity" class="oca-reg-input" autocomplete="off" oninput="savePublicRegisterDraft()">
                   </div>
-
                   <div>
                     <label class="oca-reg-label" id="lblPubNationality">สัญชาติ (Nationality)</label>
                     <input type="text" id="txtPubNationality" class="oca-reg-input" autocomplete="off" oninput="savePublicRegisterDraft()">
                   </div>
-
                   <div>
                     <label class="oca-reg-label" id="lblPubPassportNo">เลขพาสปอร์ต (Passport No.)</label>
                     <input type="text" id="txtPubPassportNo" class="oca-reg-input" autocomplete="off" oninput="onPubPassportNoInput(this); savePublicRegisterDraft();">
                   </div>
                 </div>
-
                 <!-- Phone & Emergency Phone -->
                 <div class="oca-reg-grid-2" style="margin-bottom:14px;">
                   <div>
                     <label class="oca-reg-label" id="lblPhone">เบอร์โทรศัพท์มือถือที่ติดต่อได้ *</label>
                     <input type="tel" id="txtPubPhone" class="oca-reg-input" maxlength="10" pattern="^0[0-9]{8,9}$" autocomplete="off" oninput="if(typeof formatPhone==='function')formatPhone(this); savePublicRegisterDraft();" required>
                   </div>
-
                   <div>
                     <label class="oca-reg-label" id="lblEmergencyPhone">เบอร์ติดต่อฉุกเฉิน *</label>
                     <input type="tel" id="txtPubEmergencyPhone" class="oca-reg-input" maxlength="12" autocomplete="off" oninput="if(typeof formatPhone==='function')formatPhone(this); savePublicRegisterDraft();" required>
                   </div>
                 </div>
-
                 <!-- Emergency Contact Name & Relation (Item 11) -->
                 <div class="oca-reg-grid-2" style="margin-bottom:14px;">
                   <div>
                     <label class="oca-reg-label" id="lblPubEmergencyName">ชื่อผู้ติดต่อฉุกเฉิน (Emergency Contact)</label>
                     <input type="text" id="txtPubEmergencyName" class="oca-reg-input" autocomplete="off" oninput="savePublicRegisterDraft()">
                   </div>
-
                   <div>
                     <label class="oca-reg-label" id="lblPubEmergencyRelation">ความสัมพันธ์ (Relationship)</label>
                     <input type="text" id="txtPubEmergencyRelation" class="oca-reg-input" autocomplete="off" oninput="savePublicRegisterDraft()">
                   </div>
                 </div>
-
                 <!-- Email & LINE ID -->
                 <div class="oca-reg-grid-2">
                   <div>
                     <label class="oca-reg-label" id="lblEmail">อีเมล (สำหรับรับเอกสารยืนยัน) *</label>
                     <input type="email" id="txtPubEmail" class="oca-reg-input" autocomplete="off" oninput="savePublicRegisterDraft();" required>
                   </div>
-
                   <div>
                     <label class="oca-reg-label" id="lblLineId">LINE ID *</label>
                     <input type="text" id="txtPubLineId" class="oca-reg-input" autocomplete="off" oninput="savePublicRegisterDraft();" required>
                   </div>
                 </div>
               </div>
-
               <!-- SECTION 2: Address Information -->
               <div style="margin-bottom:28px;">
                 <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; border-bottom:2px solid #E5E7EB; padding-bottom:8px;">
                   <span style="width:28px; height:28px; border-radius:50%; background:#047857; color:#FFFFFF; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:800; border:1.5px solid #D7A600;">2</span>
                   <h3 id="lblSec2Heading" style="font-size:16px; font-weight:800; color:#044E39; margin:0;">
-
                     ข้อมูลที่อยู่สำหรับติดต่อและจัดส่งเอกสาร (Address)
-
                   </h3>
                 </div>
-
                 <!-- House No, Village, Soi, Road -->
                 <div style="margin-bottom:14px;">
                   <label class="oca-reg-label" id="lblAddrLine">ที่อยู่ (บ้านเลขที่, หมู่, อาคาร/หมู่บ้าน, ซอย, ถนน) *</label>
                   <input type="text" id="txtPubAddrLine" class="oca-reg-input" autocomplete="off" oninput="savePublicRegisterDraft()" onblur="this.value=this.value.trim(); savePublicRegisterDraft();" required>
                 </div>
-
                 <!-- Sub-district & District -->
                 <!-- Sub-district & District Cascading Dropdowns -->
                 <div class="oca-reg-grid-2" style="margin-bottom:14px;">
@@ -27011,7 +26717,6 @@ body.printing-report #printReportContainer {
                       <option value="">-- เลือกจังหวัด --</option>
                     </select>
                   </div>
-
                   <div>
                     <label class="oca-reg-label" id="lblDistrict">อำเภอ / เขต *</label>
                     <select id="selPubDistrict" class="oca-reg-input" required onchange="onPubDistrictChanged(); savePublicRegisterDraft();">
@@ -27019,7 +26724,6 @@ body.printing-report #printReportContainer {
                     </select>
                   </div>
                 </div>
-
                 <!-- Sub-district & Postal Code -->
                 <div class="oca-reg-grid-2">
                   <div>
@@ -27028,7 +26732,6 @@ body.printing-report #printReportContainer {
                       <option value="">-- เลือกตำบล / แขวง --</option>
                     </select>
                   </div>
-
                   <div>
                     <label class="oca-reg-label" id="lblPostalCode">รหัสไปรษณีย์ *</label>
                     <select id="selPubPostalCode" class="oca-reg-input" required onchange="savePublicRegisterDraft();">
@@ -27037,7 +26740,6 @@ body.printing-report #printReportContainer {
                   </div>
                 </div>
               </div>
-
               <!-- Section 3: แผนการเรียนและรอบเวลา (Course & Schedule) -->
               <!-- Corporate Invoicing Section (Optional for Company Sponsored Students) -->
               <div id="boxPubCorporateInvoicingWrap" style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:12px; padding:16px 14px; margin-bottom:20px;">
@@ -27046,43 +26748,34 @@ body.printing-report #printReportContainer {
                     <i class="fa-solid fa-building" style="color:#047857;"></i>
                     <span id="lblCorporateHeading">ข้อมูลบริษัท / นิติบุคคล (กรณีต้องการออกใบเสร็จรับเงินให้บริษัท)</span>
                   </div>
-
                   <span id="lblCorporateBadge" style="font-size:11px; background:#E2E8F0; color:#475569; padding:2px 8px; border-radius:12px; font-weight:600;">กรอกเฉพาะกรณีบริษัทสนับสนุน</span>
                 </div>
-
                 <div id="lblCorporateDesc" style="font-size:11.5px; color:#64748B; margin-bottom:12px; line-height:1.4;">
-
                   💡 หากท่านลงทะเบียนเรียนในนามบริษัทและต้องการนำใบเสร็จไปเบิกค่าใช้จ่าย/ลดหย่อนภาษี 200% กรุณาระบุข้อมูลนิติบุคคลด้านล่าง (บัตรประจำตัวนักศึกษาจะยังคงออกเป็นชื่อและรูปถ่ายของท่านตามหมวดที่ 1)
-
                 </div>
-
                 <!-- Company Full Name & Branch -->
                 <div class="oca-reg-grid-2" style="margin-bottom:12px;">
                   <div>
                     <label class="oca-reg-label" id="lblCompanyName">ชื่อเต็มบริษัท / นิติบุคคล (Company Name)</label>
                     <input type="text" id="txtPubCompanyName" class="oca-reg-input" autocomplete="off" oninput="savePublicRegisterDraft();">
                   </div>
-
                   <div>
                     <label class="oca-reg-label" id="lblCompanyBranch">สาขา (สำนักงานใหญ่ / สาขาที่...)</label>
                     <input type="text" id="txtPubCompanyBranch" class="oca-reg-input" autocomplete="off" oninput="savePublicRegisterDraft();">
                   </div>
                 </div>
-
                 <!-- Company Tax ID 13 digits & Office Address -->
                 <div class="oca-reg-grid-2">
                   <div>
                     <label class="oca-reg-label" id="lblCompanyTaxId">เลขประจำตัวผู้เสียภาษีอากร 13 หลัก ของบริษัท</label>
                     <input type="text" id="txtPubCompanyTaxId" class="oca-reg-input" maxlength="13" autocomplete="off" oninput="savePublicRegisterDraft();">
                   </div>
-
                   <div>
                     <label class="oca-reg-label" id="lblCompanyAddress">ที่อยู่สำนักงานของบริษัทสำหรับออกใบเสร็จรับเงิน</label>
                     <input type="text" id="txtPubCompanyAddress" class="oca-reg-input" autocomplete="off" oninput="savePublicRegisterDraft();">
                   </div>
                 </div>
               </div>
-
                 <!-- Step 1 Navigation Buttons -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px; flex-wrap:wrap; gap:12px; padding-top:16px; border-top:1px solid #E5E7EB;">
                   <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -27093,13 +26786,11 @@ body.printing-report #printReportContainer {
                       <i class="fa-solid fa-rotate-left"></i> <span id="lblBtnResetStep1">ล้างข้อมูล</span>
                     </button>
                   </div>
-
                   <button type="button" onclick="goToPubRegStep(2)" style="background:linear-gradient(135deg, #047857 0%, #065F46 100%); color:#FFFFFF; border:2px solid #D7A600; border-radius:12px; padding:12px 24px; font-size:14px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:8px; box-shadow:0 4px 14px rgba(4,120,87,0.25);">
                     <span id="lblBtnNextStep1">ถัดไป: เลือกคอร์สเรียน</span> <i class="fa-solid fa-arrow-right"></i>
                   </button>
                 </div>
               </div><!-- /#pubRegStep1Container -->
-
               <!-- STEP 2: Course & Schedule Selection -->
               <div id="pubRegStep2Container" class="pub-reg-step-container" style="display:none;">
               <div id="boxPubStep2ScopeNotice" style="background:#FFFBEB; border:1.5px solid #F59E0B; border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:12px; color:#78350F; line-height:1.5;">
@@ -27110,31 +26801,22 @@ body.printing-report #printReportContainer {
                   <span>📚</span>
                   <span id="lblSec3Heading">ข้อมูลการสมัครเรียน (Course & Schedule)</span>
                 </div>
-
                 <div style="margin-bottom:12px;">
                   <label id="lblPubSchedule" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
-
                     1. รอบเวลาเรียนที่สะดวก <span style="color:#DC2626;">*</span>
-
                   </label>
-
                   <select id="selPubSchedule" class="oca-reg-input" required onchange="onPublicScheduleChanged(); savePublicRegisterDraft();">
                     <option value="">-- กรุณาเลือกรอบเวลาเรียน --</option>
                   </select>
                 </div>
-
                 <div style="margin-bottom:12px;">
                   <label id="lblPubCourse" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
-
                     2. หลักสูตรที่ต้องการสมัคร <span style="color:#DC2626;">*</span>
-
                   </label>
-
                   <select id="selPubCourse" class="oca-reg-input" required onchange="onPublicCourseChangedFilterSchedules(); savePublicRegisterDraft(); if(typeof updateCourseFeeDisplay==='function') updateCourseFeeDisplay();">
                     <option value="">-- กรุณาเลือกรอบเวลาเรียนก่อน (Please select schedule first) --</option>
                   </select>
                 </div>
-
                 <div id="wrapPubGroupInstructor" style="margin-bottom:12px;">
                   <label id="lblPubGroupInstructor" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
                     3. กลุ่มเรียน และอาจารย์ผู้สอน (Course Group &amp; Instructor)
@@ -27150,30 +26832,23 @@ body.printing-report #printReportContainer {
                   <option value="Onsite">2. ONSITE</option>
                   <option value="Hybrid">3. HYBRID</option>
                 </select>
-
                 <div>
                   <label id="lblPubNotes" style="display:block; font-size:12.5px; font-weight:600; color:#1F2937; margin-bottom:4px;">
-
                     หมายเหตุ / พื้นฐานภาษาจีนเดิม (ถ้ามี)
-
                   </label>
-
                   <textarea id="txtPubNotes" class="oca-reg-input" rows="3" oninput="savePublicRegisterDraft()"></textarea>
                 </div>
               </div>
-
                 <!-- Step 2 Navigation Buttons -->
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px; flex-wrap:wrap; gap:12px; padding-top:16px; border-top:1px solid #E5E7EB;">
                   <button type="button" onclick="goToPubRegStep(1)" style="background:#FFFFFF; color:#374151; border:1.5px solid #D1D5DB; border-radius:10px; padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:8px;">
                     <i class="fa-solid fa-arrow-left"></i> <span id="lblBtnBackStep2">ย้อนกลับ: ข้อมูลผู้เรียน</span>
                   </button>
-
                   <button type="button" onclick="goToPubRegStep(3)" style="background:linear-gradient(135deg, #047857 0%, #065F46 100%); color:#FFFFFF; border:2px solid #D7A600; border-radius:12px; padding:12px 24px; font-size:14px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:8px; box-shadow:0 4px 14px rgba(4,120,87,0.25);">
                     <span id="lblBtnNextStep2">ถัดไป: สรุปยอดเงินและแนบสลิป</span> <i class="fa-solid fa-arrow-right"></i>
                   </button>
                 </div>
               </div><!-- /#pubRegStep2Container -->
-
               <!-- STEP 3 / STEP 4: Payment & Slip Attachment -->
               <div id="pubRegStep3Container" class="pub-reg-step-container" style="display:none;">
               <div id="pubKioskStep4Payment">
@@ -27183,7 +26858,6 @@ body.printing-report #printReportContainer {
                   <span>💳</span>
                   <span id="lblSec4Heading">การชำระเงินและหลักฐานการโอน (Payment & Transfer Slip)</span>
                 </div>
-
                 <!-- Tuition Fee Display -->
                 <div style="background:#FFFFFF; border:1.5px solid #FCD34D; border-radius:10px; padding:12px 14px; margin-bottom:14px; text-align:center;">
                   <div id="lblPubTuitionTitle" style="font-size:12.5px; color:#78350F; font-weight:600;">ยอดค่าเล่าเรียนที่ต้องชำระ:</div>
@@ -29163,6 +28837,8 @@ body.printing-report #printReportContainer {
       copy.learningMode = String(r.learningMode || r.learning_mode || '');
       copy.openDate = String(r.openDate || r.open_date || '');
       copy.room = String(r.room || '');
+      copy.classGroup = String(r.classGroup || r.class_group || '');
+      copy.teacherName = String(r.teacherName || r.teacher_name || '');
       copy.trackingNumber = String(r.trackingNumber || r.tracking_number || '');
       copy.editNotes = String(r.editNotes || r.edit_notes || '');
       copy.createdAt = r.createdAt || r.created_at || '';
@@ -29727,6 +29403,9 @@ body.printing-report #printReportContainer {
         const materialType = (rcpt && rcpt.material_type) || params.materialType || 'หนังสือและสมุด';
         const openDate = (rcpt && rcpt.open_date) || params.openDate || '';
         const room = (rcpt && rcpt.room) || params.room || '';
+        const classGroup = ((rcpt && rcpt.class_group) || params.classGroup || params.class_group || '').toString().trim();
+        const rawTeacherName = ((rcpt && rcpt.teacher_name) || params.teacherName || params.teacher_name || '').toString().trim();
+        const teacherName = rawTeacherName.length > 40 ? (rawTeacherName.slice(0, 39) + '…') : rawTeacherName;
         const shippingAddress = (rcpt && rcpt.address) || params.address || '';
         const claimToken = (rcpt && rcpt.claim_token) || params.claimToken || '';
         const paymentMethod = (rcpt && rcpt.payment_method) || params.paymentMethod || params.payMethod || 'โอนเงิน';
@@ -29797,18 +29476,23 @@ body.printing-report #printReportContainer {
         // หมายเหตุ: กำหนดวันเปิดเรียน (ตรงกับระบบ 100%)
 
         let remarksBoxHtml = '';
+        const hasGroup = !!(classGroup && classGroup !== '-');
+        const hasTeacher = !!(teacherName && teacherName !== '-');
+        const groupTeacherLineHtml = (hasGroup || hasTeacher)
+          ? `<div style="margin-top:3px; font-size:11.5px; color:#334155;">${hasGroup ? `กลุ่ม: <strong style="color:#0284c7;">${escapeHtml(classGroup)}</strong>` : ''}${(hasGroup && hasTeacher) ? ' &nbsp;|&nbsp; ' : ''}${hasTeacher ? `อาจารย์ผู้สอน: <strong style="color:#0284c7;">${escapeHtml(teacherName)}</strong>` : ''}</div>`
+          : '';
 
-        if (openDate && openDate !== '-') {
+        if ((openDate && openDate !== '-') || groupTeacherLineHtml) {
           const roomHtml = (room && room !== '-') 
-
             ? ` &nbsp;|&nbsp; ห้องเรียน: <strong style="color:#0284c7;">${escapeHtml(room)}</strong>` 
-
             : ` &nbsp;|&nbsp; <span style="color:#0284c7; font-weight:600;">(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)</span>`;
+          const openLineHtml = (openDate && openDate !== '-')
+            ? `<div><strong>หมายเหตุ:</strong> กำหนดวันเปิดเรียน วันที่ <strong style="color:#0284c7;">${escapeHtml(openDate)}</strong>${roomHtml}</div>`
+            : '';
 
           remarksBoxHtml = `
-
             <div style="background:#f8fafc; border:1px solid #bae6fd; border-radius:4px; padding:6px 12px; margin:8px 0 10px 0; font-size:12px; color:#1e293b;">
-              <strong>หมายเหตุ:</strong> กำหนดวันเปิดเรียน วันที่ <strong style="color:#0284c7;">${openDate}</strong>${roomHtml}
+              ${openLineHtml}${groupTeacherLineHtml}
             </div>`;
         }
 
@@ -32093,6 +31777,8 @@ if (action === 'getDashboardStats') {
             learning_mode: params.learningMode || 'Online',
             open_date: params.openDate || '',
             room: params.room || '',
+            class_group: (params.classGroup || params.class_group || '').toString().trim() || null,
+            teacher_name: (params.teacherName || params.teacher_name || '').toString().trim() || null,
             email: (params.email && params.email.includes('@')) ? params.email.trim() : null,
             email_status: (params.email && params.email.includes('@')) ? 'PROCESSING' : 'NO_EMAIL',
             ...(params.editNotes || params.edit_notes ? { edit_notes: String(params.editNotes || params.edit_notes) } : {})
@@ -32206,6 +31892,8 @@ if (action === 'getDashboardStats') {
                 learningMode: receiptData.learning_mode,
                 openDate: receiptData.open_date,
                 room: receiptData.room,
+                classGroup: receiptData.class_group || '',
+                teacherName: receiptData.teacher_name || '',
                 address: receiptData.address,
                 cashierName: params.cashierName || params.cashier || (typeof getEffectivePayeeName === 'function' ? getEffectivePayeeName() : '')
               });
@@ -32651,7 +32339,9 @@ if (action === 'getDashboardStats') {
                 delivery_method: 'รับเอง',
                 learning_mode: 'Online',
                 open_date: '',
-                room: '',
+                room: (params.room || '').toString().trim(),
+                class_group: (params.classGroup || params.class_group || '').toString().trim() || null,
+                teacher_name: (params.teacherName || params.teacher_name || '').toString().trim() || null,
                 email: (stData.email && stData.email.includes('@')) ? stData.email.trim() : null,
                 email_status: (stData.email && stData.email.includes('@')) ? 'PROCESSING' : 'NO_EMAIL'
               };
@@ -35147,6 +34837,9 @@ if (action === 'getDashboardStats') {
           if (params.materialType !== undefined) updateFields.material_type = params.materialType;
           if (params.deliveryMethod !== undefined) updateFields.delivery_method = params.deliveryMethod;
           if (params.learningMode !== undefined) updateFields.learning_mode = params.learningMode;
+          if (params.room !== undefined) updateFields.room = params.room;
+          if (params.classGroup !== undefined || params.class_group !== undefined) updateFields.class_group = (params.classGroup ?? params.class_group) || null;
+          if (params.teacherName !== undefined || params.teacher_name !== undefined) updateFields.teacher_name = (params.teacherName ?? params.teacher_name) || null;
           if (params.grandTotal !== undefined) updateFields.grand_total = Number(params.grandTotal);
           if (params.baseAmount !== undefined) updateFields.base_amount = Number(params.baseAmount);
           if (params.regFee !== undefined) updateFields.reg_fee = Number(params.regFee);
@@ -48122,6 +47815,7 @@ if (action === 'getDashboardStats') {
         const selC = document.getElementById('selRcptCourse');
         if (selC && selC.value) onReceiptCourseChanged();
       }
+      if (typeof syncReceiptGroupTeacherRoom === 'function') syncReceiptGroupTeacherRoom();
     }
 
     window.onReceiptScheduleChanged = onReceiptScheduleChanged;
@@ -54886,9 +54580,110 @@ if (action === 'getDashboardStats') {
         });
     }
 
+    function syncReceiptGroupTeacherRoom() {
+      const inpGroup = document.getElementById('txtRcptGroup');
+      const selGroup = document.getElementById('selRcptGroup');
+      const inpTeacher = document.getElementById('txtRcptTeacher');
+      const inpRoom = document.getElementById('txtRcptRoom');
+      const clearFields = () => {
+        if (inpGroup) { inpGroup.value = ''; inpGroup.style.display = 'block'; }
+        if (selGroup) { selGroup.innerHTML = ''; selGroup.style.display = 'none'; }
+        if (inpTeacher) inpTeacher.value = '';
+        if (inpRoom) inpRoom.value = '';
+      };
+      if (typeof receiptCurrentType !== 'undefined' && receiptCurrentType !== 'tuition') {
+        clearFields();
+        if (typeof updateReceiptLivePreview === 'function') updateReceiptLivePreview();
+        return;
+      }
+      const selC = document.getElementById('selRcptCourse');
+      const selS = document.getElementById('selRcptSchedule');
+      const cVal = (selC?.value || '').trim();
+      const sVal = (selS?.value || '').trim();
+      if (!cVal || !sVal) {
+        clearFields();
+        if (typeof updateReceiptLivePreview === 'function') updateReceiptLivePreview();
+        return;
+      }
+      const course = (Array.isArray(receiptCoursesList) ? receiptCoursesList.find(c => c.id === cVal || c.code === cVal) : null)
+        || (window.cachedCoursesList && Array.isArray(window.cachedCoursesList) ? window.cachedCoursesList.find(c => c.id === cVal || c.code === cVal) : null);
+      const courseCode = (course && (course.code || course.id)) ? String(course.code || course.id).trim() : cVal;
+      let schId = '';
+      const optS = selS && selS.selectedIndex >= 0 ? selS.options[selS.selectedIndex] : null;
+      if (optS && optS.dataset && optS.dataset.scheduleId) schId = optS.dataset.scheduleId;
+      if (!schId) {
+        const m = sVal.match(/^(SCH-\d+)/i);
+        if (m) schId = m[1].toUpperCase();
+        else if (typeof getSelectedScheduleId === 'function') schId = getSelectedScheduleId('selRcptSchedule') || '';
+        if (!schId && Array.isArray(cachedSchedulesList)) {
+          const foundS = cachedSchedulesList.find(s => s.id === sVal || s.name === sVal);
+          if (foundS) schId = foundS.id;
+        }
+      }
+      const year = (document.getElementById('selRcptYear')?.value || getResolvedActiveYearTerm().yearBE).trim();
+      const term = (document.getElementById('selRcptTerm')?.value || getResolvedActiveYearTerm().term).trim();
+      const list = (typeof getCourseGroupInstructorList === 'function')
+        ? getCourseGroupInstructorList(courseCode, schId || 'ALL', term, year)
+        : [];
+      const validList = Array.isArray(list) ? list.filter(g => g && (String(g.section || '').trim() || String(g.lecturerName || '').trim() || String(g.room || '').trim())) : [];
+      if (validList.length === 0) {
+        clearFields();
+      } else if (validList.length === 1) {
+        const g = validList[0];
+        if (selGroup) { selGroup.innerHTML = ''; selGroup.style.display = 'none'; }
+        if (inpGroup) { inpGroup.style.display = 'block'; inpGroup.value = String(g.section || '').trim(); }
+        if (inpTeacher) inpTeacher.value = String(g.lecturerName || '').trim();
+        if (inpRoom) inpRoom.value = String(g.room || '').trim();
+      } else {
+        if (selGroup) {
+          selGroup.innerHTML = '';
+          validList.forEach((g, idx) => {
+            const sec = String(g.section || 'A').trim();
+            const lec = String(g.lecturerName || '').trim();
+            const rm = String(g.room || '').trim();
+            const opt = document.createElement('option');
+            opt.value = sec;
+            opt.dataset.section = sec;
+            opt.dataset.teacher = lec;
+            opt.dataset.room = rm;
+            opt.textContent = `กลุ่ม ${sec}${lec ? ' — ' + lec : ''}${rm ? ' (ห้อง ' + rm + ')' : ''}`;
+            if (idx === 0) opt.selected = true;
+            selGroup.appendChild(opt);
+          });
+          selGroup.style.display = 'block';
+        }
+        if (inpGroup) {
+          inpGroup.style.display = 'none';
+          inpGroup.value = String(validList[0].section || 'A').trim();
+        }
+        if (inpTeacher) inpTeacher.value = String(validList[0].lecturerName || '').trim();
+        if (inpRoom) inpRoom.value = String(validList[0].room || '').trim();
+      }
+      if (typeof updateReceiptLivePreview === 'function') updateReceiptLivePreview();
+    }
+
+    function onReceiptGroupSelected() {
+      const selGroup = document.getElementById('selRcptGroup');
+      const inpGroup = document.getElementById('txtRcptGroup');
+      const inpTeacher = document.getElementById('txtRcptTeacher');
+      const inpRoom = document.getElementById('txtRcptRoom');
+      if (!selGroup) return;
+      const opt = selGroup.selectedIndex >= 0 ? selGroup.options[selGroup.selectedIndex] : null;
+      if (opt) {
+        if (inpGroup) inpGroup.value = opt.dataset.section || opt.value || '';
+        if (inpTeacher) inpTeacher.value = opt.dataset.teacher || '';
+        if (inpRoom) inpRoom.value = opt.dataset.room || '';
+      }
+      if (typeof updateReceiptLivePreview === 'function') updateReceiptLivePreview();
+    }
+
+    window.syncReceiptGroupTeacherRoom = syncReceiptGroupTeacherRoom;
+    window.onReceiptGroupSelected = onReceiptGroupSelected;
+
     function onReceiptTermOrYearChange() {
       fetchNextReceiptNumber();
       updateReceiptOpenDateByTerm();
+      syncReceiptGroupTeacherRoom();
       updateReceiptLivePreview();
     }
 
@@ -56023,6 +55818,7 @@ if (action === 'getDashboardStats') {
         }
 
       calcReceiptTotals();
+      if (typeof syncReceiptGroupTeacherRoom === 'function') syncReceiptGroupTeacherRoom();
       updateReceiptLivePreview();
     }
 
@@ -56796,11 +56592,28 @@ if (action === 'getDashboardStats') {
         const elNoRoomWrap = document.getElementById('boxPrevNoRoomWrap');
         const inOpen = (document.getElementById('txtRcptOpenDate')?.value || '').trim();
         const inRoom = (document.getElementById('txtRcptRoom')?.value || '').trim();
+        const inGroup = (document.getElementById('txtRcptGroup')?.value || '').trim();
+        const rawInTeacher = (document.getElementById('txtRcptTeacher')?.value || '').trim();
+        const inTeacher = rawInTeacher.length > 40 ? (rawInTeacher.slice(0, 39) + '…') : rawInTeacher;
         if (elOpen) elOpen.textContent = inOpen ? toArabicDigits(inOpen) : '-';
         if (elRoom) elRoom.textContent = inRoom ? toArabicDigits(inRoom) : '-';
+        const elGtLine = document.getElementById('boxPrevGroupTeacherLine');
+        const elGroupWrap = document.getElementById('boxPrevGroupWrap');
+        const elGroupLbl = document.getElementById('lblPrevGroup');
+        const elGtSep = document.getElementById('lblPrevGroupTeacherSep');
+        const elTeacherWrap = document.getElementById('boxPrevTeacherWrap');
+        const elTeacherLbl = document.getElementById('lblPrevTeacher');
+        const hasGroupPrev = !!(inGroup && inGroup !== '-');
+        const hasTeacherPrev = !!(inTeacher && inTeacher !== '-');
+        if (elGroupLbl) elGroupLbl.textContent = hasGroupPrev ? inGroup : '';
+        if (elTeacherLbl) elTeacherLbl.textContent = hasTeacherPrev ? inTeacher : '';
+        if (elGroupWrap) elGroupWrap.style.display = hasGroupPrev ? 'inline' : 'none';
+        if (elTeacherWrap) elTeacherWrap.style.display = hasTeacherPrev ? 'inline' : 'none';
+        if (elGtSep) elGtSep.style.display = (hasGroupPrev && hasTeacherPrev) ? 'inline' : 'none';
+        if (elGtLine) elGtLine.style.display = (hasGroupPrev || hasTeacherPrev) ? 'block' : 'none';
 
         if (elRemarksBox) {
-          if (inOpen && inOpen !== '-') {
+          if ((inOpen && inOpen !== '-') || hasGroupPrev || hasTeacherPrev) {
             elRemarksBox.style.display = 'block';
             const hasRoom = (inRoom && inRoom !== '-');
             if (elRoomWrap) elRoomWrap.style.display = hasRoom ? 'inline' : 'none';
@@ -56812,6 +56625,8 @@ if (action === 'getDashboardStats') {
       } else {
         const elRemarksBox = document.getElementById('boxPrevReceiptRemarks');
         if (elRemarksBox) elRemarksBox.style.display = 'none';
+        const elGtLine = document.getElementById('boxPrevGroupTeacherLine');
+        if (elGtLine) elGtLine.style.display = 'none';
         const elLearningMode = document.getElementById('lblPrevLearningMode');
         if (elLearningMode) elLearningMode.textContent = '-';
         if (Array.isArray(window._rcptBookCart) && window._rcptBookCart.length > 0) {
@@ -57297,6 +57112,12 @@ if (action === 'getDashboardStats') {
         ? (document.getElementById('txtRcptRoom')?.value.trim() || '')
 
         : '';
+      const classGroup = (receiptCurrentType === 'tuition')
+        ? ((document.getElementById('txtRcptGroup')?.value || '').trim() || (document.getElementById('selRcptGroup')?.style.display !== 'none' ? (document.getElementById('selRcptGroup')?.value || '').trim() : ''))
+        : '';
+      const teacherName = (receiptCurrentType === 'tuition')
+        ? (document.getElementById('txtRcptTeacher')?.value.trim() || '')
+        : '';
       const shippingAddress = document.getElementById('txtRcptAddress')?.value.trim() ||
         (window._rcptCompanyMeta && window._rcptCompanyMeta.companyName ? window._rcptCompanyMeta.companyAddress : '') ||
         (currentReceiptStudent && currentReceiptStudent.profile ? currentReceiptStudent.profile.address : '') || '-';
@@ -57348,6 +57169,10 @@ if (action === 'getDashboardStats') {
         openDate: openDate,
 
         room: room,
+
+        classGroup: classGroup,
+
+        teacherName: teacherName,
 
         baseAmount: baseAmount,
 
@@ -57443,6 +57268,10 @@ if (action === 'getDashboardStats') {
         openDate: openDate,
 
         room: room,
+
+        classGroup: classGroup,
+
+        teacherName: teacherName,
 
         baseAmount: baseAmount,
 
@@ -57659,6 +57488,12 @@ if (action === 'getDashboardStats') {
       if (selMode) selMode.value = 'Online';
       if (txtOpen) txtOpen.value = '';
       if (txtRoom) txtRoom.value = '';
+      const txtGrpReset = document.getElementById('txtRcptGroup');
+      const selGrpReset = document.getElementById('selRcptGroup');
+      const txtTeachReset = document.getElementById('txtRcptTeacher');
+      if (txtGrpReset) { txtGrpReset.value = ''; txtGrpReset.style.display = 'block'; }
+      if (selGrpReset) { selGrpReset.innerHTML = ''; selGrpReset.style.display = 'none'; }
+      if (txtTeachReset) txtTeachReset.value = '';
       const txtResetCashier = document.getElementById('txtRcptCashier');
 
       if (txtResetCashier) {
@@ -59214,11 +59049,28 @@ if (action === 'getDashboardStats') {
       const elNoRoomWrap = document.getElementById('boxPrevNoRoomWrap');
       const openVal = (item.openDate || item.open_date || '').toString().trim();
       const roomVal = (item.room || '').toString().trim();
+      const groupVal = (item.classGroup || item.class_group || '').toString().trim();
+      const rawTeacherVal = (item.teacherName || item.teacher_name || '').toString().trim();
+      const teacherVal = rawTeacherVal.length > 40 ? (rawTeacherVal.slice(0, 39) + '…') : rawTeacherVal;
       if (elOpen) elOpen.textContent = openVal ? toArabicDigits(openVal) : '-';
       if (elRoom) elRoom.textContent = roomVal ? toArabicDigits(roomVal) : '-';
+      const elGtLine = document.getElementById('boxPrevGroupTeacherLine');
+      const elGroupWrap = document.getElementById('boxPrevGroupWrap');
+      const elGroupLbl = document.getElementById('lblPrevGroup');
+      const elGtSep = document.getElementById('lblPrevGroupTeacherSep');
+      const elTeacherWrap = document.getElementById('boxPrevTeacherWrap');
+      const elTeacherLbl = document.getElementById('lblPrevTeacher');
+      const hasGroupHist = !!(groupVal && groupVal !== '-');
+      const hasTeacherHist = !!(teacherVal && teacherVal !== '-');
+      if (elGroupLbl) elGroupLbl.textContent = hasGroupHist ? groupVal : '';
+      if (elTeacherLbl) elTeacherLbl.textContent = hasTeacherHist ? teacherVal : '';
+      if (elGroupWrap) elGroupWrap.style.display = hasGroupHist ? 'inline' : 'none';
+      if (elTeacherWrap) elTeacherWrap.style.display = hasTeacherHist ? 'inline' : 'none';
+      if (elGtSep) elGtSep.style.display = (hasGroupHist && hasTeacherHist) ? 'inline' : 'none';
+      if (elGtLine) elGtLine.style.display = (hasGroupHist || hasTeacherHist) ? 'block' : 'none';
 
       if (elRemarksBox) {
-        if (openVal && openVal !== '-') {
+        if ((openVal && openVal !== '-') || hasGroupHist || hasTeacherHist) {
           elRemarksBox.style.display = 'block';
           const hasRoom = (roomVal && roomVal !== '-');
           if (elRoomWrap) elRoomWrap.style.display = hasRoom ? 'inline' : 'none';
@@ -85950,6 +85802,10 @@ function openPublicRegisterView() {
         "ห้องเรียน": "授课教室",
         "ห้องเรียน (Room)": "授课教室",
         "ห้องเรียน:": "授课教室:",
+        "กลุ่มเรียน (Group)": "班级组别",
+        "อาจารย์ผู้สอน (Instructor)": "授课教师",
+        "กลุ่ม:": "组别:",
+        "อาจารย์ผู้สอน:": "授课教师:",
         "ห้องเรียนทั้งหมด": "全部教室",
         "ห้องเรียนที่รับผิดชอบ": "负责教室",
         "อนุมัติ": "审核通过",
@@ -88312,6 +88168,10 @@ function openPublicRegisterView() {
         "ห้องเรียน": "Classroom",
         "ห้องเรียน (Room)": "Classroom",
         "ห้องเรียน:": "Classroom:",
+        "กลุ่มเรียน (Group)": "Class Group",
+        "อาจารย์ผู้สอน (Instructor)": "Instructor",
+        "กลุ่ม:": "Group:",
+        "อาจารย์ผู้สอน:": "Instructor:",
         "ห้องเรียนทั้งหมด": "All Classrooms",
         "ห้องเรียนที่รับผิดชอบ": "Assigned Classrooms",
         "อนุมัติ": "Approve",
@@ -99587,7 +99447,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=206';
+      const swPath = basePath + 'sw.js?v=207';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -99596,7 +99456,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (206):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (207):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
