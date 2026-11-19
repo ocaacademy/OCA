@@ -14136,7 +14136,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '199';
+      var LATEST_VERSION = '200';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -30938,10 +30938,8 @@ if (action === 'getDashboardStats') {
           const activeCoursesList = Array.isArray(resC?.data)
             ? resC.data.filter(c => c && c.is_active === true)
             : [];
-          const [resAllStudents, resAllReceipts] = await Promise.all([
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }),
-            _supabase.from('receipts').select('id', { count: 'exact', head: true })
-          ]);
+          const resAllStudents = await _supabase.from('students').select('student_id', { count: 'estimated', head: true });
+          const resAllReceipts = await _supabase.from('receipts').select('receipt_no', { count: 'estimated', head: true });
           const cCount = (!resC?.error && Array.isArray(resC?.data)) ? activeCoursesList.length : 0;
           const scCount = resSc?.count || 8;
           const feeCount = resFee?.count || 10;
@@ -31190,7 +31188,7 @@ if (action === 'getDashboardStats') {
           let isFallbackPartial = false;
           while (pageCount < maxFallbackPages) {
             let q = _supabase.from('receipts')
-              .select('receipt_no, buyer_name, grand_total, base_amount, reg_fee, card_fee, other_reg_fee, discount_normal, discount_other, payment_method, receipt_type, year_be, term, created_at, claim_status');
+              .select('receipt_no, buyer_name, grand_total, base_amount, reg_fee, card_fee, other_reg_fee, discount_normal, discount_other, payment_method, receipt_type, year_be, term, created_at, claim_status, edit_notes');
             if (parsedFilterYear) {
               const yy = String(Math.max(0, parsedFilterYear - 2500)).padStart(2, '0');
               const nextYy = String(Math.max(0, parsedFilterYear - 2500 + 1)).padStart(2, '0');
@@ -31207,7 +31205,7 @@ if (action === 'getDashboardStats') {
               break;
             }
             if (!chunk || chunk.length === 0) break;
-            rcpts.push(...chunk.filter(r => /^\d{7,}$/.test(String(r.receipt_no || '').trim()) && String(r.claim_status || '').toUpperCase() !== 'VOIDED'));
+            rcpts.push(...chunk.filter(r => /^\d{7,}$/.test(String(r.receipt_no || '').trim()) && !isReceiptVoided(r) && String(r.claim_status || '').toUpperCase() !== 'VOIDED'));
             pageCount += 1;
             if (chunk.length < chunkSize) break;
             offset += chunkSize;
@@ -31248,13 +31246,7 @@ if (action === 'getDashboardStats') {
 
           // Thailand Local Date Helper (YYYY-MM-DD) - Prevents UTC Timezone Skew
 
-          const toLocalIso = (dateObj) => {
-            const dt = dateObj ? new Date(dateObj) : new Date();
-            const yy = dt.getFullYear();
-            const mm = String(dt.getMonth() + 1).padStart(2, '0');
-            const dd = String(dt.getDate()).padStart(2, '0');
-            return `${yy}-${mm}-${dd}`;
-          };
+          const toLocalIso = (dateObj) => toBkkDateIso(dateObj || new Date());
           const todayIso = toLocalIso(new Date());
           let todayRevenue = 0;
           let currentTermRevenue = 0;
@@ -31344,7 +31336,12 @@ if (action === 'getDashboardStats') {
               // 3. Group by Day (สรุปยอดเงิน รายวัน) - Local Calendar Date
 
               const dIso = toLocalIso(d);
-              const dateLabel = `${d.getDate()} ${thaiShortMonths[d.getMonth()]} ${yBe} (${thaiDays[d.getDay()]})`;
+              const bkkParts = dIso.split('-').map(Number);
+              const calYearBE = (bkkParts[0] || d.getFullYear()) + 543;
+              const calMonthIdx = Math.max(0, Math.min(11, (bkkParts[1] || (d.getMonth() + 1)) - 1));
+              const calDayNum = bkkParts[2] || d.getDate();
+              const calDayOfWeek = new Date(d.getTime() + 7 * 3600000).getUTCDay();
+              const dateLabel = `${calDayNum} ${thaiShortMonths[calMonthIdx]} ${calYearBE} (${thaiDays[calDayOfWeek]})`;
 
               if (!dailyMap[dIso]) {
                 dailyMap[dIso] = { dateIso: dIso, dateLabel, yearBE: yBe, receiptCount: 0, tuitionTotal: 0, otherFeesTotal: 0, discountTotal: 0, grandTotal: 0, receipts: [] };
@@ -32352,7 +32349,15 @@ if (action === 'getDashboardStats') {
             .order('receipt_no', { ascending: false })
 
             .limit(300);
-          let { data, error } = await rcQuery;
+          let [rcRes, cntRes] = await Promise.all([
+            rcQuery,
+            _supabase.from('receipts')
+              .select('receipt_no', { count: 'exact', head: true })
+              .gte('receipt_no', '6800000')
+              .lt('receipt_no', '7000000')
+          ]);
+          let { data, error } = rcRes;
+          const exactTotalCount = (!cntRes.error && typeof cntRes.count === 'number') ? cntRes.count : null;
 
           if (error || !data || data.length === 0) {
             // High-speed fallback: fetch latest records with strict limit of 100
@@ -32377,7 +32382,7 @@ if (action === 'getDashboardStats') {
           }
 
           const mapped = (data || []).map(r => safeNormalizeReceipt(r));
-          return { success: true, receipts: mapped, logs: mapped, data: mapped };
+          return { success: true, receipts: mapped, logs: mapped, data: mapped, totalCount: exactTotalCount !== null ? exactTotalCount : mapped.length };
         }
 
         // --- 10. SEARCH STUDENTS FOR CARD / PROFILE ---
@@ -33004,7 +33009,7 @@ if (action === 'getDashboardStats') {
             const safeQ = sanitizePostgrestSearchToken(rawQ);
             const cleanQ = safeQ.replace(/[^0-9A-Za-z]/g, '');
             const isDigits = /^\d+$/.test(cleanQ);
-            let qb = _supabase.from('students').select(REPORT_STUDENT_COLS).neq('status', 'DELETED');
+            let qb = _supabase.from('students').select(REPORT_STUDENT_COLS).or('status.is.null,status.neq.DELETED');
 
             if (isDigits) {
               if (cleanQ.length === 7) {
@@ -33031,74 +33036,73 @@ if (action === 'getDashboardStats') {
             }
 
             const { data: qData } = await qb.order('student_id', { ascending: false }).limit(200);
-            stList = qData || [];
+            stList = (qData || []).filter(s => !isStudentDeleted(s));
             totalCount = stList.length;
           } else if (reqYear === 'ALL') {
-            totalCount = 94377;
-            const { data } = await _supabase.from('students')
-
+            const totRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', '0000000');
+            const delRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', '6800000').eq('status', 'DELETED');
+            const { data: allData } = await _supabase.from('students')
               .select(REPORT_STUDENT_COLS)
-
-              .neq('status', 'DELETED')
-
-              .gte('student_id', '6900000')
-
-              .lt('student_id', '7000000')
-
+              .or('status.is.null,status.neq.DELETED')
               .order('student_id', { ascending: false })
-
               .limit(300);
-            stList = data || [];
+            stList = (allData || []).filter(s => !isStudentDeleted(s));
+            if (!totRes.error && typeof totRes.count === 'number') {
+              totalCount = Math.max(0, totRes.count - ((!delRes.error && typeof delRes.count === 'number') ? delRes.count : 0));
+            } else {
+              const live2569Res = await _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', '6900000').lt('student_id', '7000000');
+              const histReg = window.OCA_ACADEMIC_YEARS_REGISTRY || {};
+              const histSum = Object.keys(histReg).reduce((acc, y) => (Number(y) < 2569 ? acc + (Number(histReg[y]?.total) || 0) : acc), 0);
+              const live2569 = (!live2569Res.error && typeof live2569Res.count === 'number') ? live2569Res.count : stList.length;
+              totalCount = histSum > 0 ? (histSum + live2569) : stList.length;
+            }
           } else {
             const validYear = /^\d{4}$/.test(reqYear) ? reqYear : '2569';
             const yrPrefix = validYear.slice(-2);
             const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
             const minId = yrPrefix + '00000';
             const maxId = nextPrefix + '00000';
-
-            // High-speed authoritative total from Master Registry (0ms, zero network timeout)
-
-            const reg = window.OCA_ACADEMIC_YEARS_REGISTRY || {};
-            totalCount = (reg[validYear] && reg[validYear].total) ? reg[validYear].total : 9178;
-
-            // Authoritative query for active students of the year (fetching batch up to 300)
-
             const fetchLimit = (params && params.limit) ? Math.min(Number(params.limit), 300) : 300;
-            const { data: recentStudents } = await _supabase.from('students')
+            const reqTerm = (params && params.term && params.term !== 'ALL') ? Number(params.term) : null;
 
+            let qTot = _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minId).lt('student_id', maxId);
+            let qDel = _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minId).lt('student_id', maxId).eq('status', 'DELETED');
+            let qList = _supabase.from('students')
               .select(REPORT_STUDENT_COLS)
-
-              .neq('status', 'DELETED')
-
+              .or('status.is.null,status.neq.DELETED')
               .gte('student_id', minId)
+              .lt('student_id', maxId);
+            if (reqTerm) {
+              qTot = qTot.eq('term', reqTerm);
+              qDel = qDel.eq('term', reqTerm);
+              qList = qList.eq('term', reqTerm);
+            }
 
-              .lt('student_id', maxId)
+            const yrTotRes = await qTot;
+            const yrDelRes = await qDel;
+            const listRes = await qList.order('student_id', { ascending: false }).limit(fetchLimit);
 
-              .order('student_id', { ascending: false })
+            stList = (listRes.data || []).filter(s => !isStudentDeleted(s));
+            totalCount = (!yrTotRes.error && typeof yrTotRes.count === 'number')
+              ? Math.max(0, yrTotRes.count - ((!yrDelRes.error && typeof yrDelRes.count === 'number') ? yrDelRes.count : 0))
+              : stList.length;
 
-              .limit(fetchLimit);
-            stList = recentStudents || [];
-
-            // Map delivery method from latest receipts using primary receipt_no B-Tree index (<15ms, zero timeout)
-
+            // Map delivery method from receipts for exact fetched students using batched IN query
             try {
               if (stList.length > 0) {
-                const { data: recDelivery } = await _supabase.from('receipts')
-
-                  .select('student_id, delivery_method')
-
-                  .gte('receipt_no', minId)
-
-                  .lt('receipt_no', maxId)
-
-                  .order('receipt_no', { ascending: false })
-
-                  .limit(300);
-
-                if (recDelivery && Array.isArray(recDelivery)) {
+                const stIds = stList.map(s => String(s.student_id || '').trim()).filter(Boolean);
+                const recDelivery = await fetchBatchedSupabaseIn(
+                  'receipts',
+                  'student_id, delivery_method, claim_status, edit_notes, receipt_no',
+                  'student_id',
+                  stIds,
+                  80
+                );
+                if (Array.isArray(recDelivery) && recDelivery.length > 0) {
+                  recDelivery.sort((a, b) => String(b.receipt_no || '').localeCompare(String(a.receipt_no || '')));
                   const delivMap = {};
-
                   recDelivery.forEach(r => {
+                    if (isReceiptVoided(r)) return;
                     if (r.student_id && r.delivery_method && !delivMap[r.student_id]) {
                       delivMap[r.student_id] = r.delivery_method;
                     }
@@ -33654,47 +33658,41 @@ if (action === 'getDashboardStats') {
         // --- 14. SHIPPING ORDERS & CARRIER STATUS ---
 
         if (action === 'getShippingOrders') {
-          const { data: rawYearReceipts, error } = await _supabase.from('receipts')
-
-            .select('*')
-
-            .gte('receipt_no', '6900000')
-
-            .lt('receipt_no', '7000000')
-
-            .order('receipt_no', { ascending: false })
-
-            .limit(500);
-
-          if (error) {
+          let rawYearReceipts = [];
+          try {
+            rawYearReceipts = await fetchAllPaginatedSupabaseRows(() =>
+              _supabase.from('receipts')
+                .select('*')
+                .gte('receipt_no', '6900000')
+                .ilike('delivery_method', '%ส่ง%')
+                .order('receipt_no', { ascending: false })
+            , 1000, 20000);
+          } catch (error) {
             console.error('[Supabase getShippingOrders error]', error);
             return { success: false, message: error.message, orders: [] };
           }
 
           const rawReceipts = (rawYearReceipts || []).filter(r => {
+            if (!r || r.receipt_type === 'CARD_FEE') return false;
+            if (isReceiptVoided(r)) return false;
             const dm = String(r.delivery_method || '').trim();
             return dm === 'ส่งตำรา' || dm === 'จัดส่งตามที่อยู่' || dm === 'ส่งไปตามที่อยู่' || dm.includes('ส่ง');
           });
           const toArabic = (typeof toArabicDigits === 'function')
-
             ? toArabicDigits
-
             : (v => String(v || '').replace(/[๐-๙]/g, d => '๐๑๒๓๔๕๖๗๘๙'.indexOf(d).toString()));
 
           // Collect unique student IDs and citizen IDs to batch-query registration profile from students table
-
           const studentIdSet = new Set();
           const citizenIdSet = new Set();
 
           rawReceipts.forEach(r => {
             const rawSid = String(r.student_id || r.buyer_id || '').trim();
-
             if (rawSid) {
               studentIdSet.add(rawSid);
               const arabicSid = toArabic(rawSid);
               if (arabicSid) studentIdSet.add(arabicSid);
             }
-
             const rawCid = String(r.citizen_id || '').trim();
             if (rawCid) citizenIdSet.add(rawCid);
           });
@@ -33702,16 +33700,16 @@ if (action === 'getDashboardStats') {
           const studentIds = Array.from(studentIdSet);
 
           if (studentIds.length > 0) {
-            const { data: stList } = await _supabase
-
-              .from('students')
-
-              .select('student_id, citizen_id, full_name, phone_number, address')
-
-              .in('student_id', studentIds.slice(0, 80));
-
+            const stList = await fetchBatchedSupabaseIn(
+              'students',
+              'student_id, citizen_id, full_name, phone_number, address, status',
+              'student_id',
+              studentIds,
+              80
+            );
             if (stList) {
               stList.forEach(st => {
+                if (isStudentDeleted(st)) return;
                 if (st.student_id) studentMap[st.student_id] = st;
                 if (st.citizen_id) studentMap[st.citizen_id] = st;
               });
@@ -33719,20 +33717,18 @@ if (action === 'getDashboardStats') {
           }
 
           // Fallback query for receipts with citizen_id not yet matched
-
           const missingCids = Array.from(citizenIdSet).filter(cid => !studentMap[cid]);
-
           if (missingCids.length > 0) {
-            const { data: stByCid } = await _supabase
-
-              .from('students')
-
-              .select('student_id, citizen_id, full_name, phone_number, address')
-
-              .in('citizen_id', missingCids.slice(0, 80));
-
+            const stByCid = await fetchBatchedSupabaseIn(
+              'students',
+              'student_id, citizen_id, full_name, phone_number, address, status',
+              'citizen_id',
+              missingCids,
+              80
+            );
             if (stByCid) {
               stByCid.forEach(st => {
+                if (isStudentDeleted(st)) return;
                 if (st.student_id) studentMap[st.student_id] = st;
                 if (st.citizen_id) studentMap[st.citizen_id] = st;
               });
@@ -38263,6 +38259,76 @@ if (action === 'getDashboardStats') {
       return allRows;
     }
 
+    /**
+     * Convert a timestamp/Date to YYYY-MM-DD in Asia/Bangkok (UTC+7).
+     */
+    function toBkkDateIso(rawTs) {
+      if (!rawTs) return '';
+      const s = String(rawTs).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const d = rawTs instanceof Date ? rawTs : new Date(s);
+      if (isNaN(d.getTime())) return '';
+      return new Date(d.getTime() + 7 * 3600000).toISOString().slice(0, 10);
+    }
+
+    /**
+     * Return UTC+7 day boundary ISO strings for Supabase timestamptz filtering.
+     */
+    function getBkkDayBoundsIso(dateIso) {
+      const clean = toBkkDateIso(dateIso) || toBkkDateIso(new Date());
+      return {
+        dateIso: clean,
+        startIso: `${clean}T00:00:00+07:00`,
+        endIso: `${clean}T23:59:59.999+07:00`
+      };
+    }
+
+    /**
+     * Standard check for voided/cancelled receipts.
+     */
+    function isReceiptVoided(r) {
+      if (!r) return false;
+      const st = String(r.claim_status !== undefined ? r.claim_status : (r.claimStatus || '')).trim().toUpperCase();
+      const notes = String(r.edit_notes !== undefined ? r.edit_notes : (r.editNotes || ''));
+      return st === 'VOIDED' || notes.includes('[ยกเลิกใบเสร็จ');
+    }
+
+    /**
+     * Standard check for deleted/cancelled students (preserves status IS NULL rows).
+     */
+    function isStudentDeleted(s) {
+      if (!s) return false;
+      const st = String(s.status || '').trim().toUpperCase();
+      const notes = String(s.notes || '');
+      return st === 'DELETED' || st === 'CANCELLED' || notes.includes('[DELETED_ARCHIVE]');
+    }
+
+    /**
+     * Batch .in(...) queries to avoid URL length limits or .slice(0, 80) truncation.
+     */
+    async function fetchBatchedSupabaseIn(table, selectCols, colName, values, batchSize = 80, extraFilterFn = null) {
+      if (typeof _supabase === 'undefined' || !_supabase || !Array.isArray(values) || values.length === 0) return [];
+      const uniq = Array.from(new Set(values.map(v => String(v || '').trim()).filter(Boolean)));
+      if (uniq.length === 0) return [];
+      const results = [];
+      const size = Math.max(1, Number(batchSize) || 80);
+      for (let i = 0; i < uniq.length; i += size) {
+        const chunk = uniq.slice(i, i + size);
+        let q = _supabase.from(table).select(selectCols).in(colName, chunk);
+        if (typeof extraFilterFn === 'function') q = extraFilterFn(q) || q;
+        const { data, error } = await q;
+        if (error) throw error;
+        if (Array.isArray(data) && data.length > 0) results.push(...data);
+      }
+      return results;
+    }
+
+    window.toBkkDateIso = toBkkDateIso;
+    window.getBkkDayBoundsIso = getBkkDayBoundsIso;
+    window.isReceiptVoided = isReceiptVoided;
+    window.isStudentDeleted = isStudentDeleted;
+    window.fetchBatchedSupabaseIn = fetchBatchedSupabaseIn;
+
     async function populateEnrollCoursesAndSchedules() {
       const selCourse = document.getElementById('selEnrollCourse');
       const selSchedule = document.getElementById('selEnrollSchedule');
@@ -41072,12 +41138,18 @@ if (action === 'getDashboardStats') {
       const badgePickup = document.getElementById('badgeSearchPickup');
       const badgeDelivery = document.getElementById('badgeSearchDelivery');
       const badgeCount = document.getElementById('badgeTableRecordCount');
-      const isFilteredBySecondary = Boolean(q || selDel !== 'ALL' || selStatus !== 'ALL');
+      const isFilteredBySecondary = Boolean(q || selDel !== 'ALL' || selStatus !== 'ALL' || (selTerm && selTerm !== 'ALL'));
       const totalDisplay = isFilteredBySecondary ? filtered.length : (window._searchTotalCount || filtered.length);
       if (badgeTotal) badgeTotal.textContent = toArabicDigits(totalDisplay) + ' คน';
-      if (badgePickup) badgePickup.textContent = toArabicDigits(countPickup) + ' คน';
-      if (badgeDelivery) badgeDelivery.textContent = toArabicDigits(countDelivery) + ' คน';
-      if (badgeCount) badgeCount.textContent = toArabicDigits(totalDisplay) + ' คน';
+      const scopeSuffix = (!isFilteredBySecondary && totalDisplay > filtered.length) ? ` (จาก ${toArabicDigits(filtered.length)} ล่าสุด)` : '';
+      if (badgePickup) badgePickup.textContent = toArabicDigits(countPickup) + ' คน' + scopeSuffix;
+      if (badgeDelivery) badgeDelivery.textContent = toArabicDigits(countDelivery) + ' คน' + scopeSuffix;
+      if (badgeCount) {
+        badgeCount.textContent = toArabicDigits(totalDisplay) + ' คน';
+        if (!isFilteredBySecondary && totalDisplay > filtered.length) {
+          badgeCount.textContent = `แสดงล่าสุด ${toArabicDigits(filtered.length)} จากทั้งหมด ${toArabicDigits(totalDisplay)} คน`;
+        }
+      }
       renderSearchStudentsTable(filtered);
 
       // หากมีคำค้นหาและตรงเพียง 1 คน ให้เปิดการ์ดแสดงรายละเอียดทันที
@@ -42881,14 +42953,13 @@ if (action === 'getDashboardStats') {
       const modal = document.getElementById('modalDailyShiftClosing');
       if (!modal) return;
       const now = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      const todayIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-      const yyyymmdd = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+      const todayIso = toBkkDateIso(now);
+      const yyyymmdd = todayIso.replace(/-/g, '');
       const curLang = window._currentSystemLang || 'th';
       const subEl = document.getElementById('lblShiftCloseDateSub');
       if (subEl) {
         const locale = curLang === 'zh' ? 'zh-CN' : (curLang === 'en' ? 'en-US' : 'th-TH');
-        const dateLabel = now.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
+        const dateLabel = now.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Bangkok' });
         subEl.textContent = curLang === 'zh'
           ? `日期 ${todayIso} (${dateLabel})`
           : (curLang === 'en' ? `Date: ${todayIso} (${dateLabel})` : `ประจำวันที่ ${todayIso} (${dateLabel})`);
@@ -42898,27 +42969,28 @@ if (action === 'getDashboardStats') {
 
       let cashTotal = 0;
       let transferTotal = 0;
+      let creditCardTotal = 0;
       let voidCount = 0;
       let voidAmount = 0;
       let activeCount = 0;
 
       try {
         if (typeof _supabase !== 'undefined' && _supabase) {
-          const startLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
-          const { data: rows, error } = await _supabase
-            .from('receipts')
-            .select('receipt_no, grand_total, payment_method, claim_status, created_at')
-            .gte('created_at', startLocal)
-            .order('receipt_no', { ascending: false })
-            .limit(1000);
-          if (error) throw error;
+          const bounds = getBkkDayBoundsIso(todayIso);
+          const rows = await fetchAllPaginatedSupabaseRows(() =>
+            _supabase
+              .from('receipts')
+              .select('receipt_no, grand_total, payment_method, claim_status, edit_notes, created_at')
+              .gte('created_at', bounds.startIso)
+              .lte('created_at', bounds.endIso)
+              .order('receipt_no', { ascending: false })
+          , 1000, 20000);
           (rows || []).forEach(r => {
             if (!r.created_at) return;
-            const d = new Date(r.created_at);
-            const dIso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+            const dIso = toBkkDateIso(r.created_at);
             if (dIso !== todayIso) return;
             const amt = Math.max(0, Number(r.grand_total || 0));
-            if (String(r.claim_status || '').toUpperCase() === 'VOIDED') {
+            if (isReceiptVoided(r)) {
               voidCount += 1;
               voidAmount += amt;
               return;
@@ -42927,6 +42999,8 @@ if (action === 'getDashboardStats') {
             const pm = String(r.payment_method || '').toLowerCase();
             if (pm.includes('สด') || pm.includes('cash')) {
               cashTotal += amt;
+            } else if (pm.includes('บัตร') || pm.includes('credit')) {
+              creditCardTotal += amt;
             } else {
               transferTotal += amt;
             }
@@ -42937,8 +43011,8 @@ if (action === 'getDashboardStats') {
         showToast('โหลดยอดปิดกะไม่สำเร็จ', err.message || '', '❌');
       }
 
-      const netRevenue = cashTotal + transferTotal;
-      window._ocaShiftClosingState = { todayIso, yyyymmdd, cashTotal, transferTotal, netRevenue, voidCount, voidAmount, activeCount };
+      const netRevenue = cashTotal + transferTotal + creditCardTotal;
+      window._ocaShiftClosingState = { todayIso, yyyymmdd, cashTotal, transferTotal, creditCardTotal, netRevenue, voidCount, voidAmount, activeCount };
       const fmt = (n) => '฿' + toArabicDigits(Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
       const elCash = document.getElementById('lblShiftCashTotal');
       const elTrans = document.getElementById('lblShiftTransferTotal');
@@ -42946,7 +43020,11 @@ if (action === 'getDashboardStats') {
       const elVoid = document.getElementById('lblShiftVoidSummary');
       const inpPhys = document.getElementById('inpShiftPhysicalCash');
       if (elCash) elCash.textContent = fmt(cashTotal);
-      if (elTrans) elTrans.textContent = fmt(transferTotal);
+      if (elTrans) {
+        elTrans.textContent = creditCardTotal > 0
+          ? `โอน/QR ${fmt(transferTotal)} | บัตรเครดิต ${fmt(creditCardTotal)}`
+          : fmt(transferTotal);
+      }
       if (elNet) elNet.textContent = fmt(netRevenue);
       if (elVoid) {
         const curLang2 = window._currentSystemLang || 'th';
@@ -58591,6 +58669,7 @@ if (action === 'getDashboardStats') {
           } else {
             receiptHistoryCachedLogs = [];
           }
+          window._receiptHistoryTotalCount = Number((res && res.totalCount) || receiptHistoryCachedLogs.length);
 
           filterReceiptHistoryTable();
         })
@@ -58715,6 +58794,29 @@ if (action === 'getDashboardStats') {
           return false;
         });
         renderReceiptsHistoryTable(filtered, q);
+
+        // Direct Supabase search fallback when not found in 300-row recent cache
+        if (filtered.length === 0 && rawQ.length >= 2 && typeof _supabase !== 'undefined' && _supabase) {
+          const seq = (window._rcptHistSearchSeq = (window._rcptHistSearchSeq || 0) + 1);
+          const safeToken = (typeof sanitizePostgrestSearchToken === 'function') ? sanitizePostgrestSearchToken(rawQ) : rawQ.replace(/[,()]/g, '');
+          if (safeToken) {
+            (async () => {
+              try {
+                let dbQ = _supabase.from('receipts').select('*');
+                if (/^\d{7,}$/.test(qClean)) {
+                  dbQ = dbQ.or(`receipt_no.eq.${qClean},student_id.eq.${qClean}`);
+                } else {
+                  dbQ = dbQ.or(`receipt_no.ilike.%${safeToken}%,student_id.ilike.%${safeToken}%,buyer_name.ilike.%${safeToken}%`);
+                }
+                const { data: dbRows, error: dbErr } = await dbQ.order('receipt_no', { ascending: false }).limit(100);
+                if (seq !== window._rcptHistSearchSeq || dbErr || !Array.isArray(dbRows) || dbRows.length === 0) return;
+                const curInp = (document.getElementById('inpRcptHistSearch')?.value || '').trim().toLowerCase();
+                if (curInp !== q) return;
+                renderReceiptsHistoryTable(dbRows.map(r => normalizeReceiptObject(r)), q);
+              } catch (_) {}
+            })();
+          }
+        }
       };
 
       if (immediate || !document.getElementById('inpRcptHistSearch')?.value?.trim()) {
@@ -58911,10 +59013,13 @@ if (action === 'getDashboardStats') {
       const lang = window._currentSystemLang || 'th';
       if (!ocaShouldUpdateDOM('receiptsHistory', { logs, query, lang })) return;
       const totalCount = receiptHistoryCachedLogs.length;
+      const fullTotalCount = Math.max(totalCount, Number(window._receiptHistoryTotalCount || 0));
 
       if (badgeCount) {
         if (query) {
-          badgeCount.innerHTML = 'พบ <strong style="color:var(--color-gold);">' + toArabicDigits(logs.length) + '</strong> จาก ' + toArabicDigits(totalCount) + ' รายการ';
+          badgeCount.innerHTML = 'พบ <strong style="color:var(--color-gold);">' + toArabicDigits(logs.length) + '</strong> จาก ' + toArabicDigits(fullTotalCount) + ' รายการ';
+        } else if (fullTotalCount > totalCount) {
+          badgeCount.textContent = 'แสดงล่าสุด ' + toArabicDigits(totalCount) + ' จากทั้งหมด ' + toArabicDigits(fullTotalCount) + ' รายการ';
         } else {
           badgeCount.textContent = 'ทั้งหมด ' + toArabicDigits(totalCount) + ' รายการ';
         }
@@ -63780,7 +63885,7 @@ if (action === 'getDashboardStats') {
         const yearMaxR = isAllYears ? '9999999' : (String(Number(yy) + 1).padStart(2, '0') + '00000');
 
         try {
-          const countUrl = `${SUPABASE_URL}/rest/v1/receipts?select=receipt_no&receipt_no=gte.${yearMinR}&receipt_no=lt.${yearMaxR}&receipt_type=eq.tuition`;
+          const countUrl = `${SUPABASE_URL}/rest/v1/receipts?select=receipt_no&receipt_no=gte.${yearMinR}&receipt_no=lt.${yearMaxR}&receipt_type=eq.tuition&or=(claim_status.is.null,claim_status.neq.VOIDED)`;
           const countResp = await fetch(countUrl, {
             headers: {
               'apikey': SUPABASE_ANON_KEY,
@@ -63806,7 +63911,7 @@ if (action === 'getDashboardStats') {
         const batchSize = 1000;
 
         while (offset < 20000) {
-          const fetchUrl = `${SUPABASE_URL}/rest/v1/receipts?select=receipt_no,item_code,item_name,student_id,claim_status&receipt_no=gte.${minR}&receipt_no=lt.${maxR}&receipt_type=eq.tuition${termEqParam}&offset=${offset}&limit=${batchSize}`;
+          const fetchUrl = `${SUPABASE_URL}/rest/v1/receipts?select=receipt_no,item_code,item_name,student_id,claim_status,edit_notes&receipt_no=gte.${minR}&receipt_no=lt.${maxR}&receipt_type=eq.tuition${termEqParam}&offset=${offset}&limit=${batchSize}`;
           const resp = await fetch(fetchUrl, {
             headers: {
               'apikey': SUPABASE_ANON_KEY,
@@ -63817,7 +63922,7 @@ if (action === 'getDashboardStats') {
           if (!resp.ok) break;
           const batch = await resp.json();
           if (!Array.isArray(batch) || batch.length === 0) break;
-          allRows.push(...batch.filter(r => String(r.claim_status || '').toUpperCase() !== 'VOIDED'));
+          allRows.push(...batch.filter(r => !isReceiptVoided(r)));
           if (batch.length < batchSize) break;
           offset += batchSize;
         }
@@ -64346,7 +64451,7 @@ if (action === 'getDashboardStats') {
                 .range(offset, offset + pageSize - 1);
               if (cErr) throw cErr;
               if (!chunk || chunk.length === 0) break;
-              const activeRows = chunk.filter(s => s.status !== 'DELETED');
+              const activeRows = chunk.filter(s => !isStudentDeleted(s));
               students.push(...activeRows);
               offset += chunk.length;
               stPageCount += 1;
@@ -64356,7 +64461,7 @@ if (action === 'getDashboardStats') {
           } else {
             let qCount = _supabase.from('students')
               .select('*', { count: 'exact', head: true })
-              .neq('status', 'DELETED');
+              .or('status.is.null,status.neq.DELETED');
             if (/^\d{4}$/.test(yearFilter)) {
               const yrPrefix = yearFilter.slice(-2);
               const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
@@ -64369,7 +64474,7 @@ if (action === 'getDashboardStats') {
               if (thisLoadSeq !== _ministryLoadSeq) return;
               let q = _supabase.from('students')
                 .select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at, notes')
-                .neq('status', 'DELETED');
+                .or('status.is.null,status.neq.DELETED');
               if (/^\d{4}$/.test(yearFilter)) {
                 const yrPrefix = yearFilter.slice(-2);
                 const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
@@ -64379,7 +64484,7 @@ if (action === 'getDashboardStats') {
               const { data: chunk, error: cErr } = await q;
               if (cErr) throw cErr;
               if (!chunk || chunk.length === 0) break;
-              students.push(...chunk);
+              students.push(...chunk.filter(s => !isStudentDeleted(s)));
               offset += chunk.length;
               stPageCount += 1;
               renderProgress(students.length, totalStudents || students.length, 'กำลังดึงข้อมูลทะเบียนนักศึกษา...');
@@ -64396,14 +64501,14 @@ if (action === 'getDashboardStats') {
             while (rcPageCount < maxMinistryPages) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
               const { data: rcChunk, error: rcErr } = await _supabase.from('receipts')
-                .select('student_id, item_name, receipt_no, created_at')
+                .select('student_id, item_name, receipt_no, created_at, claim_status, edit_notes')
                 .gte('receipt_no', minId)
                 .lt('receipt_no', maxId)
                 .order('receipt_no', { ascending: false })
                 .range(rcOffset, rcOffset + 999);
               if (rcErr) { console.warn('[Ministry Report] receipts chunk error:', rcErr); break; }
               if (!rcChunk || rcChunk.length === 0) break;
-              receipts.push(...rcChunk);
+              receipts.push(...rcChunk.filter(r => !isReceiptVoided(r)));
               rcOffset += rcChunk.length;
               rcPageCount += 1;
               if (rcChunk.length < 1000) break;
@@ -64824,22 +64929,29 @@ if (action === 'getDashboardStats') {
           tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:16px; color:#f87171;">ไม่สามารถเชื่อมต่อฐานข้อมูลได้</td></tr>';
           return;
         }
-        let deferralQuery = _supabase
-          .from('students')
-          .select('student_id, prefix, full_name, current_course, current_schedule, year_be, term, status, notes')
-          .eq('status', 'DROPPED');
-        if (yrFilter !== 'ALL' && /^\d{4}$/.test(yrFilter)) {
-          const yrPrefix = yrFilter.slice(-2);
-          const nextYrPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
-          deferralQuery = deferralQuery.gte('student_id', yrPrefix + '00000').lt('student_id', nextYrPrefix + '00000');
-        } else {
-          deferralQuery = deferralQuery.gte('student_id', '6800000');
-        }
-        const { data, error } = await deferralQuery.limit(500);
-        if (error) throw error;
+        const applyRange = (q) => {
+          if (yrFilter !== 'ALL' && /^\d{4}$/.test(yrFilter)) {
+            const yrPrefix = yrFilter.slice(-2);
+            const nextYrPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
+            return q.gte('student_id', yrPrefix + '00000').lt('student_id', nextYrPrefix + '00000');
+          }
+          return q.gte('student_id', '6800000');
+        };
+        const defCols = 'student_id, prefix, full_name, current_course, current_schedule, year_be, term, status, notes';
+        const [droppedRows, transferRows] = await Promise.all([
+          fetchAllPaginatedSupabaseRows(() => applyRange(_supabase.from('students').select(defCols).eq('status', 'DROPPED')), 1000, 10000),
+          fetchAllPaginatedSupabaseRows(() => applyRange(_supabase.from('students').select(defCols).in('status', ['TRANSFERRED', 'ย้ายเทอม', 'ย้ายกลุ่ม'])), 1000, 10000)
+        ]);
+        const mergedMap = new Map();
+        [...(droppedRows || []), ...(transferRows || [])].forEach(s => {
+          if (s && s.student_id && !mergedMap.has(s.student_id)) mergedMap.set(s.student_id, s);
+        });
+        const data = Array.from(mergedMap.values());
         let rows = (data || []).filter(s => {
+          if (isStudentDeleted(s)) return false;
           const n = String(s.notes || '');
-          const isDeferral = (s.status === 'DROPPED' && n.includes('เลื่อน')) || n.includes('ต้องการเลื่อนไปเรียนเทอมถัดไป') || n.includes('ย้ายเทอม');
+          const st = String(s.status || '').toUpperCase();
+          const isDeferral = (st === 'DROPPED' && n.includes('เลื่อน')) || st === 'TRANSFERRED' || n.includes('ต้องการเลื่อนไปเรียนเทอมถัดไป') || n.includes('ย้ายเทอม') || n.includes('ย้ายกลุ่ม');
           if (!isDeferral) return false;
           if (yrFilter !== 'ALL' && String(s.year_be || '') !== yrFilter) return false;
           if (tmFilter !== 'ALL' && String(cleanTermNumber(s.term) || '') !== tmFilter) return false;
@@ -65825,11 +65937,12 @@ if (action === 'getDashboardStats') {
           let sumOther = 0;
           let sumDisc = 0;
           let sumGrand = 0;
-          const totalRev = Number(kpis.totalRevenue || 1);
+          const yearlySumGrand = yearly.reduce((acc, y) => acc + Math.max(0, Number(y.grandTotal || 0)), 0);
+          const totalRev = yearlySumGrand > 0 ? yearlySumGrand : Number(kpis.totalRevenue || 1);
 
           for (let i = 0; i < yearly.length; i++) {
             const item = yearly[i];
-            const pct = totalRev > 0 ? ((item.grandTotal / totalRev) * 100).toFixed(1) : '0.0';
+            const pct = totalRev > 0 ? Math.min(100, (Math.max(0, Number(item.grandTotal || 0)) / totalRev) * 100).toFixed(1) : '0.0';
             sumRcpt += item.receiptCount;
             sumTuition += item.tuitionTotal;
             sumOther += item.otherFeesTotal;
@@ -66016,43 +66129,44 @@ if (action === 'getDashboardStats') {
 
      */
 
-    async function fetchReceiptsForFinancePrint() {
-      if (Array.isArray(receiptHistoryCachedLogs) && receiptHistoryCachedLogs.length > 0) {
-        return receiptHistoryCachedLogs;
+    const FINANCE_PRINT_RECEIPT_COLS = 'receipt_no,student_id,buyer_name,citizen_id,address,receipt_type,year_be,term,item_code,item_name,schedule,base_amount,reg_fee,card_fee,other_reg_fee,discount_normal,discount_other,grand_total,payment_method,claim_status,edit_notes,created_at';
+    function buildFinancePrintReceiptQuery(opts, offset, chunkSize) {
+      let q = _supabase.from('receipts').select(FINANCE_PRINT_RECEIPT_COLS);
+      const yr = String(opts.yearBE || document.getElementById('selFinanceFilterYearTerm')?.value || '').trim();
+      if (opts.startIso && opts.endIso) {
+        return q.gte('created_at', getBkkDayBoundsIso(opts.startIso).startIso).lte('created_at', getBkkDayBoundsIso(opts.endIso).endIso).order('created_at', { ascending: false });
+      } else if (/^\d{4}$/.test(yr)) {
+        const yy = String(Math.max(0, Number(yr) - 2500)).padStart(2, '0');
+        const nYy = String(Number(yy) + 1).padStart(2, '0');
+        return q.gte('receipt_no', `${yy}00000`).lt('receipt_no', `${nYy}00000`).order('receipt_no', { ascending: false });
       }
+      return q.gte('receipt_no', '6800000').order('receipt_no', { ascending: false });
+    }
+    async function fetchReceiptsForFinancePrint() {
+      const opts = arguments[0] || {};
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const allReceipts = [];
-          const chunkSize = 1000, maxPages = 25;
+          const allReceipts = [], chunkSize = 1000, maxPages = 30;
           let offset = 0, pageCount = 0;
-          const targetYear = String((document.getElementById('selFinanceFilterYearTerm') || document.getElementById('selScheduleConfigYear'))?.value || '').trim();
-          const cols = 'receipt_no,student_id,buyer_name,citizen_id,phone_number,email,delivery_address,receipt_type,year_be,term,item_code,item_name,schedule,base_amount,reg_fee,card_fee,other_reg_fee,discount_normal,discount_other,grand_total,payment_method,claim_status,created_at';
           while (pageCount < maxPages) {
-            let q = _supabase.from('receipts').select(cols);
-            q = /^\d{4}$/.test(targetYear) ? q.eq('year_be', Number(targetYear)) : q.gte('receipt_no', '6800000');
-            const { data: chunk, error } = await q.order('created_at', { ascending: false }).range(offset, offset + chunkSize - 1);
-            if (error) {
-              console.error('fetchReceiptsForFinancePrint pagination error:', error);
-              break;
-            }
+            const { data: chunk, error } = await buildFinancePrintReceiptQuery(opts, offset, chunkSize).range(offset, offset + chunkSize - 1);
+            if (error) { console.error('fetchReceiptsForFinancePrint pagination error:', error); break; }
             if (!chunk || chunk.length === 0) break;
             allReceipts.push(...chunk);
             pageCount += 1;
             if (chunk.length < chunkSize) break;
             offset += chunkSize;
           }
-          if (allReceipts.length > 0) {
-            receiptHistoryCachedLogs = allReceipts.map(r => normalizeReceiptObject(r));
-            return receiptHistoryCachedLogs;
-          }
-        } catch (_) {}
+          return allReceipts.filter(r => !isReceiptVoided(r)).map(r => normalizeReceiptObject(r));
+        } catch (err) {
+          console.error('fetchReceiptsForFinancePrint Supabase error:', err);
+        }
       }
       if (typeof callGasApi === 'function') {
         try {
           const res = await callGasApi('getReceiptsHistory');
           const raw = Array.isArray(res) ? res : (res && res.receipts ? res.receipts : []);
-          receiptHistoryCachedLogs = raw.map(r => normalizeReceiptObject(r));
-          return receiptHistoryCachedLogs;
+          return raw.filter(r => !isReceiptVoided(r)).map(r => normalizeReceiptObject(r));
         } catch (_) {}
       }
       return [];
@@ -66064,8 +66178,9 @@ if (action === 'getDashboardStats') {
         reportTitleTh = 'รายงานสรุปรายรับการเงิน',
         reportTitleZh = '财务结算汇总报告',
         periodLabel = '',
-        receipts = []
+        receipts: rawReceipts = []
       } = opts;
+      const receipts = (rawReceipts || []).filter(r => !isReceiptVoided(r));
       const sysLang = window._currentSystemLang || 'th';
       const actor = (typeof getAuditActor === 'function') ? getAuditActor() : { fullName: 'เจ้าหน้าที่การเงิน', username: 'cashier' };
       const cashierName = actor.fullName || actor.username || 'เจ้าหน้าที่การเงิน';
@@ -66294,8 +66409,9 @@ if (action === 'getDashboardStats') {
       const {
         yearBE = '2569',
         periodLabel = '',
-        receipts = []
+        receipts: rawReceipts = []
       } = opts;
+      const receipts = (rawReceipts || []).filter(r => !isReceiptVoided(r));
       const sysLang = window._currentSystemLang || 'th';
       const actor = (typeof getAuditActor === 'function') ? getAuditActor() : { fullName: 'เจ้าหน้าที่การเงิน', username: 'cashier' };
       const cashierName = actor.fullName || actor.username || 'เจ้าหน้าที่การเงิน';
@@ -66332,8 +66448,10 @@ if (action === 'getDashboardStats') {
         const dStr = r.createdAt || r.created_at || '';
         let mIdx = -1;
         if (dStr) {
-          const d = new Date(dStr);
-          if (!isNaN(d.getTime())) mIdx = d.getMonth();
+          const bkkIso = toBkkDateIso(dStr);
+          if (bkkIso && bkkIso.length >= 7) {
+            mIdx = parseInt(bkkIso.slice(5, 7), 10) - 1;
+          }
         }
         if (mIdx < 0 || mIdx > 11) mIdx = 0;
         monthlyData[mIdx].count++;
@@ -66513,15 +66631,14 @@ if (action === 'getDashboardStats') {
     async function printFinanceDailyReport() {
       const startVal = document.getElementById('inpFinanceDailyStart')?.value || '';
       const endVal = document.getElementById('inpFinanceDailyEnd')?.value || '';
-      const pad = (n) => String(n).padStart(2, '0');
-      const now = new Date();
-      const todayIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const todayIso = toBkkDateIso(new Date());
       const effectiveStart = startVal || todayIso;
       const effectiveEnd = endVal || effectiveStart;
-      const allReceipts = await fetchReceiptsForFinancePrint();
+      const allReceipts = await fetchReceiptsForFinancePrint({ startIso: effectiveStart, endIso: effectiveEnd });
       const filtered = allReceipts.filter(r => {
-        const rcptDate = (r.createdAt || r.created_at || '').slice(0, 10);
-        return rcptDate >= effectiveStart && rcptDate <= effectiveEnd;
+        if (isReceiptVoided(r)) return false;
+        const rcptDate = toBkkDateIso(r.createdAt || r.created_at || '');
+        return rcptDate && rcptDate >= effectiveStart && rcptDate <= effectiveEnd;
       });
       const periodLabel = (effectiveStart === effectiveEnd)
         ? `ประจำวันที่ ${effectiveStart}`
@@ -66544,13 +66661,14 @@ if (action === 'getDashboardStats') {
         const nowBE = new Date().getFullYear() + 543;
         targetYear = String(nowBE);
       }
-      const allReceipts = await fetchReceiptsForFinancePrint();
+      const allReceipts = await fetchReceiptsForFinancePrint({ yearBE: targetYear });
       const filtered = allReceipts.filter(r => {
+        if (isReceiptVoided(r)) return false;
         const rY = String(r.yearBe || r.year_be || '');
         if (rY && rY === targetYear) return true;
-        const dStr = r.createdAt || r.created_at || '';
-        if (dStr) {
-          const be = new Date(dStr).getFullYear() + 543;
+        const bkkIso = toBkkDateIso(r.createdAt || r.created_at || '');
+        if (bkkIso) {
+          const be = parseInt(bkkIso.slice(0, 4), 10) + 543;
           if (String(be) === targetYear) return true;
         }
         return false;
@@ -66572,15 +66690,18 @@ if (action === 'getDashboardStats') {
 
     async function printFinanceMonthlyReport() {
       const startVal = document.getElementById('inpFinanceDailyStart')?.value || '';
-      const pad = (n) => String(n).padStart(2, '0');
-      const now = new Date();
-      const curYearMonth = startVal ? startVal.slice(0, 7) : `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
-      const allReceipts = await fetchReceiptsForFinancePrint();
+      const todayBkk = toBkkDateIso(new Date());
+      const curYearMonth = startVal ? startVal.slice(0, 7) : todayBkk.slice(0, 7);
+      const [yStr, mStr] = curYearMonth.split('-');
+      const lastDay = new Date(Number(yStr), Number(mStr), 0).getDate();
+      const monthStartIso = `${curYearMonth}-01`;
+      const monthEndIso = `${curYearMonth}-${String(lastDay).padStart(2, '0')}`;
+      const allReceipts = await fetchReceiptsForFinancePrint({ startIso: monthStartIso, endIso: monthEndIso });
       const filtered = allReceipts.filter(r => {
-        const rcptMonth = (r.createdAt || r.created_at || '').slice(0, 7);
+        if (isReceiptVoided(r)) return false;
+        const rcptMonth = toBkkDateIso(r.createdAt || r.created_at || '').slice(0, 7);
         return rcptMonth === curYearMonth;
       });
-      const [yStr, mStr] = curYearMonth.split('-');
       const monthNamesTh = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
       const mIdx = parseInt(mStr, 10) - 1;
       const beYear = parseInt(yStr, 10) + 543;
@@ -80854,32 +80975,38 @@ function openPublicRegisterView() {
           const tPrefix = yr + String(termNo || '5');
           const nextTPrefix = (termNo < 5) ? (yr + String(termNo + 1)) : (String(Number(yr) + 1) + '0');
 
-          // 1. Query receipts for this course and term (indexed receipt_no range, exclude voided)
+          // 1. Query receipts for this course and term (paginated, exclude voided)
+          const rawRcData = await fetchAllPaginatedSupabaseRows(() =>
+            _supabase.from('receipts')
+              .select('student_id, buyer_name, item_code, item_name, room, schedule, year_be, term, claim_status, edit_notes')
+              .gte('receipt_no', tPrefix + '0000')
+              .lt('receipt_no', nextTPrefix + '0000')
+              .or('claim_status.is.null,claim_status.neq.VOIDED')
+              .order('receipt_no', { ascending: false })
+          , 1000, 20000);
+          const rcData = (rawRcData || []).filter(r => !isReceiptVoided(r));
 
-          const { data: rcData, error: rcErr } = await _supabase.from('receipts')
-
-            .select('student_id, buyer_name, item_code, item_name, room, schedule, year_be, term, claim_status')
-
-            .gte('receipt_no', tPrefix + '0000')
-
-            .lt('receipt_no', nextTPrefix + '0000')
-
-            .or('claim_status.is.null,claim_status.neq.VOIDED')
-
-            .limit(500);
-
-          // 2. Query students registered in this term (including returning/renewal students)
-
-          let stQuery = _supabase.from('students')
-            .select('student_id, prefix, full_name, current_course, current_schedule, year_be, term, status');
-          const rcSids = (Array.isArray(rcData) && rcData.length > 0) ? rcData.map(r => String(r.student_id || '').trim()).filter(Boolean) : [];
-          if (rcSids.length > 0) {
-            const sidChunk = rcSids.slice(0, 80).join(',');
-            stQuery = stQuery.or(`student_id.in.(${sidChunk}),term.eq.${termNo},student_id.gte.${tPrefix}0000`);
-          } else {
-            stQuery = stQuery.or(`term.eq.${termNo},student_id.gte.${tPrefix}0000`);
-          }
-          const { data: stData } = await stQuery.limit(500);
+          // 2. Query students registered in this term (batched IN + paginated term students)
+          const rcSids = rcData.map(r => String(r.student_id || '').trim()).filter(Boolean);
+          const [stFromRc, stFromTerm] = await Promise.all([
+            rcSids.length > 0
+              ? fetchBatchedSupabaseIn('students', 'student_id, prefix, full_name, current_course, current_schedule, year_be, term, status, notes', 'student_id', rcSids, 80)
+              : Promise.resolve([]),
+            fetchAllPaginatedSupabaseRows(() =>
+              _supabase.from('students')
+                .select('student_id, prefix, full_name, current_course, current_schedule, year_be, term, status, notes')
+                .or('status.is.null,status.neq.DELETED')
+                .or(`and(year_be.eq.${yearBE},term.eq.${termNo}),and(student_id.gte.${tPrefix}0000,student_id.lt.${nextTPrefix}0000)`)
+                .order('student_id', { ascending: false })
+            , 1000, 20000)
+          ]);
+          const stMergedMap = new Map();
+          [...(stFromTerm || []), ...(stFromRc || [])].forEach(s => {
+            if (s && s.student_id && !isStudentDeleted(s)) {
+              stMergedMap.set(String(s.student_id).trim(), s);
+            }
+          });
+          const stData = Array.from(stMergedMap.values());
 
           // Build student info lookup map from stData
 
@@ -80932,7 +81059,7 @@ function openPublicRegisterView() {
 
           // Process receipts
 
-          if (!rcErr && Array.isArray(rcData) && rcData.length > 0) {
+          if (Array.isArray(rcData) && rcData.length > 0) {
             const missingIds = [];
 
             rcData.forEach(r => {
@@ -81608,21 +81735,18 @@ function openPublicRegisterView() {
             .select('*');
 
           if (idMatch) {
-            const yr = targetId.slice(0, 2);
-
-            rcQb = rcQb.gte('receipt_no', yr + '00000').lt('receipt_no', String(Number(yr) + 1).padStart(2, '0') + '00000')
-
-              .eq('student_id', targetId);
+            // Returning students can have a student_id from an earlier year with a newer receipt_no
+            rcQb = rcQb.eq('student_id', targetId);
           } else {
             // Guard: active academic years receipts only to avoid statement timeout on 424k rows
-
             rcQb = rcQb.gte('receipt_no', '6800000').lt('receipt_no', '7000000').ilike('buyer_name', `%${cleanQ}%`);
           }
 
-          const { data: rcData } = await rcQb
+          const { data: rawRcData } = await rcQb
             .or('claim_status.is.null,claim_status.neq.VOIDED')
             .order('receipt_no', { ascending: false })
-            .limit(1);
+            .limit(10);
+          const rcData = (rawRcData || []).filter(r => !isReceiptVoided(r));
 
           if (rcData && rcData.length > 0) {
             const rNorm = normalizeReceiptObject(rcData[0]);
@@ -92071,23 +92195,21 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const { data, error } = await _supabase
+          const activeYT = (typeof getResolvedActiveYearTerm === 'function') ? getResolvedActiveYearTerm() : { yearBE: String(new Date().getFullYear() + 543), term: '5' };
+          const activeYearNum = Number(activeYT.yearBE) || (new Date().getFullYear() + 543);
+          const yrPrefix = String(activeYearNum).slice(-2);
+          const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
+          const rawData = await fetchAllPaginatedSupabaseRows(() =>
+            _supabase
+              .from('students')
+              .select('student_id, prefix, full_name, phone_number, email, line_id, current_schedule, current_course, year_be, term, status, notes')
+              .or(`year_be.eq.${activeYearNum},and(student_id.gte.${yrPrefix}00000,student_id.lt.${nextPrefix}00000)`)
+              .or('status.is.null,status.not.in.(DELETED,CANCELLED)')
+              .order('student_id', { ascending: false })
+          , 1000, 10000);
+          const data = (rawData || []).filter(s => !isStudentDeleted(s));
 
-            .from('students')
-
-            .select('student_id, prefix, full_name, phone_number, email, line_id, current_schedule, current_course, status, notes')
-
-            .gte('student_id', '6900000')
-
-            .lt('student_id', '7000000')
-
-            .neq('status', 'CANCELLED')
-
-            .order('student_id', { ascending: false })
-
-            .limit(500);
-
-          if (!error && Array.isArray(data) && data.length > 0) {
+          if (Array.isArray(data) && data.length > 0) {
             students = data.filter(s => {
               const cs = (s.current_schedule || '').trim();
               const cc = (s.current_course || '').trim();
@@ -92965,11 +93087,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           }
 
           if (inpFrom && inpFrom.value) {
-            q = q.gte('created_at', inpFrom.value + 'T00:00:00Z');
+            q = q.gte('created_at', getBkkDayBoundsIso(inpFrom.value).startIso);
           }
 
           if (inpTo && inpTo.value) {
-            q = q.lte('created_at', inpTo.value + 'T23:59:59Z');
+            q = q.lte('created_at', getBkkDayBoundsIso(inpTo.value).endIso);
           }
 
           const { data, error } = await q;
@@ -94461,13 +94583,12 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       // Default dates if empty: past 60 days to today
 
       if (!fromDate && inpFrom) {
-        const d = new Date();
-        d.setDate(d.getDate() - 60);
-        inpFrom.value = d.toISOString().split('T')[0];
+        const d = new Date(Date.now() - 60 * 86400000);
+        inpFrom.value = toBkkDateIso(d);
       }
 
       if (!toDate && inpTo) {
-        inpTo.value = new Date().toISOString().split('T')[0];
+        inpTo.value = toBkkDateIso(new Date());
       }
 
       const ytVal = selYT?.value || document.getElementById('selRosterYearTerm')?.value || '2569_5';
@@ -94485,56 +94606,46 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          // 1.1 Query receipts for this term
+          // 1.1 Query receipts for this term (paginated, exclude voided)
+          const rawRcData = await fetchAllPaginatedSupabaseRows(() =>
+            _supabase.from('receipts')
+              .select('student_id, buyer_name, item_code, item_name, room, schedule, year_be, term, claim_status, edit_notes')
+              .gte('receipt_no', tPrefix + '0000')
+              .lt('receipt_no', nextTPrefix + '0000')
+              .or('claim_status.is.null,claim_status.neq.VOIDED')
+              .order('receipt_no', { ascending: false })
+          , 1000, 20000);
+          const rcData = (rawRcData || []).filter(r => !isReceiptVoided(r));
 
-          const { data: rcData, error: rcErr } = await _supabase.from('receipts')
-
-            .select('student_id, buyer_name, item_code, item_name, room, schedule, year_be, term')
-
-            .gte('receipt_no', tPrefix + '0000')
-
-            .lt('receipt_no', nextTPrefix + '0000')
-
-            .limit(500);
-
-          // 1.2 Query students registered for this term (including returning/renewal students)
-
-          let stQuery = _supabase.from('students')
-            .select('student_id, prefix, full_name, current_course, current_schedule, year_be, term');
-          const rcGradeSids = (Array.isArray(rcData) && rcData.length > 0) ? rcData.map(r => String(r.student_id || '').trim()).filter(Boolean) : [];
-          if (rcGradeSids.length > 0) {
-            const sidChunk = rcGradeSids.slice(0, 80).join(',');
-            stQuery = stQuery.or(`student_id.in.(${sidChunk}),term.eq.${termNo},student_id.gte.${tPrefix}0000`);
-          } else {
-            stQuery = stQuery.or(`term.eq.${termNo},student_id.gte.${tPrefix}0000`);
-          }
-          const { data: stData, error: stErr } = await stQuery.limit(500);
+          // 1.2 Query students registered for this term (paginated + batched IN, exclude deleted)
+          const rawStData = await fetchAllPaginatedSupabaseRows(() =>
+            _supabase.from('students')
+              .select('student_id, prefix, full_name, current_course, current_schedule, year_be, term, status, notes')
+              .or('status.is.null,status.neq.DELETED')
+              .or(`and(year_be.eq.${yearBE},term.eq.${termNo}),and(student_id.gte.${tPrefix}0000,student_id.lt.${nextTPrefix}0000)`)
+              .order('student_id', { ascending: false })
+          , 1000, 20000);
+          const stData = (rawStData || []).filter(s => !isStudentDeleted(s));
 
           if (Array.isArray(stData)) {
             stData.forEach(s => {
               if (s.student_id) {
                 const sid = String(s.student_id).trim();
                 const cleanName = (typeof formatStudentNameWithPrefix === 'function')
-
                   ? formatStudentNameWithPrefix(s.prefix, s.full_name)
-
                   : (s.full_name || '');
 
                 stLookupMap.set(sid, {
                   fullName: cleanName,
-
                   photoUrl: '',
-
                   course: s.current_course || '',
-
                   schedule: s.current_schedule || ''
                 });
               }
             });
           }
 
-          // Check missing student IDs from receipts to look up their names
-
+          // Check missing student IDs from receipts to look up their names (batched IN)
           const missingIds = [];
 
           if (Array.isArray(rcData)) {
@@ -94545,17 +94656,19 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
             if (missingIds.length > 0) {
               try {
-                const { data: lookedUp } = await _supabase.from('students')
-
-                  .select('student_id, prefix, full_name')
-
-                  .in('student_id', missingIds.slice(0, 150));
+                const lookedUp = await fetchBatchedSupabaseIn(
+                  'students',
+                  'student_id, prefix, full_name, status, notes',
+                  'student_id',
+                  missingIds,
+                  80
+                );
 
                 if (Array.isArray(lookedUp)) {
                   lookedUp.forEach(s => {
+                    if (isStudentDeleted(s)) return;
                     const sid = String(s.student_id).trim();
                     const cleanName = (typeof formatStudentNameWithPrefix === 'function')
-
                       ? formatStudentNameWithPrefix(s.prefix, s.full_name)
 
                       : (s.full_name || '');
@@ -95174,11 +95287,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           }
 
           if (inpFrom && inpFrom.value) {
-            q = q.gte('created_at', inpFrom.value + 'T00:00:00Z');
+            q = q.gte('created_at', getBkkDayBoundsIso(inpFrom.value).startIso);
           }
 
           if (inpTo && inpTo.value) {
-            q = q.lte('created_at', inpTo.value + 'T23:59:59Z');
+            q = q.lte('created_at', getBkkDayBoundsIso(inpTo.value).endIso);
           }
 
           const { data, error } = await q;
@@ -95207,6 +95320,14 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
           if (selTeacher && selTeacher.value && selTeacher.value !== 'ALL') {
             qLog = qLog.eq('username', selTeacher.value);
+          }
+
+          if (inpFrom && inpFrom.value) {
+            qLog = qLog.gte('created_at', getBkkDayBoundsIso(inpFrom.value).startIso);
+          }
+
+          if (inpTo && inpTo.value) {
+            qLog = qLog.lte('created_at', getBkkDayBoundsIso(inpTo.value).endIso);
           }
 
           const { data: logData, error: logErr } = await qLog;
@@ -97397,11 +97518,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const appExtraBooks = Array.isArray(info.extraBooks) ? info.extraBooks : [];
       const appIsBooksOnly = Boolean(info.isBooksOnly || (!info.course && appExtraCourses.length === 0 && appExtraBooks.length > 0));
       const hasMultiCourses = appExtraCourses.length > 1 || appExtraCourses.some(c => Number(c.qty) > 1);
-      if (!hasMultiCourses && appExtraBooks.length === 0 && !appIsBooksOnly) return rcPayload;
-      const appOtherRegFee = Number(info.otherRegFee || 0) || appExtraBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
       const appShippingFee = Number(info.shippingFee || 0);
       const appDeliveryRaw = String(info.deliveryMethod || 'รับเอง');
       const appIsShip = appDeliveryRaw === 'จัดส่งตามที่อยู่' || appDeliveryRaw.indexOf('จัดส่ง') !== -1 || appDeliveryRaw.indexOf('ส่ง') !== -1;
+      if (!hasMultiCourses && appExtraBooks.length === 0 && !appIsBooksOnly && !(appShippingFee > 0) && !appIsShip) return rcPayload;
+      const appOtherRegFee = Number(info.otherRegFee || 0) || appExtraBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
       const appDeliveryMethod = appIsShip ? 'ส่งไปตามที่อยู่' : 'รับเอง';
       const extraCoursesJsonTag = hasMultiCourses
         ? `[EXTRA_COURSES:${JSON.stringify(appExtraCourses.map(c => ({ id: c.id || c.code || '', code: c.code || c.id || '', name: c.name || c.code || '', qty: Number(c.qty) || 1, price: Number(c.price) || 0 })))}]`
@@ -98050,7 +98171,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=199';
+      const swPath = basePath + 'sw.js?v=200';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -98059,7 +98180,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (199):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (200):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
