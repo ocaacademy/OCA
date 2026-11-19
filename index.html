@@ -14134,7 +14134,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '204';
+      var LATEST_VERSION = '205';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -20917,10 +20917,12 @@ body.printing-report #printReportContainer {
                       <th style="position:sticky; top:0; white-space:nowrap; background:var(--bg-table-header); z-index:2; text-align:right;">จำนวน</th>
                       <th style="position:sticky; top:0; white-space:nowrap; background:var(--bg-table-header); z-index:2; text-align:right;">ราคา/เล่ม</th>
                       <th style="position:sticky; top:0; white-space:nowrap; background:var(--bg-table-header); z-index:2; text-align:right;">ยอดรวม</th>
+                      <th style="position:sticky; top:0; white-space:nowrap; background:var(--bg-table-header); z-index:2; text-align:right;">ค่าโอน</th>
+                      <th style="position:sticky; top:0; white-space:nowrap; background:var(--bg-table-header); z-index:2; text-align:right;">ค่าจัดส่ง</th>
                     </tr>
                   </thead>
                   <tbody id="tbodyReportTextbookSales">
-                    <tr><td colspan="9" style="text-align:center; padding:16px; color:var(--text-muted);">กำลังโหลดข้อมูล...</td></tr>
+                    <tr><td colspan="11" style="text-align:center; padding:16px; color:var(--text-muted);">กำลังโหลดข้อมูล...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -32076,6 +32078,8 @@ if (action === 'getDashboardStats') {
             reg_fee: Number(params.regFee) || 0,
             card_fee: Number(params.cardFee) || 0,
             other_reg_fee: (Number(params.otherRegFee) || 0) + (Number(params.transferFee) || 0) + (Number(params.shippingFee) || 0),
+            transfer_fee: Math.max(0, Number(params.transferFee) || 0),
+            shipping_fee: Math.max(0, Number(params.shippingFee) || 0),
             discount_normal: Number(params.discountNormal) || 0,
             discount_other: Number(params.discountOther) || 0,
             grand_total: Number(params.grandTotal || params.amount) || 0,
@@ -65064,6 +65068,7 @@ if (action === 'getDashboardStats') {
             source: rType === 'book' ? 'book' : 'combined'
           });
         });
+        attachReceiptFeesToFirstTextbookItem(out, r);
         return out;
       }
       if (rType === 'book') {
@@ -65081,9 +65086,18 @@ if (action === 'getDashboardStats') {
           source: 'book'
         });
       }
+      attachReceiptFeesToFirstTextbookItem(out, r);
       return out;
     }
     window.extractTextbookLineItemsFromReceipt = extractTextbookLineItemsFromReceipt;
+
+    // Transfer/shipping fees are receipt-level; attach once (first line) so totals never double count. other_reg_fee is untouched.
+    function attachReceiptFeesToFirstTextbookItem(items, r) {
+      items.forEach(it => { it.transferFee = 0; it.shippingFee = 0; });
+      if (!items.length) return;
+      items[0].transferFee = Math.max(0, Number(r.transfer_fee) || 0);
+      items[0].shippingFee = Math.max(0, Number(r.shipping_fee) || 0);
+    }
 
     function onReportTbModeChange() {
       const mode = document.getElementById('selReportTbMode')?.value || 'term';
@@ -65109,7 +65123,7 @@ if (action === 'getDashboardStats') {
         inpDate.value = (typeof getBangkokTodayDateStr === 'function') ? getBangkokTodayDateStr() : toBangkokDateYmdV201(new Date().toISOString());
       }
       if (tbody && (!_tbSalesReportRowsCache.length || forceRefresh)) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:16px; color:var(--text-muted);">กำลังโหลดข้อมูลใบเสร็จตำราเรียน...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:16px; color:var(--text-muted);">กำลังโหลดข้อมูลใบเสร็จตำราเรียน...</td></tr>';
       }
       try {
         let rows = [];
@@ -65128,7 +65142,7 @@ if (action === 'getDashboardStats') {
         renderTextbookSalesReport();
       } catch (err) {
         console.error('[loadTextbookSalesReport] error:', err);
-        if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:16px; color:#EF4444;">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(err?.message || String(err))}</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding:16px; color:#EF4444;">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(err?.message || String(err))}</td></tr>`;
       }
     }
     window.loadTextbookSalesReport = loadTextbookSalesReport;
@@ -65174,7 +65188,7 @@ if (action === 'getDashboardStats') {
       const tbody = document.getElementById('tbodyReportTextbookSales');
       if (!tbody) return;
       if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:18px; color:var(--text-muted);">ไม่พบรายการซื้อตำราเรียนในช่วงเวลาที่เลือก</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:18px; color:var(--text-muted);">ไม่พบรายการซื้อตำราเรียนในช่วงเวลาที่เลือก</td></tr>';
         return;
       }
       tbody.innerHTML = filtered.map((it, idx) => `
@@ -65188,6 +65202,8 @@ if (action === 'getDashboardStats') {
           <td style="text-align:right; font-weight:700;">${it.qty.toLocaleString()}</td>
           <td style="text-align:right;">฿${it.unitPrice.toLocaleString()}</td>
           <td style="text-align:right; font-weight:800; color:#047857;">฿${it.total.toLocaleString()}</td>
+          <td style="text-align:right;">฿${(it.transferFee || 0).toLocaleString()}</td>
+          <td style="text-align:right;">฿${(it.shippingFee || 0).toLocaleString()}</td>
         </tr>
       `).join('');
     }
@@ -65195,10 +65211,10 @@ if (action === 'getDashboardStats') {
 
     function exportTextbookSalesCsv() {
       const rows = getFilteredTextbookSalesItems();
-      const header = ['No', 'Date', 'ReceiptNo', 'StudentID', 'StudentName', 'BookName', 'Qty', 'UnitPrice', 'Total'];
+      const header = ['No', 'Date', 'ReceiptNo', 'StudentID', 'StudentName', 'BookName', 'Qty', 'UnitPrice', 'Total', 'TransferFee', 'ShippingFee'];
       const lines = [header.join(',')];
       rows.forEach((it, idx) => {
-        const vals = [idx + 1, it.date, it.receiptNo, it.studentId, it.studentName, it.bookName, it.qty, it.unitPrice, it.total]
+        const vals = [idx + 1, it.date, it.receiptNo, it.studentId, it.studentName, it.bookName, it.qty, it.unitPrice, it.total, it.transferFee || 0, it.shippingFee || 0]
           .map(v => `"${String(v ?? '').replace(/"/g, '""')}"`);
         lines.push(vals.join(','));
       });
@@ -65218,10 +65234,12 @@ if (action === 'getDashboardStats') {
       const rows = getFilteredTextbookSalesItems();
       const totalQty = rows.reduce((s, i) => s + i.qty, 0);
       const totalRev = rows.reduce((s, i) => s + i.total, 0);
+      const totalTf = rows.reduce((s, i) => s + (i.transferFee || 0), 0);
+      const totalSh = rows.reduce((s, i) => s + (i.shippingFee || 0), 0);
       const w = window.open('', '_blank', 'width=960,height=720');
       if (!w) return;
-      const trHtml = rows.map((it, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(it.date)}</td><td>${escapeHtml(it.receiptNo)}</td><td>${escapeHtml(it.studentId)}</td><td>${escapeHtml(it.studentName)}</td><td>${escapeHtml(it.bookName)}</td><td style="text-align:right;">${it.qty}</td><td style="text-align:right;">${it.unitPrice.toLocaleString()}</td><td style="text-align:right;">${it.total.toLocaleString()}</td></tr>`).join('');
-      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>รายงานการซื้อตำราเรียน OCA</title><style>body{font-family:'Sarabun',sans-serif;padding:20px;color:#0f172a;}table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #cbd5e1;padding:6px 8px;}th{background:#f1f5f9;text-align:left;}</style></head><body><h2 style="margin:0 0 6px;">รายงานการซื้อตำราเรียน — โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (OCA)</h2><p style="margin:0 0 12px;font-size:12.5px;">จำนวนรวม ${totalQty.toLocaleString()} เล่ม | ยอดรวม ฿${totalRev.toLocaleString()}</p><table><thead><tr><th>#</th><th>วันที่</th><th>เลขใบเสร็จ</th><th>รหัส น.ศ.</th><th>ชื่อ-นามสกุล</th><th>รายการตำรา</th><th>จำนวน</th><th>ราคา/เล่ม</th><th>ยอดรวม</th></tr></thead><tbody>${trHtml || '<tr><td colspan="9" style="text-align:center;">ไม่มีข้อมูล</td></tr>'}</tbody></table></body></html>`);
+      const trHtml = rows.map((it, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(it.date)}</td><td>${escapeHtml(it.receiptNo)}</td><td>${escapeHtml(it.studentId)}</td><td>${escapeHtml(it.studentName)}</td><td>${escapeHtml(it.bookName)}</td><td style="text-align:right;">${it.qty}</td><td style="text-align:right;">${it.unitPrice.toLocaleString()}</td><td style="text-align:right;">${it.total.toLocaleString()}</td><td style="text-align:right;">${(it.transferFee || 0).toLocaleString()}</td><td style="text-align:right;">${(it.shippingFee || 0).toLocaleString()}</td></tr>`).join('');
+      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>รายงานการซื้อตำราเรียน OCA</title><style>body{font-family:'Sarabun',sans-serif;padding:20px;color:#0f172a;}table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #cbd5e1;padding:6px 8px;}th{background:#f1f5f9;text-align:left;}</style></head><body><h2 style="margin:0 0 6px;">รายงานการซื้อตำราเรียน — โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (OCA)</h2><p style="margin:0 0 12px;font-size:12.5px;">จำนวนรวม ${totalQty.toLocaleString()} เล่ม | ยอดรวม ฿${totalRev.toLocaleString()} | ค่าโอนรวม ฿${totalTf.toLocaleString()} | ค่าจัดส่งรวม ฿${totalSh.toLocaleString()}</p><table><thead><tr><th>#</th><th>วันที่</th><th>เลขใบเสร็จ</th><th>รหัส น.ศ.</th><th>ชื่อ-นามสกุล</th><th>รายการตำรา</th><th>จำนวน</th><th>ราคา/เล่ม</th><th>ยอดรวม</th><th>ค่าโอน</th><th>ค่าจัดส่ง</th></tr></thead><tbody>${trHtml || '<tr><td colspan="11" style="text-align:center;">ไม่มีข้อมูล</td></tr>'}</tbody></table></body></html>`);
       w.document.close();
       w.focus();
       w.print();
@@ -86447,6 +86465,8 @@ function openPublicRegisterView() {
         "ตำราเรียน / คอร์ส": "教材名称",
         "จำนวน": "数量",
         "ราคา/เล่ม": "单价",
+        "ค่าโอน": "转账费",
+        "ค่าจัดส่ง": "运费",
         "ติ๊กถูก = แสดงรอบสอบนี้ในหน้าสมัครออนไลน์ให้นักศึกษาเลือกได้ทันที | ไม่ติ๊ก = ปิดรับสมัครและซ่อนจากหน้าออนไลน์ชั่วคราว (ข้อมูลไม่ถูกลบ)": "勾选即在在线报名页开放此场次供学员选择；取消勾选则暂闭报名并隐藏，数据不会删除",
         "รายงานการสมัครสอบ HSK / YCT": "HSK 与 YCT 考试报名统计报表",
         "ค่าเล่าเรียน (Tuition)": "课程学费收入",
@@ -88847,6 +88867,8 @@ function openPublicRegisterView() {
         "ตำราเรียน / คอร์ส": "Textbook / Course",
         "จำนวน": "Qty",
         "ราคา/เล่ม": "Unit Price",
+        "ค่าโอน": "Transfer Fee",
+        "ค่าจัดส่ง": "Shipping Fee",
         "ติ๊กถูก = แสดงรอบสอบนี้ในหน้าสมัครออนไลน์ให้นักศึกษาเลือกได้ทันที | ไม่ติ๊ก = ปิดรับสมัครและซ่อนจากหน้าออนไลน์ชั่วคราว (ข้อมูลไม่ถูกลบ)": "Checked = visible for online registration | Unchecked = temporarily closed & hidden (data preserved)",
         "รายงานการสมัครสอบ HSK / YCT": "HSK / YCT Exam Registration Report",
         "ค่าเล่าเรียน (Tuition)": "Tuition Fees",
@@ -99519,7 +99541,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=204';
+      const swPath = basePath + 'sw.js?v=205';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -99528,7 +99550,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (204):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (205):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
