@@ -12041,7 +12041,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '210';
+      var LATEST_VERSION = '211';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -27622,7 +27622,7 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
                   if (typeof _ocaStaffAvatars !== 'undefined') _ocaStaffAvatars[uK] = resolvedUrl;
                 }
               }
-              if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('teacher_sched_') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1' && f.key !== 'classroom_master_list' && !f.key.startsWith('sched_chunk_') && !f.key.startsWith('cg_chunk_') && !f.key.startsWith('round_open_date_')) {
+              if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('teacher_sched_') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1' && f.key !== 'classroom_master_list' && !f.key.startsWith('cl_room_') && !f.key.startsWith('cfg_geofence') && !f.key.startsWith('sched_chunk_') && !f.key.startsWith('cg_chunk_') && !f.key.startsWith('round_open_date_')) {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
@@ -27645,6 +27645,18 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
                 window._ocaRoundOpenDatesMap = window._ocaRoundOpenDatesMap || {};
                 window._ocaRoundOpenDatesMap[f.key.replace('round_open_date_', '')] = f.name;
               }
+              if (f.key === 'cfg_geofence' && f.name) {
+                const parts = String(f.name).split(',');
+                if (parts.length === 2 && !isNaN(Number(parts[0])) && !isNaN(Number(parts[1]))) {
+                  if (typeof OCA_GEOFENCE_TARGET === 'object' && OCA_GEOFENCE_TARGET) {
+                    OCA_GEOFENCE_TARGET.lat = Number(parts[0]);
+                    OCA_GEOFENCE_TARGET.lng = Number(parts[1]);
+                    if (typeof f.amount === 'number' && f.amount > 0) {
+                      OCA_GEOFENCE_TARGET.radiusMeters = f.amount;
+                    }
+                  }
+                }
+              }
             });
           }
           if (feeObj.discountKids && feeObj.discountNormal) {
@@ -27665,6 +27677,15 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
             feeSettings: fullFeeSettings,
             staffAvatars: staffAvatars,
             classrooms: (() => {
+              const clRooms = (fees || []).filter(f => f.key && f.key.startsWith('cl_room_'));
+              if (clRooms.length > 0) {
+                return clRooms.map(r => ({
+                  roomNo: r.key.replace('cl_room_', ''),
+                  name: r.name || r.key.replace('cl_room_', ''),
+                  capacity: Number(r.amount) || 0,
+                  notes: r.mode || ''
+                }));
+              }
               const clSetting = (fees || []).find(f => f.key === 'classroom_master_list');
               if (clSetting) {
                 const rawJson = (clSetting.name && clSetting.name.startsWith('[')) ? clSetting.name : (clSetting.mode && clSetting.mode.startsWith('[') ? clSetting.mode : '');
@@ -30781,7 +30802,7 @@ if (action === 'getDashboardStats') {
           const feeObj = {};
           if (fees) {
             fees.forEach(f => {
-              if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('teacher_sched_') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1' && f.key !== 'classroom_master_list' && !f.key.startsWith('sched_chunk_') && !f.key.startsWith('cg_chunk_') && !f.key.startsWith('round_open_date_')) {
+              if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('teacher_sched_') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1' && f.key !== 'classroom_master_list' && !f.key.startsWith('cl_room_') && !f.key.startsWith('cfg_geofence') && !f.key.startsWith('sched_chunk_') && !f.key.startsWith('cg_chunk_') && !f.key.startsWith('round_open_date_')) {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
@@ -40439,7 +40460,7 @@ if (action === 'getDashboardStats') {
             });
             if (audienceUpserts.length > 0) {
               const { error: upErr } = await _supabase.from('fee_settings').upsert(audienceUpserts, { onConflict: 'key' });
-              if (upErr) console.warn('[FeeSettings] audience upsert error:', upErr);
+              if (upErr) throw upErr;
             }
             const { error: mapUpErr } = await _supabase.from('fee_settings').upsert({
               key: 'course_discount_matrix_map',
@@ -40448,7 +40469,7 @@ if (action === 'getDashboardStats') {
               mode: 'always',
               updated_at: new Date().toISOString()
             }, { onConflict: 'key' });
-            if (mapUpErr) console.warn('[FeeSettings] matrix map upsert error:', mapUpErr);
+            if (mapUpErr) throw mapUpErr;
           } catch (eFs) {
             console.warn('[FeeSettings] matrix fallback save warning:', eFs);
           }
@@ -40552,10 +40573,29 @@ if (action === 'getDashboardStats') {
     async function loadClassroomsManager() {
       try {
         let rooms = [];
-        try {
-          const stored = localStorage.getItem('oca_classroom_master_list');
-          if (stored) rooms = JSON.parse(stored);
-        } catch (_) {}
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          try {
+            const { data: clRows, error: clErr } = await _supabase
+              .from('fee_settings')
+              .select('*')
+              .like('key', 'cl_room_%')
+              .order('key', { ascending: true });
+            if (!clErr && Array.isArray(clRows) && clRows.length > 0) {
+              rooms = clRows.map(r => ({
+                roomNo: r.key.replace('cl_room_', ''),
+                name: r.name || r.key.replace('cl_room_', ''),
+                capacity: Number(r.amount) || 0,
+                notes: r.mode || ''
+              }));
+            }
+          } catch (_) {}
+        }
+        if (!rooms || rooms.length === 0) {
+          try {
+            const stored = localStorage.getItem('oca_classroom_master_list');
+            if (stored) rooms = JSON.parse(stored);
+          } catch (_) {}
+        }
         if ((!rooms || rooms.length === 0) && typeof _supabase !== 'undefined' && _supabase) {
           try {
             const { data: clRow, error: clErr } = await _supabase.from('fee_settings').select('*').eq('key', 'classroom_master_list').limit(1).maybeSingle();
@@ -40664,16 +40704,28 @@ if (action === 'getDashboardStats') {
       } catch (_) {}
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
+          const nowIso = new Date().toISOString();
           const safeRoomSummary = (cachedClassroomsList || []).map(r => r.roomNo).join(', ').slice(0, 90);
           { const { error: wErr } = await _supabase.from('fee_settings').upsert({
             key: 'classroom_master_list',
             name: safeRoomSummary,
             mode: 'always',
             amount: (cachedClassroomsList || []).length,
-            updated_at: new Date().toISOString()
+            updated_at: nowIso
           }, { onConflict: 'key' }); if (wErr) throw wErr; }
+          { const { error: rErr } = await _supabase.from('fee_settings').upsert({
+            key: `cl_room_${roomNo}`.slice(0, 90),
+            name: (name || roomNo).slice(0, 90),
+            amount: Number(capacity) || 0,
+            mode: (notes || '').slice(0, 50),
+            updated_at: nowIso
+          }, { onConflict: 'key' }); if (rErr) throw rErr; }
+          if (origRoomNo && origRoomNo !== roomNo) {
+            const { error: delOrigErr } = await _supabase.from('fee_settings').delete().eq('key', `cl_room_${origRoomNo}`);
+            if (delOrigErr) throw delOrigErr;
+          }
         } catch (errFs) {
-          console.warn('[Classroom] Supabase secondary sync notice:', errFs);
+          console.warn('[Classroom] Supabase sync notice:', errFs);
         }
       }
       renderClassroomsTable();
@@ -40700,6 +40752,8 @@ if (action === 'getDashboardStats') {
               amount: (cachedClassroomsList || []).length,
               updated_at: new Date().toISOString()
             }, { onConflict: 'key' }); if (wErr) throw wErr; }
+            const { error: delErr } = await _supabase.from('fee_settings').delete().eq('key', `cl_room_${roomNo}`);
+            if (delErr) throw delErr;
           } catch (errFs) {
             console.warn('[Classroom] Supabase secondary sync notice:', errFs);
           }
@@ -44873,6 +44927,9 @@ if (action === 'getDashboardStats') {
         const jsonStr = JSON.stringify(window._courseGroupInstructorByTermMap);
         localStorage.setItem(COURSE_GROUP_INSTRUCTOR_STORAGE_KEY, jsonStr);
         if (typeof _supabase !== 'undefined' && _supabase) {
+          if (typeof saveChunkedFeeMapTerm === 'function') {
+            await saveChunkedFeeMapTerm('cg_chunk_', y, t, window._courseGroupInstructorByTermMap[tKey] || {});
+          }
           const safeSummary = `CG All Map (${t}/${y}): ${Object.keys(groupedMap).length} items`.slice(0, 90);
           { const { error: wErr } = await _supabase.from('fee_settings').upsert([
             {
@@ -44885,6 +44942,9 @@ if (action === 'getDashboardStats') {
               updated_at: new Date().toISOString()
             }
           ], { onConflict: 'key' }); if (wErr) throw wErr; }
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('fee_settings', 'UPDATE', { key: `cg_chunk_${y}_${t}` });
+          }
         }
         if (typeof renderCoursesTable === 'function' && Array.isArray(cachedCoursesList)) {
           renderCoursesTable(cachedCoursesList);
@@ -46332,33 +46392,33 @@ if (action === 'getDashboardStats') {
       // Sync from Cloud settings if available
       try {
         if (typeof _supabase !== 'undefined' && _supabase) {
-          const { data } = await _supabase
+          const { data, error: cloudErr } = await _supabase
             .from('fee_settings')
             .select('name')
             .eq('key', 'card_printer_calibration_json')
             .maybeSingle();
-          if (data && data.name) {
+          if (!cloudErr && data && data.name) {
             try {
               const cloudMap = JSON.parse(data.name);
               if (cloudMap && typeof cloudMap === 'object') {
                 const localRaw = localStorage.getItem('oca_card_calib_map');
-                if (!localRaw) {
-                  const restored = {};
-                  Object.keys(cloudMap).forEach(k => {
-                    if (k === '_p' || k === '_activePreset') {
-                      restored._activePreset = cloudMap[k];
-                    } else if (Array.isArray(cloudMap[k])) {
-                      restored[k] = { x: cloudMap[k][0], y: cloudMap[k][1] };
-                    } else if (typeof cloudMap[k] === 'object' && cloudMap[k] !== null) {
-                      restored[k] = cloudMap[k];
-                    }
-                  });
-                  localStorage.setItem('oca_card_calib_map', JSON.stringify(restored));
-                  if (restored._activePreset) {
-                    localStorage.setItem('oca_card_printer_preset', restored._activePreset);
+                const restored = {};
+                try { Object.assign(restored, JSON.parse(localRaw || '{}') || {}); } catch(_) {}
+                Object.keys(cloudMap).forEach(k => {
+                  if (k === '_p' || k === '_activePreset') {
+                    restored._activePreset = cloudMap[k];
+                  } else if (Array.isArray(cloudMap[k])) {
+                    restored[k] = { x: cloudMap[k][0], y: cloudMap[k][1] };
+                  } else if (typeof cloudMap[k] === 'object' && cloudMap[k] !== null) {
+                    restored[k] = cloudMap[k];
                   }
-                  loadCardCalibrationSettings();
+                });
+                localStorage.setItem('oca_card_calib_map', JSON.stringify(restored));
+                const activeP = cloudMap._p || cloudMap._activePreset || restored._activePreset;
+                if (activeP) {
+                  localStorage.setItem('oca_card_printer_preset', activeP);
                 }
+                loadCardCalibrationSettings();
               }
             } catch (_) {}
           }
@@ -60771,7 +60831,7 @@ if (action === 'getDashboardStats') {
             }
           ], { onConflict: 'key' });
           if (error) {
-            console.warn('fee_settings upsert error:', error);
+            throw error;
           } else if (typeof broadcastOcaDataSync === 'function') {
             broadcastOcaDataSync('fee_settings', 'UPDATE', {
               key: 'cfg_cashier_payee',
@@ -85490,13 +85550,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=210';
+      const swPath = basePath + 'sw.js?v=211';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (210):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (211):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
