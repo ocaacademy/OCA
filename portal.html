@@ -12041,7 +12041,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '211';
+      var LATEST_VERSION = '212';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -25504,6 +25504,165 @@ body.printing-report #printReportContainer {
     }
     window.getResolvedTeacherSchedule = getResolvedTeacherSchedule;
     // =========================================================================
+    // OCA UNIFIED APP CONFIG ARCHITECTURE (window.OcaAppConfig)
+    // Hybrid app_settings (JSONB) + fee_settings atomic fallback + Realtime
+    // =========================================================================
+    const _ocaAppConfigCache = window._ocaAppConfigCache || (window._ocaAppConfigCache = {});
+    let _hasAppSettingsTable = null;
+
+    async function testAppSettingsTable() {
+      if (typeof _supabase === 'undefined' || !_supabase) return false;
+      try {
+        const { data, error } = await _supabase.from('app_settings').select('key').limit(1);
+        if (error) {
+          _hasAppSettingsTable = false;
+          return false;
+        }
+        _hasAppSettingsTable = true;
+        return true;
+      } catch (err) {
+        _hasAppSettingsTable = false;
+        return false;
+      }
+    }
+
+    async function getAppConfig(key, defaultValue = null) {
+      if (!key) return defaultValue;
+      const cleanKey = String(key).trim();
+      if (_ocaAppConfigCache[cleanKey] !== undefined) {
+        return _ocaAppConfigCache[cleanKey];
+      }
+      try {
+        const lsVal = localStorage.getItem('oca_cfg_' + cleanKey);
+        if (lsVal !== null) {
+          const parsed = JSON.parse(lsVal);
+          _ocaAppConfigCache[cleanKey] = parsed;
+          return parsed;
+        }
+      } catch (_) {}
+
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        if (_hasAppSettingsTable !== false) {
+          try {
+            const { data, error } = await _supabase
+              .from('app_settings')
+              .select('key, value')
+              .eq('key', cleanKey)
+              .maybeSingle();
+            if (!error && data && data.value !== undefined) {
+              _hasAppSettingsTable = true;
+              _ocaAppConfigCache[cleanKey] = data.value;
+              try { localStorage.setItem('oca_cfg_' + cleanKey, JSON.stringify(data.value)); } catch (_) {}
+              return data.value;
+            }
+            if (error) {
+              const errMsg = String(error.message || error.details || '');
+              if (error.code === '42P01' || errMsg.includes('does not exist') || error.code === 'PGRST205') {
+                _hasAppSettingsTable = false;
+              }
+            }
+          } catch (_) {
+            _hasAppSettingsTable = false;
+          }
+        }
+
+        try {
+          const feeKey = cleanKey.startsWith('cfg_') ? cleanKey.slice(0, 60) : ('cfg_' + cleanKey).slice(0, 60);
+          const { data: fData, error: fError } = await _supabase
+            .from('fee_settings')
+            .select('key, name')
+            .eq('key', feeKey)
+            .maybeSingle();
+          if (!fError && fData && fData.name !== undefined) {
+            let resVal = fData.name;
+            try { resVal = JSON.parse(fData.name); } catch (_) {}
+            _ocaAppConfigCache[cleanKey] = resVal;
+            try { localStorage.setItem('oca_cfg_' + cleanKey, JSON.stringify(resVal)); } catch (_) {}
+            return resVal;
+          }
+        } catch (_) {}
+      }
+
+      return defaultValue;
+    }
+
+    async function setAppConfig(key, value, category = 'general') {
+      if (!key) return false;
+      const cleanKey = String(key).trim();
+      const cleanCat = String(category || 'general').slice(0, 50);
+      _ocaAppConfigCache[cleanKey] = value;
+      try {
+        localStorage.setItem('oca_cfg_' + cleanKey, JSON.stringify(value));
+      } catch (_) {}
+
+      let saved = false;
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        const u = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+        const uname = (u && (u.username || u.email)) || 'system';
+
+        if (_hasAppSettingsTable !== false) {
+          try {
+            const appRow = {
+              key: cleanKey.slice(0, 100),
+              value: value,
+              category: cleanCat,
+              description: '',
+              updated_by: String(uname).slice(0, 80),
+              updated_at: new Date().toISOString()
+            };
+            const { error } = await _supabase.from('app_settings').upsert([appRow], { onConflict: 'key' });
+            if (!error) {
+              _hasAppSettingsTable = true;
+              saved = true;
+              if (typeof broadcastOcaDataSync === 'function') {
+                broadcastOcaDataSync('app_settings', 'UPDATE', appRow);
+              }
+              return true;
+            }
+            const errMsg = String(error.message || error.details || '');
+            if (error.code === '42P01' || errMsg.includes('does not exist') || error.code === 'PGRST205') {
+              _hasAppSettingsTable = false;
+            }
+          } catch (_) {
+            _hasAppSettingsTable = false;
+          }
+        }
+
+        try {
+          const feeKey = cleanKey.startsWith('cfg_') ? cleanKey.slice(0, 60) : ('cfg_' + cleanKey).slice(0, 60);
+          const serialized = (typeof value === 'object' && value !== null) ? JSON.stringify(value) : String(value ?? '');
+          const safeVal = serialized.slice(0, 90);
+          const feeRow = {
+            key: feeKey,
+            name: safeVal,
+            mode: String(category || 'general').slice(0, 90),
+            amount: 0,
+            updated_at: new Date().toISOString()
+          };
+          const { error: fErr } = await _supabase.from('fee_settings').upsert([feeRow], { onConflict: 'key' });
+          if (!fErr) {
+            saved = true;
+            if (typeof broadcastOcaDataSync === 'function') {
+              broadcastOcaDataSync('fee_settings', 'UPDATE', feeRow);
+            }
+            return true;
+          } else {
+            console.warn('[OcaAppConfig] fee_settings fallback save error:', fErr);
+          }
+        } catch (err) {
+          console.warn('[OcaAppConfig] fee_settings fallback exception:', err);
+        }
+      }
+      return saved;
+    }
+
+    window.OcaAppConfig = {
+      get: getAppConfig,
+      set: setAppConfig,
+      testAppSettingsTable: testAppSettingsTable,
+      cache: _ocaAppConfigCache
+    };
+    // =========================================================================
     // OCA 100% SUPABASE REALTIME STREAMING & BACKGROUND SYNC ENGINE
     // =========================================================================
     let _isCleaningRealtimeChannel = false;
@@ -26067,15 +26226,25 @@ body.printing-report #printReportContainer {
       if (fk.startsWith('crm_note_')) {
         const sid = fk.replace('crm_note_', '');
         const noteText = (!isDeleteEv && activeFeeRow && activeFeeRow.name) ? String(activeFeeRow.name) : '';
+        const hasAmount = (!isDeleteEv && activeFeeRow && activeFeeRow.amount !== undefined && activeFeeRow.amount !== null);
+        const contactedVal = hasAmount ? (Number(activeFeeRow.amount) === 1) : null;
         if (sid && Array.isArray(_teacherContactsData)) {
           const hit = _teacherContactsData.find(d => d.student_id === sid);
-          if (hit) hit.crmNote = noteText;
+          if (hit) {
+            hit.crmNote = noteText;
+            if (contactedVal !== null) {
+              hit.isContacted = contactedVal;
+            }
+          }
         }
         try {
           const curU = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
           const uname = curU ? curU.username : 'teacher';
           const current = JSON.parse(localStorage.getItem(`oca_crm_${uname}_${sid}`) || '{}');
           current.note = noteText;
+          if (contactedVal !== null) {
+            current.contacted = contactedVal;
+          }
           current.updatedAt = new Date().toISOString();
           localStorage.setItem(`oca_crm_${uname}_${sid}`, JSON.stringify(current));
         } catch (_) {}
@@ -27622,7 +27791,7 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
                   if (typeof _ocaStaffAvatars !== 'undefined') _ocaStaffAvatars[uK] = resolvedUrl;
                 }
               }
-              if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('teacher_sched_') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1' && f.key !== 'classroom_master_list' && !f.key.startsWith('cl_room_') && !f.key.startsWith('cfg_geofence') && !f.key.startsWith('sched_chunk_') && !f.key.startsWith('cg_chunk_') && !f.key.startsWith('round_open_date_')) {
+              if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('teacher_sched_') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1' && f.key !== 'classroom_master_list' && !f.key.startsWith('cl_room_') && !f.key.startsWith('cfg_geofence') && !f.key.startsWith('sched_chunk_') && !f.key.startsWith('cg_chunk_') && !f.key.startsWith('round_open_date_') && !f.key.startsWith('crm_note_') && !f.key.startsWith('crm_contact_')) {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
@@ -30802,7 +30971,7 @@ if (action === 'getDashboardStats') {
           const feeObj = {};
           if (fees) {
             fees.forEach(f => {
-              if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('teacher_sched_') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1' && f.key !== 'classroom_master_list' && !f.key.startsWith('cl_room_') && !f.key.startsWith('cfg_geofence') && !f.key.startsWith('sched_chunk_') && !f.key.startsWith('cg_chunk_') && !f.key.startsWith('round_open_date_')) {
+              if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('teacher_sched_') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1' && f.key !== 'classroom_master_list' && !f.key.startsWith('cl_room_') && !f.key.startsWith('cfg_geofence') && !f.key.startsWith('sched_chunk_') && !f.key.startsWith('cg_chunk_') && !f.key.startsWith('round_open_date_') && !f.key.startsWith('crm_note_') && !f.key.startsWith('crm_contact_')) {
                 const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
@@ -80628,17 +80797,22 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         });
       }
       // 5. Merge contacted statuses from CRM notes cache + Supabase fee_settings cloud sync
-      const cloudCrmNotesMap = {};
+      const cloudCrmMap = {};
+      const cloudCrmNotesMap = cloudCrmMap;
       if (typeof _supabase !== 'undefined' && _supabase && students.length > 0) {
         try {
           const { data: crmRows, error: crmErr } = await _supabase
             .from('fee_settings')
-            .select('key, name')
+            .select('key, name, amount')
             .like('key', 'crm_note_%');
           if (!crmErr && Array.isArray(crmRows)) {
             crmRows.forEach(r => {
               if (r && r.key && r.key.startsWith('crm_note_')) {
-                cloudCrmNotesMap[r.key.replace('crm_note_', '')] = r.name || '';
+                const sid = r.key.replace('crm_note_', '');
+                cloudCrmMap[sid] = {
+                  note: r.name || '',
+                  contacted: Number(r.amount) === 1
+                };
               }
             });
           }
@@ -80655,8 +80829,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             crmNote = parsed.note || '';
           }
         } catch (_) {}
-        if (cloudCrmNotesMap[s.student_id] !== undefined && cloudCrmNotesMap[s.student_id] !== '') {
-          crmNote = cloudCrmNotesMap[s.student_id];
+        if (cloudCrmMap[s.student_id]) {
+          if (cloudCrmMap[s.student_id].note) crmNote = cloudCrmMap[s.student_id].note;
+          if (cloudCrmMap[s.student_id].contacted !== undefined) isContacted = cloudCrmMap[s.student_id].contacted;
         }
         return {
           student_id: s.student_id,
@@ -80765,7 +80940,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       renderTeacherContactsTable(filtered);
     }
     window.filterTeacherContactsTable = filterTeacherContactsTable;
-    function toggleTeacherStudentContactStatus(studentId) {
+    async function toggleTeacherStudentContactStatus(studentId) {
       const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
       const uname = user ? user.username : 'teacher';
       const item = _teacherContactsData.find(d => d.student_id === studentId);
@@ -80796,6 +80971,25 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           }
         );
       }
+      if (typeof _supabase !== 'undefined' && _supabase && studentId) {
+        try {
+          const crmRow = {
+            key: 'crm_note_' + String(studentId).slice(0, 60),
+            name: String(item.crmNote || '').slice(0, 90),
+            mode: String(uname || 'teacher').slice(0, 90),
+            amount: item.isContacted ? 1 : 0,
+            updated_at: new Date().toISOString()
+          };
+          const { error } = await _supabase.from('fee_settings').upsert([crmRow], { onConflict: 'key' });
+          if (error) {
+            console.warn('[Teacher CRM] toggleTeacherStudentContactStatus cloud error:', error);
+          } else if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('fee_settings', 'UPDATE', crmRow);
+          }
+        } catch (err) {
+          console.warn('[Teacher CRM] toggleTeacherStudentContactStatus cloud exception:', err);
+        }
+      }
     }
     window.toggleTeacherStudentContactStatus = toggleTeacherStudentContactStatus;
     async function saveTeacherStudentContactNotes(studentId, notes) {
@@ -80816,7 +81010,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             key: `crm_note_${String(studentId).slice(0, 60)}`,
             name: cleanNote,
             mode: String(uname || 'teacher').slice(0, 90),
-            amount: 0,
+            amount: (item && item.isContacted) ? 1 : 0,
             updated_at: new Date().toISOString()
           };
           const { error } = await _supabase.from('fee_settings').upsert([crmRow], { onConflict: 'key' });
@@ -85550,13 +85744,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=211';
+      const swPath = basePath + 'sw.js?v=212';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (211):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (212):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
