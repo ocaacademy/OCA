@@ -14134,7 +14134,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '205';
+      var LATEST_VERSION = '206';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -18181,7 +18181,8 @@ body.printing-report #printReportContainer {
                         <i class="fa-solid fa-calendar-day" style="color:var(--color-gold); margin-right:4px;"></i><span id="txtRcptOpenDateLabel">กำหนดวันเปิดเรียน</span>
                       </label>
 
-                      <input type="text" id="txtRcptOpenDate" class="oca-input" placeholder="เช่น 1 พ.ย. 2569" oninput="updateReceiptLivePreview()" style="height:34px; font-size:12.5px; padding:4px 8px; text-align:left !important;">
+                      <input type="text" id="txtRcptOpenDate" class="oca-input" placeholder="เช่น 1 พ.ย. 2569" oninput="updateReceiptLivePreview(); checkReceiptOpenDateWarning()" style="height:34px; font-size:12.5px; padding:4px 8px; text-align:left !important;">
+                      <div id="lblRcptOpenDateWarn" role="alert" style="display:none; margin-top:4px; padding:4px 8px; border-radius:6px; background:#FEF3C7; color:#0f172a; border:1px solid #F59E0B; font-size:11.5px; font-weight:600;"></div>
                     </div>
 
                     <div class="oca-input-group" style="margin-bottom:0;">
@@ -40980,6 +40981,33 @@ if (action === 'getDashboardStats') {
         q = '';
       }
 
+      // v206: รหัสนักศึกษา 7 หลัก (YY+T+NNNN) -> ตั้งปีการศึกษา = 2500+YY ก่อนเริ่ม debounce
+      if (/^\d{7}$/.test(q)) {
+        const autoYearBE = 2500 + parseInt(q.slice(0, 2), 10);
+        const selAutoYear = document.getElementById('selSearchYear');
+        if (selAutoYear && autoYearBE >= 2536 && autoYearBE <= 2600) {
+          const yStr = String(autoYearBE);
+          if (!Array.from(selAutoYear.options).some(o => o.value === yStr)) {
+            const newOpt = document.createElement('option');
+            newOpt.value = yStr;
+            newOpt.textContent = yStr;
+            selAutoYear.appendChild(newOpt);
+          }
+          selAutoYear.value = yStr;
+          window._userExplicitlySelectedAllYears = false;
+          const selYearAliasAuto = document.getElementById('selStudentYearBE');
+          if (selYearAliasAuto) {
+            if (!Array.from(selYearAliasAuto.options).some(o => o.value === yStr)) {
+              const aliasOpt = document.createElement('option');
+              aliasOpt.value = yStr;
+              aliasOpt.textContent = yStr;
+              selYearAliasAuto.appendChild(aliasOpt);
+            }
+            selYearAliasAuto.value = yStr;
+          }
+        }
+      }
+
       // 1. กรองข้อมูลในหน่วยความจำพร้อม Debounce 250ms เพื่อลดภาระการเรนเดอร์ DOM
       if (_searchMemoryDebounceTimer) clearTimeout(_searchMemoryDebounceTimer);
       if (!q) {
@@ -47929,6 +47957,31 @@ if (action === 'getDashboardStats') {
 
     window.toggleTermDatesAccordion = toggleTermDatesAccordion;
 
+    function checkReceiptOpenDateWarning() {
+      const inp = document.getElementById('txtRcptOpenDate');
+      const warn = document.getElementById('lblRcptOpenDateWarn');
+      if (!inp || !warn) return;
+      const val = (inp.value || '').trim();
+      const rcptYear = (document.getElementById('selRcptYear')?.value || '').trim();
+      let msg = '';
+      const ym = val.match(/(25\d{2})/);
+      if (val && ym && /^25\d{2}$/.test(rcptYear) && ym[1] !== rcptYear) {
+        msg = `⚠️ วันเปิดเรียนเป็นปี พ.ศ. ${ym[1]} ไม่ตรงกับปีการศึกษาที่เลือก (${rcptYear}) กรุณาตรวจสอบ`;
+      } else if (val && typeof parseThaiDateToIso === 'function') {
+        const iso = parseThaiDateToIso(val);
+        if (iso) {
+          const d = new Date(iso + 'T00:00:00');
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (!isNaN(d.getTime()) && d.getTime() < today.getTime()) {
+            msg = '⚠️ วันเปิดเรียนนี้เป็นวันที่ผ่านมาแล้ว กรุณาตรวจสอบ';
+          }
+        }
+      }
+      warn.textContent = msg;
+      warn.style.display = msg ? 'block' : 'none';
+    }
+    window.checkReceiptOpenDateWarning = checkReceiptOpenDateWarning;
     function updateReceiptOpenDateByTerm() {
       const selTerm = document.getElementById('selRcptTerm') || document.getElementById('selTerm');
       const t = selTerm ? String(selTerm.value).trim() : '5';
@@ -47938,18 +47991,9 @@ if (action === 'getDashboardStats') {
         let openDate = cachedTermOpenDates[t] || cachedTermOpenDates[Number(t)] || '';
 
         if (!openDate) {
-          const defaultDates = {
-            "1": "1 ม.ค. 2569",
-
-            "2": "1 มี.ค. 2569",
-
-            "3": "1 พ.ค. 2569",
-
-            "4": "1 ก.ค. 2569",
-
-            "5": "1 พ.ย. 2569"
-          };
-          openDate = defaultDates[t] || '';
+          const rcptYearSel = (document.getElementById('selRcptYear')?.value || '').trim();
+          const defaultDayMonth = { "1": "1 ม.ค.", "2": "1 มี.ค.", "3": "1 พ.ค.", "4": "1 ก.ค.", "5": "1 พ.ย." };
+          openDate = (defaultDayMonth[t] && /^25\d{2}$/.test(rcptYearSel)) ? (defaultDayMonth[t] + ' ' + rcptYearSel) : '';
         }
 
         if (openDate) {
@@ -47968,6 +48012,7 @@ if (action === 'getDashboardStats') {
           }
         }
       }
+      checkReceiptOpenDateWarning();
     }
 
     function renderRoundOpenDatesInputs() {
@@ -48069,6 +48114,7 @@ if (action === 'getDashboardStats') {
       if (roundDate) {
         inpOpen.value = roundDate;
         if (typeof updateReceiptLivePreview === 'function') updateReceiptLivePreview();
+        checkReceiptOpenDateWarning();
       } else {
         updateReceiptOpenDateByTerm();
       }
@@ -99541,7 +99587,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=205';
+      const swPath = basePath + 'sw.js?v=206';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -99550,7 +99596,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (205):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (206):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
