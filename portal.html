@@ -14136,7 +14136,7 @@ body.printing-report #printReportContainer {
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
 
     (function() {
-      var LATEST_VERSION = '201';
+      var LATEST_VERSION = '202';
       window.LATEST_VERSION = LATEST_VERSION;
 
       try {
@@ -17225,9 +17225,8 @@ body.printing-report #printReportContainer {
                   <div>
                     <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">รูปแบบสอบ</label>
                     <select id="selExamFormat" class="oca-input" style="width:100%; height:36px; font-size:13px;">
-                      <option value="Paper-Based">Paper-Based</option>
-                      <option value="IBT">IBT</option>
-                      <option value="Home Edition">Home Edition</option>
+                      <option value="Paper">Paper (กระดาษ)</option>
+                      <option value="Computer">Computer (คอมพิวเตอร์)</option>
                     </select>
                   </div>
                   <div>
@@ -45505,6 +45504,17 @@ if (action === 'getDashboardStats') {
         normalizedItems[spec.key] = { amount: valR, mode: 'always', startDate: '', endDate: '' };
       });
 
+      const preservedCustomItems = {};
+      const existingPrevItems = (typeof globalFeePresets === 'object' && globalFeePresets && globalFeePresets.items) ? globalFeePresets.items : {};
+      Object.entries(existingPrevItems).forEach(([k, v]) => {
+        if (String(k).startsWith('custom_fee_') && v && typeof v === 'object') preservedCustomItems[k] = v;
+      });
+      if (rawItems && typeof rawItems === 'object') {
+        Object.entries(rawItems).forEach(([k, v]) => {
+          if (String(k).startsWith('custom_fee_') && v && typeof v === 'object') preservedCustomItems[k] = v;
+        });
+      }
+
       globalFeePresets = {
         tuitionFee: normalizedItems.tuitionFee ? normalizedItems.tuitionFee.amount : 0,
 
@@ -45526,7 +45536,11 @@ if (action === 'getDashboardStats') {
 
         ...discRulesValues,
 
+        customFees: Object.values(preservedCustomItems),
+
         items: {
+          ...preservedCustomItems,
+
           ...normalizedItems,
 
           cardFee: (rawItems && rawItems.cardFee) || { amount: 0, mode: 'always', startDate: '', endDate: '' },
@@ -46786,13 +46800,23 @@ if (action === 'getDashboardStats') {
           }
 
           if (res.feeSettings) {
+            const prevItems = (typeof globalFeePresets === 'object' && globalFeePresets && globalFeePresets.items) ? globalFeePresets.items : {};
+            const preservedCustom = {};
+            Object.entries(prevItems).forEach(([k, v]) => {
+              if (String(k).startsWith('custom_fee_') && v && typeof v === 'object') preservedCustom[k] = v;
+            });
             globalFeePresets = res.feeSettings;
+            if (!globalFeePresets.items) globalFeePresets.items = {};
+            Object.entries(preservedCustom).forEach(([k, v]) => {
+              if (!globalFeePresets.items[k]) globalFeePresets.items[k] = v;
+            });
 
             try {
               localStorage.setItem('oca_general_fee_settings', JSON.stringify(globalFeePresets));
             } catch(_) {}
 
             populateGeneralFeeInputs(globalFeePresets);
+            if (typeof syncPublicRegFeeLabels === 'function') syncPublicRegFeeLabels();
           }
 
           if (res.onlineEnrollSchedule) {
@@ -76371,11 +76395,22 @@ function openPublicRegisterView() {
       const item = (presets.items && presets.items.regFee) || (typeof presets.regFee === 'object' && presets.regFee !== null ? presets.regFee : null);
       if (item) {
         const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(item) : { active: true };
-        if (!st.active) return 0;
-        if (item.amount !== undefined && item.amount !== null && item.amount !== '' && !isNaN(Number(item.amount))) return Math.max(0, Number(item.amount));
+        if (st.active && item.amount !== undefined && item.amount !== null && item.amount !== '' && !isNaN(Number(item.amount)) && Number(item.amount) > 0) {
+          return Number(item.amount);
+        }
+      } else if (presets.regFee !== undefined && presets.regFee !== null && typeof presets.regFee !== 'object' && !isNaN(Number(presets.regFee)) && Number(presets.regFee) > 0) {
+        return Number(presets.regFee);
       }
-      if (presets.regFee !== undefined && presets.regFee !== null && typeof presets.regFee !== 'object' && !isNaN(Number(presets.regFee))) {
-        return Math.max(0, Number(presets.regFee));
+      const itemsMap = (presets.items && typeof presets.items === 'object') ? presets.items : {};
+      const customRegPattern = /ลงทะเบียนนักเรียนใหม่|ลงทะเบียนแรกเข้า|แรกเข้า|registration\s*fee/i;
+      for (const [k, cf] of Object.entries(itemsMap)) {
+        if (!String(k).startsWith('custom_fee_') || !cf || typeof cf !== 'object') continue;
+        const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(cf) : { active: true };
+        if (!st.active) continue;
+        const cfAmt = Number(cf.amount);
+        if (!isNaN(cfAmt) && cfAmt > 0 && customRegPattern.test(String(cf.name || ''))) {
+          return cfAmt;
+        }
       }
       return 0;
     }
@@ -76506,10 +76541,14 @@ function openPublicRegisterView() {
         const { data: gRows, error: gErr } = await _supabase
           .from('fee_settings')
           .select('key, name, amount, mode, start_date, end_date')
-          .or('key.in.(active_academic_term,regFee,discountNormal,discountKids,discountOther,shippingFee,disc_rule_adult5,disc_rule_adult3,disc_rule_kids,disc_rule_art,disc_rule_music),key.like.term_open_date_%,key.like.term_close_date_%,key.like.round_open_date_%,key.like.exam_cfg:%,key.like.exam_meta:%,key.like.kiosk_cat_lock:%');
+          .or('key.in.(active_academic_term,regFee,discountNormal,discountKids,discountOther,shippingFee,disc_rule_adult5,disc_rule_adult3,disc_rule_kids,disc_rule_art,disc_rule_music),key.like.term_open_date_%,key.like.term_close_date_%,key.like.round_open_date_%,key.like.exam_cfg:%,key.like.exam_meta:%,key.like.kiosk_cat_lock:%,key.like.custom_fee_%');
         if (gErr || !Array.isArray(gRows)) return;
         if (typeof globalFeePresets !== 'object' || !globalFeePresets) globalFeePresets = { items: {} };
         if (!globalFeePresets.items) globalFeePresets.items = {};
+        Object.keys(globalFeePresets.items).forEach(k => {
+          if (String(k).startsWith('custom_fee_')) delete globalFeePresets.items[k];
+        });
+        globalFeePresets.customFees = [];
         if (typeof parseExamAndLockRowsFromFeeSettings === 'function') {
           parseExamAndLockRowsFromFeeSettings(gRows);
         }
@@ -76536,6 +76575,18 @@ function openPublicRegisterView() {
             const rKey = r.key.replace('round_open_date_', '');
             if (!window._ocaRoundOpenDatesMap) window._ocaRoundOpenDatesMap = {};
             window._ocaRoundOpenDatesMap[rKey] = r.name || '';
+          } else if (r.key && r.key.startsWith('custom_fee_')) {
+            const cfObj = {
+              key: r.key,
+              amount: amt,
+              mode: r.mode || 'always',
+              startDate: r.start_date || '',
+              endDate: r.end_date || '',
+              name: r.name || r.key
+            };
+            globalFeePresets[r.key] = amt;
+            globalFeePresets.items[r.key] = cfObj;
+            globalFeePresets.customFees.push(cfObj);
           } else {
             globalFeePresets[r.key] = amt;
             globalFeePresets.items[r.key] = {
@@ -76555,6 +76606,8 @@ function openPublicRegisterView() {
         }
         try { localStorage.setItem('oca_general_fee_settings', JSON.stringify(globalFeePresets)); } catch (_) {}
         syncPublicRegFeeLabels();
+        if (typeof renderPubKioskFloatingCart === 'function') renderPubKioskFloatingCart();
+        if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
       } catch (err) {
         console.warn('[hydratePublicFeeSettings] warning:', err);
       }
@@ -79467,7 +79520,8 @@ function openPublicRegisterView() {
         const safeId = escapeHtml(String(ex.id)).replace(/'/g, "\\'");
         const eQty = Math.max(1, Number(ex.qty) || 1);
         const sub = (Number(ex.price) || 0) * eQty;
-        const eLabel = `${ex.level || ex.group || 'Exam'} (${ex.format || 'Paper-Based'})${ex.examDate ? ' • ' + ex.examDate : ''}`;
+        const fmtLbl = (typeof formatExamFormatLabel === 'function') ? formatExamFormatLabel(ex.format, lang) : (ex.format || 'Paper');
+        const eLabel = `${ex.level || ex.group || 'Exam'} (${fmtLbl})${ex.examDate ? ' • ' + ex.examDate : ''}`;
         return `<div class="oca-cart-exam-row" data-exam-id="${escapeHtml(String(ex.id))}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; background:#EEF2FF; border:1px solid #C7D2FE; border-radius:8px; padding:5px 10px; font-size:12px;">
           <div style="min-width:0; flex:1; color:#1E1B4B; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📝 ${escapeHtml(eLabel)}</div>
           <div style="display:inline-flex; align-items:center; gap:5px; flex-shrink:0;">
@@ -79570,6 +79624,22 @@ function openPublicRegisterView() {
       { key: 'exam', label: 'สอบวัดความรู้ภาษาจีน (HSK / YCT / HSKK)' }
     ];
 
+    function normalizeExamFormatValue(rawFmt) {
+      const s = String(rawFmt || '').trim().toLowerCase();
+      if (s === 'computer' || s === 'ibt' || s.includes('คอมพิวเตอร์') || s.includes('机考')) return 'Computer';
+      return 'Paper';
+    }
+    window.normalizeExamFormatValue = normalizeExamFormatValue;
+
+    function formatExamFormatLabel(rawFmt, lang) {
+      const norm = normalizeExamFormatValue(rawFmt);
+      const l = lang || (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
+      if (l === 'zh') return norm === 'Computer' ? '机考' : '纸考';
+      if (l === 'en') return norm === 'Computer' ? 'Computer' : 'Paper';
+      return norm === 'Computer' ? 'Computer (คอมพิวเตอร์)' : 'Paper (กระดาษ)';
+    }
+    window.formatExamFormatLabel = formatExamFormatLabel;
+
     function parseExamAndLockRowsFromFeeSettings(rows) {
       if (!Array.isArray(rows)) return;
       const cfgMap = {};
@@ -79584,7 +79654,7 @@ function openPublicRegisterView() {
             id,
             group: (parts[0] || 'HSK').trim(),
             level: (parts[1] || parts[0] || id).trim(),
-            format: (parts[2] || 'Paper-Based').trim(),
+            format: normalizeExamFormatValue(parts[2] || 'Paper'),
             time: (parts[3] || '').trim(),
             room: (parts[4] || '').trim(),
             price: Math.max(0, Number(r.amount) || 0),
@@ -79690,7 +79760,8 @@ function openPublicRegisterView() {
       const list = getPubKioskCatalogExams();
       const prev = sel.value;
       sel.innerHTML = '<option value="">-- เลือกรอบสอบวัดระดับภาษาจีน --</option>' + list.map(ex => {
-        return `<option value="${escapeHtml(ex.id)}">${escapeHtml(ex.level)} (${escapeHtml(ex.format)}) • ${escapeHtml(ex.examDate || '-')} • ฿${Math.max(0, Number(ex.price) || 0).toLocaleString()}</option>`;
+        const fmtLbl = (typeof formatExamFormatLabel === 'function') ? formatExamFormatLabel(ex.format, 'th') : (ex.format || 'Paper');
+        return `<option value="${escapeHtml(ex.id)}">${escapeHtml(ex.level)} (${escapeHtml(fmtLbl)}) • ${escapeHtml(ex.examDate || '-')} • ฿${Math.max(0, Number(ex.price) || 0).toLocaleString()}</option>`;
       }).join('');
       if (prev) sel.value = prev;
     }
@@ -79749,7 +79820,7 @@ function openPublicRegisterView() {
       const ids = ['inpExamEditId', 'inpExamLevel', 'inpExamPrice', 'inpExamDate', 'inpExamTime', 'inpExamRoom', 'inpExamAdmitDate', 'inpExamNote'];
       ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
       const grp = document.getElementById('selExamGroup'); if (grp) grp.value = 'HSK';
-      const fmt = document.getElementById('selExamFormat'); if (fmt) fmt.value = 'Paper-Based';
+      const fmt = document.getElementById('selExamFormat'); if (fmt) fmt.value = 'Paper';
       const chk = document.getElementById('chkExamActive'); if (chk) chk.checked = true;
     }
     window.resetExamConfigForm = resetExamConfigForm;
@@ -79761,7 +79832,7 @@ function openPublicRegisterView() {
       setV('inpExamEditId', ex.id);
       setV('selExamGroup', ex.group || 'HSK');
       setV('inpExamLevel', ex.level || '');
-      setV('selExamFormat', ex.format || 'Paper-Based');
+      setV('selExamFormat', normalizeExamFormatValue(ex.format));
       setV('inpExamPrice', ex.price ?? 0);
       setV('inpExamDate', ex.examDate || '');
       setV('inpExamTime', ex.time || '');
@@ -79778,7 +79849,7 @@ function openPublicRegisterView() {
       const id = editId || ('ex_' + Date.now().toString(36));
       const group = (document.getElementById('selExamGroup')?.value || 'HSK').trim();
       const level = (document.getElementById('inpExamLevel')?.value || '').trim();
-      const format = (document.getElementById('selExamFormat')?.value || 'Paper-Based').trim();
+      const format = normalizeExamFormatValue(document.getElementById('selExamFormat')?.value || 'Paper');
       const price = Math.max(0, Number(document.getElementById('inpExamPrice')?.value) || 0);
       const examDate = (document.getElementById('inpExamDate')?.value || '').trim();
       const time = (document.getElementById('inpExamTime')?.value || '').trim();
@@ -79850,7 +79921,7 @@ function openPublicRegisterView() {
           : '<span style="background:#FEE2E2; color:#991B1B; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:800;">ปิดรับสมัคร</span>';
         return `<tr>
           <td><strong>${escapeHtml(ex.level)}</strong> <span style="font-size:11px; color:var(--text-muted);">(${escapeHtml(ex.group)})</span></td>
-          <td>${escapeHtml(ex.format)}</td>
+          <td>${escapeHtml(formatExamFormatLabel(ex.format, 'th'))}</td>
           <td style="text-align:right; font-weight:800; color:#047857;">฿${Math.max(0, Number(ex.price) || 0).toLocaleString()}</td>
           <td style="white-space:nowrap;">${escapeHtml(ex.examDate || '-')} ${ex.time ? `<span style="color:var(--text-muted);">(${escapeHtml(ex.time)})</span>` : ''}</td>
           <td>${escapeHtml(ex.room || '-')}</td>
@@ -79987,7 +80058,7 @@ function openPublicRegisterView() {
               <div aria-hidden="true" style="position:absolute; font-family:'Noto Serif SC', serif; font-size:76px; font-weight:900; color:${theme.codeText}; opacity:0.12; right:10px; bottom:-12px; pointer-events:none;">${theme.hanzi}</div>
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; position:relative; z-index:2;">
                 <span style="background:#FFFFFF; color:${theme.badgeText}; border:1px solid ${theme.border}; font-size:11px; font-weight:800; padding:2px 9px; border-radius:999px;">${escapeHtml(grp)}</span>
-                <span style="background:#FFFFFF; color:#334155; border:1px solid #CBD5E1; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;">${escapeHtml(ex.format || 'Paper-Based')}</span>
+                <span style="background:#FFFFFF; color:#334155; border:1px solid #CBD5E1; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;">${escapeHtml(formatExamFormatLabel(ex.format, lang))}</span>
               </div>
               <div style="font-size:20px; font-weight:900; color:${theme.codeText}; position:relative; z-index:2;">${escapeHtml(ex.level || grp)}</div>
             </div>
@@ -86275,6 +86346,8 @@ function openPublicRegisterView() {
         "ระดับสอบ (เช่น HSK 3, YCT 1)": "考试等级",
         "เช่น HSK 3": "例如三级",
         "รูปแบบสอบ": "考试形式",
+        "Paper (กระดาษ)": "纸考",
+        "Computer (คอมพิวเตอร์)": "机考",
         "ค่าสมัครสอบ (บาท)": "考试报名费",
         "วันสอบ (Exam Date)": "考试日期",
         "ช่วงเวลาสอบ": "考试时间段",
@@ -88629,6 +88702,8 @@ function openPublicRegisterView() {
         "ระดับสอบ (เช่น HSK 3, YCT 1)": "Exam Level (e.g. HSK 3, YCT 1)",
         "เช่น HSK 3": "e.g. HSK 3",
         "รูปแบบสอบ": "Exam Format",
+        "Paper (กระดาษ)": "Paper",
+        "Computer (คอมพิวเตอร์)": "Computer",
         "ค่าสมัครสอบ (บาท)": "Exam Fee (THB)",
         "วันสอบ (Exam Date)": "Exam Date",
         "ช่วงเวลาสอบ": "Exam Time",
@@ -99316,7 +99391,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=201';
+      const swPath = basePath + 'sw.js?v=202';
 
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
 
@@ -99325,7 +99400,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       });
 
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (201):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (202):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
