@@ -5970,10 +5970,15 @@ body.printing-report #printReportContainer {
     .oca-ship-sender-info {
       display: flex;
       align-items: center;
-      gap: 5px;
-      font-size: 12px;
+      gap: 4px;
+      font-size: 9.5px;
       font-weight: 700;
       color: #065f46;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+      flex: 1;
     }
     .oca-ship-badge {
       font-size: 8px;
@@ -6086,7 +6091,12 @@ body.printing-report #printReportContainer {
       body.printing-shipping-labels .oca-toast-holder,
       body.printing-shipping-labels .oca-custom-modal-backdrop,
       body.printing-shipping-labels .oca-sidebar,
-      body.printing-shipping-labels .oca-topbar {
+      body.printing-shipping-labels .oca-topbar,
+      body.printing-shipping-labels #ocaMobileBottomNav,
+      body.printing-shipping-labels #oca-login-overlay,
+      body.printing-shipping-labels #viewLoginSplit,
+      body.printing-shipping-labels #viewPublicRegister,
+      body.printing-shipping-labels #oca-splash {
         display: none !important;
       }
       body.printing-shipping-labels #printShippingContainer {
@@ -12322,7 +12332,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '217';
+      var LATEST_VERSION = '218';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -27745,7 +27755,9 @@ body.printing-report #printReportContainer {
         const rawTeacherName = ((rcpt && rcpt.teacher_name) || params.teacherName || params.teacher_name || '').toString().trim();
         const teacherName = rawTeacherName.length > 40 ? (rawTeacherName.slice(0, 39) + '…') : rawTeacherName;
         const shippingAddress = (rcpt && rcpt.address) || params.address || '';
-        const claimToken = (rcpt && rcpt.claim_token) || params.claimToken || '';
+        const rcptTypeUpper = String((rcpt && rcpt.receipt_type) || params.receiptType || '').toUpperCase();
+        const isCardOnlyEmail = rcptTypeUpper === 'CARD' || rcptTypeUpper === 'CARD_FEE' || rcptTypeUpper === 'OTHER';
+        const claimToken = (rcpt && rcpt.claim_token) || params.claimToken || (!isCardOnlyEmail && rcptNo && rcptNo !== '-' ? rcptNo : '');
         const paymentMethod = (rcpt && rcpt.payment_method) || params.paymentMethod || params.payMethod || 'โอนเงิน';
         const dateStr = (typeof formatThaiDate === 'function') ? formatThaiDate(rcpt ? (rcpt.created_at || rcpt.createdAt) : new Date()) : ((rcpt && rcpt.created_at) ? new Date(rcpt.created_at).toLocaleDateString('th-TH') : new Date().toLocaleDateString('th-TH'));
         // Resolve Cashier / Payee Name strictly according to system configuration
@@ -27874,7 +27886,7 @@ body.printing-report #printReportContainer {
                     </div>` : `
 
                     <div style="width:115px; height:115px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; padding:4px; margin:0 auto; text-align:center;">
-                      <img src="${(typeof generateLocalQrDataUri === 'function' && generateLocalQrDataUri(claimToken, 107)) || ('https://api.qrserver.com/v1/create-qr-code/?size=115x115&margin=2&data=' + encodeURIComponent(claimToken))}" width="107" height="107" alt="QR Code รับตำราเรียน" style="display:block; margin:0 auto;" />
+                      <img src="${(typeof generateLocalQrDataUri === 'function' && generateLocalQrDataUri(claimToken, 107)) || ('https://api.qrserver.com/v1/create-qr-code/?size=115x115&margin=2&data=' + encodeURIComponent(claimToken))}" data-qr-payload="${escapeHtml(claimToken)}" width="107" height="107" alt="QR Code รับตำราเรียน" style="display:block; margin:0 auto;" />
 
                     </div>
 
@@ -30769,11 +30781,11 @@ if (action === 'getDashboardStats') {
               }
             }
           }
-          // 4. Fallback search by ilike receipt_no
+          // 4. Fallback search by indexed receipt_no range (prevents 57014 full-table scan across 424k rows)
           if (!rList || rList.length === 0) {
             const searchPat = candidateRcNo || convertedInput;
             if (searchPat.length >= 4) {
-              const { data: d4 } = await _supabase.from('receipts').select('*').ilike('receipt_no', `%${searchPat}%`).limit(1);
+              const { data: d4 } = await _supabase.from('receipts').select('*').gte('receipt_no', '6900000').ilike('receipt_no', `%${searchPat}%`).limit(1);
               if (d4 && d4.length > 0) {
                 rList = d4;
               }
@@ -30822,7 +30834,11 @@ if (action === 'getDashboardStats') {
           }
           // Scenario 17 Fraud Protection: Card replacement, transfer fee, or receipts with NO textbook entitlement
           const matStr = String(rcpt.material_type || '').trim();
-          const isCardOnly = rcpt.receipt_type === 'card' || rcpt.receipt_type === 'OTHER' || (rcpt.item_name && (rcpt.item_name.includes('บัตร') || rcpt.item_name.includes('ค่าธรรมเนียมย้าย')));
+          const rcptTypeNorm = String(rcpt.receipt_type || '').trim().toUpperCase();
+          const isCardOnly = parsedExtraBooks.length === 0 && (
+            rcptTypeNorm === 'CARD' || rcptTypeNorm === 'CARD_FEE' || rcptTypeNorm === 'OTHER' ||
+            (rcpt.item_name && (rcpt.item_name.includes('บัตร') || rcpt.item_name.includes('ค่าธรรมเนียมย้าย')))
+          );
           const hasNoBook = parsedExtraBooks.length === 0 && (matStr === 'NONE' || matStr === 'ไม่มี' || matStr === 'ไม่มีอุปกรณ์' || matStr.includes('ไม่มี') || matStr === 'บัตรนักศึกษา' || rcpt.claim_status === 'NO_BOOK_CLAIM' || rcpt.claim_status === 'NOT_REQUIRED');
           if (isCardOnly || hasNoBook) {
             return {
@@ -31023,13 +31039,16 @@ if (action === 'getDashboardStats') {
         if (action === 'getShippingOrders') {
           let rawYearReceipts = [];
           try {
-            rawYearReceipts = await fetchAllPaginatedSupabaseRows(() =>
+            const fetchShipRows = () => fetchAllPaginatedSupabaseRows(() =>
               _supabase.from('receipts')
-                .select('*')
+                .select('id, receipt_no, receipt_type, student_id, buyer_name, citizen_id, address, item_name, material_type, delivery_method, shipping_fee, tracking_number, claim_status, claimed_at, claimed_by, edit_notes, created_at')
                 .gte('receipt_no', '6900000')
-                .ilike('delivery_method', '%ส่ง%')
+                .lt('receipt_no', '8000000')
                 .order('receipt_no', { ascending: false })
             , 1000, 20000);
+            rawYearReceipts = (typeof window.withSupabaseRetry === 'function')
+              ? await window.withSupabaseRetry(fetchShipRows, { retries: 2, label: 'getShippingOrders' })
+              : await fetchShipRows();
           } catch (error) {
             console.error('[Supabase getShippingOrders error]', error);
             return { success: false, message: error.message, orders: [] };
@@ -31107,6 +31126,12 @@ if (action === 'getDashboardStats') {
             const resolvedFullName = String(
               r.buyer_name || (st ? st.full_name : '') || r.name || ''
             ).trim();
+            const rawTrack = String(r.tracking_number || '').trim();
+            const hasTrack = !!(rawTrack && rawTrack !== '-');
+            const editNotesStr = String(r.edit_notes || '');
+            const derivedShipStatus = (hasTrack || String(r.claim_status || '').toUpperCase() === 'CLAIMED')
+              ? 'SHIPPED'
+              : (editNotesStr.includes('พิมพ์ใบปะหน้าแล้ว') ? 'PRINTED' : 'PENDING_PRINT');
             return {
               orderId: String(r.receipt_no || r.id || ''),
               receiptNo: String(r.receipt_no || ''),
@@ -31116,13 +31141,14 @@ if (action === 'getDashboardStats') {
               phone: resolvedPhone,
               address: resolvedAddress,
               deliveryAddress: resolvedAddress,
-              itemName: String(r.item_name || r.items || 'ตำราเรียน'),
+              itemName: String(r.item_name || 'ตำราเรียน'),
               materialType: String(r.material_type || 'หนังสือและสมุด'),
-              status: String(r.shipping_status || (r.tracking_number ? 'SHIPPED' : 'PENDING_PRINT')),
-              carrier: String(r.carrier || ''),
-              trackingNo: String(r.tracking_number || r.tracking_no || '-'),
+              shippingFee: Math.max(0, Number(r.shipping_fee || 0)),
+              status: derivedShipStatus,
+              carrier: '',
+              trackingNo: hasTrack ? rawTrack : '-',
               createdAt: safeFormatThaiDateTime(r.created_at),
-              note: String(r.notes || '')
+              note: editNotesStr
             };
           });
           return { success: true, orders: mappedOrders };
@@ -31151,24 +31177,42 @@ if (action === 'getDashboardStats') {
             updateObj.claim_status = 'CLAIMED';
             updateObj.claimed_at = new Date().toISOString();
             updateObj.claimed_by = 'ฝ่ายจัดส่งตำราเรียน (Logistics)';
-          } else if (params.status === 'PRINTED') {
-            updateObj.edit_notes = (updateObj.edit_notes ? updateObj.edit_notes + ' | ' : '') + 'สถานะ: พิมพ์ใบปะหน้าแล้ว';
+          } else if (params.status === 'PRINTED' && targetIds.length > 0) {
+            try {
+              const { data: existingNotesRows } = await _supabase.from('receipts')
+                .select('receipt_no, edit_notes')
+                .in('receipt_no', targetIds);
+              const existingNote = (existingNotesRows && existingNotesRows.length === 1 && existingNotesRows[0].edit_notes)
+                ? String(existingNotesRows[0].edit_notes).trim()
+                : '';
+              const printTag = 'สถานะ: พิมพ์ใบปะหน้าแล้ว';
+              if (existingNote && !existingNote.includes('พิมพ์ใบปะหน้าแล้ว')) {
+                updateObj.edit_notes = `${existingNote} | ${printTag}`;
+              } else if (!existingNote) {
+                updateObj.edit_notes = (updateObj.edit_notes ? updateObj.edit_notes + ' | ' : '') + printTag;
+              }
+            } catch (_) {
+              updateObj.edit_notes = (updateObj.edit_notes ? updateObj.edit_notes + ' | ' : '') + 'สถานะ: พิมพ์ใบปะหน้าแล้ว';
+            }
           }
           let updateError = null;
-          if (targetIds.length > 0) {
+          if (targetIds.length > 0 && Object.keys(updateObj).length > 0) {
             const { error: rcErr, data: updatedRc } = await _supabase.from('receipts')
               .update(updateObj)
               .in('receipt_no', targetIds)
               .select('student_id');
             updateError = rcErr;
-            const targetSid = (updatedRc && updatedRc.length > 0 && updatedRc[0].student_id) || params.studentId;
-            const phoneVal = String(params.phone || params.phoneNumber || '').trim();
-            if (targetSid && (phoneVal || params.address)) {
-              const stUpdate = {};
-              if (phoneVal) stUpdate.phone_number = phoneVal;
-              if (params.address) stUpdate.address = params.address;
-              if (Object.keys(stUpdate).length > 0) {
-                { const { error: wErr } = await _supabase.from('students').update(stUpdate).eq('student_id', targetSid); if (wErr) throw wErr; }
+            if (!rcErr) {
+              const targetSid = (updatedRc && updatedRc.length > 0 && updatedRc[0].student_id) || params.studentId;
+              const phoneVal = String(params.phone || params.phoneNumber || '').trim();
+              if (targetSid && (phoneVal || params.address)) {
+                const stUpdate = {};
+                if (phoneVal) stUpdate.phone_number = phoneVal;
+                if (params.address) stUpdate.address = params.address;
+                if (Object.keys(stUpdate).length > 0) {
+                  const { error: wErr } = await _supabase.from('students').update(stUpdate).eq('student_id', targetSid);
+                  if (wErr) updateError = wErr;
+                }
               }
             }
           }
@@ -50512,17 +50556,37 @@ if (action === 'getDashboardStats') {
     function generateReceiptQrCode(payload) {
       const container = document.getElementById('rcptQrCodeContainer');
       if (!container) return;
+      const safePayload = String(payload || '').trim();
       container.innerHTML = '';
+      if (!safePayload) return;
       if (typeof QRCode !== 'undefined') {
         try {
           new QRCode(container, {
-            text: payload,
+            text: safePayload,
             width: 105,
             height: 105,
             colorDark: '#01231C',
             colorLight: '#ffffff',
             correctLevel: QRCode.CorrectLevel.M
           });
+          // Convert canvas to static data:image/png <img> immediately so innerHTML print snapshots never lose QR pixels
+          const qrCanvas = container.querySelector('canvas');
+          if (qrCanvas && typeof qrCanvas.toDataURL === 'function') {
+            const dataUri = qrCanvas.toDataURL('image/png');
+            if (dataUri && dataUri.startsWith('data:image/')) {
+              container.innerHTML = '';
+              const pngImg = document.createElement('img');
+              pngImg.src = dataUri;
+              pngImg.alt = 'QR Code';
+              pngImg.setAttribute('data-qr-payload', safePayload);
+              pngImg.width = 105;
+              pngImg.height = 105;
+              pngImg.style.width = '105px';
+              pngImg.style.height = '105px';
+              pngImg.style.display = 'block';
+              container.appendChild(pngImg);
+            }
+          }
           return;
         } catch (e) {
           console.warn('QRCode JS error:', e);
@@ -50530,8 +50594,9 @@ if (action === 'getDashboardStats') {
       }
       // High-Reliability Fallback using Image API
       const img = document.createElement('img');
-      img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=105x105&data=' + encodeURIComponent(payload);
+      img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=105x105&data=' + encodeURIComponent(safePayload);
       img.alt = 'QR Code';
+      img.setAttribute('data-qr-payload', safePayload);
       img.style.width = '105px';
       img.style.height = '105px';
       img.style.display = 'block';
@@ -60404,12 +60469,13 @@ if (action === 'getDashboardStats') {
           showToast('บันทึกเรียบร้อย', res.message || 'บันทึกข้อมูลสำเร็จ', '✓');
           if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('บันทึกข้อมูลจัดส่งสำเร็จ', res.message || 'บันทึกข้อมูลจัดส่งเรียบร้อยแล้ว', '✅');
         } else {
-          showToast('บันทึกเรียบร้อย', 'บันทึกข้อมูลจัดส่งแล้ว', '✓');
-          if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('บันทึกข้อมูลจัดส่งสำเร็จ', 'บันทึกข้อมูลจัดส่งเรียบร้อยแล้ว', '✅');
+          showToast('บันทึกไม่สำเร็จ', (res && res.message) ? res.message : 'ไม่สามารถบันทึกข้อมูลจัดส่งลงฐานข้อมูลได้', '❌');
+          loadShippingOrders(true);
         }
       })
       .catch(err => {
-        showToast('แจ้งเตือน', 'บันทึกในระบบเรียบร้อยแล้ว', 'ℹ️');
+        showToast('บันทึกไม่สำเร็จ', (err && err.message) ? err.message : String(err), '❌');
+        loadShippingOrders(true);
       });
     }
     // =========================================================================
@@ -87056,13 +87122,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=217';
+      const swPath = basePath + 'sw.js?v=218';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (217):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (218):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
