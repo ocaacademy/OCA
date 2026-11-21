@@ -1,8 +1,10 @@
-const CACHE_NAME = '216';
+const CACHE_NAME = '217';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
+  './js/oca-slip-guard.js',
+  './js/oca-email-admin.js',
   './modnet_quantized.onnx',
   'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js',
