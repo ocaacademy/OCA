@@ -37,6 +37,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <!-- Chart.js 4.x: Official Analytics Graph Engine -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- OCA Modular Engines (v217): Slip Anti-Fraud Guard & Email/Admin Config -->
+  <script src="js/oca-slip-guard.js?v=217"></script>
+  <script src="js/oca-email-admin.js?v=217"></script>
   <style>
     /* =========================================================================
        GLOBAL RESET: ZERO-SCROLLBAR WELCOME ENGINE
@@ -12319,7 +12322,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '216';
+      var LATEST_VERSION = '217';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -12722,6 +12725,16 @@ body.printing-report #printReportContainer {
                       <svg width="14" height="14" viewBox="0 0 24 24" style="margin-right:2px; flex-shrink:0;"><rect width="24" height="24" rx="5" fill="#022c22"/><path d="M12 5l6 2.5v5c0 4-2.8 7-6 8-3.2-1-6-4-6-8v-5z" fill="#D4B996"/><polyline points="10,12 11.5,13.5 14.5,10.5" stroke="#022c22" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
                       <span>ความปลอดภัย</span>
                     </button>
+
+                    <button type="button" class="oca-sub-item-btn" id="btnSubSettingsSlipEmail" onclick="navigateToSettingsSubTab('slipEmail', this)">
+                      <i class="fa-solid fa-shield-halved" style="width:14px; text-align:center; margin-right:2px; color:#E5D3B3; font-size:12px;"></i>
+                      <span>ป้องกันสลิป & อีเมล</span>
+                    </button>
+
+                    <button type="button" class="oca-sub-item-btn" id="btnSubSettingsAppConfig" onclick="navigateToSettingsSubTab('appConfig', this)">
+                      <i class="fa-solid fa-database" style="width:14px; text-align:center; margin-right:2px; color:#E5D3B3; font-size:12px;"></i>
+                      <span>ตั้งค่ากลาง & สำรอง</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -12755,7 +12768,7 @@ body.printing-report #printReportContainer {
         <div class="oca-topbar-actions">
           <!-- Topbar Language Switcher Capsule -->
           <div class="oca-lang-capsule" id="topbarLangCapsule" onclick="if(window.innerWidth<=480)cycleTopbarLanguage(event)" style="margin-right:4px;" title="สลับภาษา (Switch Language)">
-            <div id="topbarBtnLangTH" onclick="if(window.innerWidth<=480){cycleTopbarLanguage(event);}else{setSystemLanguage('th');}" title="ภาษาไทย (Thai)" class="oca-flag-btn active">
+            <div id="topbarBtnLangTH" onclick="if(window.innerWidth<=480){cycleTopbarLanguage(event);}else{setSystemLanguage('th');}" title="ภาษาไทย (Thai)" aria-label="ภาษาไทย" class="oca-flag-btn active">
               <svg width="28" height="19" viewBox="0 0 900 600" style="border-radius:3px; display:block;">
                 <rect width="900" height="600" fill="#A51931"/>
 
@@ -12766,7 +12779,7 @@ body.printing-report #printReportContainer {
               </svg>
             </div>
 
-            <div id="topbarBtnLangZH" onclick="if(window.innerWidth<=480){cycleTopbarLanguage(event);}else{setSystemLanguage('zh');}" title="中文 (Chinese)" class="oca-flag-btn">
+            <div id="topbarBtnLangZH" onclick="if(window.innerWidth<=480){cycleTopbarLanguage(event);}else{setSystemLanguage('zh');}" title="中文 (Chinese)" aria-label="中文" class="oca-flag-btn">
               <svg width="28" height="19" viewBox="0 0 30 20" style="border-radius:3px; display:block;">
                 <rect width="30" height="20" fill="#de2910"/>
 
@@ -12783,7 +12796,7 @@ body.printing-report #printReportContainer {
               </svg>
             </div>
 
-            <div id="topbarBtnLangEN" onclick="if(window.innerWidth<=480){cycleTopbarLanguage(event);}else{setSystemLanguage('en');}" title="English (UK/US)" class="oca-flag-btn">
+            <div id="topbarBtnLangEN" onclick="if(window.innerWidth<=480){cycleTopbarLanguage(event);}else{setSystemLanguage('en');}" title="English (UK/US)" aria-label="English" class="oca-flag-btn">
               <svg width="28" height="19" viewBox="0 0 60 30" style="border-radius:3px; display:block;">
                 <clipPath id="topbar_uk_t_btn"><path d="M0,0 v30 h60 v-30 z"/></clipPath>
                 <clipPath id="topbar_uk_s_btn"><path d="M0,0 L60,30 M60,0 L0,30"/></clipPath>
@@ -12816,10 +12829,9 @@ body.printing-report #printReportContainer {
             <i id="iconPwaSyncSpin" class="fa-solid fa-rotate" style="display:none; font-size:11px;"></i>
           </div>
 
-                    <!-- Theme Toggle Button (Dark / Light Mode) -->
-          <button type="button" class="oca-btn-theme-toggle" id="btnTopbarThemeToggle" onclick="toggleOcaTheme()" title="สลับโหมดมืด/สว่าง" style="display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.12); color:#FDE68A; border:1px solid rgba(253,230,138,0.35); padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.18s ease; margin-right:4px;">
-            <i class="fa-solid fa-moon" id="iconTopbarTheme"></i>
-            <span id="txtTopbarTheme">โหมดมืด</span>
+          <!-- Theme Toggle Button (Dark / Light Mode - Icon Only) -->
+          <button type="button" class="oca-btn-theme-toggle" id="btnTopbarThemeToggle" onclick="toggleOcaTheme()" title="สลับโหมดมืด/สว่าง" aria-label="สลับโหมดมืด/สว่าง" style="display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0; background:rgba(255,255,255,0.12); color:#FDE68A; border:1px solid rgba(253,230,138,0.35); border-radius:999px; font-size:15px; cursor:pointer; transition:all 0.18s ease; margin-right:4px;">
+            <i class="fa-solid fa-moon" id="iconTopbarTheme" style="font-size:15px;"></i>
           </button>
 
           <!-- Notification Bell (Real-time Teacher & System Alerts) -->
@@ -16683,6 +16695,17 @@ body.printing-report #printReportContainer {
                   <input type="hidden" id="inpRcptShippingFee" value="0">
                 </div>
 
+                <!-- Student Overpayment Credit Redemption Banner (v217) -->
+                <div id="boxRcptStudentCreditBanner" style="display:none; background:#FEF3C7; border:1.5px solid #D97706; border-radius:8px; padding:8px 12px; margin-bottom:8px; color:#78350F;">
+                  <label style="display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; font-size:12.5px; font-weight:700; color:#78350F;">
+                    <span style="display:inline-flex; align-items:center; gap:8px;">
+                      <input type="checkbox" id="chkRcptApplyStudentCredit" onchange="calcReceiptTotals()" style="width:16px; height:16px; accent-color:#047857;" />
+                      <span><i class="fa-solid fa-wallet" style="color:#B45309; margin-right:4px;"></i>มีเครดิตเงินโอนเกินคงเหลือ <strong id="lblRcptStudentCreditAvailable" style="font-family:monospace;">฿0.00</strong> — ใช้หักยอดใบเสร็จนี้</span>
+                    </span>
+                    <span id="lblRcptStudentCreditApplied" style="font-family:monospace; font-weight:800; color:#065F46;">-฿0.00</span>
+                  </label>
+                </div>
+
                 <!-- Net Total Summary Bar -->
                 <div style="background:linear-gradient(135deg, rgba(215,166,0,0.12), rgba(16,185,129,0.12)); border:1.5px solid var(--color-gold); border-radius:8px; padding:8px 14px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                   <span style="font-size:13px; font-weight:700; color:var(--text-main);">
@@ -19974,6 +19997,198 @@ body.printing-report #printReportContainer {
               </div>
             </div>
           </div>
+
+          <!-- SUBTAB 4: SLIP ANTI-FRAUD GUARD & EMAIL QUEUE (v217) -->
+          <div id="subviewSettingsSlipEmail" class="oca-settings-subview" style="display:none;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:18px; margin-bottom:18px;">
+              <!-- Slip Anti-Fraud Config Card -->
+              <div style="background:var(--bg-card); border:1px solid var(--border-soft); border-radius:14px; padding:20px;">
+                <h3 style="font-size:15.5px; font-weight:800; color:var(--text-main); margin:0 0 4px 0;"><i class="fa-solid fa-shield-halved" style="color:#047857; margin-right:6px;"></i>ตั้งค่าป้องกันทุจริตสลิปโอนเงิน (Slip Guard)</h3>
+                <div style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">กำหนดบัญชีรับโอนของโรงเรียน, EMVCo CRC-16, อายุสลิป และผู้ให้บริการ Bank API ฝั่ง Edge Function</div>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                  <div>
+                    <label for="inpSlipGuardBankName" style="display:block; font-size:12px; font-weight:700; color:var(--text-main); margin-bottom:4px;">ธนาคารรับโอน</label>
+                    <input type="text" id="inpSlipGuardBankName" class="oca-input" style="width:100%; box-sizing:border-box;" placeholder="เช่น ธนาคารกรุงเทพ / กสิกรไทย" />
+                  </div>
+                  <div>
+                    <label for="inpSlipGuardAccName" style="display:block; font-size:12px; font-weight:700; color:var(--text-main); margin-bottom:4px;">ชื่อบัญชีรับโอนของโรงเรียน</label>
+                    <input type="text" id="inpSlipGuardAccName" class="oca-input" style="width:100%; box-sizing:border-box;" placeholder="โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก" />
+                  </div>
+                  <div style="display:grid; grid-template-columns:1fr 120px; gap:10px;">
+                    <div>
+                      <label for="inpSlipGuardAccNo" style="display:block; font-size:12px; font-weight:700; color:var(--text-main); margin-bottom:4px;">เลขบัญชีรับโอน</label>
+                      <input type="text" id="inpSlipGuardAccNo" class="oca-input" style="width:100%; box-sizing:border-box; font-family:monospace;" placeholder="XXX-X-XXXXX-X" />
+                    </div>
+                    <div>
+                      <label for="inpSlipGuardMaxAgeDays" style="display:block; font-size:12px; font-weight:700; color:var(--text-main); margin-bottom:4px;">อายุสลิปสูงสุด (วัน)</label>
+                      <input type="number" id="inpSlipGuardMaxAgeDays" class="oca-input" min="1" max="365" value="7" style="width:100%; box-sizing:border-box;" />
+                    </div>
+                  </div>
+                  <div>
+                    <label for="selSlipGuardBankApiProvider" style="display:block; font-size:12px; font-weight:700; color:var(--text-main); margin-bottom:4px;">Bank API Provider (Edge Function — ไม่เก็บ API Key บนเบราว์เซอร์)</label>
+                    <select id="selSlipGuardBankApiProvider" class="oca-input" style="width:100%; box-sizing:border-box;">
+                      <option value="disabled">ปิดใช้งาน (ตรวจ EMVCo CRC-16 + dHash + แคชเชียร์ตรวจมือ)</option>
+                      <option value="slipok">SlipOK API (ผ่าน Supabase Edge Function)</option>
+                      <option value="easyslip">EasySlip API (ผ่าน Supabase Edge Function)</option>
+                    </select>
+                  </div>
+                  <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-main); cursor:pointer;">
+                    <input type="checkbox" id="chkSlipGuardStrictCrc16" checked style="width:16px; height:16px; accent-color:#047857;" />
+                    <span>บังคับตรวจ EMVCo CRC-16 (Tag 63) และห้ามสร้างรหัส TX_ จำลอง</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-main); cursor:pointer;">
+                    <input type="checkbox" id="chkSlipGuardAutoBlacklist" checked style="width:16px; height:16px; accent-color:#047857;" />
+                    <span>ขึ้นบัญชีดำถาวร (BLACKLISTED) อัตโนมัติเมื่อปฏิเสธด้วยเหตุผล สลิปซ้ำ/ปลอม</span>
+                  </label>
+                  <button type="button" id="btnSaveSlipGuardSettings" onclick="if(window.OcaEmailAdmin)window.OcaEmailAdmin.saveSlipGuardSettingsFromUi()" style="margin-top:4px; height:38px; border-radius:8px; background:#047857; color:#FFFFFF; border:none; font-size:13px; font-weight:700; cursor:pointer;">
+                    <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า Slip Guard
+                  </button>
+                </div>
+              </div>
+
+              <!-- Email Delivery Config & Test Card -->
+              <div style="background:var(--bg-card); border:1px solid var(--border-soft); border-radius:14px; padding:20px;">
+                <h3 style="font-size:15.5px; font-weight:800; color:var(--text-main); margin:0 0 4px 0;"><i class="fa-solid fa-envelope-circle-check" style="color:#1D4ED8; margin-right:6px;"></i>ตั้งค่าระบบอีเมล & ทดสอบการส่ง (Email Delivery)</h3>
+                <div style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">แจ้งเตือนโควตา Brevo, สวิตช์ส่งอีเมลอัตโนมัติ (ยืนยันชำระเงิน & QR รับหนังสือ — ไม่ใช่ E-Receipt)</div>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                  <div>
+                    <label for="inpEmailBrevoThreshold" style="display:block; font-size:12px; font-weight:700; color:var(--text-main); margin-bottom:4px;">เกณฑ์แจ้งเตือนโควตา Brevo คงเหลือต่ำกว่า (ฉบับ/วัน)</label>
+                    <input type="number" id="inpEmailBrevoThreshold" class="oca-input" min="5" max="300" value="50" style="width:100%; box-sizing:border-box;" />
+                  </div>
+                  <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-main); cursor:pointer;">
+                    <input type="checkbox" id="chkEmailAutoOnApprove" checked style="width:16px; height:16px; accent-color:#1D4ED8;" />
+                    <span>ส่งอีเมลยืนยันการชำระเงิน & QR รับหนังสืออัตโนมัติเมื่ออนุมัติสลิป</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-main); cursor:pointer;">
+                    <input type="checkbox" id="chkEmailAutoOnReject" checked style="width:16px; height:16px; accent-color:#1D4ED8;" />
+                    <span>เปิดตัวเลือกส่งอีเมลแจ้งเหตุผลเมื่อปฏิเสธสลิปโดยอัตโนมัติ</span>
+                  </label>
+                  <button type="button" id="btnSaveEmailSettings" onclick="if(window.OcaEmailAdmin)window.OcaEmailAdmin.saveEmailSettingsFromUi()" style="height:38px; border-radius:8px; background:#1D4ED8; color:#FFFFFF; border:none; font-size:13px; font-weight:700; cursor:pointer;">
+                    <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่าอีเมล
+                  </button>
+                  <div style="border-top:1px solid var(--border-soft); padding-top:12px; margin-top:4px;">
+                    <label for="inpSettingsTestEmailTo" style="display:block; font-size:12px; font-weight:700; color:var(--text-main); margin-bottom:4px;">ทดสอบส่งอีเมลผ่าน Edge Function</label>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                      <input type="email" id="inpSettingsTestEmailTo" class="oca-input" placeholder="admin@example.com" style="flex:1 1 180px; min-width:0; box-sizing:border-box;" />
+                      <button type="button" id="btnSettingsSendTestEmail" onclick="if(window.OcaEmailAdmin)window.OcaEmailAdmin.handleSendTestEmailFromSettings()" style="height:38px; padding:0 14px; border-radius:8px; background:#0F766E; color:#FFFFFF; border:none; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;">
+                        <i class="fa-solid fa-paper-plane"></i> ทดสอบส่งอีเมล
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Failed Email Queue Table -->
+            <div style="background:var(--bg-card); border:1px solid var(--border-soft); border-radius:14px; padding:18px; margin-bottom:18px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+                <div style="font-size:15px; font-weight:800; color:var(--text-main);">
+                  <i class="fa-solid fa-triangle-exclamation" style="color:#DC2626; margin-right:6px;"></i>คิวอีเมลที่ส่งไม่สำเร็จ (Failed Email Queue): <span id="lblFailedEmailCount" style="background:#FEE2E2; color:#991B1B; padding:2px 8px; border-radius:999px; font-size:12px;">0</span>
+                </div>
+                <button type="button" id="btnRetryAllFailedEmails" onclick="if(window.OcaEmailAdmin)window.OcaEmailAdmin.handleRetryAllFailedEmails()" style="height:34px; padding:0 14px; border-radius:8px; background:#047857; color:#FFFFFF; border:none; font-size:12.5px; font-weight:700; cursor:pointer;">
+                  <i class="fa-solid fa-rotate-right"></i> ส่งใหม่ทั้งหมด
+                </button>
+              </div>
+              <div class="oca-table-scroll-container oca-custom-scrollbar" style="max-height:320px; overflow-y:auto; overflow-x:auto; border:1px solid var(--border-soft); border-radius:8px;">
+                <table class="oca-table" id="tblFailedEmailQueue" style="width:100%; border-collapse:collapse;">
+                  <thead>
+                    <tr style="background:var(--bg-subcard); border-bottom:1px solid var(--border-soft);">
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:left; font-size:12px; color:var(--text-main); white-space:nowrap;">เลขที่/รหัส</th>
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:left; font-size:12px; color:var(--text-main); white-space:nowrap;">อีเมลปลายทาง</th>
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:left; font-size:12px; color:var(--text-main);">สาเหตุ</th>
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:left; font-size:12px; color:var(--text-main); white-space:nowrap;">เวลาที่พลาด</th>
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:center; font-size:12px; color:var(--text-main); white-space:nowrap;">จัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbodyFailedEmailQueue">
+                    <tr><td colspan="5" style="text-align:center; padding:18px; color:var(--text-muted);">ไม่มีอีเมลที่ส่งไม่สำเร็จในคิว</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Blacklisted Slips Table -->
+            <div style="background:var(--bg-card); border:1px solid var(--border-soft); border-radius:14px; padding:18px;">
+              <div style="font-size:15px; font-weight:800; color:var(--text-main); margin-bottom:12px;">
+                <i class="fa-solid fa-ban" style="color:#DC2626; margin-right:6px;"></i>รายการบัญชีดำสลิปซ้ำ/ปลอม (Blacklisted Slips): <span id="lblSlipBlacklistCount" style="background:#FEE2E2; color:#991B1B; padding:2px 8px; border-radius:999px; font-size:12px;">0</span>
+              </div>
+              <div class="oca-table-scroll-container oca-custom-scrollbar" style="max-height:320px; overflow-y:auto; overflow-x:auto; border:1px solid var(--border-soft); border-radius:8px;">
+                <table class="oca-table" id="tblSlipBlacklist" style="width:100%; border-collapse:collapse;">
+                  <thead>
+                    <tr style="background:var(--bg-subcard); border-bottom:1px solid var(--border-soft);">
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:left; font-size:12px; color:var(--text-main); white-space:nowrap;">Key ล็อก</th>
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:left; font-size:12px; color:var(--text-main); white-space:nowrap;">สถานะ Blacklist</th>
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:left; font-size:12px; color:var(--text-main); white-space:nowrap;">เวลาบันทึก</th>
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:center; font-size:12px; color:var(--text-main); white-space:nowrap;">จัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbodySlipBlacklist">
+                    <tr><td colspan="4" style="text-align:center; padding:18px; color:var(--text-muted);">ยังไม่มีรายการสลิปในบัญชีดำ (Blacklist)</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUBTAB 5: APP CONFIG (JSONB), IDLE TIMEOUT & FULL 8-TABLE BACKUP (v217) -->
+          <div id="subviewSettingsAppConfig" class="oca-settings-subview" style="display:none;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:18px; margin-bottom:18px;">
+              <!-- Idle Timeout Card -->
+              <div style="background:var(--bg-card); border:1px solid var(--border-soft); border-radius:14px; padding:20px;">
+                <h3 style="font-size:15.5px; font-weight:800; color:var(--text-main); margin:0 0 4px 0;"><i class="fa-solid fa-clock" style="color:#0F766E; margin-right:6px;"></i>ตั้งเวลา Auto-Logout (Idle Session Timeout)</h3>
+                <div style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">กำหนดระยะเวลาที่ไม่มีการใช้งานก่อนลงชื่อออกอัตโนมัติ (บันทึกใน app_settings)</div>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                  <select id="selSettingsIdleTimeout" class="oca-input" style="flex:1 1 180px; min-width:0;">
+                    <option value="15">15 นาที (ความปลอดภัยสูง)</option>
+                    <option value="30" selected>30 นาที (มาตรฐาน)</option>
+                    <option value="60">60 นาที (งานเคาน์เตอร์ต่อเนื่อง)</option>
+                  </select>
+                  <button type="button" id="btnSaveIdleTimeout" onclick="if(window.OcaEmailAdmin)window.OcaEmailAdmin.handleSaveIdleTimeoutFromUi()" style="height:38px; padding:0 16px; border-radius:8px; background:#047857; color:#FFFFFF; border:none; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;">
+                    <i class="fa-solid fa-floppy-disk"></i> บันทึก
+                  </button>
+                </div>
+              </div>
+
+              <!-- Full 8-Table Backup Card -->
+              <div style="background:var(--bg-card); border:1px solid var(--border-soft); border-radius:14px; padding:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+                  <h3 style="font-size:15.5px; font-weight:800; color:var(--text-main); margin:0;"><i class="fa-solid fa-database" style="color:#1D4ED8; margin-right:6px;"></i>สำรองข้อมูลครบทั้ง 8 ตาราง (Full Backup)</h3>
+                  <span id="badgeBackupOverdueWarning" style="display:none; align-items:center; gap:5px; background:#FEF3C7; color:#92400E; border:1px solid #D97706; border-radius:999px; padding:2px 10px; font-size:11.5px; font-weight:800;"><i class="fa-solid fa-bell"></i> ควรสำรองข้อมูล (เกิน 7 วัน)</span>
+                </div>
+                <div id="lblLastBackupStatus" style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">กำลังตรวจสอบประวัติการสำรองข้อมูล...</div>
+                <button type="button" id="btnExportFull8TableBackup" onclick="if(window.OcaEmailAdmin)window.OcaEmailAdmin.handleExportFull8TableBackup()" style="width:100%; height:40px; border-radius:8px; background:#1D4ED8; color:#FFFFFF; border:none; font-size:13px; font-weight:700; cursor:pointer;">
+                  <i class="fa-solid fa-database"></i> สำรองข้อมูลครบทั้ง 8 ตาราง (Full JSON Backup)
+                </button>
+              </div>
+            </div>
+
+            <!-- App Settings JSONB Inspector -->
+            <div style="background:var(--bg-card); border:1px solid var(--border-soft); border-radius:14px; padding:18px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+                <div style="font-size:15px; font-weight:800; color:var(--text-main);">
+                  <i class="fa-solid fa-sliders" style="color:#047857; margin-right:6px;"></i>ตัวตรวจสอบค่าตั้งค่ากลาง (app_settings JSONB Inspector)
+                </div>
+                <button type="button" onclick="if(window.OcaEmailAdmin)window.OcaEmailAdmin.renderAppSettingsInspectorTable()" class="oca-btn-secondary" style="height:34px; padding:0 12px; font-size:12px;">
+                  <i class="fa-solid fa-rotate"></i> รีเฟรช
+                </button>
+              </div>
+              <div class="oca-table-scroll-container oca-custom-scrollbar" style="max-height:380px; overflow-y:auto; overflow-x:auto; border:1px solid var(--border-soft); border-radius:8px;">
+                <table class="oca-table" id="tblAppSettingsInspector" style="width:100%; border-collapse:collapse;">
+                  <thead>
+                    <tr style="background:var(--bg-subcard); border-bottom:1px solid var(--border-soft);">
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:left; font-size:12px; color:var(--text-main); white-space:nowrap;">Key</th>
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:left; font-size:12px; color:var(--text-main); white-space:nowrap;">Category</th>
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:left; font-size:12px; color:var(--text-main);">Value (JSONB)</th>
+                      <th style="position:sticky; top:0; background:var(--bg-subcard); padding:10px; text-align:left; font-size:12px; color:var(--text-main); white-space:nowrap;">Updated At</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbodyAppSettingsInspector">
+                    <tr><td colspan="4" style="text-align:center; padding:18px; color:var(--text-muted);">กำลังโหลด app_settings...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- ===================================================================
@@ -20188,8 +20403,8 @@ body.printing-report #printReportContainer {
                 </div>
 
                 <div>
-                  <div style="font-size:15px; font-weight:700; color:var(--text-main);">ส่งอีเมลใบเสร็จรับเงิน</div>
-                  <div style="font-size:12px; color:var(--text-muted);">ส่งใบเสร็จรับเงินกระดาษต่อเนื่อง (Dot-Matrix Paper Receipt) เข้าอีเมลนักศึกษา</div>
+                  <div style="font-size:15px; font-weight:700; color:var(--text-main);">ส่งอีเมลยืนยันการชำระเงิน & QR รับหนังสือ</div>
+                  <div style="font-size:12px; color:var(--text-muted);">Payment Confirmation & Book Pickup QR (ไม่ใช่ E-Receipt — ใบเสร็จจริงพิมพ์กระดาษต่อเนื่อง 5.5"×8" ที่เคาน์เตอร์เท่านั้น)</div>
                 </div>
               </div>
 
@@ -20218,7 +20433,7 @@ body.printing-report #printReportContainer {
                 <input type="email" id="inpModalSendRcptEmail" class="oca-input" style="height:42px; font-size:13.5px;" placeholder="example@gmail.com" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmSendReceiptEmail();}">
                 <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">
 
-                  * ระบบจะจัดส่งใบเสร็จรับเงินกระดาษต่อเนื่อง Dot-Matrix พร้อม QR Code สแกนรับตำราเรียน ไปยังอีเมลนี้
+                  * ระบบจะจัดส่งอีเมลยืนยันการชำระเงินพร้อม QR Code สแกนรับตำราเรียน (ใบเสร็จรับเงินฉบับทางการออกเฉพาะกระดาษต่อเนื่อง Dot-Matrix 5.5"×8" ที่เคาน์เตอร์โรงเรียนเท่านั้น)
 
                 </div>
               </div>
@@ -24168,22 +24383,21 @@ body.printing-report #printReportContainer {
         </div>
         <!-- RIGHT SIDE: CANVA CLEAN & LUXURY AUTHENTICATION CARD (40%) -->
         <div style="flex:0.95 1 360px; background:#FAF7F2; padding:32px 30px; display:flex; flex-direction:column; justify-content:center; position:relative; color:#1f2937;">
-          <!-- 3-Language Switcher (TH / EN / ZH) with National Flags & Protected from TreeWalker -->
+          <!-- 3-Language Switcher (Icon-Only National Flags & Protected from TreeWalker) -->
           <div data-i18n-locked="true" style="position:absolute; top:16px; left:20px; display:inline-flex; align-items:center; gap:4px; background:#FFFFFF; border:1px solid rgba(215,166,0,0.4); border-radius:999px; padding:3px; box-shadow:0 2px 8px rgba(0,0,0,0.06); z-index:10;">
-            <button type="button" id="btnLoginLangTH" onclick="setSystemLanguage('th')" data-i18n-locked="true" style="border:none; background:transparent; color:#374151; font-size:11px; font-weight:700; padding:4px 9px; border-radius:999px; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:4px;" title="ภาษาไทย">
-              <span style="font-size:13px; line-height:1;">🇹🇭</span><span>TH</span>
+            <button type="button" id="btnLoginLangTH" onclick="setSystemLanguage('th')" data-i18n-locked="true" style="border:none; background:transparent; color:#374151; padding:5px 10px; min-width:38px; border-radius:999px; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; justify-content:center;" title="ภาษาไทย" aria-label="ภาษาไทย">
+              <span style="font-size:18px; line-height:1;">🇹🇭</span>
             </button>
-            <button type="button" id="btnLoginLangEN" onclick="setSystemLanguage('en')" data-i18n-locked="true" style="border:none; background:transparent; color:#374151; font-size:11px; font-weight:700; padding:4px 9px; border-radius:999px; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:4px;" title="English">
-              <span style="font-size:13px; line-height:1;">🇬🇧</span><span>EN</span>
+            <button type="button" id="btnLoginLangEN" onclick="setSystemLanguage('en')" data-i18n-locked="true" style="border:none; background:transparent; color:#374151; padding:5px 10px; min-width:38px; border-radius:999px; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; justify-content:center;" title="English" aria-label="English">
+              <span style="font-size:18px; line-height:1;">🇬🇧</span>
             </button>
-            <button type="button" id="btnLoginLangZH" onclick="setSystemLanguage('zh')" data-i18n-locked="true" style="border:none; background:transparent; color:#374151; font-size:11px; font-weight:700; padding:4px 9px; border-radius:999px; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:4px;" title="中文">
-              <span style="font-size:13px; line-height:1;">🇨🇳</span><span>ZH</span>
+            <button type="button" id="btnLoginLangZH" onclick="setSystemLanguage('zh')" data-i18n-locked="true" style="border:none; background:transparent; color:#374151; padding:5px 10px; min-width:38px; border-radius:999px; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; justify-content:center;" title="中文" aria-label="中文">
+              <span style="font-size:18px; line-height:1;">🇨🇳</span>
             </button>
           </div>
-          <!-- Theme Toggle Button (Dark / Light Mode) -->
-          <button type="button" id="btnLoginThemeToggle" onclick="toggleOcaTheme()" class="oca-btn-theme-toggle" title="สลับโหมดมืด/โหมดสว่าง" style="position:absolute; top:16px; right:56px; border:1px solid rgba(215,166,0,0.4); background:#FFFFFF; color:#374151; font-size:11px; font-weight:700; padding:4px 10px; border-radius:999px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; box-shadow:0 2px 8px rgba(0,0,0,0.06); z-index:10; transition:all 0.18s ease;">
-            <i class="fa-solid fa-moon" id="iconLoginTheme" style="font-size:12px; color:#d97706;"></i>
-            <span id="txtLoginTheme">โหมดมืด</span>
+          <!-- Theme Toggle Button (Dark / Light Mode - Icon Only) -->
+          <button type="button" id="btnLoginThemeToggle" onclick="toggleOcaTheme()" class="oca-btn-theme-toggle" title="สลับโหมดมืด/โหมดสว่าง" aria-label="สลับโหมดมืด/โหมดสว่าง" style="position:absolute; top:16px; right:56px; width:34px; height:34px; padding:0; border:1px solid rgba(215,166,0,0.4); background:#FFFFFF; color:#374151; border-radius:999px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.06); z-index:10; transition:all 0.18s ease;">
+            <i class="fa-solid fa-moon" id="iconLoginTheme" style="font-size:15px; color:#d97706;"></i>
           </button>
           <!-- Close Button -->
           <button type="button" id="btnLoginCloseBtn" onclick="backToWelcomeScreen()" style="position:absolute; top:16px; right:16px; background:transparent; border:none; color:#9ca3af; font-size:18px; cursor:pointer; padding:6px; line-height:1; transition:color 0.15s; border-radius:50%;" onmouseover="this.style.color='#111827'" onmouseout="this.style.color='#9ca3af'" title="ปิด / กลับหน้าต้อนรับ">
@@ -27694,8 +27908,8 @@ body.printing-report #printReportContainer {
               </td>
             </tr>
           </table>`;
-        const subject = `[ใบเสร็จรับเงิน] โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (东方文化书院) - เลขที่ ${rcptNo}`;
-        // Official Continuous Dot-Matrix Paper Receipt HTML Template (100% Identical to System Layout)
+        const subject = `[ยืนยันการชำระเงิน & QR รับหนังสือ] โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (东方文化书院) - อ้างอิง ${rcptNo}`;
+        // Payment Confirmation & Book Pickup QR Email Template (NO E-Receipt Compliance)
         const htmlReceipt = `<!DOCTYPE html>
 <html lang="th">
 <head>
@@ -27703,7 +27917,7 @@ body.printing-report #printReportContainer {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light only">
 <meta name="supported-color-schemes" content="light only">
-<title>ใบเสร็จรับเงิน OCA</title>
+<title>ยืนยันการชำระเงิน &amp; QR รับหนังสือ OCA</title>
 <style>
 :root { color-scheme: light only; supported-color-schemes: light only; }
 body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Thai', 'Prompt', Tahoma, Arial, sans-serif; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
@@ -27769,15 +27983,15 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
           <table style="width:100%; border-collapse:collapse;">
             <tr>
               <td style="vertical-align:middle;">
-                <div style="font-size:18px; font-weight:800; color:#0f172a; letter-spacing:1px;">
+                <div style="font-size:17px; font-weight:800; color:#0f172a; letter-spacing:0.5px;">
 
-                  ใบเสร็จรับเงิน / RECEIPT
+                  ยืนยันการชำระเงิน &amp; QR รับหนังสือ / PAYMENT CONFIRMATION
 
                 </div>
 
-                <div style="font-size:11px; color:#64748b; margin-top:2px;">
+                <div style="font-size:11px; color:#b45309; font-weight:700; margin-top:3px;">
 
-                  (เอกสารทางการกระดาษต่อเนื่อง Dot-Matrix)
+                  (ไม่ใช่ใบเสร็จรับเงินอิเล็กทรอนิกส์ — ใบเสร็จฉบับทางการออกเฉพาะกระดาษต่อเนื่อง Dot-Matrix 5.5"×8" ที่เคาน์เตอร์โรงเรียนเท่านั้น)
 
                 </div>
               </td>
@@ -27929,8 +28143,9 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
 </div>
 </body>
 </html>`;
-        // Dispatch receipt email strictly through Supabase Edge Function 'send-email'
+        // Dispatch payment confirmation email strictly through Supabase Edge Function 'send-email'
         let isBrevoSent = false;
+        let sendErrMsg = '';
         const _curStaffEmail = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
         const _staffEmailUsername = (_curStaffEmail && _curStaffEmail.username) ? String(_curStaffEmail.username).trim() : '';
         if (typeof _supabase !== 'undefined' && _supabase && (_staffEmailUsername || rcptNo)) {
@@ -27950,16 +28165,20 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
               isBrevoSent = true;
               if (typeof refreshBrevoQuota === 'function') setTimeout(() => refreshBrevoQuota(true), 1500);
             } else {
+              sendErrMsg = (fnErr && fnErr.message) || (fnData && (fnData.error || fnData.message)) || 'Edge Function send-email ไม่ตอบสนองหรือโควตาเต็ม';
               console.warn('Edge send-email notice:', fnErr || fnData);
             }
           } catch (edgeErr) {
+            sendErrMsg = edgeErr.message || String(edgeErr);
             console.warn('Edge send-email error:', edgeErr);
           }
+        } else {
+          sendErrMsg = 'Supabase client ยังไม่พร้อมสำหรับการส่งอีเมล';
         }
-        // Update Supabase
+        // Update Supabase: NEVER write fake 'SENT' when !isBrevoSent
+        const finalEmailStatus = isBrevoSent ? 'DELIVERED_BREVO' : 'FAILED';
         if (_supabase) {
           try {
-            const finalEmailStatus = isBrevoSent ? 'DELIVERED_BREVO' : 'SENT';
             { const { error: wErr } = await _supabase.from('receipts')
               .update({ email: targetEmail, email_status: finalEmailStatus })
               .eq('receipt_no', rcptNo); if (wErr) throw wErr; }
@@ -27972,18 +28191,37 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
               }
             }
             { const { error: wErr } = await _supabase.from('security_audit_logs').insert([{
-              action: 'RECEIPT_EMAIL_SENT',
-              details: `ส่งใบเสร็จกระดาษต่อเนื่อง ${rcptNo} ไปยัง ${targetEmail} (Brevo: ${isBrevoSent ? 'SUCCESS' : 'FALLBACK'})`,
+              action: isBrevoSent ? 'RECEIPT_EMAIL_SENT' : 'RECEIPT_EMAIL_FAILED',
+              details: `ส่งอีเมลยืนยันชำระเงิน & QR รับหนังสือ ${rcptNo} ไปยัง ${targetEmail} (Brevo: ${isBrevoSent ? 'SUCCESS' : ('FAILED: ' + sendErrMsg)})`,
               device_id: (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : 'OCA-CLIENT'
             }]); if (wErr) console.warn('[Supabase write failed] security_audit_logs:', wErr.message); }
           } catch(e) {}
         }
+        if (!isBrevoSent) {
+          if (window.OcaEmailAdmin && typeof window.OcaEmailAdmin.enqueueFailedEmail === 'function') {
+            await window.OcaEmailAdmin.enqueueFailedEmail({
+              kind: 'payment_confirmation',
+              receiptNo: rcptNo,
+              toEmail: targetEmail,
+              toName: buyerName,
+              subject: subject,
+              errorMessage: sendErrMsg || 'ส่งอีเมลไม่สำเร็จ'
+            });
+          }
+          if (typeof showToast === 'function') {
+            showToast('ส่งอีเมลไม่สำเร็จ (บันทึกลงคิวส่งซ้ำแล้ว)', sendErrMsg || 'กรุณาตรวจสอบโควตา Brevo หรือส่งซ้ำในเมนูตั้งค่า', '⚠️', 5000);
+          }
+          return {
+            success: false,
+            isBrevoSent: false,
+            error: sendErrMsg || 'ส่งอีเมลไม่สำเร็จ',
+            message: `ส่งอีเมลไปยัง ${targetEmail} ไม่สำเร็จ (${sendErrMsg || 'Brevo Error'}) — บันทึกลงคิวรอส่งใหม่เรียบร้อยแล้ว`
+          };
+        }
         return {
           success: true,
-          isBrevoSent: isBrevoSent,
-          message: isBrevoSent 
-            ? `ส่งใบเสร็จรับเงินกระดาษต่อเนื่องเข้าอีเมล ${targetEmail} สำเร็จเรียบร้อยแล้ว` 
-            : `จัดเตรียมใบเสร็จรับเงินส่งไปยัง ${targetEmail} เรียบร้อยแล้ว`
+          isBrevoSent: true,
+          message: `ส่งอีเมลยืนยันการชำระเงิน & QR รับหนังสือไปยัง ${targetEmail} สำเร็จเรียบร้อยแล้ว`
         };
       }
       // Supabase Client Availability Check for database operations
@@ -35768,25 +36006,10 @@ if (action === 'getDashboardStats') {
               // Write permanent anti-replay lock keys in fee_settings
               if (typeof _supabase !== 'undefined' && _supabase) {
                 try {
-                  const lockRecords = [];
-                  if (sRef) {
-                    lockRecords.push({
-                      key: 'used_slip_ref:' + sRef,
-                      name: ('LOCKED:' + savedStudentId).slice(0, 90),
-                      amount: calculatedCourseFee || 0,
-                      mode: 'SLIP_LOCK',
-                      updated_at: new Date().toISOString()
-                    });
-                  }
-                  if (sHash) {
-                    lockRecords.push({
-                      key: 'used_slip_hash:' + sHash,
-                      name: ('LOCKED:' + savedStudentId).slice(0, 90),
-                      amount: calculatedCourseFee || 0,
-                      mode: 'SLIP_LOCK',
-                      updated_at: new Date().toISOString()
-                    });
-                  }
+                  const sDHash = String((window._enrollVerifiedSlipMeta && window._enrollVerifiedSlipMeta.slipDHash) || '').trim();
+                  const lockRecords = (typeof window.normalizeSlipLockKeys === 'function')
+                    ? window.normalizeSlipLockKeys(sRef, sHash, sDHash).buildLockRows(savedStudentId, calculatedCourseFee || 0)
+                    : [];
                   if (lockRecords.length > 0) {
                     const { error: lockUpsertErr } = await _supabase.from('fee_settings').upsert(lockRecords, { onConflict: 'key' });
                     if (lockUpsertErr) console.warn('[Slip Anti-Replay Save] upsert error:', lockUpsertErr);
@@ -36088,35 +36311,40 @@ if (action === 'getDashboardStats') {
           badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังตรวจสอบ QR สลิปธนาคาร...';
         }
         try {
-          const [slipSha256, qrScan] = await Promise.all([
+          const [slipSha256, slipDHash, qrScan] = await Promise.all([
             (typeof computeSlipSha256Hash === 'function') ? computeSlipSha256Hash(rawUri) : '',
+            (typeof window.computeSlipDHash === 'function') ? window.computeSlipDHash(rawUri) : '',
             (typeof scanSlipQrFromDataUri === 'function') ? scanSlipQrFromDataUri(rawUri) : null
           ]);
-          const transRef = qrScan?.transRef || '';
-          // Check anti-replay against Supabase fee_settings and receipts
+          const transRef = (qrScan && qrScan.valid && qrScan.transRef) ? String(qrScan.transRef).trim() : '';
+          const normKeys = (typeof window.normalizeSlipLockKeys === 'function')
+            ? window.normalizeSlipLockKeys(transRef, slipSha256, slipDHash)
+            : { allLookupKeys: [transRef ? 'used_slip_ref:' + transRef : '', slipSha256 ? 'used_slip_hash:' + slipSha256 : ''].filter(Boolean) };
+          // Check anti-replay against Supabase fee_settings and receipts (all years, no 2569 ceiling)
+          let replayTimeoutWarning = false;
           if (typeof _supabase !== 'undefined' && _supabase) {
             let isDuplicate = false;
             let dupMsg = '';
             try {
-              const filterParts = [];
-              if (transRef) filterParts.push('key.eq.used_slip_ref:' + transRef);
-              if (slipSha256) filterParts.push('key.eq.used_slip_hash:' + slipSha256);
-              filterParts.push('key.like.pending_slip%');
+              const quoteOrVal = (v) => '"' + String(v).replace(/["\\]/g, '') + '"';
+              const filterParts = ['key.like.pending_slip%'];
+              for (const lk of normKeys.allLookupKeys) {
+                filterParts.push('key.eq.' + quoteOrVal(lk));
+              }
               const { data: dupKeys, error: dupErr } = await _supabase.from('fee_settings')
-                .select('key, name')
+                .select('key, name, mode')
                 .or(filterParts.join(','))
                 .limit(500);
+              const lookupSet = new Set(normKeys.allLookupKeys);
               if (!dupErr && Array.isArray(dupKeys)) {
                 const shortRef = String(transRef || '').slice(0, 18);
                 for (const r of dupKeys) {
-                  if (transRef && r.key === 'used_slip_ref:' + transRef) {
+                  if (lookupSet.has(r.key)) {
                     isDuplicate = true;
-                    dupMsg = 'ตรวจพบรหัสอ้างอิงสลิปนี้ (' + transRef + ') เคยถูกบันทึกในระบบแล้ว';
-                    break;
-                  }
-                  if (slipSha256 && r.key === 'used_slip_hash:' + slipSha256) {
-                    isDuplicate = true;
-                    dupMsg = 'ตรวจพบลายนิ้วมือดิจิทัลของภาพสลิปนี้เคยถูกบันทึกในระบบแล้ว';
+                    const isBl = (r.mode === 'SLIP_BLACKLIST') || String(r.name || '').startsWith('BLACKLISTED:');
+                    dupMsg = isBl
+                      ? 'สลิปนี้ถูกขึ้นบัญชีดำ (BLACKLISTED) เนื่องจากถูกปฏิเสธว่าเป็นสลิปซ้ำ/ปลอม'
+                      : 'ตรวจพบรหัสอ้างอิงหรือลายนิ้วมือดิจิทัลของภาพสลิปนี้เคยถูกบันทึกในระบบแล้ว';
                     break;
                   }
                   if (r.key && r.key.startsWith('pending_slip') && r.name) {
@@ -36129,18 +36357,20 @@ if (action === 'getDashboardStats') {
                 }
               }
               if (!isDuplicate && transRef) {
-                const { data: dupRc } = await _supabase.from('receipts')
+                const { data: dupRc, error: dupRcErr } = await _supabase.from('receipts')
                   .select('receipt_no')
-                  .gte('receipt_no', '6900000')
-                  .lt('receipt_no', '7000000')
                   .eq('payment_ref', transRef)
                   .limit(1);
-                if (dupRc && dupRc.length > 0) {
+                if (dupRcErr) {
+                  replayTimeoutWarning = true;
+                  console.warn('[handleEnrollSlipUpload] receipts payment_ref lookup error (flagged):', dupRcErr);
+                } else if (dupRc && dupRc.length > 0) {
                   isDuplicate = true;
                   dupMsg = 'สลิปนี้เคยถูกออกใบเสร็จรับเงินแล้ว (เลขที่ ' + dupRc[0].receipt_no + ')';
                 }
               }
             } catch (chkErr) {
+              replayTimeoutWarning = true;
               console.warn('[handleEnrollSlipUpload] Anti-replay check warning:', chkErr);
             }
             if (isDuplicate) {
@@ -36160,18 +36390,39 @@ if (action === 'getDashboardStats') {
               qrRaw: qrScan.raw || qrScan.qrRaw || '',
               transRef: qrScan.transRef,
               slipSha256: slipSha256,
+              slipDHash: slipDHash,
               qrVerified: true,
+              unverifiedQr: false,
+              timeoutWarning: replayTimeoutWarning,
               verifiedAt: new Date().toISOString()
             };
             if (badge) {
-              badge.style.background = 'rgba(16,185,129,0.15)';
-              badge.style.color = '#34D399';
-              badge.style.border = '1px solid #10B981';
+              badge.style.background = replayTimeoutWarning ? '#FEF3C7' : 'rgba(16,185,129,0.15)';
+              badge.style.color = replayTimeoutWarning ? '#92400E' : '#34D399';
+              badge.style.border = replayTimeoutWarning ? '1px solid #D97706' : '1px solid #10B981';
               const safeRef = String(qrScan.transRef || '').replace(/[<>]/g, '');
-              badge.innerHTML = '<i class="fa-solid fa-circle-check"></i> ตรวจสอบ QR สลิปสำเร็จ (Ref: ' + safeRef + ')';
+              badge.innerHTML = replayTimeoutWarning
+                ? '<i class="fa-solid fa-triangle-exclamation"></i> ตรวจ QR สำเร็จ (Ref: ' + safeRef + ') — ตรวจซ้ำฐานข้อมูลล่าช้า กรุณาตรวจยอดเข้าบัญชีจริง'
+                : '<i class="fa-solid fa-circle-check"></i> ตรวจสอบ QR สลิปสำเร็จ (Ref: ' + safeRef + ')';
             }
             if (typeof showToast === 'function') {
               showToast('ตรวจสอบสลิปผ่านแล้ว', 'ตรวจพบ QR Code ธนาคาร (Ref: ' + String(qrScan.transRef).slice(0, 16) + '...)', '✓', 2500);
+            }
+          } else if (qrScan && qrScan.unverifiedQr) {
+            window._enrollVerifiedSlipMeta = {
+              qrRaw: qrScan.raw || qrScan.qrRaw || '',
+              transRef: '',
+              slipSha256: slipSha256,
+              slipDHash: slipDHash,
+              qrVerified: false,
+              unverifiedQr: true,
+              verifiedAt: new Date().toISOString()
+            };
+            if (badge) {
+              badge.style.background = '#FEE2E2';
+              badge.style.color = '#991B1B';
+              badge.style.border = '1.5px solid #DC2626';
+              badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> คำเตือน: ' + escapeHtml(qrScan.reason || 'ไม่สามารถยืนยัน QR สลิป (UNVERIFIED_QR) กรุณาให้แคชเชียร์ตรวจยอดเข้าบัญชีจริง');
             }
           } else {
             // Staff override for image without standard QR
@@ -48707,6 +48958,9 @@ if (action === 'getDashboardStats') {
           if (txtBuyerName) txtBuyerName.value = student.profile.fullName || '';
           const txtBuyerId = document.getElementById('txtRcptBuyerId');
           if (txtBuyerId) txtBuyerId.value = student.profile.studentId || '';
+          if (typeof loadReceiptStudentCreditBalance === 'function') {
+            loadReceiptStudentCreditBalance(student.profile.studentId || '');
+          }
           const txtEmail = document.getElementById('txtRcptEmail');
           if (txtEmail) txtEmail.value = student.profile.email || '';
           const txtPhone = document.getElementById('txtRcptPhone');
@@ -49709,6 +49963,87 @@ if (action === 'getDashboardStats') {
           return { buyerName, address };
         }
         window.formatCorporateReceiptParties = formatCorporateReceiptParties;
+        async function loadReceiptStudentCreditBalance(studentId) {
+          const box = document.getElementById('boxRcptStudentCreditBanner');
+          const chk = document.getElementById('chkRcptApplyStudentCredit');
+          const lblAvail = document.getElementById('lblRcptStudentCreditAvailable');
+          const lblApplied = document.getElementById('lblRcptStudentCreditApplied');
+          window._rcptStudentCreditState = { studentId: String(studentId || ''), available: 0 };
+          if (chk) chk.checked = false;
+          if (box) box.style.display = 'none';
+          if (lblApplied) lblApplied.textContent = '฿0.00';
+          const sid = String(studentId || '').trim();
+          if (!sid || sid === '-' || sid === '__EXTERNAL__' || typeof _supabase === 'undefined' || !_supabase) return 0;
+          try {
+            const { data, error } = await _supabase
+              .from('fee_settings')
+              .select('key, amount')
+              .eq('key', 'student_credit_' + sid)
+              .maybeSingle();
+            if (error) {
+              console.warn('[loadReceiptStudentCreditBalance] warning:', error);
+              return 0;
+            }
+            const amt = Math.max(0, Number(data && data.amount) || 0);
+            window._rcptStudentCreditState = { studentId: sid, available: amt };
+            if (amt > 0) {
+              if (lblAvail) lblAvail.textContent = '฿' + toArabicDigits(amt.toLocaleString('en-US', { minimumFractionDigits: 2 }));
+              if (box) box.style.display = 'block';
+            }
+            calcReceiptTotals();
+            return amt;
+          } catch (err) {
+            console.warn('[loadReceiptStudentCreditBalance] error:', err);
+            return 0;
+          }
+        }
+        window.loadReceiptStudentCreditBalance = loadReceiptStudentCreditBalance;
+        async function redeemStudentCreditBalance(studentId, redeemedAmount, receiptNo) {
+          const sid = String(studentId || '').trim();
+          const used = Math.max(0, Number(redeemedAmount) || 0);
+          if (!sid || used <= 0 || typeof _supabase === 'undefined' || !_supabase) return false;
+          try {
+            const curAvail = Math.max(0, Number(window._rcptStudentCreditState && window._rcptStudentCreditState.available) || 0);
+            const remaining = Math.max(0, Number((curAvail - used).toFixed(2)));
+            const creditKey = 'student_credit_' + sid;
+            if (remaining <= 0) {
+              const { error: delErr } = await _supabase.from('fee_settings').delete().eq('key', creditKey);
+              if (delErr) throw delErr;
+            } else {
+              const { error: upErr } = await _supabase.from('fee_settings').upsert([{
+                key: creditKey,
+                name: ('เครดิตโอนเกินคงเหลือ ' + sid).slice(0, 90),
+                amount: remaining,
+                mode: 'STUDENT_CREDIT',
+                updated_at: new Date().toISOString()
+              }], { onConflict: 'key' });
+              if (upErr) throw upErr;
+            }
+            const actor = (typeof getAuditActor === 'function') ? getAuditActor() : { username: 'cashier', fullName: 'Cashier', role: 'CASHIER', deviceId: '', deviceInfo: '' };
+            const { error: audErr } = await _supabase.from('security_audit_logs').insert([{
+              action: 'STUDENT_CREDIT_REDEEMED',
+              username: actor.username,
+              full_name: actor.fullName,
+              role: actor.role,
+              device_id: actor.deviceId,
+              device_info: actor.deviceInfo,
+              details: `หักใช้เครดิตเงินโอนเกิน ฿${used.toFixed(2)} สำหรับนักศึกษา ${sid} ในใบเสร็จ ${receiptNo || '-'} (คงเหลือ ฿${remaining.toFixed(2)})`,
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+            if (audErr) console.warn('[redeemStudentCreditBalance] audit log warning:', audErr);
+            window._rcptStudentCreditState = { studentId: sid, available: remaining };
+            const box = document.getElementById('boxRcptStudentCreditBanner');
+            const chk = document.getElementById('chkRcptApplyStudentCredit');
+            if (chk) chk.checked = false;
+            if (box) box.style.display = 'none';
+            return true;
+          } catch (err) {
+            console.error('[redeemStudentCreditBalance] error:', err);
+            return false;
+          }
+        }
+        window.redeemStudentCreditBalance = redeemStudentCreditBalance;
         function calcReceiptTotals() {
       let baseAmount = 0;
       let regFee = 0;
@@ -49812,6 +50147,19 @@ if (action === 'getDashboardStats') {
         const chkOther = document.getElementById('chkRcptApplyDiscountOther');
         otherDiscount = (chkOther && chkOther.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || Number(document.getElementById('inpRcptDiscount')?.value) || 0) : 0;
         grandTotal = Math.max(0, baseAmount - normalDiscount - otherDiscount) + shippingFee;
+      }
+      // Student Overpayment Credit Redemption Deduction (v217)
+      let creditApplied = 0;
+      const chkCredit = document.getElementById('chkRcptApplyStudentCredit');
+      const availCredit = Math.max(0, Number(window._rcptStudentCreditState && window._rcptStudentCreditState.available) || 0);
+      if (chkCredit && chkCredit.checked && availCredit > 0) {
+        creditApplied = Math.min(availCredit, grandTotal);
+        grandTotal = Math.max(0, grandTotal - creditApplied);
+      }
+      window._rcptStudentCreditApplied = creditApplied;
+      const elCreditApplied = document.getElementById('lblRcptStudentCreditApplied');
+      if (elCreditApplied) {
+        elCreditApplied.textContent = creditApplied > 0 ? ('-฿' + toArabicDigits(creditApplied.toLocaleString('en-US', { minimumFractionDigits: 2 }))) : '฿0.00';
       }
       // Live Elements Update
       const elBase = document.getElementById('lblPrevBaseAmount');
@@ -50371,7 +50719,13 @@ if (action === 'getDashboardStats') {
           shippingFee = shipRateSave * bookOnlyQtySave;
         }
       }
-      const grandTotal = Math.max(0, baseAmount - normalDiscount - otherDiscount) + regFee + cardFee + otherRegFee + transferFee + shippingFee;
+      const preCreditTotal = Math.max(0, baseAmount - normalDiscount - otherDiscount) + regFee + cardFee + otherRegFee + transferFee + shippingFee;
+      const chkCreditSave = document.getElementById('chkRcptApplyStudentCredit');
+      const availCreditSave = Math.max(0, Number(window._rcptStudentCreditState && window._rcptStudentCreditState.available) || 0);
+      const redeemedCreditAmt = (chkCreditSave && chkCreditSave.checked && availCreditSave > 0)
+        ? Math.min(availCreditSave, preCreditTotal)
+        : 0;
+      const grandTotal = Math.max(0, preCreditTotal - redeemedCreditAmt);
       let payMethod = 'โอนเงิน';
       if (document.getElementById('chkPayCash')?.checked) payMethod = 'เงินสด';
       else if (document.getElementById('chkPayCredit')?.checked) payMethod = 'บัตรเครดิต';
@@ -50455,7 +50809,10 @@ if (action === 'getDashboardStats') {
       const examItemsEditNotes = attachedExamItems.length > 0
         ? `[EXAM_ITEMS:${JSON.stringify(attachedExamItems)}]`
         : '';
-      const combinedRcptEditNotes = [extraBooksEditNotes, examItemsEditNotes].filter(Boolean).join(' ');
+      const creditEditNote = redeemedCreditAmt > 0
+        ? `[CREDIT_REDEEMED:฿${redeemedCreditAmt.toFixed(2)}]`
+        : '';
+      const combinedRcptEditNotes = [extraBooksEditNotes, examItemsEditNotes, creditEditNote].filter(Boolean).join(' ');
       const payload = (isCourseRenewal || isCourseTransfer) ? {
         ...companyPayloadFields,
         receiptNo: currentRcNo,
@@ -50612,6 +50969,9 @@ if (action === 'getDashboardStats') {
               window._pendingEnrollSlipHandover = null;
             }
             // Freeze saved receipt preview BEFORE resetting left-side inputs so immediate print shows full receipt
+            if (redeemedCreditAmt > 0 && buyerId && typeof redeemStudentCreditBalance === 'function') {
+              redeemStudentCreditBalance(buyerId, redeemedCreditAmt, res.receiptNo);
+            }
             const rcptPreviewEl = document.getElementById('viewContinuousReceipt');
             window._frozenReceiptPreview = true;
             window._frozenReceiptHtml = rcptPreviewEl ? rcptPreviewEl.innerHTML : '';
@@ -51200,20 +51560,33 @@ if (action === 'getDashboardStats') {
       const boxAlert = document.getElementById('boxModalSendRcptAlert');
       const btn = document.getElementById('btnConfirmSendRcptEmail');
       const email = inpEmail ? inpEmail.value.trim() : '';
-      if (!email || email.indexOf('@') === -1) {
+      const isEmailOk = (typeof window.isValidOcaEmail === 'function')
+        ? window.isValidOcaEmail(email)
+        : Boolean(email && email.indexOf('@') !== -1);
+      if (!isEmailOk) {
         if (boxAlert) {
-          boxAlert.textContent = 'กรุณาระบุที่อยู่อีเมลที่ถูกต้อง (ต้องมีเครื่องหมาย @)';
+          boxAlert.textContent = 'กรุณาระบุที่อยู่อีเมลที่ถูกต้องตามรูปแบบมาตรฐาน (เช่น name@example.com)';
           boxAlert.style.display = 'block';
         }
         if (inpEmail) inpEmail.focus();
         return;
+      }
+      const rcptNo = currentModalSendRcptNo;
+      if (window.OcaEmailAdmin && typeof window.OcaEmailAdmin.checkEmailSendCooldown === 'function') {
+        const cd = window.OcaEmailAdmin.checkEmailSendCooldown(rcptNo);
+        if (!cd.allowed) {
+          if (boxAlert) {
+            boxAlert.textContent = `กรุณารออีก ${cd.remainingSec} วินาที ก่อนส่งอีเมลซ้ำสำหรับรายการนี้ (ป้องกันการกดส่งรัว)`;
+            boxAlert.style.display = 'block';
+          }
+          return;
+        }
       }
       if (boxAlert) boxAlert.style.display = 'none';
       if (btn) {
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังส่งอีเมล...';
       }
-      const rcptNo = currentModalSendRcptNo;
       callGasApi('sendReceiptEmail', { receiptNo: rcptNo, email: email }, 'POST')
         .then(res => {
           if (btn) {
@@ -51221,10 +51594,13 @@ if (action === 'getDashboardStats') {
             btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> ยืนยันส่งอีเมล';
           }
           if (res && res.success) {
+            if (window.OcaEmailAdmin && typeof window.OcaEmailAdmin.markEmailSentNow === 'function') {
+              window.OcaEmailAdmin.markEmailSentNow(rcptNo);
+            }
             closeSendReceiptEmailModal();
-            showToast('ส่งอีเมลสำเร็จ!', res.message || ('ส่งใบเสร็จรับเงิน ' + toArabicDigits(rcptNo) + ' เข้าอีเมล ' + email + ' สำเร็จแล้ว'), '🎉');
+            showToast('ส่งอีเมลสำเร็จ!', res.message || ('ส่งยืนยันการชำระเงิน & QR รับหนังสือ ' + toArabicDigits(rcptNo) + ' เข้าอีเมล ' + email + ' สำเร็จแล้ว'), '🎉');
             loadReceiptsHistoryTable();
-          if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('receipts');
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('receipts');
           } else {
             if (boxAlert) {
               boxAlert.textContent = (res && res.message) || 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
@@ -61565,7 +61941,7 @@ if (action === 'getDashboardStats') {
      * สลับ Sub-Tab ในหน้า Settings: 'users', 'audit', 'device'
      */
     function switchSettingsSubTab(subTab) {
-      const validSettings = ['users', 'audit', 'device'];
+      const validSettings = ['users', 'audit', 'device', 'slipEmail', 'appConfig'];
       if (!subTab || !validSettings.includes(subTab)) subTab = 'users';
       if (typeof hasSubmenuPermission === 'function' && !hasSubmenuPermission('settings', subTab)) {
         const fallback = (typeof getFirstPermittedSubmenu === 'function') ? getFirstPermittedSubmenu('settings') : null;
@@ -61591,7 +61967,9 @@ if (action === 'getDashboardStats') {
       const settingsSubBtnMap = {
         'users': 'btnSubSettingsUsers',
         'audit': 'btnSubSettingsAudit',
-        'device': 'btnSubSettingsDevice'
+        'device': 'btnSubSettingsDevice',
+        'slipEmail': 'btnSubSettingsSlipEmail',
+        'appConfig': 'btnSubSettingsAppConfig'
       };
       const subBtnId = settingsSubBtnMap[subTab];
       if (subBtnId) {
@@ -61621,6 +61999,18 @@ if (action === 'getDashboardStats') {
         const view = document.getElementById('subviewSettingsDevice');
         if (view) view.style.display = 'block';
         renderDeviceSecurityInfo();
+      } else if (subTab === 'slipEmail') {
+        const view = document.getElementById('subviewSettingsSlipEmail');
+        if (view) view.style.display = 'block';
+        if (window.OcaEmailAdmin && typeof window.OcaEmailAdmin.initSettingsSlipEmailView === 'function') {
+          window.OcaEmailAdmin.initSettingsSlipEmailView();
+        }
+      } else if (subTab === 'appConfig') {
+        const view = document.getElementById('subviewSettingsAppConfig');
+        if (view) view.style.display = 'block';
+        if (window.OcaEmailAdmin && typeof window.OcaEmailAdmin.initSettingsAppConfigView === 'function') {
+          window.OcaEmailAdmin.initSettingsAppConfigView();
+        }
       } else {
         const btn = document.getElementById('btnSubnavUsers');
         if (btn) {
@@ -62244,7 +62634,9 @@ if (action === 'getDashboardStats') {
         submenus: [
           { subKey: 'users', key: 'settings:users', name: 'ผู้ใช้และสิทธิ์', sidebarIds: ['btnSubSettingsUsers'], pillIds: ['btnSubnavUsers'] },
           { subKey: 'audit', key: 'settings:audit', name: 'ประวัติ 90 วัน', sidebarIds: ['btnSubSettingsAudit'], pillIds: ['btnSubnavAudit'] },
-          { subKey: 'device', key: 'settings:device', name: 'ความปลอดภัย', sidebarIds: ['btnSubSettingsDevice'], pillIds: ['btnSubnavDevice'] }
+          { subKey: 'device', key: 'settings:device', name: 'ความปลอดภัย', sidebarIds: ['btnSubSettingsDevice'], pillIds: ['btnSubnavDevice'] },
+          { subKey: 'slipEmail', key: 'settings:slipEmail', name: 'ป้องกันสลิป & อีเมล', sidebarIds: ['btnSubSettingsSlipEmail'], pillIds: [] },
+          { subKey: 'appConfig', key: 'settings:appConfig', name: 'ตั้งค่ากลาง & สำรองข้อมูล', sidebarIds: ['btnSubSettingsAppConfig'], pillIds: [] }
         ]
       }
     ];
@@ -63936,7 +64328,7 @@ if (action === 'getDashboardStats') {
     // =========================================================================
     let _ocaIdleTimer = null;
     let _lastIdleResetTime = 0;
-    const OCA_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 นาที
+    const OCA_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // Default 30 นาที (overridden by app_settings.idle_timeout_minutes)
     function resetSecurityIdleTimer(force = false) {
       const now = Date.now();
       if (!force && (now - _lastIdleResetTime < 15000)) return;
@@ -63944,6 +64336,8 @@ if (action === 'getDashboardStats') {
       if (_ocaIdleTimer) clearTimeout(_ocaIdleTimer);
       const user = getSavedCurrentUser();
       if (!user) return;
+      const activeMins = [15, 30, 60].includes(Number(window._ocaIdleTimeoutMinutes)) ? Number(window._ocaIdleTimeoutMinutes) : 30;
+      const timeoutMs = activeMins * 60 * 1000;
       _ocaIdleTimer = setTimeout(() => {
         const activeUser = getSavedCurrentUser();
         if (activeUser) {
@@ -63956,14 +64350,23 @@ if (action === 'getDashboardStats') {
           else backToWelcomeScreen();
           document.body.classList.remove('portal-active');
           document.documentElement.classList.remove('portal-active');
-          showModal('เซสชันหมดอายุเพื่อความปลอดภัย', 'เนื่องจากไม่มีการใช้งานระบบติดต่อกันเกิน 30 นาที ระบบได้ทำการลงชื่อออกอัตโนมัติเพื่อป้องกันการเข้าถึงข้อมูลโดยไม่ได้รับอนุญาต', '🔒');
+          showModal('เซสชันหมดอายุเพื่อความปลอดภัย', `เนื่องจากไม่มีการใช้งานระบบติดต่อกันเกิน ${activeMins} นาที ระบบได้ทำการลงชื่อออกอัตโนมัติเพื่อป้องกันการเข้าถึงข้อมูลโดยไม่ได้รับอนุญาต`, '🔒');
         }
-      }, OCA_IDLE_TIMEOUT_MS);
+      }, timeoutMs);
     }
+    window.resetSecurityIdleTimer = resetSecurityIdleTimer;
     ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
       window.addEventListener(evt, resetSecurityIdleTimer, { passive: true });
     });
     document.addEventListener('DOMContentLoaded', () => {
+      if (window.OcaSlipGuard && typeof window.OcaSlipGuard.loadConfig === 'function') {
+        window.OcaSlipGuard.loadConfig().catch(() => {});
+      }
+      if (window.OcaEmailAdmin && typeof window.OcaEmailAdmin.loadIdleTimeoutMinutes === 'function') {
+        window.OcaEmailAdmin.loadIdleTimeoutMinutes().then(() => {
+          if (typeof resetSecurityIdleTimer === 'function') resetSecurityIdleTimer(true);
+        }).catch(() => {});
+      }
       try {
         const savedSystemLang = localStorage.getItem('oca_system_lang') || localStorage.getItem('oca_teacher_lang') || 'th';
         if (typeof setSystemLanguage === 'function') setSystemLanguage(savedSystemLang);
@@ -70372,46 +70775,64 @@ function openPublicRegisterView() {
     });
     async function verifyPublicSlipReplayGuard(slipDataUri) {
       if (!window._pubVerifiedSlipMeta || !window._pubVerifiedSlipMeta.transRef) {
-        const qrScan = await scanSlipQrFromDataUri(slipDataUri);
-        const slipHash = await computeSlipSha256Hash(slipDataUri);
+        const [qrScan, slipHash, slipDHash] = await Promise.all([
+          scanSlipQrFromDataUri(slipDataUri),
+          computeSlipSha256Hash(slipDataUri),
+          (typeof window.computeSlipDHash === 'function') ? window.computeSlipDHash(slipDataUri) : ''
+        ]);
         if (!qrScan || !qrScan.valid) {
-          showModal('ตรวจไม่พบ QR Code มาตรฐานธนาคาร', 'กรุณาแนบสลิปโอนเงินจริงจากแอปธนาคารที่มี Mini-QR Code ชัดเจน', '⚠️');
+          const reasonMsg = (qrScan && qrScan.crcFailed)
+            ? 'ตรวจพบความผิดปกติของรหัสตรวจสอบ QR (EMVCo CRC-16 ไม่ถูกต้อง) กรุณาแนบสลิปโอนเงินต้นฉบับจากแอปธนาคาร'
+            : ((qrScan && qrScan.reason) || 'กรุณาแนบสลิปโอนเงินจริงจากแอปธนาคารที่มี Mini-QR Code ชัดเจน');
+          showModal('ตรวจไม่พบ QR Code มาตรฐานธนาคาร', reasonMsg, '⚠️');
           return null;
         }
-        window._pubVerifiedSlipMeta = { qrRaw: qrScan.qrRaw, transRef: qrScan.transRef, slipSha256: slipHash, verifiedAt: Date.now() };
+        window._pubVerifiedSlipMeta = { qrRaw: qrScan.qrRaw, transRef: qrScan.transRef, slipSha256: slipHash, slipDHash: slipDHash, verifiedAt: Date.now() };
       }
       const slipTransRef = String(window._pubVerifiedSlipMeta.transRef || '').trim();
       const slipHash256 = String(window._pubVerifiedSlipMeta.slipSha256 || '').trim();
-      const refKey = slipTransRef ? ('used_slip_ref:' + slipTransRef.slice(0, 35)) : '';
-      const hashKey = slipHash256 ? ('used_hash:' + slipHash256.slice(0, 39)) : '';
-      const legacyHashKey = slipHash256 ? ('used_slip_hash:' + slipHash256.slice(0, 34)) : '';
+      let slipDHash = String(window._pubVerifiedSlipMeta.slipDHash || '').trim();
+      if (!slipDHash && slipDataUri && typeof window.computeSlipDHash === 'function') {
+        slipDHash = await window.computeSlipDHash(slipDataUri);
+        window._pubVerifiedSlipMeta.slipDHash = slipDHash;
+      }
+      const normKeys = (typeof window.normalizeSlipLockKeys === 'function')
+        ? window.normalizeSlipLockKeys(slipTransRef, slipHash256, slipDHash)
+        : {
+            refKey: slipTransRef ? ('used_slip_ref:' + slipTransRef.slice(0, 35)) : '',
+            hashKey: slipHash256 ? ('used_slip_hash:' + slipHash256.slice(0, 40)) : '',
+            dhashKey: slipDHash ? ('used_slip_dhash:' + slipDHash.slice(0, 16)) : '',
+            allLookupKeys: [
+              slipTransRef ? ('used_slip_ref:' + slipTransRef.slice(0, 35)) : '',
+              slipHash256 ? ('used_hash:' + slipHash256.slice(0, 39)) : '',
+              slipHash256 ? ('used_slip_hash:' + slipHash256.slice(0, 34)) : ''
+            ].filter(Boolean)
+          };
+      window._pubSlipReplayTimeoutWarning = false;
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
           const quoteOrVal = (v) => '"' + String(v).replace(/["\\]/g, '') + '"';
           const filterParts = ['key.like.pending_slip%'];
-          if (refKey) filterParts.push('key.eq.' + quoteOrVal(refKey));
-          if (slipTransRef && slipTransRef.length > 35) filterParts.push('key.eq.' + quoteOrVal('used_slip_ref:' + slipTransRef));
-          if (hashKey) filterParts.push('key.eq.' + quoteOrVal(hashKey));
-          if (legacyHashKey) filterParts.push('key.eq.' + quoteOrVal(legacyHashKey));
+          for (const lk of normKeys.allLookupKeys) {
+            filterParts.push('key.eq.' + quoteOrVal(lk));
+          }
           const { data: dupKeys, error: dupKeysErr } = await _supabase.from('fee_settings')
-            .select('key, name')
+            .select('key, name, mode')
             .or(filterParts.join(','))
             .limit(500);
           if (dupKeysErr) console.warn('[Slip Anti-Replay Check] fee_settings query error:', dupKeysErr);
           let isDuplicate = false;
           let dupMsg = '';
+          const lookupSet = new Set(normKeys.allLookupKeys);
           if (Array.isArray(dupKeys)) {
             const shortRef = slipTransRef.slice(0, 18);
             for (const r of dupKeys) {
-              if (
-                (refKey && r.key === refKey) ||
-                (hashKey && r.key === hashKey) ||
-                (legacyHashKey && r.key === legacyHashKey) ||
-                (slipTransRef && r.key === 'used_slip_ref:' + slipTransRef) ||
-                (slipHash256 && (r.key === 'used_slip_hash:' + slipHash256 || r.key === 'used_hash:' + slipHash256))
-              ) {
+              if (lookupSet.has(r.key)) {
                 isDuplicate = true;
-                dupMsg = 'ตรวจพบรหัสอ้างอิงสลิปหรือลายนิ้วมือดิจิทัลนี้เคยถูกบันทึกในระบบแล้ว';
+                const isBl = (r.mode === 'SLIP_BLACKLIST') || String(r.name || '').startsWith('BLACKLISTED:');
+                dupMsg = isBl
+                  ? 'สลิปนี้ถูกขึ้นบัญชีดำ (BLACKLISTED) เนื่องจากถูกปฏิเสธว่าเป็นสลิปซ้ำหรือสลิปปลอม'
+                  : 'ตรวจพบรหัสอ้างอิงสลิปหรือลายนิ้วมือดิจิทัล (SHA-256/dHash) นี้เคยถูกบันทึกในระบบแล้ว';
                 break;
               }
               if (r.key && r.key.startsWith('pending_slip') && r.name) {
@@ -70430,17 +70851,21 @@ function openPublicRegisterView() {
             try {
               const hasAbort = typeof window !== 'undefined' && 'AbortController' in window;
               const abortController = hasAbort ? new window.AbortController() : null;
-              const timeoutId = abortController ? setTimeout(() => abortController.abort(), 1200) : null;
+              const timeoutId = abortController ? setTimeout(() => abortController.abort(), 3000) : null;
               let q = _supabase.from('receipts').select('receipt_no').eq('payment_ref', slipTransRef).limit(1);
               if (abortController) q = q.abortSignal(abortController.signal);
               const { data: dupRc, error: dupRcErr } = await q;
               if (timeoutId) clearTimeout(timeoutId);
-              if (!dupRcErr && Array.isArray(dupRc) && dupRc.length > 0) {
+              if (dupRcErr) {
+                window._pubSlipReplayTimeoutWarning = true;
+                console.warn('[Slip Anti-Replay Check] receipts lookup error (flagged for manual review):', dupRcErr);
+              } else if (Array.isArray(dupRc) && dupRc.length > 0) {
                 isDuplicate = true;
                 dupMsg = 'สลิปนี้เคยถูกออกใบเสร็จรับเงินแล้ว (เลขที่ ' + dupRc[0].receipt_no + ')';
               }
             } catch (rcScanNotice) {
-              console.warn('[Slip Anti-Replay Check] Notice:', rcScanNotice);
+              window._pubSlipReplayTimeoutWarning = true;
+              console.warn('[Slip Anti-Replay Check] Timeout/Error flagged for manual review:', rcScanNotice);
             }
           }
           if (isDuplicate) {
@@ -70454,10 +70879,11 @@ function openPublicRegisterView() {
             return null;
           }
         } catch (e) {
+          window._pubSlipReplayTimeoutWarning = true;
           console.warn('[Slip Anti-Replay Check] Notice:', e);
         }
       }
-      return { slipTransRef, slipHash256 };
+      return { slipTransRef, slipHash256, slipDHash, timeoutWarning: window._pubSlipReplayTimeoutWarning };
     }
     function getPubRegCartInfo() {
       const ctxCourse = (window._pubKioskContext && window._pubKioskContext.selectedCourse) || null;
@@ -70905,23 +71331,29 @@ function openPublicRegisterView() {
                       updated_at: new Date().toISOString()
                     });
                   }
-                  if (slipTransRef) {
-                    pendingRows.push({
-                      key: ('used_slip_ref:' + String(slipTransRef).slice(0, 35)),
-                      name: ('LOCKED:' + sid).slice(0, 90),
-                      amount: expectedFee,
-                      mode: 'SLIP_LOCK',
-                      updated_at: new Date().toISOString()
-                    });
-                  }
-                  if (slipHash256) {
-                    pendingRows.push({
-                      key: ('used_hash:' + String(slipHash256).slice(0, 39)),
-                      name: ('LOCKED:' + sid).slice(0, 90),
-                      amount: expectedFee,
-                      mode: 'SLIP_LOCK',
-                      updated_at: new Date().toISOString()
-                    });
+                  const pubSlipDHash = String((window._pubVerifiedSlipMeta && window._pubVerifiedSlipMeta.slipDHash) || '').trim();
+                  if (typeof window.normalizeSlipLockKeys === 'function') {
+                    const unifiedRows = window.normalizeSlipLockKeys(slipTransRef, slipHash256, pubSlipDHash).buildLockRows(sid, expectedFee);
+                    if (unifiedRows.length > 0) pendingRows.push(...unifiedRows);
+                  } else {
+                    if (slipTransRef) {
+                      pendingRows.push({
+                        key: ('used_slip_ref:' + String(slipTransRef).slice(0, 35)),
+                        name: ('LOCKED:' + sid).slice(0, 90),
+                        amount: expectedFee,
+                        mode: 'SLIP_LOCK',
+                        updated_at: new Date().toISOString()
+                      });
+                    }
+                    if (slipHash256) {
+                      pendingRows.push({
+                        key: ('used_slip_hash:' + String(slipHash256).slice(0, 40)),
+                        name: ('LOCKED:' + sid).slice(0, 90),
+                        amount: expectedFee,
+                        mode: 'SLIP_LOCK',
+                        updated_at: new Date().toISOString()
+                      });
+                    }
                   }
                   const { error: pendingUpsertErr } = await _supabase.from('fee_settings').upsert(pendingRows, { onConflict: 'key' });
                   if (pendingUpsertErr) {
@@ -75896,6 +76328,55 @@ function openPublicRegisterView() {
         "แก้ไขราคาจำหน่ายตำราเรียนแต่ละเล่มในคลังตำรา และซิงก์ไปหน้าออกใบเสร็จแบบเรียลไทม์": "在教材目录中修改各教材售价，并实时同步至收据开具页面",
         "เปิดเมนูตั้งค่าราคาตำราเรียน": "打开教材价格设置菜单",
         "บันทึกราคา": "保存价格",
+        "มีเครดิตเงินโอนเกินคงเหลือ": "可用多汇预存余额",
+        "— ใช้หักยอดใบเสร็จนี้": "— 抵扣本次收据金额",
+        "-฿0.00": "-0.00 泰铢",
+        "ตั้งค่าป้องกันทุจริตสลิปโอนเงิน (Slip Guard)": "转账凭证防伪设置",
+        "กำหนดบัญชีรับโอนของโรงเรียน, EMVCo CRC-16, อายุสลิป และผู้ให้บริการ Bank API ฝั่ง Edge Function": "配置学校收款账户、校验码、凭证有效期及云端银行接口服务商",
+        "ธนาคารรับโอน": "收款银行",
+        "เช่น ธนาคารกรุงเทพ / กสิกรไทย": "例如：盘谷银行 / 开泰银行",
+        "ชื่อบัญชีรับโอนของโรงเรียน": "学校收款账户名称",
+        "โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก": "东方文化书院",
+        "เลขบัญชีรับโอน": "收款账号",
+        "อายุสลิปสูงสุด (วัน)": "凭证最长有效期（天）",
+        "Bank API Provider (Edge Function — ไม่เก็บ API Key บนเบราว์เซอร์)": "云端银行核验接口服务商（不在浏览器保存密钥）",
+        "ปิดใช้งาน (ตรวจ EMVCo CRC-16 + dHash + แคชเชียร์ตรวจมือ)": "已关闭（仅启用校验码、图像指纹与人工核验）",
+        "SlipOK API (ผ่าน Supabase Edge Function)": "云端接口方案一",
+        "EasySlip API (ผ่าน Supabase Edge Function)": "云端接口方案二",
+        "บังคับตรวจ EMVCo CRC-16 (Tag 63) และห้ามสร้างรหัส TX_ จำลอง": "强制校验二维码防伪码并禁止生成模拟编号",
+        "ขึ้นบัญชีดำถาวร (BLACKLISTED) อัตโนมัติเมื่อปฏิเสธด้วยเหตุผล สลิปซ้ำ/ปลอม": "因重复或伪造凭证被拒时自动永久拉黑",
+        "บันทึกการตั้งค่า Slip Guard": "保存防伪设置",
+        "ตั้งค่าระบบอีเมล & ทดสอบการส่ง (Email Delivery)": "邮件系统设置与发送测试",
+        "แจ้งเตือนโควตา Brevo, สวิตช์ส่งอีเมลอัตโนมัติ (ยืนยันชำระเงิน & QR รับหนังสือ — ไม่ใช่ E-Receipt)": "邮件额度预警与自动发送开关（仅发送付款确认与领书二维码，非电子收据）",
+        "เกณฑ์แจ้งเตือนโควตา Brevo คงเหลือต่ำกว่า (ฉบับ/วัน)": "每日剩余邮件额度预警阈值（封/天）",
+        "ส่งอีเมลยืนยันการชำระเงิน & QR รับหนังสืออัตโนมัติเมื่ออนุมัติสลิป": "审核通过后自动发送付款确认与领书二维码邮件",
+        "เปิดตัวเลือกส่งอีเมลแจ้งเหตุผลเมื่อปฏิเสธสลิปโดยอัตโนมัติ": "拒绝凭证时默认勾选自动发送拒收原因邮件",
+        "บันทึกการตั้งค่าอีเมล": "保存邮件设置",
+        "ทดสอบส่งอีเมลผ่าน Edge Function": "通过云端服务测试发送邮件",
+        "ทดสอบส่งอีเมล": "发送测试邮件",
+        "คิวอีเมลที่ส่งไม่สำเร็จ (Failed Email Queue):": "发送失败邮件队列：",
+        "ส่งใหม่ทั้งหมด": "全部重试发送",
+        "เลขที่/รหัส": "编号/学号",
+        "อีเมลปลายทาง": "收件邮箱",
+        "สาเหตุ": "失败原因",
+        "เวลาที่พลาด": "失败时间",
+        "ไม่มีอีเมลที่ส่งไม่สำเร็จในคิว": "队列中暂无发送失败的邮件",
+        "รายการบัญชีดำสลิปซ้ำ/ปลอม (Blacklisted Slips):": "重复或伪造凭证黑名单：",
+        "Key ล็อก": "锁定键值",
+        "สถานะ Blacklist": "黑名单状态",
+        "เวลาบันทึก": "记录时间",
+        "ยังไม่มีรายการสลิปในบัญชีดำ (Blacklist)": "黑名单中暂无凭证记录",
+        "ตั้งเวลา Auto-Logout (Idle Session Timeout)": "自动退出登录超时设置",
+        "กำหนดระยะเวลาที่ไม่มีการใช้งานก่อนลงชื่อออกอัตโนมัติ (บันทึกใน app_settings)": "设置无操作自动登出时长（保存至全局配置表）",
+        "15 นาที (ความปลอดภัยสูง)": "15 分钟（高安全级别）",
+        "30 นาที (มาตรฐาน)": "30 分钟（标准）",
+        "60 นาที (งานเคาน์เตอร์ต่อเนื่อง)": "60 分钟（前台连续作业）",
+        "สำรองข้อมูลครบทั้ง 8 ตาราง (Full Backup)": "全量 8 表数据备份",
+        "ควรสำรองข้อมูล (เกิน 7 วัน)": "建议立即备份（已超过 7 天）",
+        "กำลังตรวจสอบประวัติการสำรองข้อมูล...": "正在检查备份历史...",
+        "สำรองข้อมูลครบทั้ง 8 ตาราง (Full JSON Backup)": "导出全部 8 张数据表完整备份",
+        "ตัวตรวจสอบค่าตั้งค่ากลาง (app_settings JSONB Inspector)": "全局配置参数检查器",
+        "กำลังโหลด app_settings...": "正在加载全局配置...",
       },
       en: {
         "+ ซื้อตำราเรียนเพิ่มในใบเสร็จนี้": "+ Add Extra Textbooks to This Receipt",
@@ -78302,6 +78783,55 @@ function openPublicRegisterView() {
         "แก้ไขราคาจำหน่ายตำราเรียนแต่ละเล่มในคลังตำรา และซิงก์ไปหน้าออกใบเสร็จแบบเรียลไทม์": "Edit individual textbook prices in the catalog with real-time sync to Receipts",
         "เปิดเมนูตั้งค่าราคาตำราเรียน": "Open Textbook Pricing",
         "บันทึกราคา": "Save Price",
+        "มีเครดิตเงินโอนเกินคงเหลือ": "Available Overpayment Credit",
+        "— ใช้หักยอดใบเสร็จนี้": "— Apply to this receipt",
+        "-฿0.00": "-฿0.00",
+        "ตั้งค่าป้องกันทุจริตสลิปโอนเงิน (Slip Guard)": "Slip Anti-Fraud Settings (Slip Guard)",
+        "กำหนดบัญชีรับโอนของโรงเรียน, EMVCo CRC-16, อายุสลิป และผู้ให้บริการ Bank API ฝั่ง Edge Function": "Configure school receiving bank account, EMVCo CRC-16, max slip age, and Edge Function Bank API provider",
+        "ธนาคารรับโอน": "Receiving Bank",
+        "เช่น ธนาคารกรุงเทพ / กสิกรไทย": "e.g. Bangkok Bank / Kasikornbank",
+        "ชื่อบัญชีรับโอนของโรงเรียน": "School Receiving Account Name",
+        "โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก": "Oriental Culture Academy (OCA)",
+        "เลขบัญชีรับโอน": "Receiving Account Number",
+        "อายุสลิปสูงสุด (วัน)": "Max Slip Age (Days)",
+        "Bank API Provider (Edge Function — ไม่เก็บ API Key บนเบราว์เซอร์)": "Bank API Provider (Edge Function — No Client API Key)",
+        "ปิดใช้งาน (ตรวจ EMVCo CRC-16 + dHash + แคชเชียร์ตรวจมือ)": "Disabled (EMVCo CRC-16 + dHash + Manual Cashier Review)",
+        "SlipOK API (ผ่าน Supabase Edge Function)": "SlipOK API (via Supabase Edge Function)",
+        "EasySlip API (ผ่าน Supabase Edge Function)": "EasySlip API (via Supabase Edge Function)",
+        "บังคับตรวจ EMVCo CRC-16 (Tag 63) และห้ามสร้างรหัส TX_ จำลอง": "Enforce EMVCo CRC-16 (Tag 63) and ban fabricated TX_ refs",
+        "ขึ้นบัญชีดำถาวร (BLACKLISTED) อัตโนมัติเมื่อปฏิเสธด้วยเหตุผล สลิปซ้ำ/ปลอม": "Auto-blacklist (BLACKLISTED) when rejecting fake/duplicate slips",
+        "บันทึกการตั้งค่า Slip Guard": "Save Slip Guard Settings",
+        "ตั้งค่าระบบอีเมล & ทดสอบการส่ง (Email Delivery)": "Email Delivery Settings & Test Send",
+        "แจ้งเตือนโควตา Brevo, สวิตช์ส่งอีเมลอัตโนมัติ (ยืนยันชำระเงิน & QR รับหนังสือ — ไม่ใช่ E-Receipt)": "Brevo quota alerts and auto-email toggles (Payment Confirmation & Book Pickup QR — Not E-Receipt)",
+        "เกณฑ์แจ้งเตือนโควตา Brevo คงเหลือต่ำกว่า (ฉบับ/วัน)": "Brevo Low-Quota Warning Threshold (emails/day)",
+        "ส่งอีเมลยืนยันการชำระเงิน & QR รับหนังสืออัตโนมัติเมื่ออนุมัติสลิป": "Auto-send Payment Confirmation & Book Pickup QR on slip approval",
+        "เปิดตัวเลือกส่งอีเมลแจ้งเหตุผลเมื่อปฏิเสธสลิปโดยอัตโนมัติ": "Enable auto-send rejection reason email on slip rejection",
+        "บันทึกการตั้งค่าอีเมล": "Save Email Settings",
+        "ทดสอบส่งอีเมลผ่าน Edge Function": "Send Test Email via Edge Function",
+        "ทดสอบส่งอีเมล": "Send Test Email",
+        "คิวอีเมลที่ส่งไม่สำเร็จ (Failed Email Queue):": "Failed Email Queue:",
+        "ส่งใหม่ทั้งหมด": "Retry All",
+        "เลขที่/รหัส": "Receipt / Student ID",
+        "อีเมลปลายทาง": "Recipient Email",
+        "สาเหตุ": "Error Reason",
+        "เวลาที่พลาด": "Failed At",
+        "ไม่มีอีเมลที่ส่งไม่สำเร็จในคิว": "No failed emails in queue",
+        "รายการบัญชีดำสลิปซ้ำ/ปลอม (Blacklisted Slips):": "Blacklisted Slips (Duplicate/Fake):",
+        "Key ล็อก": "Lock Key",
+        "สถานะ Blacklist": "Blacklist Status",
+        "เวลาบันทึก": "Recorded At",
+        "ยังไม่มีรายการสลิปในบัญชีดำ (Blacklist)": "No blacklisted slips recorded",
+        "ตั้งเวลา Auto-Logout (Idle Session Timeout)": "Auto-Logout Timeout (Idle Session)",
+        "กำหนดระยะเวลาที่ไม่มีการใช้งานก่อนลงชื่อออกอัตโนมัติ (บันทึกใน app_settings)": "Configure inactivity duration before automatic sign-out (saved in app_settings)",
+        "15 นาที (ความปลอดภัยสูง)": "15 Minutes (High Security)",
+        "30 นาที (มาตรฐาน)": "30 Minutes (Standard)",
+        "60 นาที (งานเคาน์เตอร์ต่อเนื่อง)": "60 Minutes (Continuous Counter)",
+        "สำรองข้อมูลครบทั้ง 8 ตาราง (Full Backup)": "Full 8-Table Database Backup",
+        "ควรสำรองข้อมูล (เกิน 7 วัน)": "Backup Recommended (> 7 days)",
+        "กำลังตรวจสอบประวัติการสำรองข้อมูล...": "Checking backup history...",
+        "สำรองข้อมูลครบทั้ง 8 ตาราง (Full JSON Backup)": "Export Full 8-Table Backup (JSON)",
+        "ตัวตรวจสอบค่าตั้งค่ากลาง (app_settings JSONB Inspector)": "Global Config Inspector (app_settings JSONB)",
+        "กำลังโหลด app_settings...": "Loading app_settings...",
       }
     };
     window.OCA_INNER_CONTENT_I18N = OCA_INNER_CONTENT_I18N;
@@ -79849,29 +80379,30 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     function updateThemeToggleButtons(theme) {
       const isDark = (theme === 'dark');
       const lang = window._currentSystemLang || 'th';
-      const labelDark = (lang === 'zh') ? '深色模式' : (lang === 'en' ? 'Dark' : 'โหมดมืด');
-      const labelLight = (lang === 'zh') ? '浅色模式' : (lang === 'en' ? 'Light' : 'โหมดสว่าง');
-      const labelNext = isDark ? labelLight : labelDark;
+      const labelNext = isDark
+        ? (lang === 'zh' ? '切换为浅色模式' : (lang === 'en' ? 'Switch to Light Mode' : 'สลับเป็นโหมดสว่าง'))
+        : (lang === 'zh' ? '切换为深色模式' : (lang === 'en' ? 'Switch to Dark Mode' : 'สลับเป็นโหมดมืด'));
       const iconClass = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
       const iconColor = isDark ? '#fbbf24' : '#d97706';
       const btnTop = document.getElementById('btnTopbarThemeToggle');
       if (btnTop) {
         const icon = btnTop.querySelector('i');
-        const txt = btnTop.querySelector('#txtTopbarTheme');
-        if (icon) icon.className = iconClass;
-        if (txt) txt.textContent = labelNext;
-        btnTop.title = isDark ? (lang === 'zh' ? '切换为浅色模式' : (lang === 'en' ? 'Switch to Light Mode' : 'สลับเป็นโหมดสว่าง')) : (lang === 'zh' ? '切换为深色模式' : (lang === 'en' ? 'Switch to Dark Mode' : 'สลับเป็นโหมดมืด'));
+        if (icon) {
+          icon.className = iconClass;
+          icon.style.color = isDark ? '#FBBF24' : '#FDE68A';
+        }
+        btnTop.title = labelNext;
+        btnTop.setAttribute('aria-label', labelNext);
       }
       const btnLogin = document.getElementById('btnLoginThemeToggle');
       if (btnLogin) {
         const icon = btnLogin.querySelector('i');
-        const txt = btnLogin.querySelector('#txtLoginTheme');
         if (icon) {
           icon.className = iconClass;
           icon.style.color = iconColor;
         }
-        if (txt) txt.textContent = labelNext;
-        btnLogin.title = isDark ? (lang === 'zh' ? '切换为浅色模式' : (lang === 'en' ? 'Switch to Light Mode' : 'สลับเป็นโหมดสว่าง')) : (lang === 'zh' ? '切换为深色模式' : (lang === 'en' ? 'Switch to Dark Mode' : 'สลับเป็นโหมดมืด'));
+        btnLogin.title = labelNext;
+        btnLogin.setAttribute('aria-label', labelNext);
         if (isDark) {
           btnLogin.style.background = '#182721';
           btnLogin.style.color = '#E8EFEA';
@@ -84817,6 +85348,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     }
     window.computeSlipSha256Hash = computeSlipSha256Hash;
     function parseAndValidateThaiBankSlipQr(qrRaw) {
+      if (window.OcaSlipGuard && typeof window.OcaSlipGuard.parseThaiBankSlipQrStrict === 'function') {
+        return window.OcaSlipGuard.parseThaiBankSlipQrStrict(qrRaw);
+      }
       if (!qrRaw || typeof qrRaw !== 'string') return null;
       const raw = qrRaw.trim();
       const isItmx = raw.startsWith('00') && (raw.includes('0006000001') || raw.slice(4, 16) === '000600000101');
@@ -84824,99 +85358,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       if (!isItmx && !isEmvCo && !raw.includes('000201')) {
         return null;
       }
-      const outerTags = {};
-      let idx = 0;
-      const len = raw.length;
-      while (idx + 4 <= len) {
-        const tag = raw.slice(idx, idx + 2);
-        const valLen = parseInt(raw.slice(idx + 2, idx + 4), 10);
-        if (isNaN(valLen) || idx + 4 + valLen > len) break;
-        const val = raw.slice(idx + 4, idx + 4 + valLen);
-        outerTags[tag] = val;
-        idx += 4 + valLen;
-      }
-      if (isItmx) {
-        let bankCode = '';
-        let transRef = '';
-        const tag00Val = outerTags['00'] || '';
-        if (tag00Val) {
-          let subIdx = 0;
-          const subLen = tag00Val.length;
-          while (subIdx + 4 <= subLen) {
-            const subTag = tag00Val.slice(subIdx, subIdx + 2);
-            const subValLen = parseInt(tag00Val.slice(subIdx + 2, subIdx + 4), 10);
-            if (isNaN(subValLen) || subIdx + 4 + subValLen > subLen) break;
-            const subVal = tag00Val.slice(subIdx + 4, subIdx + 4 + subValLen);
-            if (subTag === '01') {
-              bankCode = subVal;
-            } else if (subTag === '02') {
-              transRef = subVal;
-            }
-            subIdx += 4 + subValLen;
-          }
-        }
-        if (!transRef) {
-          const match = tag00Val.match(/02(\d{2})([A-Za-z0-9_-]+)/);
-          if (match) {
-            const vLen = parseInt(match[1], 10);
-            transRef = match[2].slice(0, vLen);
-          }
-        }
-        if (!bankCode) {
-          const matchB = tag00Val.match(/01(\d{2})(\d+)/);
-          if (matchB) {
-            const bLen = parseInt(matchB[1], 10);
-            bankCode = matchB[2].slice(0, bLen);
-          }
-        }
-        if (!transRef) {
-          transRef = 'TX_' + raw.slice(-28).replace(/[^A-Za-z0-9]/g, '');
-        }
-        return {
-          valid: true,
-          standard: 'ITMX_MINI_QR',
-          bankCode: bankCode,
-          transRef: transRef,
-          qrRaw: raw,
-          raw: raw
-        };
-      }
-      let transRef = '';
-      if (outerTags['62']) {
-        const t62 = outerTags['62'];
-        let sIdx = 0;
-        while (sIdx + 4 <= t62.length) {
-          const sTag = t62.slice(sIdx, sIdx + 2);
-          const sLen = parseInt(t62.slice(sIdx + 2, sIdx + 4), 10);
-          if (isNaN(sLen) || sIdx + 4 + sLen > t62.length) break;
-          const sVal = t62.slice(sIdx + 4, sIdx + 4 + sLen);
-          if (sTag === '05' || sTag === '01' || sTag === '07') {
-            if (sVal.length >= 6 && !transRef) {
-              transRef = sVal.replace(/[^A-Za-z0-9_-]/g, '');
-            }
-          }
-          sIdx += 4 + sLen;
-        }
-        if (!transRef && t62.length >= 6) {
-          transRef = t62.replace(/[^A-Za-z0-9_-]/g, '');
-        }
-      }
-      for (const tag of ['29', '30', '51']) {
-        if (!transRef && outerTags[tag] && outerTags[tag].length >= 8) {
-          transRef = outerTags[tag].replace(/[^A-Za-z0-9_-]/g, '');
-        }
-      }
-      if (!transRef || transRef.length < 6) {
-        transRef = 'TX_' + raw.slice(-28).replace(/[^A-Za-z0-9]/g, '');
-      }
-      return {
-        valid: true,
-        standard: 'EMVCO',
-        bankCode: outerTags['30'] ? outerTags['30'].slice(0, 3) : '',
-        transRef: transRef,
-        qrRaw: raw,
-        raw: raw
-      };
+      return { valid: false, unverifiedQr: true, standard: isItmx ? 'ITMX_MINI_QR' : 'EMVCO', bankCode: '', transRef: '', qrRaw: raw, raw };
     }
     window.parseAndValidateThaiBankSlipQr = parseAndValidateThaiBankSlipQr;
     async function scanSlipQrFromDataUri(dataUri) {
@@ -85796,6 +86238,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
                 <div><span style="color:var(--text-muted);">รอบเวลาเรียน:</span> <span style="color:var(--text-main);">${safeSched}</span></div>
                 <div><span style="color:var(--text-muted);">Ref สลิป:</span> <span style="font-family:monospace; color:var(--text-main);">${safeRef}</span></div>
               </div>
+              ${(window.OcaSlipGuard && typeof window.OcaSlipGuard.buildReceivingBankComparisonHtml === 'function') ? window.OcaSlipGuard.buildReceivingBankComparisonHtml(info) : ''}
             </div>
 
             <div style="display:flex; flex-direction:column; gap:14px;">
@@ -86325,6 +86768,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const safePhone = escapeHtml(info.phone || '-');
       const safeLine = escapeHtml(info.lineId || '');
       const safeEmail = escapeHtml(info.email || '');
+      const hasValidEmail = (typeof window.isValidOcaEmail === 'function') ? window.isValidOcaEmail(info.email) : Boolean(info.email && info.email.includes('@'));
+      window._activeRejectSlipInfo = { studentId, fullName: info.fullName || '-', email: info.email || '', course: info.course || '-', slipRef: info.slipRef || '' };
       modal.innerHTML = `
         <div style="background:var(--bg-subcard); border:1px solid #EF4444; border-radius:16px; max-width:520px; width:100%; padding:20px; color:var(--text-main); box-shadow:0 20px 50px rgba(0,0,0,0.6); max-height:90vh; overflow-y:auto;">
           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1E293B; padding-bottom:12px; margin-bottom:14px;">
@@ -86356,10 +86801,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             <select id="selRejectSlipReason" class="oca-input" style="width:100%; margin-bottom:8px;" onchange="if(this.value!=='อื่นๆ'){document.getElementById('txtRejectSlipNote').value=this.value;}else{document.getElementById('txtRejectSlipNote').value=''; document.getElementById('txtRejectSlipNote').focus();}">
               <option value="ยอดเงินไม่ถูกต้อง">ยอดเงินไม่ถูกต้อง</option>
               <option value="สลิปไม่ชัดเจน">สลิปไม่ชัดเจน / อ่านข้อมูลไม่ได้</option>
-              <option value="สลิปซ้ำ/ปลอม">สลิปซ้ำ / ไม่พบรายการโอนจริง</option>
+              <option value="สลิปซ้ำ/ปลอม">สลิปซ้ำ / ไม่พบรายการโอนจริง (ขึ้นบัญชีดำถาวร)</option>
               <option value="อื่นๆ"${prefillReason ? ' selected' : ''}>อื่นๆ (ระบุเพิ่มเติมด้านล่าง)</option>
             </select>
             <textarea id="txtRejectSlipNote" class="oca-input" rows="2" style="width:100%; resize:vertical;" placeholder="รายละเอียดเพิ่มเติม...">${escapeHtml(prefillReason || 'ยอดเงินไม่ถูกต้อง')}</textarea>
+            ${hasValidEmail ? `<label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12.5px; color:var(--text-main); cursor:pointer;"><input type="checkbox" id="chkSendRejectSlipEmail" checked style="width:16px; height:16px; accent-color:#047857;"> <span>ส่งอีเมลแจ้งเหตุผลการปฏิเสธสลิปไปยัง <strong>${safeEmail}</strong> อัตโนมัติ</span></label>` : ''}
           </div>
           <div style="display:flex; justify-content:flex-end; gap:10px;">
             <button type="button" onclick="document.getElementById('modalRejectPendingSlip').style.display='none'" style="background:var(--bg-subcard); color:var(--text-main); border:none; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer;">ยกเลิก</button>
@@ -86373,6 +86819,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const reasonSel = document.getElementById('selRejectSlipReason')?.value || '';
       const noteTxt = (document.getElementById('txtRejectSlipNote')?.value || '').trim();
       const rejectReason = noteTxt || reasonSel || 'ไม่อนุมัติสลิปโดยเจ้าหน้าที่การเงิน';
+      const sendRejectMail = Boolean(document.getElementById('chkSendRejectSlipEmail')?.checked);
+      const rejectInfo = (window._activeRejectSlipInfo && String(window._activeRejectSlipInfo.studentId) === String(studentId))
+        ? window._activeRejectSlipInfo
+        : { studentId, fullName: '-', email: '', course: '-', slipRef: '' };
+      const isFakeOrDup = (window.OcaSlipGuard && typeof window.OcaSlipGuard.isFakeOrDuplicateRejectReason === 'function')
+        ? window.OcaSlipGuard.isFakeOrDuplicateRejectReason(rejectReason + ' ' + reasonSel)
+        : (rejectReason.includes('สลิปซ้ำ') || rejectReason.includes('ปลอม') || reasonSel === 'สลิปซ้ำ/ปลอม');
       const btn = document.getElementById('btnConfirmRejectSlip');
       if (btn) {
         btn.disabled = true;
@@ -86390,26 +86843,42 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             .delete()
             .like('key', 'pending_slip%:' + studentId);
           if (delErr) throw delErr;
-          const { error: unlockErr } = await _supabase
-            .from('fee_settings')
-            .delete()
-            .eq('name', ('LOCKED:' + studentId).slice(0, 90));
-          if (unlockErr) console.warn('[confirmRejectPendingSlip] slip unlock warning:', unlockErr);
+          if (isFakeOrDup && window.OcaSlipGuard && typeof window.OcaSlipGuard.blacklistRejectedSlip === 'function') {
+            await window.OcaSlipGuard.blacklistRejectedSlip(studentId, rejectInfo.slipRef || '', rejectReason);
+          } else {
+            const { error: unlockErr } = await _supabase
+              .from('fee_settings')
+              .delete()
+              .eq('name', ('LOCKED:' + studentId).slice(0, 90));
+            if (unlockErr) console.warn('[confirmRejectPendingSlip] slip unlock warning:', unlockErr);
+          }
           try {
             const actor = typeof getAuditActor === 'function' ? getAuditActor() : { username: 'staff', fullName: 'Staff', role: 'CASHIER', deviceId: '', deviceInfo: '' };
             const { error: audErr } = await _supabase.from('security_audit_logs').insert([{
-              action: 'SLIP_REJECTED',
+              action: isFakeOrDup ? 'SLIP_BLACKLISTED' : 'SLIP_REJECTED',
               username: actor.username,
               full_name: actor.fullName,
               role: actor.role,
               device_id: actor.deviceId,
               device_info: actor.deviceInfo,
-              details: `ปฏิเสธสลิปนักศึกษารหัส ${studentId} เหตุผล: ${rejectReason}`,
+              details: `${isFakeOrDup ? 'ปฏิเสธและขึ้นบัญชีดำสลิป' : 'ปฏิเสธสลิป'}นักศึกษารหัส ${studentId} เหตุผล: ${rejectReason}`,
               records: 1,
               status: 'SUCCESS'
             }]);
             if (audErr) console.warn('[confirmRejectPendingSlip] audit log warning:', audErr);
           } catch (_) {}
+        }
+        if (sendRejectMail && rejectInfo.email && window.OcaEmailAdmin && typeof window.OcaEmailAdmin.sendSlipRejectionEmail === 'function') {
+          const mailRes = await window.OcaEmailAdmin.sendSlipRejectionEmail({
+            studentId,
+            toEmail: rejectInfo.email,
+            toName: rejectInfo.fullName,
+            reason: rejectReason,
+            course: rejectInfo.course
+          });
+          if (!mailRes.success && typeof showToast === 'function') {
+            showToast('ส่งอีเมลแจ้งปฏิเสธไม่สำเร็จ', (mailRes.error || 'บันทึกลงคิวส่งซ้ำแล้ว'), '⚠️', 4000);
+          }
         }
         const modal = document.getElementById('modalRejectPendingSlip');
         if (modal) modal.style.display = 'none';
@@ -86587,13 +87056,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=216';
+      const swPath = basePath + 'sw.js?v=217';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (216):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (217):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
