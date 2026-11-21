@@ -12319,7 +12319,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '215';
+      var LATEST_VERSION = '216';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -19050,14 +19050,14 @@ body.printing-report #printReportContainer {
                     <option value="term" selected>รายเทอม</option>
                     <option value="year">รายปี (พ.ศ.)</option>
                   </select>
-                  <input type="date" id="inpReportTbDate" class="oca-input" style="width:145px; height:34px; font-size:12.5px; display:none;" onchange="renderTextbookSalesReport()">
-                  <select id="selReportTbYear" class="oca-input" style="width:105px; height:34px; font-size:12.5px;" onchange="renderTextbookSalesReport()">
+                  <input type="date" id="inpReportTbDate" class="oca-input" style="width:145px; height:34px; font-size:12.5px; display:none;" onchange="loadTextbookSalesReport()">
+                  <select id="selReportTbYear" class="oca-input" style="width:105px; height:34px; font-size:12.5px;" onchange="loadTextbookSalesReport()">
                     <option value="2569" selected>2569</option>
                     <option value="2568">2568</option>
                     <option value="2570">2570</option>
                     <option value="2571">2571</option>
                   </select>
-                  <select id="selReportTbTerm" class="oca-input" style="width:110px; height:34px; font-size:12.5px;" onchange="renderTextbookSalesReport()">
+                  <select id="selReportTbTerm" class="oca-input" style="width:110px; height:34px; font-size:12.5px;" onchange="loadTextbookSalesReport()">
                     <option value="ALL">ทุกเทอม</option>
                     <option value="1">เทอม 1</option>
                     <option value="2">เทอม 2</option>
@@ -32194,6 +32194,8 @@ if (action === 'getDashboardStats') {
           if (params.regFee !== undefined) updateFields.reg_fee = Number(params.regFee);
           if (params.cardFee !== undefined) updateFields.card_fee = Number(params.cardFee);
           if (params.otherRegFee !== undefined) updateFields.other_reg_fee = Number(params.otherRegFee);
+          if (params.transferFee !== undefined) updateFields.transfer_fee = Number(params.transferFee);
+          if (params.shippingFee !== undefined) updateFields.shipping_fee = Number(params.shippingFee);
           if (params.discountNormal !== undefined) updateFields.discount_normal = Number(params.discountNormal);
           if (params.discountOther !== undefined) updateFields.discount_other = Number(params.discountOther);
           // Scenario 25 Protection: Never reset an already CLAIMED textbook status back to PENDING!
@@ -38359,7 +38361,18 @@ if (action === 'getDashboardStats') {
             }
             activeCount += 1;
             const pm = String(r.payment_method || '').toLowerCase();
-            if (pm.includes('สด') || pm.includes('cash')) {
+            const rNotes = String(r.edit_notes || '');
+            if (pm.includes('hybrid') || pm.includes('ผสม')) {
+              const hm = rNotes.match(/สลิปหลัก\s*฿?([\d,]+(?:\.\d+)?)\s*\+\s*รับส่วนต่างเพิ่ม\s*฿?([\d,]+(?:\.\d+)?)\s*\(เงินสด/);
+              if (hm) {
+                const trPart = Math.min(amt, Math.max(0, parseFloat(hm[1].replace(/,/g, '')) || 0));
+                const caPart = Math.max(0, Math.round((amt - trPart) * 100) / 100);
+                transferTotal += trPart;
+                cashTotal += caPart;
+              } else {
+                transferTotal += amt;
+              }
+            } else if (pm.includes('สด') || pm.includes('cash')) {
               cashTotal += amt;
             } else if (pm.includes('บัตร') || pm.includes('credit')) {
               creditCardTotal += amt;
@@ -38429,7 +38442,7 @@ if (action === 'getDashboardStats') {
       const note = (document.getElementById('inpShiftClosingNote')?.value || '').trim();
       const variance = physicalCash - st.cashTotal;
       const shiftKey = `shift_close_${st.yyyymmdd}`;
-      const summaryName = `Cash:${st.cashTotal}|QR:${st.transferTotal}|Net:${st.netRevenue}|Act:${physicalCash}|Var:${variance}`.slice(0, 90);
+      const summaryName = `Cash:${st.cashTotal}|QR:${st.transferTotal}|CC:${st.creditCardTotal || 0}|Net:${st.netRevenue}|Var:${variance}`.slice(0, 90);
       if (btn) btn.disabled = true;
       try {
         if (typeof _supabase === 'undefined' || !_supabase) throw new Error('ไม่พบการเชื่อมต่อฐานข้อมูล');
@@ -38445,7 +38458,7 @@ if (action === 'getDashboardStats') {
           role: actor.role,
           device_id: actor.deviceId,
           device_info: actor.deviceInfo,
-          details: JSON.stringify({ date: st.todayIso, cashTotal: st.cashTotal, transferTotal: st.transferTotal, netRevenue: st.netRevenue, voidCount: st.voidCount, voidAmount: st.voidAmount, physicalCash, variance, note }),
+          details: JSON.stringify({ date: st.todayIso, cashTotal: st.cashTotal, transferTotal: st.transferTotal, creditCardTotal: st.creditCardTotal || 0, netRevenue: st.netRevenue, voidCount: st.voidCount, voidAmount: st.voidAmount, physicalCash, variance, note }),
           records: st.activeCount,
           status: 'SUCCESS'
         }]);
@@ -38476,7 +38489,7 @@ if (action === 'getDashboardStats') {
         `ประจำวันที่ ${st.todayIso} | ผู้ปิดยอด: ${actor.fullName || actor.username || '-'}`
       );
       const varLabel = Math.abs(variance) < 0.01 ? '0.00 (ตรงยอด)' : (variance > 0 ? `+${fmt(variance)} (เกิน)` : `-${fmt(Math.abs(variance))} (ขาด)`);
-      win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>ปิดยอดแคชเชียร์ ${st.todayIso} - OCA</title><style>@page{size:A4 portrait;margin:6mm;}body{font-family:'Sarabun','Prompt',sans-serif;color:#111;margin:0;padding:2mm;font-size:13px;}table{width:100%;border-collapse:collapse;margin-top:10px;}th,td{border:1px solid #333;padding:7px 10px;}th{background:#f1f5f9;text-align:left;}td.num{text-align:right;font-family:monospace;font-weight:700;}.sig-grid{display:flex;justify-content:space-between;margin-top:36px;font-size:12.5px;}@media print{body{-webkit-print-color-adjust:exact;}}</style></head><body onload="try{window.print();}catch(_){}">${headerHtml}<table><tbody><tr><th>รายการ (Description)</th><th style="text-align:right;">จำนวนเงิน (บาท)</th></tr><tr><td>ยอดรับเงินสดในระบบ (Cash Total)</td><td class="num">฿${fmt(st.cashTotal)}</td></tr><tr><td>ยอดรับโอนเงิน / QR Code (Transfer / QR Total)</td><td class="num">฿${fmt(st.transferTotal)}</td></tr><tr><td><strong>รายรับสุทธิรวม (Net Revenue - ${st.activeCount} ฉบับ)</strong></td><td class="num"><strong>฿${fmt(st.netRevenue)}</strong></td></tr><tr><td>บิลยกเลิก (VOID) วันนี้ (${st.voidCount} ฉบับ)</td><td class="num">฿${fmt(st.voidAmount)}</td></tr><tr><td>เงินสดที่นับได้จริงในลิ้นชัก (Physical Cash Counted)</td><td class="num">฿${fmt(physicalCash)}</td></tr><tr><td>ผลต่างเงินสด (Variance: ขาด/เกิน)</td><td class="num">${varLabel}</td></tr><tr><td>หมายเหตุ (Note)</td><td>${escapeHtml(note || '-')}</td></tr></tbody></table><div class="sig-grid"><div>ลงชื่อ ....................................................<br>(${escapeHtml(actor.fullName || 'แคชเชียร์ผู้ปิดยอด')})<br>ผู้ส่งยอด / Cashier</div><div style="text-align:right;">ลงชื่อ ....................................................<br>(....................................................)<br>ผู้ตรวจสอบ / Manager</div></div></body></html>`);
+      win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>ปิดยอดแคชเชียร์ ${st.todayIso} - OCA</title><style>@page{size:A4 portrait;margin:6mm;}body{font-family:'Sarabun','Prompt',sans-serif;color:#111;margin:0;padding:2mm;font-size:13px;box-sizing:border-box;}table{width:100%;table-layout:fixed;border-collapse:collapse;margin-top:10px;}th,td{border:1px solid #333;padding:7px 10px;word-break:break-word;}th{background:#f1f5f9;text-align:left;}td.num{text-align:right;font-family:monospace;font-weight:700;}.sig-grid{display:flex;justify-content:space-between;margin-top:36px;font-size:12.5px;}@media print{body{-webkit-print-color-adjust:exact;}}</style></head><body onload="try{window.print();}catch(_){}">${headerHtml}<table><tbody><tr><th style="width:68%;">รายการ (Description)</th><th style="width:32%;text-align:right;">จำนวนเงิน (บาท)</th></tr><tr><td>ยอดรับเงินสดในระบบ (Cash Total)</td><td class="num">฿${fmt(st.cashTotal)}</td></tr><tr><td>ยอดรับโอนเงิน / QR Code (Transfer / QR Total)</td><td class="num">฿${fmt(st.transferTotal)}</td></tr><tr><td>ยอดรับบัตรเครดิต (Credit Card Total)</td><td class="num">฿${fmt(st.creditCardTotal || 0)}</td></tr><tr><td><strong>รายรับสุทธิรวม (Net Revenue - ${st.activeCount} ฉบับ)</strong></td><td class="num"><strong>฿${fmt(st.netRevenue)}</strong></td></tr><tr><td>บิลยกเลิก (VOID) วันนี้ (${st.voidCount} ฉบับ)</td><td class="num">฿${fmt(st.voidAmount)}</td></tr><tr><td>เงินสดที่นับได้จริงในลิ้นชัก (Physical Cash Counted)</td><td class="num">฿${fmt(physicalCash)}</td></tr><tr><td>ผลต่างเงินสด (Variance: ขาด/เกิน)</td><td class="num">${varLabel}</td></tr><tr><td>หมายเหตุ (Note)</td><td>${escapeHtml(note || '-')}</td></tr></tbody></table><div class="sig-grid"><div>ลงชื่อ ....................................................<br>(${escapeHtml(actor.fullName || 'แคชเชียร์ผู้ปิดยอด')})<br>ผู้ส่งยอด / Cashier</div><div style="text-align:right;">ลงชื่อ ....................................................<br>(....................................................)<br>ผู้ตรวจสอบ / Manager</div></div></body></html>`);
       win.document.close();
     }
     async function runSettingsServerPing() {
@@ -49748,12 +49761,17 @@ if (action === 'getDashboardStats') {
         baseAmount = isTuitionChecked ? Math.max(0, rawBase) : 0;
         regFee = Math.max(0, feeReg.amount);
         cardFee = Math.max(0, feeCard.amount);
-        otherRegFee = Math.max(0, feeOther.amount) + extraBooksTotal;
+        const attachedExamFee = Array.isArray(window._rcptAttachedExamItems) && window._rcptAttachedExamItems.length > 0
+          ? window._rcptAttachedExamItems.reduce((s, ex) => s + (Math.max(0, Number(ex.price) || 0) * Math.max(1, Number(ex.qty) || 1)), 0)
+          : Math.max(0, Number(window._rcptAttachedExamFee) || 0);
+        window._rcptAttachedExamFee = attachedExamFee;
+        otherRegFee = Math.max(0, feeOther.amount) + extraBooksTotal + attachedExamFee;
         const inpOther = document.getElementById('inpRcptOtherRegFee');
         const badgeOther = document.getElementById('badgeAmount_otherRegFee');
-        if (extraBooksTotal > 0) {
+        if (extraBooksTotal > 0 || attachedExamFee > 0) {
           if (inpOther) inpOther.value = otherRegFee;
-          if (badgeOther) badgeOther.innerHTML = `${Number(otherRegFee).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿ <i class="fa-solid fa-book" style="font-size:9px;"></i>`;
+          const extraIcon = attachedExamFee > 0 ? 'fa-file-pen' : 'fa-book';
+          if (badgeOther) badgeOther.innerHTML = `${Number(otherRegFee).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿ <i class="fa-solid ${extraIcon}" style="font-size:9px;"></i>`;
           document.getElementById('tileRcptOtherRegFee')?.classList.add('active');
         } else if (badgeOther && !feeOther.active) {
           badgeOther.innerHTML = `0 ฿ <i class="fa-solid fa-lock" style="font-size:9px;"></i>`;
@@ -50189,6 +50207,9 @@ if (action === 'getDashboardStats') {
       const txtAddr = document.getElementById('txtRcptAddress'); if (txtAddr) txtAddr.value = '';
       const selDel = document.getElementById('selRcptDeliveryMethod'); if (selDel) selDel.value = 'รับเอง';
       window._rcptBookCart = [];
+      window._rcptAttachedExamItems = [];
+      window._rcptAttachedExamFee = 0;
+      window._rcptAttachedExamNotes = '';
       if (typeof renderRcptBookCart === 'function') renderRcptBookCart();
       if (typeof toggleRcptTuitionExtraBooks === 'function') toggleRcptTuitionExtraBooks(false);
       const selExB = document.getElementById('selRcptTuitionExtraBook'); if (selExB) selExB.selectedIndex = 0;
@@ -50310,10 +50331,10 @@ if (action === 'getDashboardStats') {
         }
         cardFee = getActiveFeeVal('cardFee', 'chkRcptApplyCardFee', 'inpRcptCardFee');
         const presetOtherReg = getActiveFeeVal('otherRegFee', 'chkRcptApplyOtherRegFee', 'inpRcptOtherRegFee');
-        const inpOtherRegVal = document.getElementById('chkRcptApplyOtherRegFee')?.checked
-          ? Math.max(0, Number(document.getElementById('inpRcptOtherRegFee')?.value) || 0)
-          : 0;
-        otherRegFee = Math.max(presetOtherReg, inpOtherRegVal) + extraBooksTotalSave;
+        const attachedExamFeeSave = Array.isArray(window._rcptAttachedExamItems) && window._rcptAttachedExamItems.length > 0
+          ? window._rcptAttachedExamItems.reduce((s, ex) => s + (Math.max(0, Number(ex.price) || 0) * Math.max(1, Number(ex.qty) || 1)), 0)
+          : Math.max(0, Number(window._rcptAttachedExamFee) || 0);
+        otherRegFee = presetOtherReg + extraBooksTotalSave + attachedExamFeeSave;
         transferFee = getActiveFeeVal('transferFee', 'chkRcptApplyTransferFee', 'inpRcptTransferFee');
         if (isShipSaveAll) {
           shippingFee = shipRateSave * (1 + extraBooksQtySave);
@@ -50525,6 +50546,7 @@ if (action === 'getDashboardStats') {
           setButtonLoading(btnSave, false);
           if (res && res.success) {
             window._rcptAttachedExamItems = [];
+            window._rcptAttachedExamFee = 0;
             window._rcptAttachedExamNotes = '';
             receiptCurrentOfficialNo = res.receiptNo;
             receiptCurrentClaimToken = res.claimToken;
@@ -50631,6 +50653,9 @@ if (action === 'getDashboardStats') {
       window._frozenReceiptPreview = false;
       window._frozenReceiptHtml = null;
       window._rcptCompanyMeta = null;
+      window._rcptAttachedExamItems = [];
+      window._rcptAttachedExamFee = 0;
+      window._rcptAttachedExamNotes = '';
       const selRcptCourse = document.getElementById('selRcptCourse');
       if (selRcptCourse) {
         selRcptCourse.selectedIndex = 0;
@@ -51756,7 +51781,7 @@ if (action === 'getDashboardStats') {
       if (inpDel) inpDel.value = item.deliveryMethod || 'รับเอง';
       const inpLearningMode = document.getElementById('inpEditRcptLearningMode');
       if (inpLearningMode) inpLearningMode.value = item.learningMode || 'Online';
-      if (inpBase) inpBase.value = item.baseAmount || item.grandTotal || 0;
+      if (inpBase) inpBase.value = (item.baseAmount !== undefined && item.baseAmount !== null) ? Number(item.baseAmount) : Number(item.grandTotal || 0);
       if (inpReg) inpReg.value = item.regFee || 0;
       if (inpCard) inpCard.value = item.cardFee || 0;
       if (inpOtherReg) inpOtherReg.value = item.otherRegFee || 0;
@@ -51779,7 +51804,7 @@ if (action === 'getDashboardStats') {
       const otherReg = Number(document.getElementById('inpEditRcptOtherRegFee')?.value) || 0;
       const discNorm = Number(document.getElementById('inpEditRcptDiscountNormal')?.value) || 0;
       const discOther = Number(document.getElementById('inpEditRcptDiscountOther')?.value) || 0;
-      const total = Math.max(0, (base + reg + card + otherReg) - discNorm - discOther);
+      const total = Math.max(0, base - discNorm - discOther) + reg + card + otherReg;
       const grandInput = document.getElementById('inpEditRcptGrandTotal');
       if (grandInput) {
         grandInput.value = '฿' + toArabicDigits(total.toLocaleString('en-US', { minimumFractionDigits: 2 }));
@@ -51916,12 +51941,21 @@ if (action === 'getDashboardStats') {
       const baseAmount = Number(item.baseAmount !== undefined ? item.baseAmount : (item.base_amount !== undefined ? item.base_amount : gTotal)) || 0;
       const regFee = Number(item.regFee !== undefined ? item.regFee : item.reg_fee) || 0;
       const cardFee = Number(item.cardFee !== undefined ? item.cardFee : item.card_fee) || 0;
-      const otherRegFee = Number(item.otherRegFee !== undefined ? item.otherRegFee : item.other_reg_fee) || 0;
+      const rawOtherReg = Number(item.otherRegFee !== undefined ? item.otherRegFee : item.other_reg_fee) || 0;
       const transferFee = Number(item.transferFee !== undefined ? item.transferFee : item.transfer_fee) || 0;
+      const shippingFee = Number(item.shippingFee !== undefined ? item.shippingFee : item.shipping_fee) || 0;
       const normalDiscount = Number(item.discountNormal !== undefined ? item.discountNormal : item.discount_normal) || 0;
       const otherDiscount = Number(item.discountOther !== undefined ? item.discountOther : item.discount_other) || 0;
       const isTuition = (item.type === 'tuition' || item.receiptType === 'tuition' || item.receipt_type === 'tuition');
-      const subTotal = isTuition ? (baseAmount + regFee + cardFee + otherRegFee + transferFee) : baseAmount;
+      let otherRegFee = rawOtherReg;
+      if (isTuition && (transferFee > 0 || shippingFee > 0) && rawOtherReg >= (transferFee + shippingFee)) {
+        const sumWithRaw = Math.max(0, baseAmount - normalDiscount - otherDiscount) + regFee + cardFee + rawOtherReg + transferFee + shippingFee;
+        const sumWithPure = Math.max(0, baseAmount - normalDiscount - otherDiscount) + regFee + cardFee + (rawOtherReg - transferFee - shippingFee) + transferFee + shippingFee;
+        if (Math.abs(sumWithPure - gTotal) <= 1 && Math.abs(sumWithRaw - gTotal) > 1) {
+          otherRegFee = Math.max(0, rawOtherReg - transferFee - shippingFee);
+        }
+      }
+      const subTotal = isTuition ? (baseAmount + regFee + cardFee + otherRegFee + transferFee + shippingFee) : (baseAmount + shippingFee);
       const elBase = document.getElementById('lblPrevBaseAmount');
       if (elBase) elBase.textContent = toArabicDigits(baseAmount.toLocaleString('en-US', { minimumFractionDigits: 2 }));
       const rowReg = document.getElementById('rowPrevLine2');
@@ -51947,6 +51981,12 @@ if (action === 'getDashboardStats') {
       if (rowTransfer && elTransfer) {
         rowTransfer.style.display = transferFee > 0 ? '' : 'none';
         elTransfer.textContent = toArabicDigits(transferFee.toLocaleString('en-US', { minimumFractionDigits: 2 }));
+      }
+      const rowShipping = document.getElementById('rowPrevLineShippingFee');
+      const elShipping = document.getElementById('lblPrevShippingFee');
+      if (rowShipping && elShipping) {
+        rowShipping.style.display = shippingFee > 0 ? '' : 'none';
+        elShipping.textContent = toArabicDigits(shippingFee.toLocaleString('en-US', { minimumFractionDigits: 2 }));
       }
       const elSub = document.getElementById('lblPrevSubTotal');
       if (elSub) elSub.textContent = toArabicDigits(subTotal.toLocaleString('en-US', { minimumFractionDigits: 2 }));
@@ -55342,24 +55382,32 @@ if (action === 'getDashboardStats') {
           if (Array.isArray(arr)) examItemsAmt = arr.reduce((s, ex) => s + (Math.max(1, Number(ex.qty) || 1) * Math.max(0, Number(ex.price) || 0)), 0);
         } catch (_) {}
       }
+      const rawGt = Number(r.grand_total ?? r.grandTotal ?? 0);
+      let effectiveOt = ot;
+      if ((tf > 0 || sh > 0) && ot >= (tf + sh) && rawGt >= 0) {
+        const fullSum = Math.max(0, rawBase + rg + cd + ot + tf + sh - dc);
+        const dedupSum = Math.max(0, rawBase + rg + cd + (ot - tf - sh) + tf + sh - dc);
+        if (Math.abs(dedupSum - rawGt) <= 1 && Math.abs(fullSum - rawGt) > 1) {
+          effectiveOt = Math.max(0, ot - tf - sh);
+        }
+      }
       let tuition = 0, books = 0, exams = 0, other = 0;
       if (rType === 'book' || rType === 'course_book' || rType === 'textbook') {
         books = rawBase;
-        exams = Math.min(ot, examItemsAmt);
-        other = rg + cd + tf + sh + Math.max(0, ot - exams);
+        exams = Math.min(effectiveOt, examItemsAmt);
+        other = rg + cd + tf + sh + Math.max(0, effectiveOt - exams);
       } else if (rType === 'exam') {
-        books = Math.min(ot, extraBooksAmt);
-        exams = rawBase + Math.max(0, ot - books);
+        books = Math.min(effectiveOt, extraBooksAmt);
+        exams = rawBase + Math.max(0, effectiveOt - books);
         other = rg + cd + tf + sh;
       } else {
         tuition = rawBase;
-        books = Math.min(ot, extraBooksAmt);
-        const remOt = Math.max(0, ot - books);
+        books = Math.min(effectiveOt, extraBooksAmt);
+        const remOt = Math.max(0, effectiveOt - books);
         exams = Math.min(remOt, examItemsAmt > 0 ? examItemsAmt : (notes.includes('[สอบ ') ? remOt : 0));
         other = rg + cd + tf + sh + Math.max(0, remOt - exams);
       }
       const calcNet = Math.max(0, tuition + books + exams + other - dc);
-      const rawGt = Number(r.grand_total ?? r.grandTotal ?? 0);
       const grandTotal = (rawGt >= 0 && Math.abs(rawGt - calcNet) <= 1) ? rawGt : calcNet;
       return { tuition, books, exams, other, discount: dc, grandTotal };
     }
@@ -56694,29 +56742,69 @@ if (action === 'getDashboardStats') {
       renderTextbookSalesReport();
     }
     window.onReportTbModeChange = onReportTbModeChange;
+    let _tbSalesReportQueryKey = '';
+    function buildIndexedReportReceiptRange(mode, targetDate, targetYear, targetTerm) {
+      const curTerm = (typeof resolveCurrentAcademicTerm === 'function') ? resolveCurrentAcademicTerm() : { yearBE: 2569, term: 5 };
+      const yr = Number(targetYear || curTerm.yearBE || 2569);
+      const yy = String(Math.max(0, yr - 2500)).padStart(2, '0');
+      const nextYy = String(Number(yy) + 1).padStart(2, '0');
+      if (mode === 'daily' && targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+        const yAd = Number(targetDate.slice(0, 4));
+        const yBe = yAd < 2400 ? yAd + 543 : yAd;
+        const dYy = String(Math.max(0, yBe - 2500)).padStart(2, '0');
+        const prevYy = String(Math.max(0, Number(dYy) - 1)).padStart(2, '0');
+        const bounds = (typeof getBkkDayBoundsIso === 'function') ? getBkkDayBoundsIso(targetDate) : { startIso: `${targetDate}T00:00:00+07:00`, endIso: `${targetDate}T23:59:59+07:00` };
+        return { key: `daily:${targetDate}`, minR: `${prevYy}00000`, maxR: `${String(Number(dYy) + 1).padStart(2, '0')}00000`, startIso: bounds.startIso, endIso: bounds.endIso };
+      }
+      if (mode === 'term' && targetTerm && targetTerm !== 'ALL') {
+        const cleanT = String(Number(targetTerm) || 1).replace(/\D/g, '') || '1';
+        const pfx = yy + cleanT;
+        const nextPfx = String(Number(pfx) + 1).padStart(pfx.length, '0');
+        return { key: `term:${yr}:${cleanT}`, minR: `${pfx}0000`, maxR: `${nextPfx}0000`, startIso: null, endIso: null };
+      }
+      return { key: `year:${yr}`, minR: `${yy}00000`, maxR: `${nextYy}00000`, startIso: null, endIso: null };
+    }
     async function loadTextbookSalesReport(forceRefresh) {
       const tbody = document.getElementById('tbodyReportTextbookSales');
       const inpDate = document.getElementById('inpReportTbDate');
       if (inpDate && !inpDate.value) {
         inpDate.value = (typeof getBangkokTodayDateStr === 'function') ? getBangkokTodayDateStr() : toBangkokDateYmdV201(new Date().toISOString());
       }
-      if (tbody && (!_tbSalesReportRowsCache.length || forceRefresh)) {
+      const mode = document.getElementById('selReportTbMode')?.value || 'term';
+      const targetDate = (inpDate?.value || '').trim();
+      const targetYear = Number(document.getElementById('selReportTbYear')?.value || 0);
+      const targetTerm = (document.getElementById('selReportTbTerm')?.value || 'ALL').trim();
+      const range = buildIndexedReportReceiptRange(mode, targetDate, targetYear, targetTerm);
+      if (!forceRefresh && _tbSalesReportRowsCache.length > 0 && _tbSalesReportQueryKey === range.key) {
+        renderTextbookSalesReport();
+        return;
+      }
+      if (tbody) {
         tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:16px; color:var(--text-muted);">กำลังโหลดข้อมูลใบเสร็จตำราเรียน...</td></tr>';
       }
       try {
         let rows = [];
         if (typeof _supabase !== 'undefined' && _supabase) {
-          const { data, error } = await _supabase
-            .from('receipts')
-            .select('id, receipt_no, created_at, student_id, buyer_name, receipt_type, item_code, item_name, base_amount, reg_fee, card_fee, other_reg_fee, transfer_fee, shipping_fee, grand_total, claim_status, edit_notes, year_be, term')
-            .order('created_at', { ascending: false })
-            .limit(2000);
-          if (error) throw error;
-          rows = Array.isArray(data) ? data : [];
+          const execQuery = async () => {
+            let q = _supabase
+              .from('receipts')
+              .select('id, receipt_no, created_at, student_id, buyer_name, receipt_type, item_code, item_name, base_amount, reg_fee, card_fee, other_reg_fee, transfer_fee, shipping_fee, grand_total, claim_status, edit_notes, year_be, term')
+              .gte('receipt_no', range.minR)
+              .lt('receipt_no', range.maxR)
+              .or('receipt_type.in.(book,course_book,textbook),edit_notes.ilike.*EXTRA_BOOKS*');
+            if (range.startIso && range.endIso) {
+              q = q.gte('created_at', range.startIso).lte('created_at', range.endIso);
+            }
+            const { data, error } = await q.order('receipt_no', { ascending: false }).limit(2000);
+            if (error) throw error;
+            return Array.isArray(data) ? data : [];
+          };
+          rows = (typeof window.withSupabaseRetry === 'function') ? await window.withSupabaseRetry(execQuery) : await execQuery();
         } else if (Array.isArray(window._cachedAllReceipts)) {
           rows = window._cachedAllReceipts;
         }
         _tbSalesReportRowsCache = rows;
+        _tbSalesReportQueryKey = range.key;
         renderTextbookSalesReport();
       } catch (err) {
         console.error('[loadTextbookSalesReport] error:', err);
@@ -56813,7 +56901,7 @@ if (action === 'getDashboardStats') {
       const w = window.open('', '_blank', 'width=960,height=720');
       if (!w) return;
       const trHtml = rows.map((it, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(it.date)}</td><td>${escapeHtml(it.receiptNo)}</td><td>${escapeHtml(it.studentId)}</td><td>${escapeHtml(it.studentName)}</td><td>${escapeHtml(it.bookName)}</td><td style="text-align:right;">${it.qty}</td><td style="text-align:right;">${it.unitPrice.toLocaleString()}</td><td style="text-align:right;">${it.total.toLocaleString()}</td><td style="text-align:right;">${(it.transferFee || 0).toLocaleString()}</td><td style="text-align:right;">${(it.shippingFee || 0).toLocaleString()}</td></tr>`).join('');
-      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>รายงานการซื้อตำราเรียน OCA</title><style>body{font-family:'Sarabun',sans-serif;padding:20px;color:#0f172a;}table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #cbd5e1;padding:6px 8px;}th{background:#f1f5f9;text-align:left;}</style></head><body><h2 style="margin:0 0 6px;">รายงานการซื้อตำราเรียน — โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (OCA)</h2><p style="margin:0 0 12px;font-size:12.5px;">จำนวนรวม ${totalQty.toLocaleString()} เล่ม | ยอดรวม ฿${totalRev.toLocaleString()} | ค่าโอนรวม ฿${totalTf.toLocaleString()} | ค่าจัดส่งรวม ฿${totalSh.toLocaleString()}</p><table><thead><tr><th>#</th><th>วันที่</th><th>เลขใบเสร็จ</th><th>รหัส น.ศ.</th><th>ชื่อ-นามสกุล</th><th>รายการตำรา</th><th>จำนวน</th><th>ราคา/เล่ม</th><th>ยอดรวม</th><th>ค่าโอน</th><th>ค่าจัดส่ง</th></tr></thead><tbody>${trHtml || '<tr><td colspan="11" style="text-align:center;">ไม่มีข้อมูล</td></tr>'}</tbody></table></body></html>`);
+      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>รายงานการซื้อตำราเรียน OCA</title><style>@page{size:A4 landscape;margin:6mm;}body{font-family:'Sarabun',sans-serif;margin:0;padding:4mm;color:#0f172a;box-sizing:border-box;}table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:9.5px;}th,td{border:1px solid #cbd5e1;padding:4px 5px;word-break:break-word;overflow-wrap:anywhere;}th{background:#f1f5f9;text-align:left;}@media print{body{-webkit-print-color-adjust:exact;}}</style></head><body><h2 style="margin:0 0 6px;font-size:15px;">รายงานการซื้อตำราเรียน — โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (OCA)</h2><p style="margin:0 0 10px;font-size:11px;">จำนวนรวม ${totalQty.toLocaleString()} เล่ม | ยอดรวม ฿${totalRev.toLocaleString()} | ค่าโอนรวม ฿${totalTf.toLocaleString()} | ค่าจัดส่งรวม ฿${totalSh.toLocaleString()}</p><table><colgroup><col style="width:4%;"><col style="width:8%;"><col style="width:9%;"><col style="width:9%;"><col style="width:16%;"><col style="width:24%;"><col style="width:5%;"><col style="width:7%;"><col style="width:7%;"><col style="width:5.5%;"><col style="width:5.5%;"></colgroup><thead><tr><th>#</th><th>วันที่</th><th>เลขใบเสร็จ</th><th>รหัส น.ศ.</th><th>ชื่อ-นามสกุล</th><th>รายการตำรา</th><th>จำนวน</th><th>ราคา/เล่ม</th><th>ยอดรวม</th><th>ค่าโอน</th><th>ค่าจัดส่ง</th></tr></thead><tbody>${trHtml || '<tr><td colspan="11" style="text-align:center;">ไม่มีข้อมูล</td></tr>'}</tbody></table></body></html>`);
       w.document.close();
       w.focus();
       w.print();
@@ -56907,21 +56995,36 @@ if (action === 'getDashboardStats') {
       return out;
     }
     window.extractExamLineItemsFromReceipt = extractExamLineItemsFromReceipt;
+    let _examReportQueryKey = '';
     async function fetchExamReportReceipts(forceRefresh) {
-      if (!forceRefresh && _examReportRowsCache.length > 0) return _examReportRowsCache;
+      const mode = document.getElementById('selReportExamRegMode')?.value || 'term';
+      const targetDate = (document.getElementById('inpReportExamRegDate')?.value || '').trim();
+      const targetYear = Number(document.getElementById('selReportExamRegYear')?.value || 0);
+      const targetTerm = (document.getElementById('selReportExamRegTerm')?.value || 'ALL').trim();
+      const range = buildIndexedReportReceiptRange(mode, targetDate, targetYear, targetTerm);
+      if (!forceRefresh && _examReportRowsCache.length > 0 && _examReportQueryKey === range.key) return _examReportRowsCache;
       let rows = [];
       if (typeof _supabase !== 'undefined' && _supabase) {
-        const { data, error } = await _supabase
-          .from('receipts')
-          .select('id, receipt_no, created_at, student_id, buyer_name, receipt_type, item_code, item_name, base_amount, other_reg_fee, grand_total, claim_status, edit_notes, year_be, term')
-          .order('created_at', { ascending: false })
-          .limit(2000);
-        if (error) throw error;
-        rows = Array.isArray(data) ? data : [];
+        const execQuery = async () => {
+          let q = _supabase
+            .from('receipts')
+            .select('id, receipt_no, created_at, student_id, buyer_name, receipt_type, item_code, item_name, base_amount, other_reg_fee, grand_total, claim_status, edit_notes, year_be, term')
+            .gte('receipt_no', range.minR)
+            .lt('receipt_no', range.maxR)
+            .or('receipt_type.eq.exam,edit_notes.ilike.*EXAM_ITEMS*,edit_notes.ilike.*[สอบ *');
+          if (range.startIso && range.endIso) {
+            q = q.gte('created_at', range.startIso).lte('created_at', range.endIso);
+          }
+          const { data, error } = await q.order('receipt_no', { ascending: false }).limit(2000);
+          if (error) throw error;
+          return Array.isArray(data) ? data : [];
+        };
+        rows = (typeof window.withSupabaseRetry === 'function') ? await window.withSupabaseRetry(execQuery) : await execQuery();
       } else if (Array.isArray(window._cachedAllReceipts)) {
         rows = window._cachedAllReceipts;
       }
       _examReportRowsCache = rows;
+      _examReportQueryKey = range.key;
       return rows;
     }
     function onReportExamRegModeChange() {
@@ -57991,9 +58094,12 @@ if (action === 'getDashboardStats') {
         reportTitleTh = 'รายงานสรุปรายรับการเงิน',
         reportTitleZh = '财务结算汇总报告',
         periodLabel = '',
-        receipts: rawReceipts = []
+        receipts: rawReceipts = [],
+        maxDetailRows = 500
       } = opts;
       const receipts = (rawReceipts || []).filter(r => !isReceiptVoided(r));
+      const detailCap = Math.max(1, Number(maxDetailRows) || 500);
+      const displayReceipts = receipts.length > detailCap ? receipts.slice(0, detailCap) : receipts;
       const sysLang = window._currentSystemLang || 'th';
       const actor = (typeof getAuditActor === 'function') ? getAuditActor() : { fullName: 'เจ้าหน้าที่การเงิน', username: 'cashier' };
       const cashierName = actor.fullName || actor.username || 'เจ้าหน้าที่การเงิน';
@@ -58035,7 +58141,21 @@ if (action === 'getDashboardStats') {
         totalExams += bk.exams;
         totalOther += bk.other;
         const pm = String(r.paymentMethod || r.payment_method || '').toLowerCase();
-        if (pm.includes('สด') || pm.includes('cash')) {
+        const rNotes = String(r.editNotes || r.edit_notes || '');
+        if (pm.includes('hybrid') || pm.includes('ผสม')) {
+          const hm = rNotes.match(/สลิปหลัก\s*฿?([\d,]+(?:\.\d+)?)\s*\+\s*รับส่วนต่างเพิ่ม\s*฿?([\d,]+(?:\.\d+)?)\s*\(เงินสด/);
+          if (hm) {
+            const trPart = Math.min(amt, Math.max(0, parseFloat(hm[1].replace(/,/g, '')) || 0));
+            const caPart = Math.max(0, Math.round((amt - trPart) * 100) / 100);
+            payMethods.transfer.count++;
+            payMethods.transfer.amount += trPart;
+            payMethods.cash.count++;
+            payMethods.cash.amount += caPart;
+          } else {
+            payMethods.other.count++;
+            payMethods.other.amount += amt;
+          }
+        } else if (pm.includes('สด') || pm.includes('cash')) {
           payMethods.cash.count++;
           payMethods.cash.amount += amt;
         } else if (pm.includes('บัตร') || pm.includes('credit')) {
@@ -58124,7 +58244,7 @@ if (action === 'getDashboardStats') {
               <div style="font-size:8pt; color:#92400e; font-weight:700;">${curKpis[3]}</div>
               <div style="font-size:8pt; color:#0f172a; line-height:1.3; margin-top:2px; font-family:monospace;">
                 ${sysLang === 'zh' ? '转账' : (sysLang === 'en' ? 'Transfer' : 'โอน')}: ฿${payMethods.transfer.amount.toLocaleString()} (${payMethods.transfer.count})<br>
-                ${sysLang === 'zh' ? '现金' : (sysLang === 'en' ? 'Cash' : 'สด')}: ฿${payMethods.cash.amount.toLocaleString()} | ${sysLang === 'zh' ? '信用卡' : (sysLang === 'en' ? 'Card' : 'บัตร')}: ฿${payMethods.credit.amount.toLocaleString()}
+                ${sysLang === 'zh' ? '现金' : (sysLang === 'en' ? 'Cash' : 'สด')}: ฿${payMethods.cash.amount.toLocaleString()} | ${sysLang === 'zh' ? '信用卡' : (sysLang === 'en' ? 'Card' : 'บัตร')}: ฿${payMethods.credit.amount.toLocaleString()}${payMethods.other.amount > 0 ? `<br>${sysLang === 'zh' ? '其他' : (sysLang === 'en' ? 'Other' : 'อื่นๆ')}: ฿${payMethods.other.amount.toLocaleString()}` : ''}
               </div>
             </div>
           </div>
@@ -58144,7 +58264,7 @@ if (action === 'getDashboardStats') {
               </tr>
             </thead>
             <tbody>
-              ${receipts.length > 0 ? receipts.map((r, i) => {
+              ${displayReceipts.length > 0 ? displayReceipts.map((r, i) => {
                 const bg = (i % 2 === 0) ? '#ffffff' : '#f8fafc';
                 const timeOnly = r.createdAt ? new Date(r.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
                 const rType = String(r.type || r.receiptType || 'tuition').toLowerCase();
@@ -58168,7 +58288,7 @@ if (action === 'getDashboardStats') {
                     <td style="padding:4px 6px; border:1px solid #cbd5e1; text-align:right; font-family:monospace; font-weight:700;">${(Number(r.grandTotal) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   </tr>
                 `;
-              }).join('') : `
+              }).join('') + (receipts.length > displayReceipts.length ? `<tr style="background:#fef3c7;"><td colspan="8" style="padding:6px; border:1px solid #cbd5e1; text-align:center; font-size:8pt; color:#92400e; font-weight:700;">แสดง ${displayReceipts.length.toLocaleString()} รายการล่าสุดจากทั้งหมด ${receipts.length.toLocaleString()} รายการ — ยอดสรุป KPI และยอดรวมท้ายตารางคำนวณจากข้อมูลครบทั้งหมด 100%</td></tr>` : '') : `
                 <tr>
                   <td colspan="8" style="padding:16px; border:1px solid #cbd5e1; text-align:center; color:#64748b;">${sysLang === 'zh' ? '该时间段内无收据数据' : (sysLang === 'en' ? 'No receipts found for this period' : 'ไม่มีรายการใบเสร็จรับเงินสำหรับช่วงเวลานี้')}</td>
                 </tr>
@@ -58511,24 +58631,23 @@ if (action === 'getDashboardStats') {
     window.printFinanceMonthlyReport = printFinanceMonthlyReport;
     async function printFinanceTermReport() {
       const selYear = document.getElementById('selFinanceFilterYearTerm') || document.getElementById('selScheduleConfigYear');
-      const targetYear = selYear ? selYear.value : '2569';
-      const allReceipts = await fetchReceiptsForFinancePrint();
+      const curTerm = (typeof resolveCurrentAcademicTerm === 'function') ? resolveCurrentAcademicTerm() : { yearBE: 2569, term: 5 };
+      const rawYear = selYear ? String(selYear.value || '').trim() : String(curTerm.yearBE || 2569);
+      const targetYear = (rawYear && rawYear !== 'ALL') ? rawYear : String(curTerm.yearBE || 2569);
+      const allReceipts = await fetchReceiptsForFinancePrint({ yearBE: targetYear });
       const filtered = allReceipts.filter(r => {
-        if (targetYear && targetYear !== 'ALL') {
-          const rY = String(r.yearBe || r.year_be || '');
-          if (rY && rY !== targetYear) return false;
-        }
+        const rY = String(r.yearBe || r.year_be || '');
+        if (rY && rY !== targetYear) return false;
         return true;
       });
-      const termLabel = (targetYear && targetYear !== 'ALL')
-        ? `ปีการศึกษา ${targetYear} (รวมทุกเทอม)`
-        : 'รวมทุกปีการศึกษาและทุกภาคเรียน';
+      const termLabel = `ปีการศึกษา ${targetYear} (รวมทุกเทอม)`;
       const docHtml = renderFinanceA4PrintDocument({
         reportType: 'term',
         reportTitleTh: 'รายงานสรุปรายรับประจำภาคเรียน',
         reportTitleZh: '学期财务汇总报告',
         periodLabel: termLabel,
-        receipts: filtered
+        receipts: filtered,
+        maxDetailRows: 500
       });
       executeFinanceA4Print(docHtml, 'TERM_REVENUE_REPORT');
     }
@@ -58576,14 +58695,14 @@ if (action === 'getDashboardStats') {
       const now = new Date();
       const dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
       const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-      // กำหนดสไตล์หน้ากระดาษ A4 แนวตั้ง ระยะขอบแคบสุด (3mm)
+      // กำหนดสไตล์หน้ากระดาษ A4 แนวนอน เพื่อให้ตารางสรุปรายรับ (#tblFinanceTerm) พอดีหน้ากระดาษ 100% (+0.0px overflow)
       let pStyle = document.getElementById('ocaReportPrintPageStyle');
       if (!pStyle) {
         pStyle = document.createElement('style');
         pStyle.id = 'ocaReportPrintPageStyle';
         document.head.appendChild(pStyle);
       }
-      pStyle.textContent = '@page { size: A4 portrait; margin: 6mm; }';
+      pStyle.textContent = '@page { size: A4 landscape; margin: 6mm; } @media print { #printReportContainer table { table-layout: fixed !important; width: 100% !important; font-size: 9px !important; } #printReportContainer th, #printReportContainer td { word-break: break-word !important; overflow-wrap: anywhere !important; white-space: normal !important; padding: 3px 4px !important; } }';
       const wrap = document.createElement('div');
       wrap.style.fontFamily = "'Prompt', 'Noto Sans Thai', sans-serif";
       wrap.style.color = '#000000';
@@ -58608,18 +58727,25 @@ if (action === 'getDashboardStats') {
       });
       cloneFin.querySelectorAll('table').forEach(tbl => {
         tbl.style.width = '100%';
+        tbl.style.tableLayout = 'fixed';
         tbl.style.borderCollapse = 'collapse';
-        tbl.style.fontSize = '8.5pt';
+        tbl.style.fontSize = '9px';
         tbl.querySelectorAll('th').forEach(th => {
           th.style.background = '#065f46';
           th.style.color = '#ffffff';
           th.style.border = '1px solid #065f46';
-          th.style.padding = '4px 3px';
+          th.style.padding = '3px 4px';
+          th.style.whiteSpace = 'normal';
+          th.style.wordBreak = 'break-word';
+          th.style.overflowWrap = 'anywhere';
         });
         tbl.querySelectorAll('td').forEach(td => {
           td.style.border = '1px solid #cbd5e1';
           td.style.color = '#000000';
           td.style.padding = '3px 4px';
+          td.style.whiteSpace = 'normal';
+          td.style.wordBreak = 'break-word';
+          td.style.overflowWrap = 'anywhere';
         });
       });
       const footerHtml =
@@ -58757,7 +58883,7 @@ if (action === 'getDashboardStats') {
           ? Number(yr2 + String(term - 1))
           : Number(String(year - 1).slice(-2) + '5');
         _termTimetableState.semId = semId;
-        const AVAILABLE_STATIC_TERM_TIMETABLES = new Set([695]);
+        const AVAILABLE_STATIC_TERM_TIMETABLES = new Set([]);
         let timetableData = null;
         if (AVAILABLE_STATIC_TERM_TIMETABLES.has(semId)) {
           try {
@@ -58891,8 +59017,16 @@ if (action === 'getDashboardStats') {
             if (!rawCode) return;
             if (rType && rType !== 'tuition') return;
             if (/^(FEE|BOOK|CARD|SHIP|OTHER)[-_\s]/i.test(rawCode)) return;
-            const schedId = resolveReceiptSchedId(r.schedule);
-            if (!schedId) return;
+            let schedId = resolveReceiptSchedId(r.schedule);
+            if (!schedId) {
+              const rawSchedLbl = String(r.schedule || '').trim();
+              schedId = rawSchedLbl || 'UNSPECIFIED';
+              if (!schedById.has(schedId)) {
+                const dynSched = { id: schedId, name: rawSchedLbl || 'ไม่ระบุรอบเวลา' };
+                schedById.set(schedId, dynSched);
+                allSchedules.push(dynSched);
+              }
+            }
             const sidKey = String(r.student_id || r.receipt_no || '').trim();
             if (!sidKey) return;
             if (r.student_id && String(r.student_id).startsWith(prevPrefix)) {
@@ -69048,13 +69182,6 @@ function openPublicRegisterView() {
       }
       const ex = (window._ocaExamConfigs || []).find(x => String(x.id) === String(targetId));
       if (!ex) return;
-      const inpOther = document.getElementById('inpRcptOtherRegFee');
-      const chkOther = document.getElementById('chkRcptApplyOtherRegFee');
-      if (inpOther) {
-        const cur = Math.max(0, Number(inpOther.value) || 0);
-        inpOther.value = cur + Math.max(0, Number(ex.price) || 0);
-      }
-      if (chkOther) chkOther.checked = true;
       if (!Array.isArray(window._rcptAttachedExamItems)) window._rcptAttachedExamItems = [];
       window._rcptAttachedExamItems.push({
         id: ex.id || '',
@@ -69067,6 +69194,9 @@ function openPublicRegisterView() {
         room: ex.room || '',
         admitCardDate: ex.admitCardDate || ''
       });
+      window._rcptAttachedExamFee = window._rcptAttachedExamItems.reduce((s, it) => s + (Math.max(0, Number(it.price) || 0) * Math.max(1, Number(it.qty) || 1)), 0);
+      const chkOther = document.getElementById('chkRcptApplyOtherRegFee');
+      if (chkOther) chkOther.checked = true;
       const noteText = buildExamReceiptNotes([ex]);
       const inpNote = document.getElementById('inpRcptNote') || document.getElementById('inpRcptEditNotes');
       if (inpNote) {
@@ -70331,8 +70461,9 @@ function openPublicRegisterView() {
     }
     function getPubRegCartInfo() {
       const ctxCourse = (window._pubKioskContext && window._pubKioskContext.selectedCourse) || null;
-      const cartSub = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { courses: [], books: [] };
+      const cartSub = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { courses: [], books: [], exams: [] };
       const extraCartBooks = Array.isArray(cartSub.books) ? cartSub.books : [];
+      const extraCartExams = Array.isArray(cartSub.exams) ? cartSub.exams : [];
       const rawCourses = (Array.isArray(cartSub.courses) && cartSub.courses.length > 0)
         ? cartSub.courses
         : (ctxCourse ? [ctxCourse] : []);
@@ -70347,7 +70478,9 @@ function openPublicRegisterView() {
       const totalCourseQty = cartCourses.reduce((s, c) => s + Math.max(1, Number(c.qty) || 1), 0);
       const firstC = cartCourses[0] || ctxCourse;
       const selCourse = (document.getElementById('selPubCourse')?.value || (firstC && (firstC.name || firstC.code || firstC.id)) || '').trim();
-      return { selCourse, isBooksOnlyOrder: !selCourse && extraCartBooks.length > 0, extraCartBooks, cartCourse: firstC, cartCourses, totalCourseQty };
+      const isBooksOnlyOrder = !selCourse && extraCartBooks.length > 0 && extraCartExams.length === 0;
+      const isExamsOnlyOrder = !selCourse && extraCartBooks.length === 0 && extraCartExams.length > 0;
+      return { selCourse, isBooksOnlyOrder, isExamsOnlyOrder, extraCartBooks, extraCartExams, cartCourse: firstC, cartCourses, totalCourseQty };
     }
     async function submitPublicRegister() {
       if (typeof getOnlineEnrollScheduleStatus === 'function') {
@@ -70394,7 +70527,7 @@ function openPublicRegisterView() {
       const district = (document.getElementById('selPubDistrict')?.value || document.getElementById('txtPubDistrict')?.value || '').trim();
       const province = (document.getElementById('selPubProvince')?.value || document.getElementById('txtPubProvince')?.value || '').trim();
       const postalCode = (document.getElementById('selPubPostalCode')?.value || document.getElementById('txtPubPostalCode')?.value || '').trim();
-      const { selCourse, isBooksOnlyOrder, extraCartBooks, cartCourse: ctxCourse, cartCourses, totalCourseQty } = getPubRegCartInfo();
+      const { selCourse, isBooksOnlyOrder, isExamsOnlyOrder, extraCartBooks, extraCartExams, cartCourse: ctxCourse, cartCourses, totalCourseQty } = getPubRegCartInfo();
       const selSchedule = (document.getElementById('selPubSchedule')?.value || (window._pubKioskContext && window._pubKioskContext.selectedScheduleName) || '').trim();
       const userNotes = sanitizeInputText(document.getElementById('txtPubNotes')?.value || '');
       const companyName = (document.getElementById('txtPubCompanyName')?.value || document.getElementById('txtPubCorpName')?.value || '').trim();
@@ -70409,7 +70542,7 @@ function openPublicRegisterView() {
         document.getElementById('txtPubPhone')?.focus();
         return;
       }
-      if (!selCourse && !isBooksOnlyOrder) {
+      if (!selCourse && !isBooksOnlyOrder && !isExamsOnlyOrder) {
         window._lastPubSubmitTimestamp = 0;
         showModal(dict.valRequiredTitle || 'กรุณากรอกข้อมูลให้ครบถ้วน', dict.valCourse || 'กรุณาเลือกหลักสูตรที่ต้องการสมัคร', '⚠️');
         document.getElementById('selPubCourse')?.focus();
@@ -70429,7 +70562,7 @@ function openPublicRegisterView() {
       }
       const slipTransRef = slipMeta.slipTransRef;
       const slipHash256 = slipMeta.slipHash256;
-      if (!selSchedule && !isBooksOnlyOrder) {
+      if (!selSchedule && !isBooksOnlyOrder && !isExamsOnlyOrder) {
         window._lastPubSubmitTimestamp = 0;
         showModal(dict.valRequiredTitle || 'กรุณากรอกข้อมูลให้ครบถ้วน', dict.valSchedule || 'กรุณาเลือกรอบเวลาเรียนที่สะดวก', '⚠️');
         document.getElementById('selPubSchedule')?.focus();
@@ -70668,20 +70801,26 @@ function openPublicRegisterView() {
                   regDiscAmt += Number(regDisc.amount) * cQty;
                 }
               });
-              const resolvedCourseQty = isBooksOnlyOrder ? 0 : Math.max(1, totalCourseQty || effectiveCoursesList.reduce((s, c) => s + Math.max(1, Number(c.qty) || 1), 0));
+              const isNonCourseOnly = isBooksOnlyOrder || isExamsOnlyOrder;
+              const resolvedCourseQty = isNonCourseOnly ? 0 : Math.max(1, totalCourseQty || effectiveCoursesList.reduce((s, c) => s + Math.max(1, Number(c.qty) || 1), 0));
               const itemizedCourseLabel = (effectiveCoursesList.length > 1 || resolvedCourseQty > 1)
                 ? effectiveCoursesList.map(c => `${c.code || c.name || c.id}${Number(c.qty) > 1 ? ' x' + c.qty : ''}`).join(', ')
                 : selCourse;
               const isReturningPub = window._pubStudentMode === 'returning';
-              const pubRegFee = isBooksOnlyOrder ? 0 : (isReturningPub ? 0 : (typeof getEffectivePublicRegFee === 'function' ? getEffectivePublicRegFee() : 0));
+              const pubRegFee = isNonCourseOnly ? 0 : (isReturningPub ? 0 : (typeof getEffectivePublicRegFee === 'function' ? getEffectivePublicRegFee() : 0));
               const extraBooksTotal = extraCartBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
               const extraBooksQty = extraCartBooks.reduce((s, b) => s + Math.max(1, Number(b.qty) || 1), 0);
+              const safeExtraExams = Array.isArray(extraCartExams) ? extraCartExams : [];
+              const extraExamsTotal = safeExtraExams.reduce((s, ex) => s + (Math.max(0, Number(ex.price) || 0) * Math.max(1, Number(ex.qty) || 1)), 0);
+              const examItemsJsonTag = safeExtraExams.length > 0
+                ? `[EXAM_ITEMS:${JSON.stringify(safeExtraExams.map(ex => ({ id: ex.id || '', level: (typeof formatExamDisplayLevel === 'function') ? formatExamDisplayLevel(ex) : (ex.level || ex.group || ''), format: ex.format || 'Paper', qty: Math.max(1, Number(ex.qty) || 1), price: Math.max(0, Number(ex.price) || 0), examDate: ex.examDate || '', time: ex.time || '', room: ex.room || '', admitCardDate: ex.admitCardDate || '' })))}]`
+                : '';
               const pubDeliveryMethod = (document.getElementById('selPubDelivery')?.value || (window._pubKioskContext && window._pubKioskContext.deliveryMethod) || 'รับเองที่สถาบัน');
-              const isPubShipping = pubDeliveryMethod === 'จัดส่งตามที่อยู่' || pubDeliveryMethod.indexOf('จัดส่ง') !== -1;
+              const isPubShipping = !isExamsOnlyOrder && (pubDeliveryMethod === 'จัดส่งตามที่อยู่' || pubDeliveryMethod.indexOf('จัดส่ง') !== -1);
               const pubShipRate = typeof getEffectivePublicShippingFee === 'function' ? getEffectivePublicShippingFee() : 0;
               const pubShipUnits = resolvedCourseQty + extraBooksQty;
-              const pubShippingFee = isPubShipping ? (pubShipRate * Math.max(1, pubShipUnits)) : 0;
-              const expectedFee = Math.max(0, regBaseFee - regDiscAmt) + pubRegFee + extraBooksTotal + pubShippingFee;
+              const pubShippingFee = (isPubShipping && pubShipUnits > 0) ? (pubShipRate * Math.max(1, pubShipUnits)) : 0;
+              const expectedFee = Math.max(0, regBaseFee - regDiscAmt) + pubRegFee + extraBooksTotal + extraExamsTotal + pubShippingFee;
               // 3. 5-Layer Anti-Fraud: Save Pending Verification & Record Anti-Replay Locks
               try {
                 if (typeof _supabase !== 'undefined' && _supabase) {
@@ -70702,7 +70841,7 @@ function openPublicRegisterView() {
                     phone: phone,
                     lineId: lineId,
                     email: email,
-                    course: itemizedCourseLabel || selCourse,
+                    course: itemizedCourseLabel || selCourse || (isExamsOnlyOrder ? safeExtraExams.map(ex => ex.level || ex.group || 'HSK').join(', ') : ''),
                     extraCourses: effectiveCoursesList,
                     schedule: selSchedule,
                     groupSection: pubGroupSection,
@@ -70712,9 +70851,12 @@ function openPublicRegisterView() {
                     baseFee: regBaseFee,
                     discountAmount: regDiscAmt,
                     regFee: pubRegFee,
-                    otherRegFee: extraBooksTotal,
+                    otherRegFee: extraBooksTotal + extraExamsTotal,
                     extraBooks: extraCartBooks,
+                    extraExams: safeExtraExams,
+                    examItemsTag: examItemsJsonTag,
                     isBooksOnly: isBooksOnlyOrder,
+                    isExamOnly: isExamsOnlyOrder,
                     deliveryMethod: pubDeliveryMethod,
                     shippingFee: pubShippingFee,
                     studentMode: isReturningPub ? 'returning' : 'new',
@@ -84515,18 +84657,22 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const dict = (typeof OCA_REG_I18N !== 'undefined' && OCA_REG_I18N[currentRegLanguage]) || {};
       const lang = (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
       const ctxCourse = (window._pubKioskContext && window._pubKioskContext.selectedCourse) || null;
-      const cartFee = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { courses: [], books: [] };
+      const cartFee = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { courses: [], books: [], exams: [] };
       const effectiveCourse = ctxCourse || (Array.isArray(cartFee.courses) ? cartFee.courses[0] : cartFee.course) || null;
       const extraBooks = Array.isArray(cartFee.books) ? cartFee.books : [];
       const extraBooksTotal = extraBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
       const extraBooksQty = extraBooks.reduce((s, b) => s + Math.max(1, Number(b.qty) || 1), 0);
+      const extraExams = Array.isArray(cartFee.exams) ? cartFee.exams : [];
+      const extraExamsTotal = extraExams.reduce((s, ex) => s + (Math.max(0, Number(ex.price) || 0) * Math.max(1, Number(ex.qty) || 1)), 0);
+      const extraExamsQty = extraExams.reduce((s, ex) => s + Math.max(1, Number(ex.qty) || 1), 0);
       const cartCoursesList = (Array.isArray(cartFee.courses) && cartFee.courses.length > 0)
         ? cartFee.courses
         : (effectiveCourse ? [{ ...effectiveCourse, qty: Math.max(1, Number(effectiveCourse.qty) || 1) }] : []);
       const effectiveVal = val || (effectiveCourse ? (effectiveCourse.name || effectiveCourse.code || effectiveCourse.id || '') : '');
       const hasCourseFee = cartCoursesList.length > 0 || Boolean(effectiveVal);
-      const isBooksOnlyFee = !hasCourseFee && extraBooks.length > 0;
-      if (!hasCourseFee && !isBooksOnlyFee) {
+      const isBooksOnlyFee = !hasCourseFee && extraBooks.length > 0 && extraExams.length === 0;
+      const isExamsOnlyFee = !hasCourseFee && extraBooks.length === 0 && extraExams.length > 0;
+      if (!hasCourseFee && !isBooksOnlyFee && !isExamsOnlyFee && extraBooks.length === 0 && extraExams.length === 0) {
         lblAmount.textContent = '-';
         if (lblName) {
           lblName.textContent = dict.paymentCourseHint || 'กรุณาเลือกหลักสูตรในหมวดที่ 3 เพื่อแสดงยอดเงิน';
@@ -84557,9 +84703,16 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       lblAmount.textContent = `฿${netFee.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       if (typeof syncPubDeliveryUI === 'function') syncPubDeliveryUI();
       if (lblName) {
-        if (isBooksOnlyFee) {
+        if (isExamsOnlyFee) {
+          const ePrefix = lang === 'zh' ? '考试报名: ' : (lang === 'en' ? 'Exam Registration: ' : 'สมัครสอบวัดระดับ: ');
+          lblName.textContent = `${ePrefix}${extraExams.map(ex => `${ex.level || ex.group || 'HSK'} ×${ex.qty || 1}`).join(', ')}`;
+          lblName.dataset.courseSelected = 'true';
+        } else if (isBooksOnlyFee) {
           const bPrefix = lang === 'zh' ? '购买教材: ' : (lang === 'en' ? 'Textbooks: ' : 'ซื้อตำราเรียน: ');
           let noteText = `${bPrefix}${extraBooks.map(b => `${b.title} ×${b.qty}`).join(', ')}`;
+          if (extraExamsTotal > 0) {
+            noteText += lang === 'zh' ? ` + 考试费 ฿${extraExamsTotal.toLocaleString()}` : (lang === 'en' ? ` + Exam Fee ฿${extraExamsTotal.toLocaleString()}` : ` + ค่าสอบวัดระดับ ฿${extraExamsTotal.toLocaleString()}`);
+          }
           if (pubShippingFee > 0) {
             noteText += lang === 'zh' ? ` + 邮寄费 ฿${pubShippingFee.toLocaleString()}` : (lang === 'en' ? ` + Shipping ฿${pubShippingFee.toLocaleString()}` : ` + ค่าจัดส่ง ฿${pubShippingFee.toLocaleString()}`);
           }
@@ -84573,6 +84726,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           }
           if (extraBooksTotal > 0) {
             noteText += lang === 'zh' ? ` + 加购教材 ฿${extraBooksTotal.toLocaleString()}` : (lang === 'en' ? ` + Extra Books ฿${extraBooksTotal.toLocaleString()}` : ` + ตำราซื้อเพิ่ม ฿${extraBooksTotal.toLocaleString()}`);
+          }
+          if (extraExamsTotal > 0) {
+            noteText += lang === 'zh' ? ` + 考试费 ฿${extraExamsTotal.toLocaleString()}` : (lang === 'en' ? ` + Exam Fee ฿${extraExamsTotal.toLocaleString()}` : ` + ค่าสอบวัดระดับ ฿${extraExamsTotal.toLocaleString()}`);
           }
           if (pubShippingFee > 0) {
             noteText += lang === 'zh' ? ` + 教材邮寄费 ฿${pubShippingFee.toLocaleString()}` : (lang === 'en' ? ` + Shipping ฿${pubShippingFee.toLocaleString()}` : ` + ค่าจัดส่งตำรา ฿${pubShippingFee.toLocaleString()}`);
@@ -84621,8 +84777,15 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#0369A1;"><span>${escapeHtml(lblExtraBooks)}</span><strong>+฿${extraBooksTotal.toLocaleString()}</strong></div>` +
             extraBooks.map(b => `<div style="display:flex; justify-content:space-between; margin-bottom:2px; padding-left:10px; font-size:11.5px; color:#475569;"><span>• ${escapeHtml(b.title)} × ${b.qty}</span><span>฿${((Number(b.price) || 0) * (Number(b.qty) || 1)).toLocaleString()}</span></div>`).join('')
           : '';
-        brk.innerHTML = courseRowsHtml + booksRowHtml +
-          `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:${pubShippingFee > 0 ? '#92400E' : '#047857'};"><span>${escapeHtml(lblShip)}</span><strong>${pubShippingFee > 0 ? '+฿' + pubShippingFee.toLocaleString() : '฿0'}</strong></div>` +
+        const lblExtraExams = lang === 'zh' ? `考试报名费 (${extraExamsQty} 项)` : (lang === 'en' ? `Exam Registration (${extraExamsQty})` : `ค่าสมัครสอบวัดระดับ (${extraExamsQty} รายการ)`);
+        const examsRowHtml = extraExamsTotal > 0
+          ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#6D28D9;"><span>${escapeHtml(lblExtraExams)}</span><strong>+฿${extraExamsTotal.toLocaleString()}</strong></div>` +
+            extraExams.map(ex => `<div style="display:flex; justify-content:space-between; margin-bottom:2px; padding-left:10px; font-size:11.5px; color:#475569;"><span>• ${escapeHtml(ex.level || ex.group || 'HSK')} (${escapeHtml(ex.format || 'Paper')}) × ${Math.max(1, Number(ex.qty) || 1)}</span><span>฿${((Number(ex.price) || 0) * Math.max(1, Number(ex.qty) || 1)).toLocaleString()}</span></div>`).join('')
+          : '';
+        const shipRowHtml = isExamsOnlyFee
+          ? ''
+          : `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:${pubShippingFee > 0 ? '#92400E' : '#047857'};"><span>${escapeHtml(lblShip)}</span><strong>${pubShippingFee > 0 ? '+฿' + pubShippingFee.toLocaleString() : '฿0'}</strong></div>`;
+        brk.innerHTML = courseRowsHtml + booksRowHtml + examsRowHtml + shipRowHtml +
           `<div style="display:flex; justify-content:space-between; padding-top:6px; border-top:1px solid #FCD34D; font-weight:800; color:#0F172A;"><span>${escapeHtml(lblNet)}</span><span>฿${netFee.toLocaleString()}</span></div>`;
       }
     }
@@ -85431,19 +85594,21 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
      * Point 1: Cashier Approves Pending Slip -> Issues Receipt + Sends Email
      */
     function resolveApprovedSlipFallbackAmounts(info, cMatch, appRegFee, dObj) {
+      const otherReg = Math.max(0, Number(info.otherRegFee ?? 0));
+      const shipFee = Math.max(0, Number(info.shippingFee ?? 0));
       if (info.baseFee !== undefined && info.discountAmount !== undefined) {
         const b = Number(info.baseFee ?? 0);
         const d = Number(info.discountAmount ?? 0);
         const g = (info.expectedFee !== undefined && info.expectedFee !== null)
           ? Number(info.expectedFee)
-          : Math.max(0, b - d + appRegFee);
+          : Math.max(0, b - d) + appRegFee + otherReg + shipFee;
         return { appBaseFee: b, appDiscFee: d, appGrandTotal: g };
       }
       const basePrice = cMatch ? Number(cMatch.price ?? 0) : ((info.expectedFee !== undefined && info.expectedFee !== null) ? Number(info.expectedFee) : 2200);
       const dAmt = (dObj && dObj.active) ? Number(dObj.amount || 0) : 0;
       const g = (info.expectedFee !== undefined && info.expectedFee !== null)
         ? Number(info.expectedFee)
-        : Math.max(0, basePrice - dAmt + appRegFee);
+        : Math.max(0, basePrice - dAmt) + appRegFee + otherReg + shipFee;
       return { appBaseFee: basePrice, appDiscFee: dAmt, appGrandTotal: g };
     }
     function closeVerifySlipVarianceModal() {
@@ -86076,10 +86241,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
         approveSucceeded = true;
         if (typeof logSecurityAuditAction === 'function') {
-          const isVariance = Boolean(varianceOpts && Number(varianceOpts.varianceAmount || 0) !== 0);
+          const vDiff = varianceOpts ? Number(varianceOpts.varianceAmount ?? varianceOpts.diff ?? 0) : 0;
+          const isVariance = Boolean(varianceOpts && vDiff !== 0);
           logSecurityAuditAction(
             isVariance ? 'SLIP_VARIANCE_APPROVED' : 'SLIP_APPROVED',
-            `อนุมัติสลิป น.ศ. ${studentId} ใบเสร็จ ${rcRes?.receiptNo || '-'}${isVariance ? ' (ยอดต่าง ' + varianceOpts.varianceAmount + ')' : ''}`,
+            `อนุมัติสลิป น.ศ. ${studentId} ใบเสร็จ ${rcRes?.receiptNo || '-'}${isVariance ? ' (ยอดต่าง ' + vDiff + ')' : ''}`,
             1
           );
         }
@@ -86421,13 +86587,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=215';
+      const swPath = basePath + 'sw.js?v=216';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (215):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (216):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
