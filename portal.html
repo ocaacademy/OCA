@@ -12041,7 +12041,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '212';
+      var LATEST_VERSION = '213';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -25453,13 +25453,53 @@ body.printing-report #printReportContainer {
       }
     }
     window._ocaTeacherScheduleMap = window._ocaTeacherScheduleMap || {};
+    function isTransientSupabaseError(err) {
+      if (!err) return false;
+      const status = Number(err.status || err.statusCode || 0);
+      if (status >= 400 && status < 500) return false;
+      const code = String(err.code || '').toUpperCase();
+      if (code === 'PGRST204' || code === 'PGRST205' || code === '42P01' || code === '23505' || code === '42501') return false;
+      if (status >= 500 || code === '57014' || code === '57P01' || code === '08006') return true;
+      const msg = String(err.message || err.details || err || '').toLowerCase();
+      return msg.includes('statement timeout') || msg.includes('canceling statement') || msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('502') || msg.includes('503') || msg.includes('504') || msg.includes('timeout');
+    }
+    async function withSupabaseRetry(fn, opts) {
+      const cfg = opts || {};
+      const retries = typeof cfg.retries === 'number' ? cfg.retries : 2;
+      const baseDelayMs = typeof cfg.baseDelayMs === 'number' ? cfg.baseDelayMs : 600;
+      let lastRes = null;
+      let lastErr = null;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const res = await fn();
+          if (res && typeof res === 'object' && 'error' in res && res.error) {
+            if (attempt < retries && isTransientSupabaseError(res.error)) {
+              await new Promise(r => setTimeout(r, baseDelayMs * (attempt + 1)));
+              continue;
+            }
+            return res;
+          }
+          return res;
+        } catch (err) {
+          lastErr = err;
+          if (attempt < retries && isTransientSupabaseError(err)) {
+            await new Promise(r => setTimeout(r, baseDelayMs * (attempt + 1)));
+            continue;
+          }
+          throw err;
+        }
+      }
+      if (lastErr) throw lastErr;
+      return lastRes;
+    }
+    window.withSupabaseRetry = withSupabaseRetry;
     async function hydrateTeacherSchedulesFromSupabase() {
       try {
         if (typeof _supabase === 'undefined' || !_supabase) return window._ocaTeacherScheduleMap;
-        const { data, error } = await _supabase
+        const { data, error } = await withSupabaseRetry(() => _supabase
           .from('fee_settings')
           .select('key, name, updated_at')
-          .like('key', 'teacher_sched_%');
+          .like('key', 'teacher_sched_%'), { retries: 2, baseDelayMs: 600 });
         if (error) {
           console.warn('[TeacherSchedule] hydrateTeacherSchedulesFromSupabase error:', error);
           return window._ocaTeacherScheduleMap;
@@ -38611,9 +38651,15 @@ if (action === 'getDashboardStats') {
           isFailover = false;
           credits = prepaidCredits;
           let storedMax = Number(localStorage.getItem('oca_brevo_max_credits') || 0);
+          if (!storedMax && window.OcaAppConfig && typeof window.OcaAppConfig.get === 'function') {
+            try { storedMax = Number(await window.OcaAppConfig.get('brevo_max_credits', 0)) || 0; } catch (_) {}
+          }
           if (credits > storedMax) {
             storedMax = credits >= 10000 ? Math.ceil(credits / 5000) * 5000 : 5000;
             try { localStorage.setItem('oca_brevo_max_credits', String(storedMax)); } catch (_) {}
+            if (window.OcaAppConfig && typeof window.OcaAppConfig.set === 'function') {
+              window.OcaAppConfig.set('brevo_max_credits', storedMax, 'email').catch(() => {});
+            }
           }
           maxCredits = Math.max(5000, storedMax);
           planLabel = 'PREPAID';
@@ -40061,11 +40107,11 @@ if (action === 'getDashboardStats') {
       const box = document.getElementById('boxCustomGeneralFeeItems');
       if (!box || typeof _supabase === 'undefined' || !_supabase) return;
       try {
-        const { data, error } = await _supabase
+        const { data, error } = await withSupabaseRetry(() => _supabase
           .from('fee_settings')
           .select('*')
           .like('key', 'custom_fee_%')
-          .order('updated_at', { ascending: true });
+          .order('updated_at', { ascending: true }), { retries: 2, baseDelayMs: 600 });
         if (error) throw error;
         const rows = Array.isArray(data) ? data : [];
         box.innerHTML = rows.map(r => {
@@ -42181,6 +42227,9 @@ if (action === 'getDashboardStats') {
         localStorage.setItem('oca_cached_term_dates_by_year', JSON.stringify(cachedTermDatesByYear));
         localStorage.setItem('oca_term_dates_by_year_v1', JSON.stringify(cachedTermDatesByYear));
       } catch (_) {}
+      if (window.OcaAppConfig && typeof window.OcaAppConfig.set === 'function') {
+        window.OcaAppConfig.set('selected_term_dates_year', String(selectedYear), 'academic').catch(() => {});
+      }
       callGasApi('saveTermOpenDates', { termOpenDates: openDates, termCloseDates: closeDates, termDatesByYear: cachedTermDatesByYear, yearBE: selectedYear }, 'POST')
         .then(res => {
           if (res && res.success) {
@@ -42559,10 +42608,10 @@ if (action === 'getDashboardStats') {
           } catch (_) {}
         }
         if (typeof _supabase !== 'undefined' && _supabase) {
-          const { data: catRows, error: catErr } = await _supabase
+          const { data: catRows, error: catErr } = await withSupabaseRetry(() => _supabase
             .from('fee_settings')
             .select('key, name')
-            .like('key', 'cfg_cat_icon_%');
+            .like('key', 'cfg_cat_icon_%'), { retries: 2, baseDelayMs: 600 });
           if (!catErr && Array.isArray(catRows) && catRows.length > 0) {
             const remoteMap = {};
             catRows.forEach(r => {
@@ -43200,8 +43249,10 @@ if (action === 'getDashboardStats') {
           const termVal = curParts[1] || '5';
           const offeredCodes = (typeof getOfferedCourseCodesForSchedule === 'function') ? getOfferedCourseCodesForSchedule(s.id || rawName, termVal, yearVal) : [];
           const offeredCount = offeredCodes.length;
+          const schedIdEsc = escapeHtml(s.id || rawName);
+          const schedNameEsc = escapeHtml(rawName || s.id || '');
           const courseBadgeHtml = offeredCount > 0
-            ? '<span class="oca-schedule-course-badge" style="font-size:11.5px; padding:3px 10px; border-radius:10px; background:rgba(215,166,0,0.15); color:#0F172A; border:1px solid rgba(180,83,9,0.35); display:inline-flex; align-items:center; gap:5px; font-weight:600;"><i class="fa-solid fa-book-open"></i> เปิดรับ ' + toArabicDigits(offeredCount) + ' คอร์ส</span>'
+            ? '<span class="oca-schedule-course-badge oca-schedule-course-badge-interactive" tabindex="0" role="button" aria-label="ดูรายชื่อคอร์สที่เปิดรับ" data-sched-id="' + schedIdEsc + '" data-sched-name="' + schedNameEsc + '" data-term="' + escapeHtml(termVal) + '" data-year="' + escapeHtml(yearVal) + '" onmouseenter="showScheduleCoursesPopover(this)" onmouseleave="scheduleHideScheduleCoursesPopover()" onfocus="showScheduleCoursesPopover(this)" onblur="scheduleHideScheduleCoursesPopover()" onclick="toggleScheduleCoursesPopover(this, event)" style="font-size:11.5px; padding:3px 10px; border-radius:10px; background:rgba(215,166,0,0.15); color:#0F172A; border:1px solid rgba(180,83,9,0.35); display:inline-flex; align-items:center; gap:5px; font-weight:600; cursor:pointer;"><i class="fa-solid fa-book-open"></i> เปิดรับ ' + toArabicDigits(offeredCount) + ' คอร์ส</span>'
             : '<span class="oca-schedule-course-badge" style="font-size:11.5px; padding:3px 10px; border-radius:10px; background:var(--bg-subcard); color:var(--text-muted); border:1px solid var(--border-soft); display:inline-flex; align-items:center; gap:5px;"><i class="fa-solid fa-book-open"></i> ทุกคอร์สที่เปิดสอน</span>';
           const dayHtml = dayPart
             ? '<span class="oca-schedule-day-badge"><i class="fa-solid fa-calendar-day"></i> ' + escapeHtml(dayPart) + '</span>'
@@ -43227,6 +43278,139 @@ if (action === 'getDashboardStats') {
       }
     }
     window.renderSchedulesTable = renderSchedulesTable;
+    let _schedPopoverHideTimer = null;
+    let _schedPopoverActiveTrigger = null;
+    function getOrCreateScheduleCoursesPopover() {
+      let pop = document.getElementById('ocaScheduleCoursesPopover');
+      if (!pop) {
+        pop = document.createElement('div');
+        pop.id = 'ocaScheduleCoursesPopover';
+        pop.setAttribute('role', 'tooltip');
+        pop.style.cssText = 'position:fixed; z-index:99999; display:none; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 14px 36px rgba(15,23,42,0.22); min-width:340px; max-width:540px; max-height:360px; overflow:hidden; font-family:inherit; text-align:left;';
+        pop.addEventListener('mouseenter', () => {
+          if (_schedPopoverHideTimer) { clearTimeout(_schedPopoverHideTimer); _schedPopoverHideTimer = null; }
+        });
+        pop.addEventListener('mouseleave', () => {
+          scheduleHideScheduleCoursesPopover();
+        });
+        document.body.appendChild(pop);
+        document.addEventListener('click', (ev) => {
+          const p = document.getElementById('ocaScheduleCoursesPopover');
+          if (!p || p.style.display === 'none') return;
+          if (!p.contains(ev.target) && (!ev.target || !ev.target.closest || !ev.target.closest('.oca-schedule-course-badge-interactive'))) {
+            hideScheduleCoursesPopover();
+          }
+        });
+        window.addEventListener('scroll', () => { hideScheduleCoursesPopover(); }, true);
+      }
+      return pop;
+    }
+    function hideScheduleCoursesPopover() {
+      if (_schedPopoverHideTimer) { clearTimeout(_schedPopoverHideTimer); _schedPopoverHideTimer = null; }
+      const pop = document.getElementById('ocaScheduleCoursesPopover');
+      if (pop) pop.style.display = 'none';
+      _schedPopoverActiveTrigger = null;
+    }
+    window.hideScheduleCoursesPopover = hideScheduleCoursesPopover;
+    function scheduleHideScheduleCoursesPopover() {
+      if (_schedPopoverHideTimer) clearTimeout(_schedPopoverHideTimer);
+      _schedPopoverHideTimer = setTimeout(() => { hideScheduleCoursesPopover(); }, 180);
+    }
+    window.scheduleHideScheduleCoursesPopover = scheduleHideScheduleCoursesPopover;
+    function showScheduleCoursesPopover(triggerEl) {
+      if (!triggerEl) return;
+      if (_schedPopoverHideTimer) { clearTimeout(_schedPopoverHideTimer); _schedPopoverHideTimer = null; }
+      const schedId = triggerEl.getAttribute('data-sched-id') || '';
+      const schedName = triggerEl.getAttribute('data-sched-name') || schedId;
+      const termVal = triggerEl.getAttribute('data-term') || '1';
+      const yearVal = triggerEl.getAttribute('data-year') || '2570';
+      const codes = (typeof getOfferedCourseCodesForSchedule === 'function')
+        ? getOfferedCourseCodesForSchedule(schedId, termVal, yearVal)
+        : [];
+      if (!Array.isArray(codes) || codes.length === 0) {
+        hideScheduleCoursesPopover();
+        return;
+      }
+      const courseById = new Map();
+      (Array.isArray(cachedCoursesList) ? cachedCoursesList : []).forEach(c => {
+        if (c && c.id) courseById.set(String(c.id), c);
+        if (c && c.code) courseById.set(String(c.code), c);
+      });
+      const sortedCodes = [...codes].sort((a, b) => (typeof naturalCompareCode === 'function' ? naturalCompareCode(a, b) : String(a).localeCompare(String(b))));
+      const rowsHtml = sortedCodes.map((code, idx) => {
+        const cObj = courseById.get(String(code));
+        const cName = (cObj && cObj.name) ? cObj.name : '-';
+        const groups = (typeof getCourseGroupInstructorList === 'function')
+          ? getCourseGroupInstructorList(code, schedId, termVal, yearVal)
+          : [];
+        const grpSummary = (Array.isArray(groups) && groups.length > 0)
+          ? groups.map(g => {
+              const sec = g.section ? ('กลุ่ม ' + g.section) : '';
+              const lec = g.lecturerName ? g.lecturerName : '';
+              const rm = g.room ? ('ห้อง ' + g.room) : '';
+              return [sec, lec, rm].filter(Boolean).join(' • ');
+            }).filter(Boolean).join('<br>')
+          : '<span style="color:#64748b;">-</span>';
+        const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+        return '<tr style="background:' + rowBg + '; border-bottom:1px solid #e2e8f0;">' +
+          '<td style="padding:7px 10px; font-family:monospace; font-weight:700; color:#0f172a; white-space:nowrap; vertical-align:top;">' + escapeHtml(code) + '</td>' +
+          '<td style="padding:7px 10px; color:#0f172a; font-weight:500; vertical-align:top;">' + escapeHtml(cName) + '</td>' +
+          '<td style="padding:7px 10px; color:#334155; font-size:11.5px; vertical-align:top;">' + grpSummary + '</td>' +
+          '</tr>';
+      }).join('');
+      const pop = getOrCreateScheduleCoursesPopover();
+      pop.innerHTML =
+        '<div style="padding:10px 14px; background:#f8fafc; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; gap:10px;">' +
+        '  <div style="font-size:12.5px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' +
+        '    <i class="fa-solid fa-book-open" style="color:#b45309; margin-right:6px;"></i>' + escapeHtml(schedName) +
+        '  </div>' +
+        '  <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; background:#fef3c7; color:#0f172a; border:1px solid #f59e0b; white-space:nowrap;">' + toArabicDigits(sortedCodes.length) + ' คอร์ส • เทอม ' + escapeHtml(termVal) + '/' + escapeHtml(yearVal) + '</span>' +
+        '</div>' +
+        '<div style="max-height:290px; overflow-y:auto; overflow-x:auto; background:#ffffff;">' +
+        '  <table style="width:100%; border-collapse:collapse; font-size:12px; background:#ffffff; color:#0f172a;">' +
+        '    <thead>' +
+        '      <tr style="background:#f1f5f9; border-bottom:1px solid #cbd5e1;">' +
+        '        <th style="position:sticky; top:0; background:#f1f5f9; color:#0f172a; font-weight:700; padding:7px 10px; text-align:left; white-space:nowrap;">รหัสคอร์ส</th>' +
+        '        <th style="position:sticky; top:0; background:#f1f5f9; color:#0f172a; font-weight:700; padding:7px 10px; text-align:left; white-space:nowrap;">ชื่อคอร์ส</th>' +
+        '        <th style="position:sticky; top:0; background:#f1f5f9; color:#0f172a; font-weight:700; padding:7px 10px; text-align:left; white-space:nowrap;">กลุ่ม / ผู้สอน</th>' +
+        '      </tr>' +
+        '    </thead>' +
+        '    <tbody>' + rowsHtml + '</tbody>' +
+        '  </table>' +
+        '</div>';
+      pop.style.visibility = 'hidden';
+      pop.style.display = 'block';
+      const rect = triggerEl.getBoundingClientRect();
+      const popRect = pop.getBoundingClientRect();
+      const popW = Math.min(Math.max(popRect.width || 380, 340), Math.min(540, window.innerWidth - 24));
+      const popH = Math.min(popRect.height || 240, 360);
+      pop.style.width = popW + 'px';
+      let left = rect.left;
+      if (left + popW > window.innerWidth - 12) {
+        left = Math.max(12, window.innerWidth - popW - 12);
+      }
+      if (left < 12) left = 12;
+      let top = rect.bottom + 8;
+      if (top + popH > window.innerHeight - 12) {
+        const aboveTop = rect.top - popH - 8;
+        top = aboveTop >= 12 ? aboveTop : Math.max(12, window.innerHeight - popH - 12);
+      }
+      pop.style.left = Math.round(left) + 'px';
+      pop.style.top = Math.round(top) + 'px';
+      pop.style.visibility = 'visible';
+      _schedPopoverActiveTrigger = triggerEl;
+    }
+    window.showScheduleCoursesPopover = showScheduleCoursesPopover;
+    function toggleScheduleCoursesPopover(triggerEl, ev) {
+      if (ev) ev.stopPropagation();
+      const pop = document.getElementById('ocaScheduleCoursesPopover');
+      if (pop && pop.style.display !== 'none' && _schedPopoverActiveTrigger === triggerEl) {
+        hideScheduleCoursesPopover();
+      } else {
+        showScheduleCoursesPopover(triggerEl);
+      }
+    }
+    window.toggleScheduleCoursesPopover = toggleScheduleCoursesPopover;
     function generateNewCourseCode() {
       let newCode = '';
       let attempts = 0;
@@ -46523,6 +46707,9 @@ if (action === 'getDashboardStats') {
         if (_cardCalibCloudTimer) clearTimeout(_cardCalibCloudTimer);
         _cardCalibCloudTimer = setTimeout(async () => {
           try {
+            if (window.OcaAppConfig && typeof window.OcaAppConfig.set === 'function') {
+              await window.OcaAppConfig.set('card_printer_calibration', map, 'printer');
+            }
             if (typeof _supabase !== 'undefined' && _supabase) {
               { const { error: wErr } = await _supabase.from('fee_settings').upsert(
                 {
@@ -46558,14 +46745,29 @@ if (action === 'getDashboardStats') {
       if (!currentCardStudent) {
         resetCardFormFields();
       }
-      // Sync from Cloud settings if available
+      // Sync from Cloud settings if available (prefer full JSONB in app_settings, fallback to fee_settings)
       try {
+        if (window.OcaAppConfig && typeof window.OcaAppConfig.get === 'function') {
+          const fullCloudMap = await window.OcaAppConfig.get('card_printer_calibration', null);
+          if (fullCloudMap && typeof fullCloudMap === 'object' && Object.keys(fullCloudMap).length > 0) {
+            const localRaw = localStorage.getItem('oca_card_calib_map');
+            const restored = {};
+            try { Object.assign(restored, JSON.parse(localRaw || '{}') || {}); } catch (_) {}
+            Object.assign(restored, fullCloudMap);
+            localStorage.setItem('oca_card_calib_map', JSON.stringify(restored));
+            if (restored._activePreset) {
+              localStorage.setItem('oca_card_printer_preset', restored._activePreset);
+            }
+            loadCardCalibrationSettings();
+            return;
+          }
+        }
         if (typeof _supabase !== 'undefined' && _supabase) {
-          const { data, error: cloudErr } = await _supabase
+          const { data, error: cloudErr } = await withSupabaseRetry(() => _supabase
             .from('fee_settings')
             .select('name')
             .eq('key', 'card_printer_calibration_json')
-            .maybeSingle();
+            .maybeSingle(), { retries: 2, baseDelayMs: 600 });
           if (!cloudErr && data && data.name) {
             try {
               const cloudMap = JSON.parse(data.name);
@@ -58262,7 +58464,11 @@ if (action === 'getDashboardStats') {
         </div>
       </td></tr>`;
       try {
-        const semId = 695 + ((year - 2569) * 5) + (term - 5);
+        const yr2 = String(year).slice(-2);
+        const semId = Number(yr2 + String(term));
+        const prevSemId = term > 1
+          ? Number(yr2 + String(term - 1))
+          : Number(String(year - 1).slice(-2) + '5');
         _termTimetableState.semId = semId;
         const AVAILABLE_STATIC_TERM_TIMETABLES = new Set([695]);
         let timetableData = null;
@@ -58305,7 +58511,7 @@ if (action === 'getDashboardStats') {
           _termTimetableState.data = timetableData;
           renderTermTimetableReport(timetableData);
         } else {
-          // Dynamic timetable generation from Course Group & Instructor Settings across ALL schedules
+          // Dynamic timetable generation from Course Group & Instructor Settings + Live Supabase Receipts
           if (window._ocaCoreCacheDirty && (window._ocaCoreCacheDirty.courses || window._ocaCoreCacheDirty.schedules || window._ocaCoreCacheDirty.classrooms || window._ocaCoreCacheDirty.offerings)) {
             if (typeof loadCoursesManager === 'function') {
               try { await loadCoursesManager(false, true); } catch (_) {}
@@ -58320,8 +58526,116 @@ if (action === 'getDashboardStats') {
             ? [...cachedSchedulesList]
             : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES) ? [...OFFICIAL_DEFAULT_SCHEDULES] : [{ id: 'SCH-01', name: 'วันจันทร์,พุธ 18.30-21.00 น.' }]))
             .sort((a, b) => naturalCompareCode(a.id || a.name, b.id || b.name));
+          const normSchedKey = (str) => String(str || '').replace(/\s+/g, '').replace(/[.:]/g, '.').replace(/[–—-]/g, '-').replace(/น\.?$/g, '').toLowerCase();
+          const schedLookupByNorm = new Map();
+          const schedById = new Map();
+          allSchedules.forEach(s => {
+            if (!s) return;
+            const sId = String(s.id || '').trim();
+            if (sId) {
+              schedById.set(sId, s);
+              schedLookupByNorm.set(normSchedKey(sId), sId);
+            }
+            const sName = String(s.name || s.day_time || '').trim();
+            if (sName) schedLookupByNorm.set(normSchedKey(sName), sId || sName);
+            const sDayTime = String(s.day_time || '').trim();
+            if (sDayTime) schedLookupByNorm.set(normSchedKey(sDayTime), sId || sDayTime);
+          });
+          const resolveReceiptSchedId = (rawSched) => {
+            const nk = normSchedKey(rawSched);
+            if (!nk) return '';
+            if (schedLookupByNorm.has(nk)) return schedLookupByNorm.get(nk);
+            for (const [k, idVal] of schedLookupByNorm.entries()) {
+              if (k.length >= 6 && (nk.includes(k) || k.includes(nk))) return idVal;
+            }
+            return '';
+          };
+          // Fetch live tuition receipts for this term using indexed receipt_no range scan (fast, zero 57014 timeout)
+          const liveReceipts = [];
+          let suspendedCount = 0;
+          let returnedFromPrevCount = 0;
+          const termPrefix = String(semId);
+          const nextPrefix = String(semId + 1);
+          const prevPrefix = String(prevSemId);
+          if (typeof _supabase !== 'undefined' && _supabase) {
+            try {
+              const pageSize = 1000;
+              for (let page = 0; page < 5; page++) {
+                const from = page * pageSize;
+                const to = from + pageSize - 1;
+                const { data: rRows, error: rErr } = await withSupabaseRetry(() => _supabase
+                  .from('receipts')
+                  .select('receipt_no, student_id, item_code, schedule, class_group, teacher_name, room, receipt_type')
+                  .gte('receipt_no', termPrefix)
+                  .lt('receipt_no', nextPrefix)
+                  .range(from, to), { retries: 2, baseDelayMs: 600 });
+                if (rErr) {
+                  console.warn('[TermTimetable] Live receipts query error:', rErr);
+                  break;
+                }
+                if (Array.isArray(rRows) && rRows.length > 0) {
+                  liveReceipts.push(...rRows);
+                }
+                if (!rRows || rRows.length < pageSize) break;
+              }
+            } catch (rEx) {
+              console.warn('[TermTimetable] Live receipts fetch exception:', rEx);
+            }
+            try {
+              const { data: suspRows, error: suspErr } = await withSupabaseRetry(() => _supabase
+                .from('students')
+                .select('student_id, status')
+                .gte('student_id', termPrefix + '0000')
+                .lt('student_id', nextPrefix + '0000')
+                .in('status', ['DROPPED', 'SUSPENDED', 'พักการเรียน']), { retries: 1, baseDelayMs: 600 });
+              if (!suspErr && Array.isArray(suspRows)) {
+                suspendedCount = suspRows.length;
+              }
+            } catch (_) {}
+          }
+          // Index live tuition receipts by (schedId, courseCode, section) and track distinct students
+          const liveBuckets = new Map();
+          const liveUnmatchedByCourseSched = new Map();
+          const returnedStudentsSet = new Set();
+          liveReceipts.forEach(r => {
+            if (!r) return;
+            const rType = String(r.receipt_type || '').toLowerCase().trim();
+            const rawCode = String(r.item_code || '').trim();
+            if (!rawCode) return;
+            if (rType && rType !== 'tuition') return;
+            if (/^(FEE|BOOK|CARD|SHIP|OTHER)[-_\s]/i.test(rawCode)) return;
+            const schedId = resolveReceiptSchedId(r.schedule);
+            if (!schedId) return;
+            const sidKey = String(r.student_id || r.receipt_no || '').trim();
+            if (!sidKey) return;
+            if (r.student_id && String(r.student_id).startsWith(prevPrefix)) {
+              returnedStudentsSet.add(String(r.student_id));
+            }
+            const grpRaw = String(r.class_group || '').trim().toUpperCase();
+            const csKey = `${schedId}::${rawCode}`;
+            if (grpRaw) {
+              const fullKey = `${csKey}::${grpRaw}`;
+              if (!liveBuckets.has(fullKey)) {
+                liveBuckets.set(fullKey, { students: new Set(), teacherName: r.teacher_name || '', room: r.room || '' });
+              }
+              const b = liveBuckets.get(fullKey);
+              b.students.add(sidKey);
+              if (!b.teacherName && r.teacher_name) b.teacherName = r.teacher_name;
+              if (!b.room && r.room) b.room = r.room;
+            } else {
+              if (!liveUnmatchedByCourseSched.has(csKey)) {
+                liveUnmatchedByCourseSched.set(csKey, { students: new Set(), teacherName: r.teacher_name || '', room: r.room || '' });
+              }
+              const ub = liveUnmatchedByCourseSched.get(csKey);
+              ub.students.add(sidKey);
+              if (!ub.teacherName && r.teacher_name) ub.teacherName = r.teacher_name;
+              if (!ub.room && r.room) ub.room = r.room;
+            }
+          });
+          returnedFromPrevCount = returnedStudentsSet.size;
           const dynamicSlots = [];
           let totalTermStudents = 0;
+          const consumedLiveKeys = new Set();
           allSchedules.forEach((sched, sIdx) => {
             const slotClasses = [];
             const seenKeys = new Set();
@@ -58330,24 +58644,78 @@ if (action === 'getDashboardStats') {
               const groups = (typeof getCourseGroupInstructorList === 'function')
                 ? getCourseGroupInstructorList(cCode, sched.id, term, year)
                 : [];
+              const csKey = `${sched.id}::${cCode}`;
+              let unassignedApplied = false;
               groups.forEach(g => {
-                const dedupeKey = `${cCode}::${g.section || 'A'}`;
+                const sec = String(g.section || 'A').trim().toUpperCase() || 'A';
+                const dedupeKey = `${cCode}::${sec}`;
                 if (seenKeys.has(dedupeKey)) return;
-                if (g.lecturerName || g.room) {
+                const fullKey = `${csKey}::${sec}`;
+                const b = liveBuckets.get(fullKey);
+                const ub = !unassignedApplied ? liveUnmatchedByCourseSched.get(csKey) : null;
+                const hasLive = Boolean((b && b.students.size > 0) || (ub && ub.students.size > 0));
+                if (g.lecturerName || g.room || hasLive) {
                   seenKeys.add(dedupeKey);
-                  const stCnt = Number(g.studentCount || 0);
+                  const mergedStudents = new Set();
+                  if (b) {
+                    b.students.forEach(sid => mergedStudents.add(sid));
+                    consumedLiveKeys.add(fullKey);
+                  }
+                  if (ub && !unassignedApplied) {
+                    ub.students.forEach(sid => mergedStudents.add(sid));
+                    consumedLiveKeys.add(csKey + '::__UNASSIGNED__');
+                    unassignedApplied = true;
+                  }
+                  const stCnt = mergedStudents.size > 0 ? mergedStudents.size : Number(g.studentCount || 0);
                   totalTermStudents += stCnt;
                   slotClasses.push({
                     courseCode: cCode,
-                    section: g.section || 'A',
-                    lecturerName: g.lecturerName || 'ไม่ระบุ',
-                    room: g.room || '',
+                    section: sec,
+                    lecturerName: g.lecturerName || (b && b.teacherName) || (ub && ub.teacherName) || 'ไม่ระบุ',
+                    room: g.room || (b && b.room) || (ub && ub.room) || '',
                     remark: g.remark || 'ปกติ',
                     studentCount: stCnt
                   });
                 }
               });
             });
+            // Append any live enrolled classes in this schedule that were not yet configured in Course Group Settings
+            for (const [fullKey, b] of liveBuckets.entries()) {
+              if (consumedLiveKeys.has(fullKey) || !fullKey.startsWith(sched.id + '::')) continue;
+              const parts = fullKey.split('::');
+              const cCode = parts[1];
+              const sec = parts[2] || 'A';
+              const dedupeKey = `${cCode}::${sec}`;
+              if (seenKeys.has(dedupeKey)) continue;
+              seenKeys.add(dedupeKey);
+              const stCnt = b.students.size;
+              totalTermStudents += stCnt;
+              slotClasses.push({
+                courseCode: cCode,
+                section: sec,
+                lecturerName: b.teacherName || 'ไม่ระบุ',
+                room: b.room || '',
+                remark: 'ปกติ',
+                studentCount: stCnt
+              });
+            }
+            for (const [csKey, ub] of liveUnmatchedByCourseSched.entries()) {
+              if (consumedLiveKeys.has(csKey + '::__UNASSIGNED__') || !csKey.startsWith(sched.id + '::')) continue;
+              const cCode = csKey.split('::')[1];
+              const dedupeKey = `${cCode}::A`;
+              if (seenKeys.has(dedupeKey)) continue;
+              seenKeys.add(dedupeKey);
+              const stCnt = ub.students.size;
+              totalTermStudents += stCnt;
+              slotClasses.push({
+                courseCode: cCode,
+                section: 'A',
+                lecturerName: ub.teacherName || 'ไม่ระบุ',
+                room: ub.room || '',
+                remark: 'ปกติ',
+                studentCount: stCnt
+              });
+            }
             if (slotClasses.length > 0) {
               slotClasses.sort((a, b) => naturalCompareCode(a.courseCode, b.courseCode) || naturalCompareCode(a.section, b.section));
               const sName = String(sched.name || sched.id || '');
@@ -58376,10 +58744,10 @@ if (action === 'getDashboardStats') {
               slots: dynamicSlots,
               summary: {
                 total: totalTermStudents,
-                suspended: 0,
-                grandTotal: totalTermStudents,
-                returnedFromPrev: 0,
-                prevSemId: semId - 1
+                suspended: suspendedCount,
+                grandTotal: totalTermStudents + suspendedCount,
+                returnedFromPrev: returnedFromPrevCount,
+                prevSemId: prevSemId
               }
             };
             _termTimetableState.data = dynamicData;
@@ -60268,8 +60636,8 @@ if (action === 'getDashboardStats') {
         _lastCoursesManagerLoadedAt = 0;
         if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
         if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus('silent');
-        if (typeof initStaffAvatarsCloud === 'function') initStaffAvatarsCloud();
-        if (typeof hydrateTeacherSchedulesFromSupabase === 'function') hydrateTeacherSchedulesFromSupabase();
+        setTimeout(() => { if (typeof initStaffAvatarsCloud === 'function') initStaffAvatarsCloud(); }, 180);
+        setTimeout(() => { if (typeof hydrateTeacherSchedulesFromSupabase === 'function') hydrateTeacherSchedulesFromSupabase(); }, 340);
           // Authoritative Cloud Single-Session Registration & Broadcast Kick
           if (typeof registerStaffActiveSession === 'function') {
             registerStaffActiveSession(res.user.username, newSessionId, deviceId);
@@ -61059,10 +61427,10 @@ if (action === 'getDashboardStats') {
       } catch(_) {}
       if (window._supabase) {
         try {
-          const { data, error } = await _supabase.from('fee_settings')
+          const { data, error } = await withSupabaseRetry(() => _supabase.from('fee_settings')
             .select('*')
             .eq('key', 'cfg_cashier_payee')
-            .limit(1);
+            .limit(1), { retries: 2, baseDelayMs: 600 });
           if (!error && data && data.length > 0) {
             const row = data[0];
             const rawMode = row.mode || 'dynamic';
@@ -63220,17 +63588,19 @@ if (action === 'getDashboardStats') {
       if (typeof loadThaiAddressData === 'function') loadThaiAddressData();
       // Single-Device Session Listeners & Staff Auth Boot (Skipped on Public Registration Route)
       if (typeof isPublicRegistrationRoute !== 'function' || !isPublicRegistrationRoute()) {
-        try { initStaffAvatarsCloud(); } catch(_) {}
-        try { if (typeof hydrateTeacherSchedulesFromSupabase === 'function') hydrateTeacherSchedulesFromSupabase(); } catch(_) {}
+        setTimeout(() => { try { initStaffAvatarsCloud(); } catch(_) {} }, 180);
+        setTimeout(() => { try { if (typeof hydrateTeacherSchedulesFromSupabase === 'function') hydrateTeacherSchedulesFromSupabase(); } catch(_) {} }, 360);
         window.addEventListener('focus', () => { if (typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); });
         document.addEventListener('visibilitychange', () => { if (!document.hidden && typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); });
         setInterval(() => { if (typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); }, 45000);
         checkInitialAuthState();
       }
       // Restore payee & fee settings from localStorage immediately to guarantee instant persistence
-      try {
-        if (typeof loadPayeeSettingFromDatabase === 'function') loadPayeeSettingFromDatabase();
-      } catch(_) {}
+      setTimeout(() => {
+        try {
+          if (typeof loadPayeeSettingFromDatabase === 'function') loadPayeeSettingFromDatabase();
+        } catch(_) {}
+      }, 450);
       try {
         const cachedFees = localStorage.getItem('oca_general_fee_settings');
         if (cachedFees) {
@@ -85744,13 +86114,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=212';
+      const swPath = basePath + 'sw.js?v=213';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (212):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (213):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
