@@ -12406,7 +12406,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '248';
+      var LATEST_VERSION = '249';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -30422,28 +30422,24 @@ if (action === 'getDashboardStats') {
         }
         // --- 9. GET RECEIPTS LIST ---
         if (action === 'getReceipts') {
-          // Fast B-Tree indexed query for modern active receipts (2568+: receipt_no >= '6800000' and < '9999999')
-          // Prevents PostgREST 500 Statement Timeout on 424,000 rows (executes in <150ms)
+          // Chronological order (created_at DESC) prevents 5-digit 2006 legacy receipt_no ('99999') from sorting above modern 7-digit receipts
           let rcQuery = _supabase.from('receipts')
             .select('*')
-            .gte('receipt_no', '6800000')
-            .lt('receipt_no', '9999999')
-            .order('receipt_no', { ascending: false })
+            .order('created_at', { ascending: false })
             .limit(300);
           let [rcRes, cntRes] = await Promise.all([
             rcQuery,
             _supabase.from('receipts')
               .select('receipt_no', { count: 'estimated', head: true })
-              .gte('receipt_no', '6800000')
-              .lt('receipt_no', '9999999')
+              .gte('year_be', 2568)
           ]);
           let { data, error } = rcRes;
           const exactTotalCount = (!cntRes.error && typeof cntRes.count === 'number') ? cntRes.count : null;
           if (error || !data || data.length === 0) {
-            // High-speed fallback: fetch latest records with strict limit of 100
+            // High-speed fallback: fetch latest records chronologically with strict limit of 100
             const fallback = await _supabase.from('receipts')
               .select('*')
-              .order('receipt_no', { ascending: false })
+              .order('created_at', { ascending: false })
               .limit(100);
             if (!fallback.error && fallback.data && fallback.data.length > 0) {
               data = fallback.data;
@@ -31414,7 +31410,7 @@ if (action === 'getDashboardStats') {
           let data = [];
           try {
             data = await fetchAllPaginatedSupabaseRows(() => {
-              let query = _supabase.from('receipts').select('*').gte('receipt_no', '6900000').lt('receipt_no', '9999999');
+              let query = _supabase.from('receipts').select('*').gte('year_be', 2569);
               if (params && params.search) {
                 const s = sanitizePostgrestSearchToken(params.search);
                 if (s) {
@@ -31425,7 +31421,7 @@ if (action === 'getDashboardStats') {
                   }
                 }
               }
-              return query.order('receipt_no', { ascending: false });
+              return query.order('created_at', { ascending: false });
             }, 1000, 20000);
           } catch (error) {
             console.error('getTextbookClaimLogs Supabase error:', error);
@@ -31455,9 +31451,8 @@ if (action === 'getDashboardStats') {
             const fetchShipRows = () => fetchAllPaginatedSupabaseRows(() =>
               _supabase.from('receipts')
                 .select('id, receipt_no, receipt_type, student_id, buyer_name, citizen_id, address, item_name, material_type, delivery_method, shipping_fee, tracking_number, claim_status, claimed_at, claimed_by, edit_notes, created_at')
-                .gte('receipt_no', '6900000')
-                .lt('receipt_no', '9999999')
-                .order('receipt_no', { ascending: false })
+                .gte('year_be', 2569)
+                .order('created_at', { ascending: false })
             , 1000, 20000);
             rawYearReceipts = (typeof window.withSupabaseRetry === 'function')
               ? await window.withSupabaseRetry(fetchShipRows, { retries: 2, label: 'getShippingOrders' })
@@ -52713,7 +52708,7 @@ if (action === 'getDashboardStats') {
                 } else {
                   dbQ = dbQ.or(`receipt_no.ilike.${safeToken}%,student_id.ilike.${safeToken}%,buyer_name.ilike.${safeToken}%`);
                 }
-                const { data: dbRows, error: dbErr } = await dbQ.order('receipt_no', { ascending: false }).limit(100);
+                const { data: dbRows, error: dbErr } = await dbQ.order('created_at', { ascending: false }).limit(100);
                 if (seq !== window._rcptHistSearchSeq || dbErr || !Array.isArray(dbRows) || dbRows.length === 0) return;
                 const curInp = (document.getElementById('inpRcptHistSearch')?.value || '').trim().toLowerCase();
                 if (curInp !== q) return;
@@ -73733,11 +73728,11 @@ function openPublicRegisterView() {
             rcQb = rcQb.eq('student_id', targetId);
           } else {
             // Guard: active academic years receipts only to avoid statement timeout on 424k rows
-            rcQb = rcQb.gte('receipt_no', '6800000').lt('receipt_no', '9999999').ilike('buyer_name', `%${cleanQ}%`);
+            rcQb = rcQb.gte('year_be', 2568).ilike('buyer_name', `%${cleanQ}%`);
           }
           const { data: rawRcData } = await rcQb
             .or('claim_status.is.null,claim_status.neq.VOIDED')
-            .order('receipt_no', { ascending: false })
+            .order('created_at', { ascending: false })
             .limit(10);
           const rcData = (rawRcData || []).filter(r => !isReceiptVoided(r));
           if (rcData && rcData.length > 0) {
@@ -88764,13 +88759,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=248';
+      const swPath = basePath + 'sw.js?v=249';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (248):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (249):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
