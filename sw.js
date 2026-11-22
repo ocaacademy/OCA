@@ -1,7 +1,8 @@
-const CACHE_NAME = '227';
+const CACHE_NAME = '228';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './portal.html',
   './manifest.json',
   './js/oca-slip-guard.js',
   './js/oca-email-admin.js',
@@ -58,9 +59,8 @@ self.addEventListener('install', (event) => {
             });
         })
       );
-    })
+    }).then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
 // Activate Event
@@ -75,9 +75,8 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 // Fetch Event (Network First with Cache Fallback; navigate requests force cache: 'no-cache')
@@ -121,12 +120,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const reqPath = event.request.url.split('?')[0].toLowerCase();
+  const isFreshAsset = isSameOrigin && (reqPath.endsWith('.html') || reqPath.endsWith('.js') || reqPath.endsWith('/'));
+  const fetchTarget = isFreshAsset ? new Request(event.request, { cache: 'no-cache' }) : event.request;
+
   event.respondWith(
-    fetch(event.request)
-      .then((res) => {
+    fetch(fetchTarget)
+      .then(async (res) => {
         if (res && res.status === 200) {
           const clone = res.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          return res;
+        }
+        if (!res || res.status >= 500) {
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
         }
         return res;
       })
