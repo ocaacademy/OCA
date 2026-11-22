@@ -575,7 +575,7 @@
         .from('app_settings')
         .select('key, value, category, updated_by, updated_at')
         .order('key', { ascending: true })
-        .limit(100);
+        .limit(1000);
       if (error) {
         tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:16px; color:#DC2626;">ไม่สามารถโหลด app_settings: ${escapeAdminHtml(error.message)}</td></tr>`;
         return;
