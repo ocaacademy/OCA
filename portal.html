@@ -12406,7 +12406,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '247';
+      var LATEST_VERSION = '248';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -18070,7 +18070,12 @@ body.printing-report #printReportContainer {
                 <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">ออกใบแจ้งห้องเรียนประจำคอร์สและบัญชีรายชื่อนักศึกษา รูปแบบทางการขนาด A4 Portrait สำหรับปิดประกาศหน้าห้องเรียน</div>
               </div>
 
-              <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <select id="selClassroomPrintFormat" class="oca-input" style="height:38px; min-width:250px; width:auto; font-size:12.5px; font-weight:600;" aria-label="รูปแบบการพิมพ์ใบแจ้งห้องเรียน">
+                  <option value="1">รูปแบบที่ 1: รหัสนักศึกษา + ชื่อ-นามสกุล</option>
+                  <option value="2">รูปแบบที่ 2: รหัส + ชื่อ-นามสกุล + เบอร์โทร + วันที่สมัครเรียน</option>
+                  <option value="3">รูปแบบที่ 3: รหัส + ชื่อ-นามสกุล + เลขบัตรประชาชน + สัญชาติ</option>
+                </select>
                 <button type="button" id="btnSaveRosterConfig" class="oca-btn-gold-submit" style="padding:9px 18px; font-size:13px; display:inline-flex; align-items:center; gap:6px; background:linear-gradient(135deg, #10b981 0%, #059669 100%); border-color:#34d399;" onclick="saveClassroomAndInstructorConfig()">
                   <i class="fa-solid fa-floppy-disk"></i> บันทึกห้องเรียน & อาจารย์
                 </button>
@@ -73195,7 +73200,11 @@ function openPublicRegisterView() {
                   schedule: s.current_schedule || '',
                   room: '',
                   courseCode: courseVal,
-                  courseName: s.current_course
+                  courseName: s.current_course,
+                  phone: s.phone_number || '',
+                  enrolledAt: s.created_at || '',
+                  citizenId: s.citizen_id || s.passport_no || '',
+                  nationality: s.nationality || ''
                 });
               }
             });
@@ -73451,7 +73460,7 @@ function openPublicRegisterView() {
     /**
      * สั่งพิมพ์ใบแจ้งห้องเรียนประจำคอร์ส A4 Portrait (Pixel-Perfect Match to Photo)
      */
-    function printClassroomNoticeNow() {
+    async function printClassroomNoticeNow() {
       // Auto-save configuration when printing
       try { saveClassroomAndInstructorConfig(); } catch (e) {}
       const _actYT = (typeof getResolvedActiveYearTerm === 'function') ? getResolvedActiveYearTerm() : { yearBE: '2569', term: '5' };
@@ -73471,12 +73480,86 @@ function openPublicRegisterView() {
       const dateRange = (document.getElementById('txtRosterDateRange')?.value || '').trim() || _dynRange;
       const now = new Date();
       const printDateStr = String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + (now.getFullYear() + 543);
+      const printFmt = document.getElementById('selClassroomPrintFormat')?.value || '1';
+      if ((printFmt === '2' || printFmt === '3') && currentRosterStudents.length > 0 && typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const ids = currentRosterStudents.map(s => s.studentId).filter(Boolean);
+          if (ids.length > 0) {
+            const { data: metaRows, error: metaErr } = await _supabase
+              .from('students')
+              .select('student_id, phone_number, created_at, citizen_id, passport_no, nationality')
+              .in('student_id', ids);
+            if (!metaErr && Array.isArray(metaRows)) {
+              const metaMap = new Map(metaRows.map(r => [String(r.student_id), r]));
+              currentRosterStudents.forEach(s => {
+                const m = metaMap.get(String(s.studentId));
+                if (m) {
+                  if (!s.phone && m.phone_number) s.phone = m.phone_number;
+                  if (!s.enrolledAt && m.created_at) s.enrolledAt = m.created_at;
+                  if (!s.citizenId && (m.citizen_id || m.passport_no)) s.citizenId = m.citizen_id || m.passport_no;
+                  if (!s.nationality && m.nationality) s.nationality = m.nationality;
+                }
+              });
+            }
+          }
+        } catch (metaFetchErr) {
+          console.warn('[printClassroomNoticeNow] student meta fetch warning:', metaFetchErr);
+        }
+      }
+      const fmtEnrollDate = (rawDt) => {
+        if (!rawDt) return '-';
+        try {
+          const d = new Date(rawDt);
+          if (isNaN(d.getTime())) return toArabicDigits(String(rawDt).slice(0, 10));
+          return toArabicDigits(String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + (d.getFullYear() + 543));
+        } catch (_) {
+          return '-';
+        }
+      };
+      let theadHtml = '';
+      if (printFmt === '2') {
+        theadHtml = `<tr style="text-align:left; border-bottom:1px solid #000000;">
+                <th style="padding:4px 6px; width:105px; font-weight:700; font-size:13px;">รหัสนักศึกษา</th>
+                <th style="padding:4px 8px; font-weight:700; font-size:13px;">ชื่อ - นามสกุล</th>
+                <th style="padding:4px 8px; width:125px; font-weight:700; font-size:13px;">เบอร์โทร</th>
+                <th style="padding:4px 8px; width:115px; font-weight:700; font-size:13px;">วันที่สมัครเรียน</th>
+              </tr>`;
+      } else if (printFmt === '3') {
+        theadHtml = `<tr style="text-align:left; border-bottom:1px solid #000000;">
+                <th style="padding:4px 6px; width:105px; font-weight:700; font-size:13px;">รหัสนักศึกษา</th>
+                <th style="padding:4px 8px; font-weight:700; font-size:13px;">ชื่อ - นามสกุล</th>
+                <th style="padding:4px 8px; width:155px; font-weight:700; font-size:13px;">เลขบัตรประชาชน</th>
+                <th style="padding:4px 8px; width:100px; font-weight:700; font-size:13px;">สัญชาติ</th>
+              </tr>`;
+      } else {
+        theadHtml = `<tr style="text-align:left; border-bottom:1px solid #000000;">
+                <th style="padding:4px 6px; width:130px; font-weight:700; font-size:13px;">รหัสนักศึกษา</th>
+                <th style="padding:4px 10px; width:180px; font-weight:700; font-size:13px;">ชื่อ</th>
+                <th style="padding:4px 10px; font-weight:700; font-size:13px;">นามสกุล</th>
+              </tr>`;
+      }
       // Build student rows
       let rowsHtml = '';
       if (currentRosterStudents.length === 0) {
-        rowsHtml = `<tr><td colspan="3" style="text-align:center; padding:24px; color:#555555; font-style:italic;">ยังไม่มีนักศึกษาลงทะเบียนในคอร์สนี้</td></tr>`;
+        rowsHtml = `<tr><td colspan="${printFmt === '1' ? 3 : 4}" style="text-align:center; padding:24px; color:#555555; font-style:italic;">ยังไม่มีนักศึกษาลงทะเบียนในคอร์สนี้</td></tr>`;
       } else {
-        rowsHtml = currentRosterStudents.map((s, idx) => {
+        rowsHtml = currentRosterStudents.map((s) => {
+          if (printFmt === '2') {
+            return `<tr style="height:24px; line-height:24px; page-break-inside:avoid; break-inside:avoid;">
+              <td style="padding:2px 6px; font-family:'Prompt',monospace,sans-serif; font-size:12.5px; font-weight:600; width:105px; vertical-align:middle;">${toArabicDigits(s.studentId)}</td>
+              <td style="padding:2px 8px; font-size:12.5px; font-weight:500; vertical-align:middle;">${escapeHtml(s.fullName || '-')}</td>
+              <td style="padding:2px 8px; font-family:monospace; font-size:12.5px; width:125px; vertical-align:middle;">${escapeHtml(toArabicDigits(s.phone || '-'))}</td>
+              <td style="padding:2px 8px; font-size:12.5px; width:115px; vertical-align:middle;">${escapeHtml(fmtEnrollDate(s.enrolledAt))}</td>
+            </tr>`;
+          }
+          if (printFmt === '3') {
+            return `<tr style="height:24px; line-height:24px; page-break-inside:avoid; break-inside:avoid;">
+              <td style="padding:2px 6px; font-family:'Prompt',monospace,sans-serif; font-size:12.5px; font-weight:600; width:105px; vertical-align:middle;">${toArabicDigits(s.studentId)}</td>
+              <td style="padding:2px 8px; font-size:12.5px; font-weight:500; vertical-align:middle;">${escapeHtml(s.fullName || '-')}</td>
+              <td style="padding:2px 8px; font-family:monospace; font-size:12.5px; width:155px; vertical-align:middle;">${escapeHtml(toArabicDigits(s.citizenId || '-'))}</td>
+              <td style="padding:2px 8px; font-size:12.5px; width:100px; vertical-align:middle;">${escapeHtml(s.nationality || '-')}</td>
+            </tr>`;
+          }
           const { firstName, lastName } = splitThaiFirstLastName(s.fullName);
           return `
 
@@ -73543,11 +73626,7 @@ function openPublicRegisterView() {
           <!-- Student Roster Table -->
           <table style="width:100%; max-width:100%; border-collapse:collapse; table-layout:fixed; word-break:break-word; overflow-wrap:break-word; font-size:13px;">
             <thead>
-              <tr style="text-align:left; border-bottom:1px solid #000000;">
-                <th style="padding:4px 6px; width:130px; font-weight:700; font-size:13px;">รหัสนักศึกษา</th>
-                <th style="padding:4px 10px; width:180px; font-weight:700; font-size:13px;">ชื่อ</th>
-                <th style="padding:4px 10px; font-weight:700; font-size:13px;">นามสกุล</th>
-              </tr>
+              ${theadHtml}
             </thead>
 
             <tbody>
@@ -76778,6 +76857,10 @@ function openPublicRegisterView() {
         "บันทึกรหัส PIN": "保存 PIN 码",
         "สมัครสอบ HSK/YCT": "报名汉语水平考试",
         "หมายเหตุใบเสร็จ (วันรับบัตรเข้าห้องสอบ / วันสอบ / ห้องสอบ)...": "收据备注（准考证领取日 / 考试日期 / 考场）...",
+        "รูปแบบการพิมพ์ใบแจ้งห้องเรียน": "教室通知单打印格式",
+        "รูปแบบที่ 1: รหัสนักศึกษา + ชื่อ-นามสกุล": "格式 1：学号 + 姓名",
+        "รูปแบบที่ 2: รหัส + ชื่อ-นามสกุล + เบอร์โทร + วันที่สมัครเรียน": "格式 2：学号 + 姓名 + 电话 + 报名日期",
+        "รูปแบบที่ 3: รหัส + ชื่อ-นามสกุล + เลขบัตรประชาชน + สัญชาติ": "格式 3：学号 + 姓名 + 身份证号 + 国籍",
         "ภาคเรียนที่": "当前学期",
         "คลิกเพื่อรีเฟรชข้อมูลสดทันที": "点击立即刷新实时数据",
         "นักศึกษารวม (ปี": "学员总数（",
@@ -79259,6 +79342,10 @@ function openPublicRegisterView() {
         "บันทึกรหัส PIN": "Save PIN",
         "สมัครสอบ HSK/YCT": "HSK/YCT Exam",
         "หมายเหตุใบเสร็จ (วันรับบัตรเข้าห้องสอบ / วันสอบ / ห้องสอบ)...": "Receipt note (admit card date / exam date / room)...",
+        "รูปแบบการพิมพ์ใบแจ้งห้องเรียน": "Classroom Notice Print Format",
+        "รูปแบบที่ 1: รหัสนักศึกษา + ชื่อ-นามสกุล": "Format 1: Student ID + Full Name",
+        "รูปแบบที่ 2: รหัส + ชื่อ-นามสกุล + เบอร์โทร + วันที่สมัครเรียน": "Format 2: ID + Full Name + Phone + Enroll Date",
+        "รูปแบบที่ 3: รหัส + ชื่อ-นามสกุล + เลขบัตรประชาชน + สัญชาติ": "Format 3: ID + Full Name + Citizen ID + Nationality",
         "ภาคเรียนที่": "Term",
         "คลิกเพื่อรีเฟรชข้อมูลสดทันที": "Click to refresh live data",
         "นักศึกษารวม (ปี": "Total Students (Year",
@@ -88677,13 +88764,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=247';
+      const swPath = basePath + 'sw.js?v=248';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (247):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (248):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
