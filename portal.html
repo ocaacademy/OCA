@@ -12372,7 +12372,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '241';
+      var LATEST_VERSION = '242';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -14234,6 +14234,12 @@ body.printing-report #printReportContainer {
                     <option value="DROPPED">ดรอปเรียน</option>
                     <option value="ลาออก">ลาออก / ยกเลิก</option>
                   </select>
+                  <select id="selSearchLearningMode" class="oca-input" style="height:42px; font-size:13px;" onchange="filterAndRenderSearchStudents()">
+                    <option value="">รูปแบบเรียน: ทั้งหมด</option>
+                    <option value="Online">Online (ออนไลน์)</option>
+                    <option value="Onsite">Onsite (สถาบัน)</option>
+                    <option value="Hybrid">Hybrid (ผสมผสาน)</option>
+                  </select>
               </div>
 
               <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
@@ -14263,6 +14269,7 @@ body.printing-report #printReportContainer {
                     <span style="font-size:12px; color:var(--text-muted);">รหัสนักศึกษา:</span>
                     <strong id="srStudentId" style="color:var(--color-gold); font-size:18px; font-family:monospace; letter-spacing:0.5px;">-</strong>
                     <span id="srDeliveryBadge" style="display:inline-flex; align-items:center; gap:4px; font-size:12px; padding:2px 8px; border-radius:6px;">-</span>
+                    <span id="srLearningModeBadge" style="display:none; align-items:center; gap:4px; font-size:12px; padding:2px 8px; border-radius:6px;">-</span>
                   </div>
 
                   <div style="font-size:20px; font-weight:700; color:var(--text-main); margin-top:3px;" id="srStudentName">-</div>
@@ -18100,6 +18107,19 @@ body.printing-report #printReportContainer {
                   </select>
                 </div>
 
+                <!-- Learning Mode Filter -->
+                <div class="oca-input-group">
+                  <label class="oca-label" for="selRosterLearningMode" style="font-size:12px; font-weight:600;">
+                    <i class="fa-solid fa-laptop-house" style="margin-right:6px; color:var(--color-gold);"></i>รูปแบบการเรียน
+                  </label>
+                  <select id="selRosterLearningMode" class="oca-input" onchange="onRosterFilterChanged()">
+                    <option value="">-- ทุกรูปแบบ --</option>
+                    <option value="Online">Online (ออนไลน์)</option>
+                    <option value="Onsite">Onsite (สถาบัน)</option>
+                    <option value="Hybrid">Hybrid (ผสมผสาน)</option>
+                  </select>
+                </div>
+
                 <!-- Group / Section -->
                 <div class="oca-input-group">
                   <label class="oca-label" for="txtRosterGroup" style="font-size:12px; font-weight:600;">
@@ -18502,6 +18522,16 @@ body.printing-report #printReportContainer {
               <div>
                 <label style="display:block; font-size:11px; font-weight:700; color:var(--text-main); margin-bottom:4px;">ถึงวันที่:</label>
                 <input type="date" id="inpAttTrackToDate" class="oca-input" onchange="loadCourseAttendanceTrackingReport()" style="padding:6px 10px; font-size:12px; background:var(--bg-input); color:var(--text-main); border:1px solid rgba(255,255,255,0.2);">
+              </div>
+
+              <div>
+                <label style="display:block; font-size:11px; font-weight:700; color:var(--text-main); margin-bottom:4px;">รูปแบบการเรียน:</label>
+                <select id="selAttTrackLearningMode" class="oca-input" onchange="filterAttTrackStudentRealtime()" style="padding:6px 10px; font-size:12px; background:var(--bg-input); color:var(--text-main); border:1px solid rgba(255,255,255,0.2);">
+                  <option value="">ทุกรูปแบบ</option>
+                  <option value="Online">Online</option>
+                  <option value="Onsite">Onsite</option>
+                  <option value="Hybrid">Hybrid</option>
+                </select>
               </div>
 
               <!-- Real-time Live Badge -->
@@ -23038,6 +23068,16 @@ body.printing-report #printReportContainer {
                   <input type="text" id="inpScheduleName" class="oca-input" placeholder="เช่น เสาร์ - อาทิตย์ รอบเช้า (09:00 - 12:00)" required oninput="updateScheduleLivePreview()">
                 </div>
 
+                <!-- Schedule Learning Mode -->
+                <div class="oca-input-group" style="margin-bottom:16px;">
+                  <label class="oca-label" for="selScheduleLearningMode">รูปแบบการเรียนของรอบ (Learning Mode)</label>
+                  <select id="selScheduleLearningMode" class="oca-input">
+                    <option value="Hybrid">Hybrid — เปิดรับครบทั้ง 3 แบบ (Online / Onsite / Hybrid)</option>
+                    <option value="Online">Online — เฉพาะเรียนออนไลน์</option>
+                    <option value="Onsite">Onsite — เฉพาะเรียนที่สถาบัน</option>
+                  </select>
+                </div>
+
                 <!-- Schedule Course Mapping Section -->
                 <div class="oca-input-group" style="margin-bottom:16px; background:rgba(215,166,0,0.04); border:1px solid rgba(215,166,0,0.22); border-radius:10px; padding:12px 14px;">
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
@@ -23323,6 +23363,7 @@ body.printing-report #printReportContainer {
                     <option value="Online">1. Online</option>
                     <option value="Onsite">2. Onsite</option>
                     <option value="Hybrid">3. Hybrid</option>
+                    <option value="-">- (ไม่ระบุ / ไม่ใช่ค่าเรียน)</option>
                   </select>
                 </div>
 
@@ -23343,6 +23384,10 @@ body.printing-report #printReportContainer {
                     <option value="แบบเรียนพิณกู่เจิง">แบบเรียนพิณกู่เจิง (Guzheng Textbook)</option>
                         <option value="หนังสือกู่เจิง" style="display:none;">หนังสือกู่เจิง (Guzheng Textbook)</option>
                     <option value="ไม่มีอุปกรณ์">ไม่มีอุปกรณ์ (No Materials)</option>
+                    <option value="ไม่มี" style="display:none;">ไม่มี</option>
+                    <option value="-" style="display:none;">-</option>
+                    <option value="หนังสือ" style="display:none;">หนังสือ</option>
+                    <option value="รับเอกสารที่โรงเรียน" style="display:none;">รับเอกสารที่โรงเรียน</option>
                     <option value="หนังสือและสมุด" style="display:none;">หนังสือและสมุด (ค่าเดิม)</option>
                     <option value="สมุด" style="display:none;">สมุดอย่างเดียว (ค่าเดิม)</option>
                   </select>
@@ -23353,6 +23398,8 @@ body.printing-report #printReportContainer {
                   <select id="inpEditRcptDeliveryMethod" class="oca-input">
                     <option value="รับเอง">1. รับเอง (มี QR code ปรากฏในใบเสร็จ)</option>
                     <option value="ส่งไปตามที่อยู่">2. ส่งไปตามที่อยู่ (ไม่มี QR code ปรากฏในใบเสร็จ)</option>
+                    <option value="ส่งตำรา">3. ส่งตำรา (จัดส่งตามที่อยู่)</option>
+                    <option value="-">- (ไม่ระบุ)</option>
                   </select>
                 </div>
 
@@ -26239,6 +26286,37 @@ body.printing-report #printReportContainer {
       }
       return saved;
     }
+
+    window.normalizeLearningMode = function (val, fallback = '') {
+      const s = String(val || '').trim();
+      if (!s || s === '-' || s === 'ไม่ระบุ') return fallback;
+      const low = s.toLowerCase();
+      if (low === 'online' || low.includes('ออนไลน์')) return 'Online';
+      if (low === 'onsite' || low === 'on-site' || low.includes('ออนไซต์') || low.includes('สถาบัน')) return 'Onsite';
+      if (low === 'hybrid' || low.includes('ไฮบริด') || low.includes('ผสม')) return 'Hybrid';
+      return fallback;
+    };
+    window.extractLearningModeFromStudent = function (student) {
+      if (!student || typeof student !== 'object') return '';
+      const direct = window.normalizeLearningMode(student.learningMode || student.learning_mode || '', '');
+      if (direct) return direct;
+      const notes = String(student.notes || '');
+      const m = notes.match(/\[รูปแบบ:\s*([^\]]+)\]/i);
+      return m ? window.normalizeLearningMode(m[1], '') : '';
+    };
+    window.renderLearningModeBadgeHtml = function (mode) {
+      const norm = window.normalizeLearningMode(mode, '');
+      if (norm === 'Online') {
+        return '<span style="display:inline-block; background:rgba(56,189,248,0.16); color:#0369A1; border:1px solid rgba(2,132,199,0.35); border-radius:999px; font-size:10.5px; font-weight:700; padding:1px 8px; white-space:nowrap;">Online</span>';
+      }
+      if (norm === 'Onsite') {
+        return '<span style="display:inline-block; background:rgba(16,185,129,0.16); color:#047857; border:1px solid rgba(5,150,105,0.35); border-radius:999px; font-size:10.5px; font-weight:700; padding:1px 8px; white-space:nowrap;">Onsite</span>';
+      }
+      if (norm === 'Hybrid') {
+        return '<span style="display:inline-block; background:rgba(139,92,246,0.16); color:#6D28D9; border:1px solid rgba(124,58,237,0.35); border-radius:999px; font-size:10.5px; font-weight:700; padding:1px 8px; white-space:nowrap;">Hybrid</span>';
+      }
+      return '<span style="color:var(--text-muted); font-size:11px;">-</span>';
+    };
 
     window.OcaAppConfig = {
       get: getAppConfig,
@@ -29178,7 +29256,7 @@ if (action === 'getDashboardStats') {
             const revPageSize = 1000;
             while (revFrom < 50000) {
               const { data: revData, error: revErr } = await _supabase.from('receipts')
-                .select('learning_mode, delivery_method, claim_status, grand_total, edit_notes')
+                .select('receipt_type, learning_mode, delivery_method, claim_status, grand_total, edit_notes')
                 .gte('receipt_no', minYrId)
                 .lt('receipt_no', maxYrId)
                 .order('receipt_no', { ascending: true })
@@ -29189,15 +29267,21 @@ if (action === 'getDashboardStats') {
                 const r = revData[i];
                 const cs = String(r.claim_status || '').trim().toUpperCase();
                 if (cs === 'VOIDED' || String(r.edit_notes || '').includes('[ยกเลิกใบเสร็จ')) continue;
-                const mode = String(r.learning_mode || '').trim();
-                if (mode === 'Online') rcOnlineCount++;
-                else if (mode === 'Hybrid') rcHybridCount++;
-                else rcOnsiteCount++;
+                const rType = String(r.receipt_type || '').trim().toLowerCase();
+                const isTuitionRcpt = !rType || rType === 'tuition';
+                if (isTuitionRcpt) {
+                  const normMode = (typeof window.normalizeLearningMode === 'function')
+                    ? window.normalizeLearningMode(r.learning_mode, '')
+                    : String(r.learning_mode || '').trim();
+                  if (normMode === 'Online') rcOnlineCount++;
+                  else if (normMode === 'Hybrid') rcHybridCount++;
+                  else if (normMode === 'Onsite') rcOnsiteCount++;
+                }
                 const dm = String(r.delivery_method || '').trim();
                 if (dm.includes('รับเอง') || dm === 'Pickup') pickupCount++;
-                else if (dm) shippingCount++;
+                else if (/ส่งตำรา|ส่งไปตามที่อยู่|จัดส่ง|shipping/i.test(dm)) shippingCount++;
                 if (cs === 'CLAIMED' || cs.includes('รับแล้ว')) claimedCount++;
-                else pendingCount++;
+                else if (cs === 'PENDING' || cs.includes('รอรับ')) pendingCount++;
                 totalRevenue += (Number(r.grand_total) || 0);
               }
               if (revData.length < revPageSize) break;
@@ -30120,10 +30204,10 @@ if (action === 'getDashboardStats') {
             payment_ref: params.paymentRef || params.payment_ref || '',
             payment_method: params.paymentMethod || 'โอนเงิน',
             claim_token: generatedClaimToken,
-            claim_status: params.claimStatus || ((String(params.materialType || '').includes('ไม่มี') || params.materialType === 'NONE' || params.materialType === 'บัตรนักศึกษา') ? 'NO_BOOK_CLAIM' : (params.deliveryMethod === 'ส่งตำรา' ? 'จัดส่งตามที่อยู่' : 'PENDING')),
+            claim_status: params.claimStatus || ((String(params.materialType || '').includes('ไม่มี') || params.materialType === 'NONE' || params.materialType === 'บัตรนักศึกษา') ? 'NO_BOOK_CLAIM' : ((params.deliveryMethod === 'ส่งตำรา' || params.deliveryMethod === 'ส่งไปตามที่อยู่') ? 'จัดส่งตามที่อยู่' : 'PENDING')),
             material_type: params.materialType || 'หนังสือและสมุด',
             delivery_method: params.deliveryMethod || 'รับเอง',
-            learning_mode: params.learningMode || 'Online',
+            learning_mode: (String(params.type || 'tuition').toLowerCase() === 'tuition') ? (window.normalizeLearningMode(params.learningMode, 'Online')) : (params.learningMode || '-'),
             open_date: params.openDate || '',
             room: params.room || '',
             class_group: (params.classGroup || params.class_group || '').toString().trim() || null,
@@ -30610,7 +30694,7 @@ if (action === 'getDashboardStats') {
                 claim_status: 'NOT_REQUIRED',
                 material_type: 'ไม่มี',
                 delivery_method: 'รับเอง',
-                learning_mode: 'Online',
+                learning_mode: '-',
                 open_date: '',
                 room: (params.room || '').toString().trim(),
                 class_group: (params.classGroup || params.class_group || '').toString().trim() || null,
@@ -32720,8 +32804,9 @@ if (action === 'getDashboardStats') {
           updateFields.updated_at = new Date().toISOString();
           const { error: updErr } = await _supabase.from('receipts').update(updateFields).eq('receipt_no', rcNo);
           if (updErr) throw updErr;
-          // If course changed, update student current_course if linked
-          if (currentRc.student_id && (params.itemName || params.courseName)) {
+          // If course changed, update student current_course ONLY for tuition receipts
+          const editedRcptType = String(currentRc.receipt_type || '').trim().toLowerCase();
+          if (currentRc.student_id && (params.itemName || params.courseName) && (!editedRcptType || editedRcptType === 'tuition')) {
             { const { error: wErr } = await _supabase.from('students').update({
               current_course: params.itemName || params.courseName,
               current_schedule: params.schedule || currentRc.schedule || ''
@@ -35012,6 +35097,20 @@ if (action === 'getDashboardStats') {
         const foundSched = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList) ? cachedSchedulesList.find(s => s.id === selectedSched || s.name === selectedSched) : null) ||
                            (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES) ? OFFICIAL_DEFAULT_SCHEDULES.find(s => s.id === selectedSched || s.name === selectedSched) : null);
         if (foundSched) targetSchedId = foundSched.id;
+      }
+      const schedLmObj = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList))
+        ? cachedSchedulesList.find(s => s && (s.id === targetSchedId || s.id === selectedSched || s.name === selectedSched))
+        : null;
+      const selEnrollLm = document.getElementById('selEnrollLearningMode');
+      if (selEnrollLm && schedLmObj && typeof window.normalizeLearningMode === 'function') {
+        if (!selEnrollLm.dataset.userEditedBound) {
+          selEnrollLm.dataset.userEditedBound = '1';
+          selEnrollLm.addEventListener('change', () => { selEnrollLm.dataset.userEdited = '1'; });
+        }
+        const schedLm = window.normalizeLearningMode(schedLmObj.learning_mode, 'Hybrid');
+        if ((schedLm === 'Online' || schedLm === 'Onsite') && !selEnrollLm.dataset.userEdited) {
+          selEnrollLm.value = schedLm;
+        }
       }
       const schedParam = targetSchedId || selectedSched;
       // Filter courses if schedule is selected and has mapping
@@ -37384,6 +37483,11 @@ if (action === 'getDashboardStats') {
           return st === selStatus || st.includes(selStatus);
         });
       }
+      // 4.1 กรองตามรูปแบบการเรียน (Online / Onsite / Hybrid)
+      const selLmFilter = (document.getElementById('selSearchLearningMode')?.value || '').trim();
+      if (selLmFilter) {
+        filtered = filtered.filter(s => window.extractLearningModeFromStudent(s) === selLmFilter);
+      }
       // อัปเดต Ribbon สถิติ
       let countPickup = 0;
       let countDelivery = 0;
@@ -37399,7 +37503,7 @@ if (action === 'getDashboardStats') {
       const badgePickup = document.getElementById('badgeSearchPickup');
       const badgeDelivery = document.getElementById('badgeSearchDelivery');
       const badgeCount = document.getElementById('badgeTableRecordCount');
-      const isFilteredBySecondary = Boolean(q || selDel !== 'ALL' || selStatus !== 'ALL' || (selTerm && selTerm !== 'ALL'));
+      const isFilteredBySecondary = Boolean(q || selDel !== 'ALL' || selStatus !== 'ALL' || selLmFilter || (selTerm && selTerm !== 'ALL'));
       const totalDisplay = isFilteredBySecondary ? filtered.length : (window._searchTotalCount || filtered.length);
       if (badgeTotal) badgeTotal.textContent = toArabicDigits(totalDisplay) + ' คน';
       const scopeSuffix = (!isFilteredBySecondary && totalDisplay > filtered.length) ? ` (จาก ${toArabicDigits(filtered.length)} ล่าสุด)` : '';
@@ -37628,7 +37732,10 @@ if (action === 'getDashboardStats') {
         '  </td>' +
         '  <td style="padding:10px 8px; min-width:210px; max-width:260px;">' +
         '    <div style="font-weight:600; color:var(--color-gold); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(course) + '">' + escapeHtml(course) + '</div>' +
-        '    <div style="font-size:10.5px; color:var(--text-muted); line-height:1.25; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(schedule) + '">' + escapeHtml(schedule) + '</div>' +
+        '    <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">' +
+        '      <span style="font-size:10.5px; color:var(--text-muted); line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(schedule) + '">' + escapeHtml(schedule) + '</span>' +
+        window.renderLearningModeBadgeHtml(window.extractLearningModeFromStudent(s)) +
+        '    </div>' +
         '  </td>' +
         '  <td style="padding:10px 8px; text-align:center; font-family:monospace; font-size:11.5px; white-space:nowrap; min-width:80px;">' + toArabicDigits(yearBE) + '/' + toArabicDigits(term) + '</td>' +
         '  <td style="padding:10px 5px; text-align:center; white-space:nowrap;">' + deliveryBadge + '</td>' +
@@ -38025,6 +38132,17 @@ if (action === 'getDashboardStats') {
           elDeliveryBadge.style.color = '#9ca3af';
           elDeliveryBadge.style.border = '1px solid rgba(156,163,175,0.3)';
           elDeliveryBadge.innerHTML = '<i class="fa-solid fa-clock"></i> ยังไม่ได้เลือกคอร์ส / วิธีรับตำรา';
+        }
+      }
+      const elLmBadge = document.getElementById('srLearningModeBadge');
+      if (elLmBadge) {
+        const lmVal = (typeof window.extractLearningModeFromStudent === 'function') ? window.extractLearningModeFromStudent(s) : '';
+        if (lmVal) {
+          elLmBadge.style.display = 'inline-flex';
+          elLmBadge.innerHTML = window.renderLearningModeBadgeHtml(lmVal);
+        } else {
+          elLmBadge.style.display = 'none';
+          elLmBadge.innerHTML = '';
         }
       }
       // โหลดประวัติใบเสร็จและประวัติการศึกษาของนักศึกษาคนนี้
@@ -38657,7 +38775,16 @@ if (action === 'getDashboardStats') {
       const fullDisp = formatStudentNameWithPrefix(student.prefix, student.fullName || student.rawName || '');
       if (lblName) lblName.textContent = fullDisp + ' [' + toArabicDigits(student.studentId) + ']';
       if (inpId) inpId.value = student.studentId || '';
-      if (inpPrefix) inpPrefix.value = student.prefix || 'นาย';
+      if (inpPrefix) {
+        const prefVal = (student.prefix !== undefined && student.prefix !== null) ? String(student.prefix).trim() : '';
+        if (prefVal && !Array.from(inpPrefix.options).some(o => o.value === prefVal)) {
+          const optP = document.createElement('option');
+          optP.value = prefVal;
+          optP.textContent = prefVal;
+          inpPrefix.appendChild(optP);
+        }
+        inpPrefix.value = prefVal;
+      }
       if (inpName) inpName.value = student.fullName || student.rawName || '';
       const inpNameEn = document.getElementById('inpEditFullNameEn');
       if (inpNameEn) inpNameEn.value = student.fullNameEn || student.nameEn || '';
@@ -38674,18 +38801,24 @@ if (action === 'getDashboardStats') {
       // วิธีรับตำรา
       const m = student.deliveryMethod || '';
       const notes = student.notes || '';
-      const isDelivery = (m === 'ส่งตำรา' || m === 'ส่งไปตามที่อยู่' || m.indexOf('ส่ง') !== -1 || notes.indexOf('ส่ง') !== -1 || notes.indexOf('พัสดุ') !== -1);
+      const isDelivery = (m === 'ส่งตำรา' || m === 'ส่งไปตามที่อยู่' || m.indexOf('ส่ง') !== -1 || /ส่งตำรา|ส่งไปตามที่อยู่|จัดส่งตามที่อยู่/i.test(notes) || notes.indexOf('พัสดุ') !== -1);
       if (inpDel) inpDel.value = isDelivery ? 'ส่งตำรา' : 'รับเอง';
       // สถานะ
       if (inpStatus) {
-        const st = student.status || 'พร้อมเรียน';
+        const st = String(student.status || 'พร้อมเรียน').trim();
+        let targetSt = st;
         if (st === 'ปกติ' || st === 'ลงทะเบียนเรียบร้อย') {
-          inpStatus.value = 'พร้อมเรียน';
+          targetSt = 'พร้อมเรียน';
         } else if (st === 'ดรอป' || st === 'DROPPED') {
-          inpStatus.value = 'DROPPED';
-        } else {
-          inpStatus.value = st;
+          targetSt = 'DROPPED';
         }
+        if (targetSt && !Array.from(inpStatus.options).some(o => o.value === targetSt)) {
+          const optS = document.createElement('option');
+          optS.value = targetSt;
+          optS.textContent = targetSt;
+          inpStatus.appendChild(optS);
+        }
+        inpStatus.value = targetSt || 'พร้อมเรียน';
       }
       if (inpNotes) {
         let cleanDisplayNotes = String(student.notes || '')
@@ -38697,10 +38830,9 @@ if (action === 'getDashboardStats') {
       }
       const inpEditLm = document.getElementById('inpEditLearningMode');
       if (inpEditLm) {
-        const noteLmMatch = String(student.notes || '').match(/\[รูปแบบ:\s*(Online|Onsite|Hybrid)\]/i);
+        const noteLmMatch = String(student.notes || '').match(/\[รูปแบบ:\s*([^\]]+)\]/i);
         const initLm = student.learningMode || (noteLmMatch ? noteLmMatch[1] : '') || 'Onsite';
-        const normLm = initLm.charAt(0).toUpperCase() + initLm.slice(1).toLowerCase();
-        inpEditLm.value = (normLm === 'Online' || normLm === 'Onsite' || normLm === 'Hybrid') ? normLm : 'Onsite';
+        inpEditLm.value = (typeof window.normalizeLearningMode === 'function') ? window.normalizeLearningMode(initLm, 'Onsite') : 'Onsite';
         if (student.studentId && typeof fetchStudentReceiptsSafely === 'function') {
           const targetSid = student.studentId;
           fetchStudentReceiptsSafely(targetSid, 'receipt_no,receipt_type,learning_mode,claim_status,year_be,term', 20)
@@ -43608,6 +43740,19 @@ if (action === 'getDashboardStats') {
         if (selC && selC.value) onReceiptCourseChanged();
       }
       if (typeof syncReceiptGroupTeacherRoom === 'function') syncReceiptGroupTeacherRoom();
+      const selRcptLm = document.getElementById('selRcptLearningMode');
+      if (selRcptLm && schId && typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList) && typeof window.normalizeLearningMode === 'function') {
+        if (!selRcptLm.dataset.userEditedBound) {
+          selRcptLm.dataset.userEditedBound = '1';
+          selRcptLm.addEventListener('change', () => { selRcptLm.dataset.userEdited = '1'; });
+        }
+        const schedRcptObj = cachedSchedulesList.find(s => s && (s.id === schId || s.name === val));
+        const schedLm = window.normalizeLearningMode(schedRcptObj?.learning_mode, 'Hybrid');
+        if ((schedLm === 'Online' || schedLm === 'Onsite') && !selRcptLm.dataset.userEdited) {
+          selRcptLm.value = schedLm;
+          if (typeof updateReceiptLivePreview === 'function') updateReceiptLivePreview();
+        }
+      }
     }
     window.onReceiptScheduleChanged = onReceiptScheduleChanged;
     function buildOfficialOcaPrintHeaderHtml(title, subtitle) {
@@ -44371,7 +44516,7 @@ if (action === 'getDashboardStats') {
             '<tr style="border-bottom:1px solid var(--border-soft); transition:background 0.2s ease;">' +
             '  <td style="width:14%; white-space:nowrap; padding:13px 18px !important; padding-left:24px !important; vertical-align:middle;"><span class="oca-mono-code-badge">' + escapeHtml(s.id) + '</span></td>' +
             '  <td style="width:26%; white-space:nowrap; padding:13px 18px !important; vertical-align:middle;">' + dayHtml + '</td>' +
-            '  <td style="width:24%; white-space:nowrap; padding:13px 18px !important; vertical-align:middle;">' + timeHtml + '</td>' +
+            '  <td style="width:24%; white-space:nowrap; padding:13px 18px !important; vertical-align:middle;"><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' + timeHtml + ((typeof window.renderLearningModeBadgeHtml === 'function') ? window.renderLearningModeBadgeHtml(s.learning_mode || 'Hybrid') : '') + '</div></td>' +
             '  <td style="width:20%; white-space:nowrap; padding:13px 18px !important; vertical-align:middle;">' + courseBadgeHtml + '</td>' +
             '  <td style="width:16%; text-align:center; white-space:nowrap; padding:13px 18px !important; vertical-align:middle;">' +
             '    <div class="oca-table-actions" style="justify-content:center; flex-wrap:nowrap; gap:6px;">' +
@@ -45359,6 +45504,8 @@ if (action === 'getDashboardStats') {
             inpId.value = item.code || item.id;
           }
           if (inpName) inpName.value = item.name || '';
+          const selLm = document.getElementById('selScheduleLearningMode');
+          if (selLm) selLm.value = (typeof window.normalizeLearningMode === 'function') ? window.normalizeLearningMode(item.learning_mode || item.learningMode, 'Hybrid') : (item.learning_mode || 'Hybrid');
           if (inpPrice) inpPrice.value = item.price !== undefined ? item.price : 0;
           if (inpDesc) inpDesc.value = item.desc || '';
           if (selMat) selMat.value = item.materialType || item.linked_book || 'หนังสือและสมุดช่องใหญ่';
@@ -47444,6 +47591,8 @@ if (action === 'getDashboardStats') {
             inpId.style.color = '';
           }
           if (inpName) inpName.value = item.name || '';
+          const selLm = document.getElementById('selScheduleLearningMode');
+          if (selLm) selLm.value = (typeof window.normalizeLearningMode === 'function') ? window.normalizeLearningMode(item.learning_mode || item.learningMode, 'Hybrid') : (item.learning_mode || 'Hybrid');
           const assigned = getOfferedCourseCodesForSchedule(item.id || item.name, configTerm, configYear);
           window._modalScheduleSelectedCoursesSet = new Set(assigned);
         }
@@ -47468,6 +47617,8 @@ if (action === 'getDashboardStats') {
           inpId.value = 'SCH-' + String(maxNum + 1).padStart(2, '0');
         }
         if (inpName) inpName.value = '';
+        const selLm = document.getElementById('selScheduleLearningMode');
+        if (selLm) selLm.value = 'Hybrid';
         window._modalScheduleSelectedCoursesSet = new Set();
       }
       const inpFilter = document.getElementById('inpScheduleCourseFilter');
@@ -47491,6 +47642,8 @@ if (action === 'getDashboardStats') {
       const id = (document.getElementById('inpScheduleId')?.value || '').trim().toUpperCase();
       const name = (document.getElementById('inpScheduleName')?.value || '').trim();
       const origId = (window._editingOriginalScheduleId || '').trim().toUpperCase();
+      const schedLmRaw = document.getElementById('selScheduleLearningMode')?.value || 'Hybrid';
+      const schedLm = (typeof window.normalizeLearningMode === 'function') ? window.normalizeLearningMode(schedLmRaw, 'Hybrid') : schedLmRaw;
       if (!id) {
         toast('กรุณาระบุข้อมูล', 'กรุณาระบุรหัสรอบเวลาเรียน', '⚠️');
         return;
@@ -47527,7 +47680,7 @@ if (action === 'getDashboardStats') {
           cachedSchedulesList = cachedSchedulesList.filter(s => s.id !== origId);
         }
         const existingIdx = cachedSchedulesList.findIndex(s => s.id === id);
-        const schedObj = { id, name, day_time: name, learning_mode: 'Hybrid', is_active: true };
+        const schedObj = { id, name, day_time: name, learning_mode: schedLm, is_active: true };
         if (existingIdx >= 0) {
           cachedSchedulesList[existingIdx] = schedObj;
         } else {
@@ -47543,7 +47696,7 @@ if (action === 'getDashboardStats') {
       if (typeof renderSchedulesTable === 'function') renderSchedulesTable(cachedSchedulesList);
       if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
       if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
-      callGasApi('saveSchedule', { id, originalId: origId, name, day_time: name, learningMode: 'Hybrid' })
+      callGasApi('saveSchedule', { id, originalId: origId, name, day_time: name, learningMode: schedLm })
         .then(res => {
           if (btnSubmit) btnSubmit.disabled = false;
           if (res && res.success !== false) {
@@ -52490,7 +52643,7 @@ if (action === 'getDashboardStats') {
             (citId && citId !== '-' ? ('<span><i class="fa-solid fa-address-card" style="color:var(--text-muted); margin-right:3px;"></i>' + toArabicDigits(formatCitizenIdMasked(citId, true)) + '</span>') : '') +
           '</div>' +
         '</td>' +
-        '<td style="min-width:200px;">' + escapeHtml(row.itemName) + (row.learningMode && row.learningMode !== '-' ? '<div style="margin-top:2px;"><span style="font-size:12px; padding:1px 6px; border-radius:4px; background:rgba(56,189,248,0.15); color:#0369A1; font-weight:600; display:inline-block;">[' + escapeHtml(row.learningMode) + ']</span></div>' : '') + (isDelivery ? '<div style="font-size:12px; color:var(--accent-sky);">[จัดส่งพัสดุ]</div>' : '') + '</td>' +
+        '<td style="min-width:200px;">' + escapeHtml(row.itemName) + (row.learningMode && row.learningMode !== '-' ? '<div style="margin-top:2px;">' + window.renderLearningModeBadgeHtml(row.learningMode) + '</div>' : '') + (isDelivery ? '<div style="font-size:12px; color:var(--accent-sky);">[จัดส่งพัสดุ]</div>' : '') + '</td>' +
         '<td style="font-weight:700; color:var(--text-main); text-align:right; font-family:monospace; white-space:nowrap; padding-right:18px !important;">฿' + toArabicDigits(Number(row.grandTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })) + '</td>' +
         '<td style="white-space:nowrap;">' + emailBadge + '</td>' +
         '<td style="white-space:nowrap; text-align:center;">' + statusBadge + '</td>' +
@@ -52615,11 +52768,37 @@ if (action === 'getDashboardStats') {
       if (inpAddr) inpAddr.value = (item.address && item.address !== '-') ? item.address : '';
       if (inpItem) inpItem.value = item.itemName || '';
       if (inpSch) inpSch.value = (item.schedule && item.schedule !== '-') ? item.schedule : '';
-      if (inpMat) inpMat.value = item.materialType || 'หนังสือและสมุด';
+      if (inpMat) {
+        const matVal = (item.materialType !== undefined && item.materialType !== null && item.materialType !== '') ? String(item.materialType) : '-';
+        if (!Array.from(inpMat.options).some(o => o.value === matVal)) {
+          const optM = document.createElement('option');
+          optM.value = matVal;
+          optM.textContent = matVal;
+          inpMat.appendChild(optM);
+        }
+        inpMat.value = matVal;
+      }
       const inpDel = document.getElementById('inpEditRcptDeliveryMethod');
-      if (inpDel) inpDel.value = item.deliveryMethod || 'รับเอง';
+      if (inpDel) {
+        const delVal = (item.deliveryMethod !== undefined && item.deliveryMethod !== null && item.deliveryMethod !== '') ? String(item.deliveryMethod) : '-';
+        if (!Array.from(inpDel.options).some(o => o.value === delVal)) {
+          const optD = document.createElement('option');
+          optD.value = delVal;
+          optD.textContent = delVal;
+          inpDel.appendChild(optD);
+        }
+        inpDel.value = delVal;
+      }
       const inpLearningMode = document.getElementById('inpEditRcptLearningMode');
-      if (inpLearningMode) inpLearningMode.value = item.learningMode || 'Online';
+      if (inpLearningMode) {
+        const rawLm = String(item.learningMode || '').trim();
+        const itemRType = String(item.type || item.receiptType || 'tuition').toLowerCase();
+        if (!rawLm || rawLm === '-' || (itemRType && itemRType !== 'tuition')) {
+          inpLearningMode.value = (rawLm && rawLm !== '-') ? (window.normalizeLearningMode(rawLm, '-')) : '-';
+        } else {
+          inpLearningMode.value = window.normalizeLearningMode(rawLm, 'Online');
+        }
+      }
       if (inpBase) inpBase.value = (item.baseAmount !== undefined && item.baseAmount !== null) ? Number(item.baseAmount) : Number(item.grandTotal || 0);
       if (inpReg) inpReg.value = item.regFee || 0;
       if (inpCard) inpCard.value = item.cardFee || 0;
@@ -52676,9 +52855,10 @@ if (action === 'getDashboardStats') {
       const grandTotal = Number(document.getElementById('inpEditRcptGrandTotal')?.dataset.rawTotal) || 0;
       const email = document.getElementById('inpEditRcptEmail')?.value.trim() || '';
       const sendEmail = document.getElementById('chkEditRcptSendEmail')?.checked || false;
-      const materialType = document.getElementById('inpEditRcptMaterialType')?.value || 'หนังสือและสมุด';
+      const materialType = document.getElementById('inpEditRcptMaterialType')?.value || '-';
       const deliveryMethod = document.getElementById('inpEditRcptDeliveryMethod')?.value || 'รับเอง';
-      const learningMode = document.getElementById('inpEditRcptLearningMode')?.value || 'Online';
+      const rawEditLm = document.getElementById('inpEditRcptLearningMode')?.value || '-';
+      const learningMode = (rawEditLm === '-') ? '-' : window.normalizeLearningMode(rawEditLm, '-');
       const payload = {
         receiptNo: currentEditingReceiptNo,
         buyerName: buyerName,
@@ -56196,6 +56376,8 @@ if (action === 'getDashboardStats') {
         }
       }
       let tuition = 0, books = 0, exams = 0, other = 0;
+      const codeU = String(r.item_code || r.itemCode || '').trim().toUpperCase();
+      const isOtherFeeType = (rType === 'other' || rType === 'card' || rType === 'fee' || rType === 'transfer' || codeU.startsWith('FEE-'));
       if (rType === 'book' || rType === 'course_book' || rType === 'textbook') {
         books = rawBase;
         exams = Math.min(effectiveOt, examItemsAmt);
@@ -56204,6 +56386,11 @@ if (action === 'getDashboardStats') {
         books = Math.min(effectiveOt, extraBooksAmt);
         exams = rawBase + Math.max(0, effectiveOt - books);
         other = rg + cd + tf + sh;
+      } else if (isOtherFeeType) {
+        books = Math.min(effectiveOt, extraBooksAmt);
+        const remOt = Math.max(0, effectiveOt - books);
+        exams = Math.min(remOt, examItemsAmt);
+        other = rawBase + rg + cd + tf + sh + Math.max(0, remOt - exams);
       } else {
         tuition = rawBase;
         books = Math.min(effectiveOt, extraBooksAmt);
@@ -56815,7 +57002,7 @@ if (action === 'getDashboardStats') {
             while (rcPageCount < maxMinistryPages) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
               const { data: rcChunk, error: rcErr } = await _supabase.from('receipts')
-                .select('student_id, item_name, receipt_no, created_at, claim_status, edit_notes')
+                .select('student_id, item_name, receipt_no, created_at, claim_status, edit_notes, receipt_type')
                 .gte('receipt_no', minId)
                 .lt('receipt_no', maxId)
                 .order('receipt_no', { ascending: false })
@@ -56867,13 +57054,13 @@ if (action === 'getDashboardStats') {
             while (rcPageCount < maxMinistryPages) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
               const { data: rcChunk, error: rcErr } = await _supabase.from('receipts')
-                .select('student_id, item_name, receipt_no, created_at')
+                .select('student_id, item_name, receipt_no, created_at, claim_status, edit_notes, receipt_type')
                 .gte('receipt_no', '6800000')
                 .order('receipt_no', { ascending: false })
                 .range(rcOffset, rcOffset + 999);
               if (rcErr) { console.warn('[Ministry Report] recent chunk error:', rcErr); break; }
               if (!rcChunk || rcChunk.length === 0) break;
-              receipts.push(...rcChunk);
+              receipts.push(...rcChunk.filter(r => !isReceiptVoided(r)));
               rcOffset += rcChunk.length;
               rcPageCount += 1;
               if (rcChunk.length < 1000) break;
@@ -56881,6 +57068,9 @@ if (action === 'getDashboardStats') {
           }
         }
         receipts.forEach(r => {
+          if (typeof isReceiptVoided === 'function' && isReceiptVoided(r)) return;
+          const rt = String(r.receipt_type || '').trim().toLowerCase();
+          if (rt && rt !== 'tuition') return;
           const sid = String(r.student_id || '').trim();
           const cName = r.item_name || '';
           if (sid && cName) {
@@ -57504,7 +57694,7 @@ if (action === 'getDashboardStats') {
         attachReceiptFeesToFirstTextbookItem(out, r);
         return out;
       }
-      if (rType === 'book') {
+      if (rType === 'book' || rType === 'course_book' || rType === 'textbook') {
         const qty = Math.max(1, Number(r.book_qty || r.qty || 1));
         const ship = Math.max(0, Number(r.shipping_fee || 0));
         const rawBase = (r.base_amount !== undefined && r.base_amount !== null) ? Number(r.base_amount) : ((r.base_fee !== undefined && r.base_fee !== null) ? Number(r.base_fee) : null);
@@ -59778,7 +59968,7 @@ if (action === 'getDashboardStats') {
                 const to = from + pageSize - 1;
                 const { data: rRows, error: rErr } = await withSupabaseRetry(() => _supabase
                   .from('receipts')
-                  .select('receipt_no, student_id, item_code, schedule, class_group, teacher_name, room, receipt_type')
+                  .select('receipt_no, student_id, item_code, schedule, class_group, teacher_name, room, receipt_type, claim_status, edit_notes')
                   .gte('receipt_no', termPrefix)
                   .lt('receipt_no', nextPrefix)
                   .range(from, to), { retries: 2, baseDelayMs: 600 });
@@ -59787,7 +59977,12 @@ if (action === 'getDashboardStats') {
                   break;
                 }
                 if (Array.isArray(rRows) && rRows.length > 0) {
-                  liveReceipts.push(...rRows);
+                  const activeTuitionRows = rRows.filter(r => {
+                    if (typeof isReceiptVoided === 'function' && isReceiptVoided(r)) return false;
+                    const rt = String(r.receipt_type || '').trim().toLowerCase();
+                    return !rt || rt === 'tuition';
+                  });
+                  liveReceipts.push(...activeTuitionRows);
                 }
                 if (!rRows || rRows.length < pageSize) break;
               }
@@ -67071,6 +67266,20 @@ function openPublicRegisterView() {
                            (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES) ? OFFICIAL_DEFAULT_SCHEDULES.find(s => s.id === selectedSched || s.name === selectedSched) : null);
         if (foundSched) targetSchedId = foundSched.id;
       }
+      const schedLmObj = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList))
+        ? cachedSchedulesList.find(s => s && (s.id === targetSchedId || s.id === selectedSched || s.name === selectedSched))
+        : null;
+      const selEnrollLm = document.getElementById('selEnrollLearningMode');
+      if (selEnrollLm && schedLmObj && typeof window.normalizeLearningMode === 'function') {
+        if (!selEnrollLm.dataset.userEditedBound) {
+          selEnrollLm.dataset.userEditedBound = '1';
+          selEnrollLm.addEventListener('change', () => { selEnrollLm.dataset.userEdited = '1'; });
+        }
+        const schedLm = window.normalizeLearningMode(schedLmObj.learning_mode, 'Hybrid');
+        if ((schedLm === 'Online' || schedLm === 'Onsite') && !selEnrollLm.dataset.userEdited) {
+          selEnrollLm.value = schedLm;
+        }
+      }
       const schedParam = targetSchedId || selectedSched;
       let coursesList = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0)
         ? cachedCoursesList
@@ -71447,6 +71656,16 @@ function openPublicRegisterView() {
       const lmBox = document.getElementById('boxKioskLearningModeCards');
       const normCode = extractKioskCourseCode(course);
       const isOnlineCourse = /^(OC|OE|SS)/i.test(normCode);
+      const selSchedObj = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList))
+        ? cachedSchedulesList.find(s => s && (s.id === ctx.selectedScheduleId || s.name === ctx.selectedScheduleName))
+        : null;
+      const schedLmLock = (selSchedObj && typeof window.normalizeLearningMode === 'function')
+        ? window.normalizeLearningMode(selSchedObj.learning_mode, 'Hybrid')
+        : 'Hybrid';
+      const isSchedRestrictedLm = (schedLmLock === 'Online' || schedLmLock === 'Onsite');
+      if (isSchedRestrictedLm) {
+        ctx.selectedLearningMode = schedLmLock;
+      }
       if (lmBox) {
         const modes = [
           { val: 'Online', icon: '🌐', title: d.lmOnlineTitle || '1. ONLINE (เรียนออนไลน์)', sub: d.lmOnlineSub || 'เรียนสดผ่านออนไลน์ (Zoom / Live)', rec: isOnlineCourse },
@@ -71455,8 +71674,9 @@ function openPublicRegisterView() {
         ];
         lmBox.innerHTML = modes.map(m => {
           const isSel = ctx.selectedLearningMode === m.val;
+          const isDisabled = isSchedRestrictedLm && m.val !== schedLmLock;
           const recBadge = m.rec ? `<span style="display:inline-block; background:#DBEAFE; color:#1E40AF; font-size:10px; font-weight:800; padding:1px 6px; border-radius:999px; margin-left:6px;">${escapeHtml(d.lmRecommendedBadge || 'แนะนำ')}</span>` : '';
-          return `<button type="button" data-learning-mode="${escapeHtml(m.val)}" class="oca-kiosk-choice-card${isSel ? ' selected' : ''}" onclick="selectKioskLearningMode('${escapeHtml(m.val)}')">
+          return `<button type="button" data-learning-mode="${escapeHtml(m.val)}"${isDisabled ? ' disabled aria-disabled="true"' : ''} class="oca-kiosk-choice-card${isSel ? ' selected' : ''}" style="${isDisabled ? 'opacity:0.45; cursor:not-allowed;' : ''}" onclick="selectKioskLearningMode('${escapeHtml(m.val)}')">
             <div style="font-size:13.5px; font-weight:800; color:#0F172A;">${m.icon} ${escapeHtml(m.title)}${recBadge}</div>
             <div style="font-size:11.5px; color:#475569;">${escapeHtml(m.sub)}</div>
           </button>`;
@@ -72554,7 +72774,7 @@ function openPublicRegisterView() {
           // 1. Query receipts for this course and term (paginated, exclude voided)
           const rawRcData = await fetchAllPaginatedSupabaseRows(() =>
             _supabase.from('receipts')
-              .select('student_id, buyer_name, item_code, item_name, room, class_group, teacher_name, schedule, year_be, term, claim_status, edit_notes')
+              .select('student_id, buyer_name, item_code, item_name, room, class_group, teacher_name, schedule, year_be, term, claim_status, edit_notes, learning_mode, receipt_type')
               .gte('receipt_no', tPrefix + '0000')
               .lt('receipt_no', nextTPrefix + '0000')
               .or('claim_status.is.null,claim_status.neq.VOIDED')
@@ -72593,7 +72813,8 @@ function openPublicRegisterView() {
                 stInfoMap.set(String(s.student_id).trim(), {
                   fullName: cleanName,
                   status: s.status || '',
-                  current_course: s.current_course || ''
+                  current_course: s.current_course || '',
+                  learningMode: window.extractLearningModeFromStudent ? window.extractLearningModeFromStudent(s) : ''
                 });
               }
             });
@@ -72652,7 +72873,8 @@ function openPublicRegisterView() {
                   classGroup: rNorm.classGroup || '',
                   teacherName: rNorm.teacherName || '',
                   courseCode: rNorm.itemCode || courseVal,
-                  courseName: rNorm.itemName || courseText
+                  courseName: rNorm.itemName || courseText,
+                  learningMode: (typeof window.normalizeLearningMode === 'function' ? window.normalizeLearningMode(rNorm.learningMode || r.learning_mode, '') : '') || (st && st.learningMode) || ''
                 });
               }
             });
@@ -72735,7 +72957,8 @@ function openPublicRegisterView() {
                 schedule: sStr,
                 room: st.room || '',
                 courseCode: courseVal,
-                courseName: st.course || st.current_course || courseText
+                courseName: st.course || st.current_course || courseText,
+                learningMode: window.extractLearningModeFromStudent ? window.extractLearningModeFromStudent(st) : ''
               });
             }
           });
@@ -72747,7 +72970,10 @@ function openPublicRegisterView() {
             uniqueMap.set(item.studentId, item);
           }
         });
-        currentRosterStudents = Array.from(uniqueMap.values()).sort((a, b) => naturalCompareCode(a.studentId, b.studentId));
+        const rosterLmFilter = (document.getElementById('selRosterLearningMode')?.value || '').trim();
+        currentRosterStudents = Array.from(uniqueMap.values())
+          .filter(item => !rosterLmFilter || window.normalizeLearningMode(item.learningMode, '') === rosterLmFilter)
+          .sort((a, b) => naturalCompareCode(a.studentId, b.studentId));
         if (badgeCount) badgeCount.textContent = toArabicDigits(currentRosterStudents.length) + ' คน';
         // Auto-populate saved room & instructor from config or history
         const inpRoom = document.getElementById('txtRosterRoom');
@@ -72808,7 +73034,7 @@ function openPublicRegisterView() {
               <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                 <td style="padding:7px 10px; text-align:center; color:var(--text-muted);">${idx + 1}</td>
                 <td style="padding:7px 10px; font-family:monospace; font-weight:700; color:var(--color-gold);">${toArabicDigits(s.studentId)}</td>
-                <td style="padding:7px 10px; font-weight:600; color:var(--text-main);">${escapeHtml(s.fullName || '-')}</td>
+                <td style="padding:7px 10px; font-weight:600; color:var(--text-main);">${escapeHtml(s.fullName || '-')} ${s.learningMode ? window.renderLearningModeBadgeHtml(s.learningMode) : ''}</td>
                 <td style="padding:7px 10px; font-size:12px; color:var(--text-muted);">${escapeHtml(s.schedule || '-')}</td>
                 <td style="padding:7px 10px; text-align:center; color:#38bdf8; font-weight:700;">${escapeHtml(rawRoom)}</td>
               </tr>
@@ -73447,7 +73673,7 @@ function openPublicRegisterView() {
               <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                 <td style="padding:7px 10px; text-align:center; color:var(--text-muted);">${idx + 1}</td>
                 <td style="padding:7px 10px; font-family:monospace; font-weight:700; color:var(--color-gold);">${toArabicDigits(s.studentId)}</td>
-                <td style="padding:7px 10px; font-weight:600; color:var(--text-main);">${escapeHtml(s.fullName || '-')}</td>
+                <td style="padding:7px 10px; font-weight:600; color:var(--text-main);">${escapeHtml(s.fullName || '-')} ${s.learningMode ? window.renderLearningModeBadgeHtml(s.learningMode) : ''}</td>
                 <td style="padding:7px 10px; font-size:12px; color:var(--text-muted);">${escapeHtml(s.schedule || '-')}</td>
                 <td style="padding:7px 10px; text-align:center; color:#38bdf8; font-weight:700;">${escapeHtml(roomNo)}</td>
               </tr>
@@ -77264,6 +77490,21 @@ function openPublicRegisterView() {
         "กรอกรหัส PIN...": "请输入安全密码...",
         "แสดง/ซ่อนรหัส PIN": "显示或隐藏安全密码",
         "ยืนยันรหัส PIN": "确认密码",
+        "รูปแบบเรียน: ทั้งหมด": "学习方式：全部",
+        "Online (ออนไลน์)": "线上授课",
+        "Onsite (สถาบัน)": "线下到校授课",
+        "Hybrid (ผสมผสาน)": "线上线下混合",
+        "รูปแบบการเรียน": "学习方式",
+        "-- ทุกรูปแบบ --": "全部学习方式",
+        "รูปแบบการเรียน:": "学习方式：",
+        "ทุกรูปแบบ": "全部方式",
+        "รูปแบบการเรียนของรอบ (Learning Mode)": "时段授课方式",
+        "Hybrid — เปิดรับครบทั้ง 3 แบบ (Online / Onsite / Hybrid)": "混合时段 — 支持全部三种学习方式",
+        "Online — เฉพาะเรียนออนไลน์": "纯线上 — 仅限线上授课",
+        "Onsite — เฉพาะเรียนที่สถาบัน": "纯线下 — 仅限到校授课",
+        "- (ไม่ระบุ / ไม่ใช่ค่าเรียน)": "未指定或非学费项目",
+        "3. ส่งตำรา (จัดส่งตามที่อยู่)": "邮寄教材",
+        "- (ไม่ระบุ)": "未指定",
       },
       en: {
         "+ ซื้อตำราเรียนเพิ่มในใบเสร็จนี้": "+ Add Extra Textbooks to This Receipt",
@@ -79728,6 +79969,21 @@ function openPublicRegisterView() {
         "กรอกรหัส PIN...": "Enter Security PIN...",
         "แสดง/ซ่อนรหัส PIN": "Show/Hide Security PIN",
         "ยืนยันรหัส PIN": "Verify PIN",
+        "รูปแบบเรียน: ทั้งหมด": "Mode: All",
+        "Online (ออนไลน์)": "Online",
+        "Onsite (สถาบัน)": "Onsite",
+        "Hybrid (ผสมผสาน)": "Hybrid",
+        "รูปแบบการเรียน": "Learning Mode",
+        "-- ทุกรูปแบบ --": "-- All Modes --",
+        "รูปแบบการเรียน:": "Learning Mode:",
+        "ทุกรูปแบบ": "All Modes",
+        "รูปแบบการเรียนของรอบ (Learning Mode)": "Schedule Learning Mode",
+        "Hybrid — เปิดรับครบทั้ง 3 แบบ (Online / Onsite / Hybrid)": "Hybrid — Allow Online / Onsite / Hybrid",
+        "Online — เฉพาะเรียนออนไลน์": "Online Only",
+        "Onsite — เฉพาะเรียนที่สถาบัน": "Onsite Only",
+        "- (ไม่ระบุ / ไม่ใช่ค่าเรียน)": "- (Unspecified / Non-Tuition)",
+        "3. ส่งตำรา (จัดส่งตามที่อยู่)": "3. Ship Textbooks (Delivery)",
+        "- (ไม่ระบุ)": "- (Unspecified)",
       }
     };
     window.OCA_INNER_CONTENT_I18N = OCA_INNER_CONTENT_I18N;
@@ -82455,7 +82711,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           const [rcData, stData] = await Promise.all([
             fetchAllPaginatedSupabaseRows(() =>
               _supabase.from('receipts')
-                .select('student_id, buyer_name, item_code, item_name, schedule, class_group')
+                .select('student_id, buyer_name, item_code, item_name, schedule, class_group, claim_status, edit_notes, receipt_type')
                 .gte('receipt_no', tPrefix + '0000')
                 .lt('receipt_no', nextTPrefix + '0000')
                 .or('claim_status.is.null,claim_status.neq.VOIDED')
@@ -82485,6 +82741,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           }
           if (Array.isArray(rcData)) {
             rcData.forEach(r => {
+              if (typeof isReceiptVoided === 'function' && isReceiptVoided(r)) return;
+              const rt = String(r.receipt_type || '').trim().toLowerCase();
+              if (rt && rt !== 'tuition') return;
               const sid = String(r.student_id || '').trim();
               if (!sid) return;
               const cs = (r.schedule || '').trim();
@@ -84724,6 +84983,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const qInput = document.getElementById('inpAttTrackSearchQuery');
         const clearBtn = document.getElementById('btnAttTrackClearSearch');
         const q = (qInput ? qInput.value : '').trim().toLowerCase();
+        const lmFilter = (document.getElementById('selAttTrackLearningMode')?.value || '').trim();
         if (clearBtn) {
           clearBtn.style.display = q ? 'block' : 'none';
         }
@@ -84731,7 +84991,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           renderAttTrackRosterTable([], q);
           return;
         }
-        if (!q) {
+        if (!q && !lmFilter) {
           _attTrackFilteredCache = _attTrackRosterCache;
           renderAttTrackRosterTable(_attTrackRosterCache, '');
           return;
@@ -84739,7 +84999,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const filtered = _attTrackRosterCache.filter(s => {
           const sid = (s.student_id || '').toLowerCase();
           const fn = (s.full_name || '').toLowerCase();
-          return sid.includes(q) || fn.includes(q);
+          const matchQ = !q || sid.includes(q) || fn.includes(q);
+          const matchLm = !lmFilter || (typeof window.normalizeLearningMode === 'function' ? window.normalizeLearningMode(s.learning_mode, '') : '') === lmFilter;
+          return matchQ && matchLm;
         });
         _attTrackFilteredCache = filtered;
         renderAttTrackRosterTable(filtered, q);
@@ -84821,7 +85083,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             <div style="font-size:11px; font-family:monospace; color:#38BDF8;">ID: ${highlight(s.student_id, query)}</div>
           </td>
 
-          <td style="padding:7px 10px; text-align:center; font-family:monospace; font-weight:700; color:#60A5FA;">${escapeHtml(s.schedule || '-')}</td>
+          <td style="padding:7px 10px; text-align:center; font-family:monospace; font-weight:700; color:#60A5FA;"><div>${escapeHtml(s.schedule || '-')}</div>${s.learning_mode ? '<div style="margin-top:3px;">' + window.renderLearningModeBadgeHtml(s.learning_mode) + '</div>' : ''}</td>
           <td style="padding:7px 10px; text-align:center; font-weight:700; color:var(--text-main);">${s.totalSessions}</td>
           <td style="padding:7px 10px; text-align:center; font-weight:700; color:var(--accent-emerald);">${s.present}</td>
           <td style="padding:7px 10px; text-align:center; font-weight:700; color:#FBBF24;">${s.late}</td>
@@ -85005,7 +85267,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           // 1.1 Query receipts for this term (paginated, exclude voided)
           const rawRcData = await fetchAllPaginatedSupabaseRows(() =>
             _supabase.from('receipts')
-              .select('student_id, buyer_name, item_code, item_name, room, class_group, teacher_name, schedule, year_be, term, claim_status, edit_notes')
+              .select('student_id, buyer_name, item_code, item_name, room, class_group, teacher_name, schedule, year_be, term, claim_status, edit_notes, learning_mode, receipt_type')
               .gte('receipt_no', tPrefix + '0000')
               .lt('receipt_no', nextTPrefix + '0000')
               .or('claim_status.is.null,claim_status.neq.VOIDED')
@@ -85041,6 +85303,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           const missingIds = [];
           if (Array.isArray(rcData)) {
             rcData.forEach(r => {
+              if (typeof isReceiptVoided === 'function' && isReceiptVoided(r)) return;
+              const rt = String(r.receipt_type || '').trim().toLowerCase();
+              if (rt && rt !== 'tuition') return;
               const sid = String(r.student_id || '').trim();
               if (sid && !stLookupMap.has(sid)) missingIds.push(sid);
             });
@@ -85070,8 +85335,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
                 }
               } catch (_) {}
             }
-            // Process receipts into studentMap
+            // Process receipts into studentMap (tuition only so book/exam/transfer receipts never overwrite course/schedule)
             rcData.forEach(r => {
+              const rt = String(r.receipt_type || '').trim().toLowerCase();
+              if (rt && rt !== 'tuition') return;
               const sid = String(r.student_id || '').trim();
               if (!sid) return;
               let dispName = r.buyer_name || '';
@@ -85092,7 +85359,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
                   course_code: r.item_code || '',
                   course_name: r.item_name || '',
                   schedule: r.schedule || '',
-                  room: r.room || ''
+                  room: r.room || '',
+                  learning_mode: (typeof window.normalizeLearningMode === 'function') ? window.normalizeLearningMode(r.learning_mode, '') : ''
                 });
               }
             });
@@ -85112,7 +85380,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
                 course_code: s.current_course || '',
                 course_name: s.current_course || '',
                 schedule: s.current_schedule || '',
-                room: ''
+                room: '',
+                learning_mode: (typeof window.extractLearningModeFromStudent === 'function') ? window.extractLearningModeFromStudent(s) : ''
               });
             });
           }
@@ -87642,7 +87911,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           address: corpBuyerAddress, phone: info.phone || '', email: info.email || '', sendEmail: true,
           courseId: canonicalCourseCode || info.course || '', itemCode: canonicalCourseCode || info.course || '',
           courseName: info.course || '', course: info.course || '', schedule: info.schedule || '', scheduleName: info.schedule || '',
-          materialType: 'รับเอกสารที่โรงเรียน', deliveryMethod: 'รับเอง', learningMode: info.learningMode || 'Onsite',
+          materialType: 'รับเอกสารที่โรงเรียน', deliveryMethod: info.deliveryMethod || 'รับเอง', learningMode: info.learningMode || 'Onsite',
           baseAmount: appBaseFee !== undefined ? appBaseFee : (info.expectedFee !== undefined && info.expectedFee !== null ? Number(info.expectedFee) : 0),
           regFee: appRegFee, cardFee: 0, otherRegFee: 0, transferFee: 0, discountNormal: appDiscFee, discountOther: 0,
           grandTotal: rTotal, paymentMethod: sv.paymentMethod, paymentRef: info.slipRef || 'ONLINE_SLIP_VERIFIED',
@@ -88099,13 +88368,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=241';
+      const swPath = basePath + 'sw.js?v=242';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (241):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (242):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
