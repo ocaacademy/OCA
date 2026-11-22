@@ -12332,7 +12332,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '228';
+      var LATEST_VERSION = '229';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -28280,6 +28280,17 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
           }
         }
         if (action === 'getCoursesAndSchedules' || action === 'syncOfficialCourses') {
+          if (action === 'getCoursesAndSchedules' && !(params && params.forceRefresh) && typeof isPublicRegistrationRoute === 'function' && isPublicRegistrationRoute()) {
+            try {
+              const rawPubCache = sessionStorage.getItem('oca_pub_catalog_cache_v1');
+              if (rawPubCache) {
+                const parsedPubCache = JSON.parse(rawPubCache);
+                if (parsedPubCache && parsedPubCache.ts && (Date.now() - parsedPubCache.ts < 60000) && parsedPubCache.data && parsedPubCache.data.success) {
+                  return parsedPubCache.data;
+                }
+              }
+            } catch (_) {}
+          }
           let courses = null;
           try {
             const resC = await _supabase.from('courses').select('*').eq('is_active', true).order('id', { ascending: true });
@@ -28429,7 +28440,7 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
             discountNormal: feeObj.discountNormal ? feeObj.discountNormal.amount : 240,
             items: feeObj
           };
-          return {
+          const _catalogResult = {
             success: true,
             courses: mappedCourses,
             schedules: schedules || [],
@@ -28599,6 +28610,12 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
               return Object.keys(byYear).length > 0 ? byYear : null;
             })()
           };
+          if (action === 'getCoursesAndSchedules' && typeof isPublicRegistrationRoute === 'function' && isPublicRegistrationRoute()) {
+            try {
+              sessionStorage.setItem('oca_pub_catalog_cache_v1', JSON.stringify({ ts: Date.now(), data: _catalogResult }));
+            } catch (_) {}
+          }
+          return _catalogResult;
         }
         // --- 2. DASHBOARD STATISTICS (LIVE SUPABASE DB & STORAGE INTEGRATION) ---
           // =========================================================================
@@ -29422,6 +29439,19 @@ if (action === 'getDashboardStats') {
           const term = Number(params.term) || _activeYT.term;
           const cleanTerm = String(Number(term) || 1).replace(/\D/g, '') || '1';
           const prefix = String(year).slice(-2) + cleanTerm;
+          if (typeof tryAtomicSequenceId === 'function') {
+            const atomicStudentId = await tryAtomicSequenceId(prefix, 1);
+            if (atomicStudentId) {
+              return {
+                success: true,
+                studentId: atomicStudentId,
+                nextStudentId: atomicStudentId,
+                id: atomicStudentId,
+                toString() { return atomicStudentId; },
+                valueOf() { return atomicStudentId; }
+              };
+            }
+          }
           // Query all existing student IDs with this prefix (paginated to bypass 1000-row PostgREST cap)
           let existing = [];
           if (typeof fetchAllPaginatedSupabaseRows === 'function') {
@@ -29471,6 +29501,18 @@ if (action === 'getDashboardStats') {
           const term = Number(params.term) || _activeYT.term;
           const cleanTerm = String(Number(term) || 1).replace(/\D/g, '') || '1';
           const prefix = String(year).slice(-2) + cleanTerm;
+          if (typeof tryAtomicSequenceId === 'function') {
+            const atomicReceiptNo = await tryAtomicSequenceId(prefix, 1);
+            if (atomicReceiptNo) {
+              return {
+                success: true,
+                receiptNo: atomicReceiptNo,
+                nextReceiptNo: atomicReceiptNo,
+                toString() { return atomicReceiptNo; },
+                valueOf() { return atomicReceiptNo; }
+              };
+            }
+          }
           const minR = prefix + '0000';
           const maxR = String(Number(prefix) + 1).padStart(prefix.length, '0') + '0000';
           const { data: latest, error: latestErr } = await _supabase.from('receipts')
@@ -64369,9 +64411,57 @@ if (action === 'getDashboardStats') {
         console.warn('[ensureDynamicAcademicYearOptions]', e);
       }
     }
+    window._ocaAtomicIdRpcEnabled = false;
+    async function tryAtomicSequenceId(prefix, minStart = 1) {
+      try {
+        if (!window._ocaAtomicIdRpcEnabled) return null;
+        if (typeof _supabase === 'undefined' || !_supabase || typeof _supabase.rpc !== 'function') return null;
+        const cleanPrefix = String(prefix || '').replace(/\D/g, '');
+        if (cleanPrefix.length < 2 || cleanPrefix.length > 4) return null;
+        const { data, error } = await _supabase.rpc('next_oca_sequence_id', {
+          p_prefix: cleanPrefix,
+          p_min_start: Math.max(1, Number(minStart) || 1)
+        });
+        if (error) {
+          console.warn('[tryAtomicSequenceId] RPC fallback:', error.message || error);
+          return null;
+        }
+        const idStr = String(data || '').trim();
+        return /^\d{7}$/.test(idStr) ? idStr : null;
+      } catch (err) {
+        console.warn('[tryAtomicSequenceId] Exception fallback:', err);
+        return null;
+      }
+    }
+    window.tryAtomicSequenceId = tryAtomicSequenceId;
+    async function withPublicSubmitRetry(fn, opts = {}) {
+      const maxAttempts = Math.max(1, Number(opts.attempts) || 4);
+      const baseDelayMs = Math.max(100, Number(opts.baseDelayMs) || 400);
+      let lastErr = null;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+          return await fn(attempt);
+        } catch (err) {
+          lastErr = err;
+          const msg = String((err && (err.message || err.code || err.status)) || err || '');
+          const isRetryable = /(?:429|500|502|503|504|57014|timeout|network|fetch|rate limit|temporarily|ECONNRESET)/i.test(msg);
+          if (!isRetryable || attempt >= maxAttempts - 1) throw err;
+          const jitter = Math.floor(Math.random() * 350);
+          const delayMs = baseDelayMs * Math.pow(2, attempt) + jitter;
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
+      throw lastErr;
+    }
+    window.withPublicSubmitRetry = withPublicSubmitRetry;
     window.ensureDynamicAcademicYearOptions = ensureDynamicAcademicYearOptions;
     document.addEventListener('DOMContentLoaded', () => {
       ensureDynamicAcademicYearOptions();
+      if (window.OcaAppConfig && typeof window.OcaAppConfig.get === 'function') {
+        window.OcaAppConfig.get('atomic_id_rpc_enabled', false).then((v) => {
+          window._ocaAtomicIdRpcEnabled = (v === true || v === 'true');
+        }).catch(() => {});
+      }
       if (window.OcaSlipGuard && typeof window.OcaSlipGuard.loadConfig === 'function') {
         window.OcaSlipGuard.loadConfig().catch(() => {});
       }
@@ -71170,7 +71260,9 @@ function openPublicRegisterView() {
           }) : basePubNote;
         })()
       };
-      callGasApi('register', payload, 'POST')
+      (typeof withPublicSubmitRetry === 'function'
+        ? withPublicSubmitRetry(() => callGasApi('register', payload, 'POST'))
+        : callGasApi('register', payload, 'POST'))
         .then(async (res) => {
           if (btn) {
             btn.disabled = false;
@@ -71366,7 +71458,13 @@ function openPublicRegisterView() {
                       });
                     }
                   }
-                  const { error: pendingUpsertErr } = await _supabase.from('fee_settings').upsert(pendingRows, { onConflict: 'key' });
+                  const { error: pendingUpsertErr } = await (typeof withPublicSubmitRetry === 'function'
+                    ? withPublicSubmitRetry(async () => {
+                        const rUp = await _supabase.from('fee_settings').upsert(pendingRows, { onConflict: 'key' });
+                        if (rUp.error) throw rUp.error;
+                        return rUp;
+                      })
+                    : _supabase.from('fee_settings').upsert(pendingRows, { onConflict: 'key' }));
                   if (pendingUpsertErr) {
                     console.warn('[Pending Slip Record] fee_settings upsert error:', pendingUpsertErr);
                   }
@@ -87197,13 +87295,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=228';
+      const swPath = basePath + 'sw.js?v=229';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (228):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (229):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
