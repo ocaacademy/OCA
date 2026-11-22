@@ -12332,7 +12332,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '226';
+      var LATEST_VERSION = '227';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -86057,11 +86057,21 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         return { appBaseFee: b, appDiscFee: d, appGrandTotal: g };
       }
       const basePrice = cMatch ? Number(cMatch.price ?? 0) : ((info.expectedFee !== undefined && info.expectedFee !== null) ? Number(info.expectedFee) : 2200);
-      const dAmt = (dObj && dObj.active) ? Number(dObj.amount || 0) : 0;
+      let dAmt = (dObj && dObj.active) ? Number(dObj.amount || 0) : 0;
       const g = (info.expectedFee !== undefined && info.expectedFee !== null)
         ? Number(info.expectedFee)
         : Math.max(0, basePrice - dAmt) + appRegFee + otherReg + shipFee;
-      return { appBaseFee: basePrice, appDiscFee: dAmt, appGrandTotal: g };
+      let adjBase = basePrice;
+      const expectedBeforeDisc = adjBase + appRegFee + otherReg + shipFee;
+      if (Math.max(0, adjBase - dAmt) + appRegFee + otherReg + shipFee !== g) {
+        if (g <= expectedBeforeDisc) {
+          dAmt = Math.max(0, expectedBeforeDisc - g);
+        } else {
+          adjBase = Math.max(0, g - appRegFee - otherReg - shipFee);
+          dAmt = 0;
+        }
+      }
+      return { appBaseFee: adjBase, appDiscFee: dAmt, appGrandTotal: g };
     }
     function closeVerifySlipVarianceModal() {
       const m = document.getElementById('modalVerifySlipVariance');
@@ -87076,13 +87086,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=226';
+      const swPath = basePath + 'sw.js?v=227';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (226):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (227):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
