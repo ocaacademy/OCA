@@ -12372,7 +12372,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '240';
+      var LATEST_VERSION = '241';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -22095,14 +22095,14 @@ body.printing-report #printReportContainer {
         <!-- ===================================================================
              CENTER ACTIVITY CONFIRMATION POPUP (#modalActivityPopup - BAMBOO & CRANE)
              =================================================================== -->
-        <div id="modalActivityPopup" class="oca-custom-modal-backdrop oca-formal-modal" onclick="if(event.target===this)closeActivitySuccessPopup()" style="display:none; padding:20px; z-index:100000;">
+        <div id="modalActivityPopup" class="oca-custom-modal-backdrop oca-formal-modal" onclick="if(event.target===this)closeActivitySuccessPopup(false)" style="display:none; padding:20px; z-index:100000;">
           <div class="oca-custom-modal-box" style="max-width:500px; width:100%; border-radius:8px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.5); border:1px solid rgba(15,61,46,0.25); background:#FAF8F5;">
             <div class="oca-modal-split-wrap">
               <!-- Left Bamboo & Crane Panel -->
               <div class="oca-modal-bamboo-panel" data-i18n-locked="true" aria-hidden="true"></div>
               <!-- Right Content Panel -->
               <div class="oca-modal-content-panel">
-                <button type="button" aria-label="Close" class="oca-modal-close-btn" onclick="closeActivitySuccessPopup()">✕</button>
+                <button type="button" aria-label="Close" class="oca-modal-close-btn" onclick="closeActivitySuccessPopup(false)">✕</button>
                 <div style="text-align:center; margin-bottom:10px;" data-i18n-locked="true">
                   <img src="./oca_logo.png" onerror="this.onerror=null; this.src='https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-kJVDLKednw7P';" alt="OCA Logo" class="oca-modal-logo" style="width:44px; height:44px; border-radius:50%; object-fit:contain; margin:0 auto 6px; display:block; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
                   <div class="oca-modal-brand-title" style="font-size:11px; font-weight:800; letter-spacing:0.5px; line-height:1.3;">东方文化书院 · ORIENTAL CULTURE ACADEMY</div>
@@ -22113,7 +22113,7 @@ body.printing-report #printReportContainer {
                 <div id="modalActivityPopupSubtitle" style="font-size:12px; color:#52665D; font-weight:600; margin-bottom:12px; text-align:center;">บันทึกข้อมูลสำเร็จ</div>
                 <div id="modalActivityPopupMessage" style="font-size:13px; color:#1B2A24; line-height:1.65; white-space:pre-line; margin-bottom:20px; word-break:break-word; text-align:center;"></div>
                 <div style="display:flex; justify-content:center; gap:12px; margin-top:auto; width:100%;">
-                  <button type="button" id="btnActivityPopupOk" class="oca-btn-gold-submit" style="flex:1; min-height:38px; height:38px; padding:0 24px; border-radius:4px; font-size:13px; font-weight:700; background:#0F3D2E; color:#FAF8F5; border:1px solid #0F3D2E;" onclick="closeActivitySuccessPopup()">ตกลง</button>
+                  <button type="button" id="btnActivityPopupOk" class="oca-btn-gold-submit" style="flex:1; min-height:38px; height:38px; padding:0 24px; border-radius:4px; font-size:13px; font-weight:700; background:#0F3D2E; color:#FAF8F5; border:1px solid #0F3D2E;" onclick="closeActivitySuccessPopup(true)">ตกลง</button>
                 </div>
               </div>
             </div>
@@ -39167,8 +39167,8 @@ if (action === 'getDashboardStats') {
           }
         } catch (_) {}
         await new Promise(r => setTimeout(r, 1500));
-        const ackCount = collector.devices.size;
         const skippedCount = collector.skipped.size;
+        const doneOnlineCount = Math.max(0, collector.devices.size - skippedCount);
         window._ocaPwaAckCollector = null;
         try {
           if (typeof logDetailedAuditEvent === 'function') {
@@ -39176,9 +39176,7 @@ if (action === 'getDashboardStats') {
               action: 'PWA_FORCE_RELOAD_ALL',
               targetType: 'system',
               targetId: 'pwa_cache',
-              summary: ackCount > 0
-                ? `สั่งล้างแคช PWA และรีโหลดระบบทุกเครื่อง (ตอบรับออนไลน์ ${ackCount} เครื่อง)`
-                : 'สั่งล้างแคช PWA และบันทึกคำสั่งให้เครื่องอื่นอัปเดตอัตโนมัติ',
+              summary: `สั่งล้างแคช PWA และรีโหลดระบบทุกเครื่อง (ดำเนินการแล้ว ${doneOnlineCount} เครื่อง, รอดำเนินการ ${skippedCount} เครื่อง)`,
               severity: 'WARN'
             });
           }
@@ -39191,17 +39189,28 @@ if (action === 'getDashboardStats') {
           const keys = await window.caches.keys();
           await Promise.all(keys.map(k => window.caches.delete(k)));
         }
-        if (ackCount > 0) {
-          const skipTxt = skippedCount > 0 ? ` (ข้าม ${skippedCount} เครื่องที่มีคิวรอซิงก์)` : '';
-          showToast('ล้างแคชสำเร็จ', `ส่งคำสั่งสำเร็จ — ตอบรับออนไลน์ ${ackCount} เครื่อง (+ เครื่องนี้)${skipTxt} กำลังรีโหลด...`, '✓');
+        const popupMsg =
+          `• ดำเนินการแล้ว: ${doneOnlineCount} เครื่อง (+ เครื่องนี้)\n` +
+          `• รอดำเนินการ (ติดคิวรอซิงก์ออฟไลน์): ${skippedCount} เครื่อง\n` +
+          `• เครื่องที่ปิดอยู่: บันทึกคำสั่งกลางแล้ว จะล้างแคชอัตโนมัติทันทีเมื่อเปิดใช้งานครั้งถัดไป\n\n` +
+          `กด "ตกลง" เพื่อรีโหลดหน้าจอเครื่องนี้`;
+        window._ocaActivityPopupForceOk = true;
+        window._ocaActivityPopupOnClose = () => window.location.reload(true);
+        if (typeof showOcaAlert === 'function') {
+          showOcaAlert('ล้างแคช PWA และสั่งอัปเดตสำเร็จ', popupMsg, 'success');
         } else {
-          showToast('ล้างแคชสำเร็จ', 'ล้างแคชเครื่องนี้สำเร็จ — บันทึกคำสั่งให้เครื่องอื่นอัปเดตอัตโนมัติเมื่อเปิดใช้งาน', '✓');
+          window.location.reload(true);
         }
-        setTimeout(() => window.location.reload(true), 1200);
       } catch (err) {
         window._ocaPwaAckCollector = null;
+        window._ocaActivityPopupForceOk = false;
+        window._ocaActivityPopupOnClose = null;
         if (btn) btn.disabled = false;
-        showModal('ล้างแคชไม่สำเร็จ', err.message || '', '❌');
+        if (typeof showOcaAlert === 'function') {
+          showOcaAlert('ล้างแคชไม่สำเร็จ', err.message || '', 'error');
+        } else {
+          showModal('ล้างแคชไม่สำเร็จ', err.message || '', '❌');
+        }
       }
     }
     window.checkPendingPwaForceReload = async function () {
@@ -51873,6 +51882,8 @@ if (action === 'getDashboardStats') {
       if (elMsg) elMsg.textContent = safeMsg;
       if (btnOk) btnOk.textContent = safeOk;
       if (elIcon) elIcon.style.display = 'none';
+      const closeBtn = modal.querySelector('.oca-modal-close-btn');
+      if (closeBtn) closeBtn.style.display = window._ocaActivityPopupForceOk ? 'none' : '';
       modal.style.display = 'flex';
       if (typeof translateContainerTree === 'function') {
         translateContainerTree(modal, curL);
@@ -51881,9 +51892,20 @@ if (action === 'getDashboardStats') {
         setTimeout(() => { try { btnOk.focus(); } catch (_) {} }, 30);
       }
     }
-    function closeActivitySuccessPopup() {
+    function closeActivitySuccessPopup(fromOkBtn = false) {
+      if (window._ocaActivityPopupForceOk && !fromOkBtn) return;
       const modal = document.getElementById('modalActivityPopup');
-      if (modal) modal.style.display = 'none';
+      if (modal) {
+        modal.style.display = 'none';
+        const closeBtn = modal.querySelector('.oca-modal-close-btn');
+        if (closeBtn) closeBtn.style.display = '';
+      }
+      window._ocaActivityPopupForceOk = false;
+      if (typeof window._ocaActivityPopupOnClose === 'function') {
+        const cb = window._ocaActivityPopupOnClose;
+        window._ocaActivityPopupOnClose = null;
+        try { cb(); } catch (_) {}
+      }
     }
     /**
      * ระบบแจ้งเตือนทางการ (Formal System Alert) แทนการใช้ alert() ของเบราว์เซอร์
@@ -88077,13 +88099,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=240';
+      const swPath = basePath + 'sw.js?v=241';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (240):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (241):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
