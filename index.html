@@ -12372,7 +12372,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '243';
+      var LATEST_VERSION = '244';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -19237,14 +19237,14 @@ body.printing-report #printReportContainer {
                     <option value="term" selected>รายเทอม</option>
                     <option value="year">รายปี (พ.ศ.)</option>
                   </select>
-                  <input type="date" id="inpReportExamRegDate" class="oca-input" style="width:145px; height:34px; font-size:12.5px; display:none;" onchange="renderExamRegReport()">
-                  <select id="selReportExamRegYear" class="oca-input" style="width:105px; height:34px; font-size:12.5px;" onchange="renderExamRegReport()">
+                  <input type="date" id="inpReportExamRegDate" class="oca-input" style="width:145px; height:34px; font-size:12.5px; display:none;" onchange="loadExamRegReport()">
+                  <select id="selReportExamRegYear" class="oca-input" style="width:105px; height:34px; font-size:12.5px;" onchange="loadExamRegReport()">
                     <option value="2569" selected>2569</option>
                     <option value="2568">2568</option>
                     <option value="2570">2570</option>
                     <option value="2571">2571</option>
                   </select>
-                  <select id="selReportExamRegTerm" class="oca-input" style="width:110px; height:34px; font-size:12.5px;" onchange="renderExamRegReport()">
+                  <select id="selReportExamRegTerm" class="oca-input" style="width:110px; height:34px; font-size:12.5px;" onchange="loadExamRegReport()">
                     <option value="ALL">ทุกเทอม</option>
                     <option value="1">เทอม 1</option>
                     <option value="2">เทอม 2</option>
@@ -26420,6 +26420,14 @@ body.printing-report #printReportContainer {
               if (data.skippedPending) collector.skipped.add(ackDev);
             } catch (_) {}
           })
+          .on('broadcast', { event: 'teacher_attendance_updated' }, () => {
+            try {
+              const attView = document.getElementById('subviewReportAttTrack');
+              if (attView && attView.style.display !== 'none' && typeof loadCourseAttendanceTrackingReport === 'function') {
+                loadCourseAttendanceTrackingReport(true);
+              }
+            } catch (_) {}
+          })
           .on('broadcast', { event: 'staff_single_session_login' }, (payload) => {
             console.log('[Realtime Broadcast] Single session login event received:', payload);
             if (typeof handleSingleSessionKick === 'function') {
@@ -27947,9 +27955,9 @@ body.printing-report #printReportContainer {
         const payerAddress = (companyName && companyAddress) ? companyAddress : ((rcpt && rcpt.address) || params.address || '-');
         const courseName = (rcpt && rcpt.item_name) || params.courseName || '-';
         const scheduleName = (rcpt && rcpt.schedule) || params.schedule || '-';
-        const rawGrandTotal = Number((rcpt && rcpt.grand_total) || params.grandTotal || 0);
+        const rawGrandTotal = Number(rcpt?.grand_total ?? params.grandTotal ?? 0);
         const grandTotalFormatted = rawGrandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const rawBaseAmount = Number((rcpt && rcpt.base_amount) || (rcpt && rcpt.amount) || params.baseAmount || rawGrandTotal);
+        const rawBaseAmount = Number(rcpt?.base_amount ?? rcpt?.amount ?? params.baseAmount ?? rawGrandTotal);
         const baseAmountFormatted = rawBaseAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const regFee = Number((rcpt && rcpt.reg_fee) || params.regFee || 0);
         const cardFee = Number((rcpt && rcpt.card_fee) || params.cardFee || 0);
@@ -29214,11 +29222,11 @@ if (action === 'getDashboardStats') {
             _supabase.from('schedules').select('id', { count: 'exact', head: true }),
             _supabase.from('fee_settings').select('key', { count: 'exact', head: true }),
             _supabase.from('staff_users').select('id', { count: 'exact', head: true }),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.deleted').gte('student_id', yrPrefix + '10000').lt('student_id', yrPrefix + '20000'),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.deleted').gte('student_id', yrPrefix + '20000').lt('student_id', yrPrefix + '30000'),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.deleted').gte('student_id', yrPrefix + '30000').lt('student_id', yrPrefix + '40000'),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.deleted').gte('student_id', yrPrefix + '40000').lt('student_id', yrPrefix + '50000'),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.deleted').gte('student_id', yrPrefix + '50000').lt('student_id', yrPrefix + '60000')
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.DELETED').gte('student_id', yrPrefix + '10000').lt('student_id', yrPrefix + '20000'),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.DELETED').gte('student_id', yrPrefix + '20000').lt('student_id', yrPrefix + '30000'),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.DELETED').gte('student_id', yrPrefix + '30000').lt('student_id', yrPrefix + '40000'),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.DELETED').gte('student_id', yrPrefix + '40000').lt('student_id', yrPrefix + '50000'),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.DELETED').gte('student_id', yrPrefix + '50000').lt('student_id', yrPrefix + '60000')
           ]);
           const activeCoursesList = Array.isArray(resC?.data)
             ? resC.data.filter(c => c && c.is_active === true)
@@ -30208,7 +30216,7 @@ if (action === 'getDashboardStats') {
             item_code: params.itemCode || params.courseId || '',
             item_name: params.itemName || params.courseName || params.title || 'ค่าเล่าเรียนและอุปกรณ์',
             schedule: params.schedule || params.scheduleName || '',
-            base_amount: Number(params.baseAmount || params.amount) || 0,
+            base_amount: Number(params.baseAmount ?? params.amount ?? 0) || 0,
             reg_fee: Number(params.regFee) || 0,
             card_fee: Number(params.cardFee) || 0,
             other_reg_fee: (Number(params.otherRegFee) || 0) + (Number(params.transferFee) || 0) + (Number(params.shippingFee) || 0),
@@ -30216,7 +30224,7 @@ if (action === 'getDashboardStats') {
             shipping_fee: Math.max(0, Number(params.shippingFee) || 0),
             discount_normal: Number(params.discountNormal) || 0,
             discount_other: Number(params.discountOther) || 0,
-            grand_total: Number(params.grandTotal || params.amount) || 0,
+            grand_total: Number(params.grandTotal ?? params.amount ?? 0) || 0,
             payment_ref: params.paymentRef || params.payment_ref || '',
             payment_method: params.paymentMethod || 'โอนเงิน',
             claim_token: generatedClaimToken,
@@ -30716,7 +30724,7 @@ if (action === 'getDashboardStats') {
                 class_group: (params.classGroup || params.class_group || '').toString().trim() || null,
                 teacher_name: (params.teacherName || params.teacher_name || '').toString().trim() || null,
                 email: (stData.email && stData.email.includes('@')) ? stData.email.trim() : null,
-                email_status: (stData.email && stData.email.includes('@')) ? 'PROCESSING' : 'NO_EMAIL'
+                email_status: 'NO_EMAIL'
               };
               for (let attempt = 0; attempt < 10; attempt++) {
                 const { error: rcErr } = await _supabase.from('receipts').insert([{ ...transferRcData, receipt_no: assignedRcNo }]);
@@ -30939,7 +30947,7 @@ if (action === 'getDashboardStats') {
                 const stIds = stList.map(s => String(s.student_id || '').trim()).filter(Boolean);
                 const recDelivery = await fetchBatchedSupabaseIn(
                   'receipts',
-                  'student_id, delivery_method, room, class_group, teacher_name, claim_status, edit_notes, receipt_no',
+                  'student_id, delivery_method, room, class_group, teacher_name, claim_status, edit_notes, receipt_no, receipt_type',
                   'student_id',
                   stIds,
                   80
@@ -30950,9 +30958,10 @@ if (action === 'getDashboardStats') {
                   const rcMetaMap = {};
                   recDelivery.forEach(r => {
                     if (isReceiptVoided(r)) return;
+                    const rt = String(r.receipt_type || '').trim().toLowerCase();
                     if (r.student_id) {
                       if (r.delivery_method && !delivMap[r.student_id]) delivMap[r.student_id] = r.delivery_method;
-                      if (!rcMetaMap[r.student_id]) {
+                      if ((!rt || rt === 'tuition') && !rcMetaMap[r.student_id]) {
                         rcMetaMap[r.student_id] = {
                           room: r.room || '',
                           classGroup: r.class_group || '',
@@ -30992,7 +31001,8 @@ if (action === 'getDashboardStats') {
               return (s.student_id && String(s.student_id).toLowerCase().includes(q)) ||
                      (s.full_name && s.full_name.toLowerCase().includes(q)) ||
                      (s.citizen_id && String(s.citizen_id).toLowerCase().includes(q)) ||
-                     (s.phone_number && String(s.phone_number).toLowerCase().includes(q));
+                     (s.phone_number && String(s.phone_number).toLowerCase().includes(q)) ||
+                     (s.smart_card_uid && String(s.smart_card_uid).toLowerCase().includes(q));
             });
           }
           const mapped = list.map(s => {
@@ -32804,6 +32814,9 @@ if (action === 'getDashboardStats') {
           const { data: existing } = await _supabase.from('receipts').select('*').eq('receipt_no', rcNo).limit(1);
           if (!existing || existing.length === 0) return { success: false, message: 'ไม่พบใบเสร็จในระบบ' };
           const currentRc = existing[0];
+          if (isReceiptVoided(currentRc) || String(currentRc.claim_status || '').toUpperCase() === 'VOIDED') {
+            return { success: false, message: 'ไม่สามารถแก้ไขใบเสร็จที่ถูกยกเลิก (VOID) แล้วได้' };
+          }
           // Step 1: Snapshot current receipt as revision backup before applying edits
           try {
             const { data: pastBackups } = await _supabase
@@ -32890,6 +32903,9 @@ if (action === 'getDashboardStats') {
             } catch (mailErr) {
               console.warn('Auto send receipt email error:', mailErr);
             }
+          }
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('receipts', 'UPDATE', { receipt_no: rcNo });
           }
           return { success: true, message: 'แก้ไขใบเสร็จและบันทึกประวัติสำเร็จ' };
         }
@@ -52884,11 +52900,15 @@ if (action === 'getDashboardStats') {
       const otherReg = Number(document.getElementById('inpEditRcptOtherRegFee')?.value) || 0;
       const discNorm = Number(document.getElementById('inpEditRcptDiscountNormal')?.value) || 0;
       const discOther = Number(document.getElementById('inpEditRcptDiscountOther')?.value) || 0;
+      const editNotesStr = String(document.getElementById('inpEditRcptNotes')?.value || '');
+      const crMatch = editNotesStr.match(/\[CREDIT_REDEEMED:\s*฿?([\d,]+(?:\.\d+)?)\]/i);
+      const creditRedeemed = crMatch ? (Number(crMatch[1].replace(/,/g, '')) || 0) : 0;
       const total = Math.max(0, base - discNorm - discOther) + reg + card + otherReg;
+      const netTotal = Math.max(0, total - creditRedeemed);
       const grandInput = document.getElementById('inpEditRcptGrandTotal');
       if (grandInput) {
-        grandInput.value = '฿' + toArabicDigits(total.toLocaleString('en-US', { minimumFractionDigits: 2 }));
-        grandInput.dataset.rawTotal = total;
+        grandInput.value = '฿' + toArabicDigits(netTotal.toLocaleString('en-US', { minimumFractionDigits: 2 }));
+        grandInput.dataset.rawTotal = netTotal;
       }
     }
     async function submitEditReceiptForm(event) {
@@ -52921,6 +52941,8 @@ if (action === 'getDashboardStats') {
       const deliveryMethod = document.getElementById('inpEditRcptDeliveryMethod')?.value || 'รับเอง';
       const rawEditLm = document.getElementById('inpEditRcptLearningMode')?.value || '-';
       const learningMode = (rawEditLm === '-') ? '-' : window.normalizeLearningMode(rawEditLm, '-');
+      const existingRcItem = Array.isArray(receiptHistoryCachedLogs) ? receiptHistoryCachedLogs.find(l => l && l.receiptNo === currentEditingReceiptNo) : null;
+      const preservedItemCode = (existingRcItem && existingRcItem.itemCode) ? existingRcItem.itemCode : itemName;
       const payload = {
         receiptNo: currentEditingReceiptNo,
         buyerName: buyerName,
@@ -52928,7 +52950,7 @@ if (action === 'getDashboardStats') {
         email: email,
         address: document.getElementById('inpEditRcptAddress')?.value.trim() || '-',
         itemName: itemName,
-        itemCode: itemName,
+        itemCode: preservedItemCode,
         schedule: document.getElementById('inpEditRcptSchedule')?.value.trim() || '-',
         materialType: materialType,
         deliveryMethod: deliveryMethod,
@@ -57800,7 +57822,7 @@ if (action === 'getDashboardStats') {
       }
       if (selYear) selYear.style.display = (mode === 'daily') ? 'none' : '';
       if (selTerm) selTerm.style.display = (mode === 'term') ? '' : 'none';
-      renderTextbookSalesReport();
+      loadTextbookSalesReport();
     }
     window.onReportTbModeChange = onReportTbModeChange;
     let _tbSalesReportQueryKey = '';
@@ -58097,7 +58119,7 @@ if (action === 'getDashboardStats') {
       }
       if (selYear) selYear.style.display = (mode === 'daily') ? 'none' : '';
       if (selTerm) selTerm.style.display = (mode === 'term') ? '' : 'none';
-      renderExamRegReport();
+      loadExamRegReport();
     }
     window.onReportExamRegModeChange = onReportExamRegModeChange;
     async function loadExamRegReport(forceRefresh) {
@@ -82776,7 +82798,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       // 1. Restore date on F5/refresh if empty
       if (dateEl && !dateEl.value) {
         const savedDate = localStorage.getItem('oca_teacher_selected_date');
-        const today = new Date().toISOString().split('T')[0];
+        const today = (typeof getBangkokTodayDateStr === 'function') ? getBangkokTodayDateStr() : toBkkDateIso(new Date());
         dateEl.value = savedDate || today;
       }
       // 2. Restore schedule on F5/refresh if default or empty (respect RBAC lock)
@@ -83446,15 +83468,42 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           const activeYearNum = Number(activeYT.yearBE) || (new Date().getFullYear() + 543);
           const yrPrefix = String(activeYearNum).slice(-2);
           const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
-          const rawData = await fetchAllPaginatedSupabaseRows(() =>
-            _supabase
-              .from('students')
-              .select('student_id, prefix, full_name, phone_number, email, line_id, photo_url, current_schedule, current_course, year_be, term, status, notes')
-              .gte('student_id', yrPrefix + '00000')
-              .lt('student_id', nextPrefix + '00000')
-              .order('student_id', { ascending: false })
-          , 1000, 10000);
-          const data = (rawData || []).filter(s => !isStudentDeleted(s) && String(s.status || '').toUpperCase() !== 'CANCELLED');
+          const activeTermNum = Number(activeYT.term) || 5;
+          const tPrefix = yrPrefix + String(activeTermNum);
+          const nextTPrefix = (activeTermNum < 5) ? (yrPrefix + String(activeTermNum + 1)) : (String(Number(yrPrefix) + 1).padStart(2, '0') + '0');
+          const [rawData, termRcData] = await Promise.all([
+            fetchAllPaginatedSupabaseRows(() =>
+              _supabase
+                .from('students')
+                .select('student_id, prefix, full_name, phone_number, email, line_id, photo_url, current_schedule, current_course, year_be, term, status, notes')
+                .gte('student_id', yrPrefix + '00000')
+                .lt('student_id', nextPrefix + '00000')
+                .order('student_id', { ascending: false })
+            , 1000, 10000),
+            fetchAllPaginatedSupabaseRows(() =>
+              _supabase
+                .from('receipts')
+                .select('student_id, item_name, schedule, receipt_type, claim_status, edit_notes')
+                .gte('receipt_no', tPrefix + '0000')
+                .lt('receipt_no', nextTPrefix + '0000')
+                .or('claim_status.is.null,claim_status.neq.VOIDED')
+                .order('receipt_no', { ascending: false })
+            , 1000, 10000)
+          ]);
+          const mergedStMap = new Map();
+          (rawData || []).forEach(s => { if (s && s.student_id) mergedStMap.set(String(s.student_id).trim(), s); });
+          const missingRetIds = Array.from(new Set((termRcData || []).filter(r => r && !isReceiptVoided(r) && (!r.receipt_type || r.receipt_type === 'tuition')).map(r => String(r.student_id || '').trim()).filter(sid => sid && !mergedStMap.has(sid))));
+          if (missingRetIds.length > 0 && typeof fetchBatchedSupabaseIn === 'function') {
+            try {
+              const retStRows = await fetchBatchedSupabaseIn('students', 'student_id, prefix, full_name, phone_number, email, line_id, photo_url, current_schedule, current_course, year_be, term, status, notes', 'student_id', missingRetIds, 80);
+              (retStRows || []).forEach(s => { if (s && s.student_id) mergedStMap.set(String(s.student_id).trim(), s); });
+            } catch (_) {}
+          }
+          const data = Array.from(mergedStMap.values()).filter(s => {
+            if (!s || (typeof isStudentDeleted === 'function' && isStudentDeleted(s))) return false;
+            const stUp = String(s.status || '').trim().toUpperCase();
+            return stUp !== 'CANCELLED' && stUp !== 'DROPPED' && !stUp.includes('ดรอป') && !stUp.includes('ลาออก');
+          });
           if (Array.isArray(data) && data.length > 0) {
             students = data.filter(s => {
               const cs = (s.current_schedule || '').trim();
@@ -85961,10 +86010,12 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
                 let parsedDetail = {};
                 try { parsedDetail = JSON.parse(l.details || '{}'); } catch(_) {}
                 const isCheckIn = (l.action && (l.action.includes('IN') || l.action.includes('เข้างาน')));
+                const derivedStatus = parsedDetail.status || (isCheckIn ? 'ON_TIME' : 'OUT');
                 records.push({
                   username: l.username,
                   teacher_name: parsedDetail.teacher_name || l.username,
                   check_type: isCheckIn ? 'IN' : 'OUT',
+                  status: derivedStatus,
                   created_at: l.created_at,
                   thai_time_stamp: l.created_at,
                   distance_meters: parsedDetail.distance_meters || 0,
@@ -85972,6 +86023,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
                 });
               }
             });
+          }
+          if (selType && selType.value && selType.value !== 'ALL') {
+            const wantType = String(selType.value).trim().toUpperCase();
+            records = records.filter(r => String(r.status || r.check_type || '').toUpperCase() === wantType);
           }
         } catch (_) {}
       }
@@ -86230,7 +86285,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       // Initialize Attendance Date to saved date or today's date YYYY-MM-DD
       if (dateEl) {
         const savedDate = localStorage.getItem('oca_teacher_selected_date');
-        const today = new Date().toISOString().split('T')[0];
+        const today = (typeof getBangkokTodayDateStr === 'function') ? getBangkokTodayDateStr() : toBkkDateIso(new Date());
         dateEl.value = savedDate || today;
       }
       if (user) {
@@ -87902,6 +87957,21 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         overrides.baseAmount = appOtherRegFee;
         overrides.regFee = 0;
         overrides.discountNormal = 0;
+      } else if (appIsExamOnly) {
+        const examTitle = appExtraExams.map(ex => ((typeof formatExamDisplayLevel === 'function') ? formatExamDisplayLevel(ex) : (ex.level || ex.group || 'HSK')) + (Number(ex.qty) > 1 ? ' x' + ex.qty : '')).join(', ');
+        overrides.type = 'exam';
+        overrides.courseId = appExtraExams.map(ex => ex.id || 'EXAM').join(',');
+        overrides.itemCode = overrides.courseId;
+        overrides.courseName = `ค่าสมัครสอบวัดระดับ (${examTitle})`;
+        overrides.course = overrides.courseName;
+        overrides.schedule = '-';
+        overrides.scheduleName = '-';
+        overrides.materialType = 'ไม่มีอุปกรณ์';
+        overrides.claimStatus = 'NO_BOOK_CLAIM';
+        overrides.learningMode = '-';
+        overrides.baseAmount = appExamsTotal;
+        overrides.regFee = 0;
+        overrides.discountNormal = 0;
       } else if (extraBooksItemSummary || hasMultiCourses) {
         overrides.courseName = combinedCourseName;
         overrides.course = combinedCourseName;
@@ -87982,23 +88052,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const derivedTerm = Number(info.term) || (resolvedFallback && resolvedFallback.term) || Number(stRow && stRow.term) || 5;
         const yearBE = derivedYearBE;
         const term = derivedTerm;
-        // 2. Update Student status, course, schedule, and details upon approval
-        const stUpdatePayload = {
-          status: 'พร้อมเรียน',
-          ...(info.course ? { current_course: info.course } : {}),
-          ...(info.schedule ? { current_schedule: info.schedule } : {}),
-          ...(info.address ? { address: info.address } : {}),
-          ...(info.phone ? { phone_number: info.phone } : {}),
-          ...(info.email && info.email.includes('@') ? { email: info.email.trim() } : {}),
-          ...(yearBE ? { year_be: Number(yearBE) } : {}),
-          ...(term ? { term: Number(term) } : {})
-        };
-        const { error: stUpdErr } = await _supabase.from('students').update(stUpdatePayload).eq('student_id', studentId);
-        if (stUpdErr) {
-          console.error('[Approval] Student status/course update error:', stUpdErr);
-          throw new Error('ไม่สามารถบันทึกสถานะและคอร์สของนักเรียนได้: ' + (stUpdErr.message || JSON.stringify(stUpdErr)));
-        }
-        // 3. Issue Receipt via saveReceipt
+        // 2. Issue Receipt via saveReceipt FIRST (before mutating students.status so failed receipts never leave student in 'พร้อมเรียน')
         const effectiveCashier = typeof getEffectivePayeeName === 'function' ? getEffectivePayeeName() : 'เจ้าหน้าที่การเงิน OCA';
         const isCorp = !!(info.isCorporate || info.companyName);
         const corpBuyerName = isCorp ? `${info.companyName}${info.companyBranch ? ' ' + info.companyBranch : ''}${info.companyTaxId ? ' (เลขผู้เสียภาษี: ' + info.companyTaxId + ')' : ''} (${info.fullName || '-'})` : (info.fullName || '');
@@ -88041,6 +88095,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         if (!rcRes || !rcRes.success) {
           throw new Error((rcRes && rcRes.message) || 'ไม่สามารถออกใบเสร็จรับเงินได้');
         }
+        // 3. Update Student status/course AFTER saveReceipt succeeds
+        const isNonCourseOrder = (rcPayloadFinal.type === 'book' || rcPayloadFinal.type === 'exam');
+        const stUpd = { status: 'พร้อมเรียน', ...(!isNonCourseOrder && info.course ? { current_course: info.course } : {}), ...(!isNonCourseOrder && info.schedule ? { current_schedule: info.schedule } : {}), ...(info.address ? { address: info.address } : {}), ...(info.phone ? { phone_number: info.phone } : {}), ...(info.email && info.email.includes('@') ? { email: info.email.trim() } : {}), ...(yearBE ? { year_be: Number(yearBE) } : {}), ...(term ? { term: Number(term) } : {}) };
+        const { error: stUpdErr } = await _supabase.from('students').update(stUpd).eq('student_id', studentId);
+        if (stUpdErr) throw new Error('ไม่สามารถบันทึกสถานะและคอร์สของนักเรียนได้: ' + (stUpdErr.message || ''));
         // Permanent Coupling: Upsert atomic receipt_slip key into fee_settings
         if (rcRes && rcRes.receiptNo) {
           let storageRelativePath = '';
@@ -88487,13 +88546,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=243';
+      const swPath = basePath + 'sw.js?v=244';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (243):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (244):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
