@@ -12332,7 +12332,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '223';
+      var LATEST_VERSION = '224';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -29395,13 +29395,29 @@ if (action === 'getDashboardStats') {
         }
         // --- 4. GENERATE STUDENT ID (7 digits: YY + T + NNNN เช่น 6940001, 6950001) ---
         if (action === 'generateStudentId') {
-          const year = params.year || 2569;
-          const term = params.term || 4;
-          const prefix = String(year).slice(-2) + String(term);
-          // Query all existing student IDs with this prefix (year + term) to fill gaps from deleted IDs
-          const { data: existing } = await _supabase.from('students')
-            .select('student_id')
-            .gte('student_id', `${prefix}0000`).lte('student_id', `${prefix}9999`);
+          const _activeYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+          const year = Number(params.year) || _activeYT.yearBE;
+          const term = Number(params.term) || _activeYT.term;
+          const cleanTerm = String(Number(term) || 1).replace(/\D/g, '') || '1';
+          const prefix = String(year).slice(-2) + cleanTerm;
+          // Query all existing student IDs with this prefix (paginated to bypass 1000-row PostgREST cap)
+          let existing = [];
+          if (typeof fetchAllPaginatedSupabaseRows === 'function') {
+            existing = await fetchAllPaginatedSupabaseRows(() =>
+              _supabase.from('students')
+                .select('student_id')
+                .gte('student_id', `${prefix}0000`).lte('student_id', `${prefix}9999`)
+                .order('student_id', { ascending: true })
+            );
+          } else {
+            const { data: exRows, error: exErr } = await _supabase.from('students')
+              .select('student_id')
+              .gte('student_id', `${prefix}0000`).lte('student_id', `${prefix}9999`)
+              .order('student_id', { ascending: false })
+              .limit(1);
+            if (exErr) throw exErr;
+            existing = exRows || [];
+          }
           const usedNumbers = new Set();
           if (Array.isArray(existing)) {
             existing.forEach(r => {
@@ -29428,18 +29444,20 @@ if (action === 'getDashboardStats') {
         }
         // --- 5. GENERATE RECEIPT NUMBER ---
         if (action === 'generateReceiptNo') {
-          const year = params.year || 2569;
-          const term = params.term || 5;
+          const _activeYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+          const year = Number(params.year) || _activeYT.yearBE;
+          const term = Number(params.term) || _activeYT.term;
           const cleanTerm = String(Number(term) || 1).replace(/\D/g, '') || '1';
           const prefix = String(year).slice(-2) + cleanTerm;
           const minR = prefix + '0000';
           const maxR = String(Number(prefix) + 1).padStart(prefix.length, '0') + '0000';
-          const { data: latest } = await _supabase.from('receipts')
+          const { data: latest, error: latestErr } = await _supabase.from('receipts')
             .select('receipt_no')
             .gte('receipt_no', minR)
             .lt('receipt_no', maxR)
             .order('receipt_no', { ascending: false })
             .limit(1);
+          if (latestErr) throw latestErr;
           let seq = 1;
           if (latest && latest.length > 0 && latest[0].receipt_no) {
             const num = parseInt(latest[0].receipt_no.slice(-4), 10);
@@ -29582,11 +29600,15 @@ if (action === 'getDashboardStats') {
               };
             }
           }
-          const yearBE = Number(params.yearBE) || 2569;
-          const termNo = Number(params.term) || 5;
-          const idPrefix = String(yearBE).slice(-2) + String(termNo);
+          const _activeYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+          const yearBE = Number(params.yearBE) || _activeYT.yearBE;
+          const termNo = Number(params.term) || _activeYT.term;
+          const cleanTermNo = String(Number(termNo) || 1).replace(/\D/g, '') || '1';
+          const idPrefix = String(yearBE).slice(-2) + cleanTermNo;
           const rawPassedSid = extractCleanId(params.studentId);
-          let assignedStudentId = rawPassedSid;
+          let assignedStudentId = (rawPassedSid && (params.preserveStudentId === true || (rawPassedSid.startsWith(idPrefix) && /^\d{7}$/.test(rawPassedSid))))
+            ? rawPassedSid
+            : '';
           if (!assignedStudentId) {
             try {
               const { data: maxRows } = await _supabase
@@ -29692,7 +29714,10 @@ if (action === 'getDashboardStats') {
               throw insErr;
             }
           }
-          if (insSuccess && typeof broadcastOcaDataSync === 'function') {
+          if (!insSuccess) {
+            throw new Error('ไม่สามารถออกรหัสนักศึกษาที่ไม่ซ้ำได้ กรุณาลองใหม่อีกครั้ง');
+          }
+          if (typeof broadcastOcaDataSync === 'function') {
             broadcastOcaDataSync('students', 'INSERT', { student_id: assignedStudentId });
           }
           return { success: true, studentId: assignedStudentId };
@@ -29845,13 +29870,17 @@ if (action === 'getDashboardStats') {
               return { success: true, receipt: recentDup[0], receiptNo: recentDup[0].receipt_no, studentId: recentDup[0].student_id, duplicatePrevented: true, emailDispatched: true };
             }
           }
-          const rcYear = Number(params.yearBE) || 2569;
-          const rcTerm = Number(params.term) || 5;
+          const _activeYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+          const rcYear = Number(params.yearBE || params.year_be) || _activeYT.yearBE;
+          const rcTerm = Number(params.term) || _activeYT.term;
           const cleanRcTerm = String(Number(rcTerm) || 1).replace(/\D/g, '') || '1';
           const rcPrefix = String(rcYear).slice(-2) + cleanRcTerm;
           const minRcR = rcPrefix + '0000';
           const maxRcR = String(Number(rcPrefix) + 1).padStart(rcPrefix.length, '0') + '0000';
           let assignedRcNo = extractCleanId(params.receiptNo);
+          if (assignedRcNo && (!assignedRcNo.startsWith(rcPrefix) || !/^\d{7}$/.test(assignedRcNo))) {
+            assignedRcNo = '';
+          }
           // If no valid receipt number was provided by client, auto-generate next sequence immediately
           if (!assignedRcNo) {
             const { data: latestRc } = await _supabase.from('receipts')
@@ -29924,16 +29953,18 @@ if (action === 'getDashboardStats') {
               break;
             }
             if (rcErr.code === '23505' || rcErr.code === '23502') {
-              const { data: latestRc } = await _supabase.from('receipts')
+              await new Promise(r => setTimeout(r, Math.floor(Math.random() * 60) + 20));
+              const { data: latestRc, error: latestRcErr } = await _supabase.from('receipts')
                 .select('receipt_no')
                 .gte('receipt_no', minRcR)
                 .lt('receipt_no', maxRcR)
                 .order('receipt_no', { ascending: false })
                 .limit(1);
+              if (latestRcErr) throw latestRcErr;
               let nextRcSeq = 1;
               if (latestRc && latestRc.length > 0 && latestRc[0].receipt_no) {
                 const curRcNum = parseInt(latestRc[0].receipt_no.slice(-4), 10);
-                if (!isNaN(curRcNum)) nextRcSeq = curRcNum + 1 + attempt;
+                if (!isNaN(curRcNum)) nextRcSeq = curRcNum + 1;
               }
               assignedRcNo = rcPrefix + String(nextRcSeq).padStart(4, '0');
             } else {
@@ -29945,8 +29976,10 @@ if (action === 'getDashboardStats') {
           }
           const targetCourse = (params.courseName || params.itemName || params.course || '').trim();
           const targetSchedule = (params.scheduleName || params.schedule || '').trim();
-          const isTuitionReceipt = String(params.type || params.receipt_type || 'tuition').toLowerCase() === 'tuition';
-          if (validStudentId && (action === 'renewStudentCourseAndReceipt' || action === 'transferStudentCourseAndReceipt' || targetCourse || targetSchedule || isTuitionReceipt)) {
+          const rcTypeLower = String(params.type || params.receipt_type || 'tuition').toLowerCase();
+          const isTuitionReceipt = rcTypeLower === 'tuition';
+          const shouldUpdateStudentCourse = action === 'renewStudentCourseAndReceipt' || action === 'transferStudentCourseAndReceipt' || isTuitionReceipt;
+          if (validStudentId && shouldUpdateStudentCourse && (targetCourse || targetSchedule || isTuitionReceipt)) {
             const targetSid = validStudentId;
             const updateObj = {
               status: 'พร้อมเรียน'
@@ -30050,12 +30083,12 @@ if (action === 'getDashboardStats') {
         }
         // --- 9. GET RECEIPTS LIST ---
         if (action === 'getReceipts') {
-          // Fast B-Tree indexed query for modern active receipts (2568-2569: receipt_no >= '6800000' and < '7000000')
+          // Fast B-Tree indexed query for modern active receipts (2568-2579: receipt_no >= '6800000' and < '8000000')
           // Prevents PostgREST 500 Statement Timeout on 424,000 rows (executes in <150ms)
           let rcQuery = _supabase.from('receipts')
             .select('*')
             .gte('receipt_no', '6800000')
-            .lt('receipt_no', '7000000')
+            .lt('receipt_no', '8000000')
             .order('receipt_no', { ascending: false })
             .limit(300);
           let [rcRes, cntRes] = await Promise.all([
@@ -30324,19 +30357,21 @@ if (action === 'getDashboardStats') {
             let createdReceiptNo = null;
             const fee = Number(params.feeAmount || 0);
             if (fee > 0 && params.issueReceipt) {
-              const rcYear = Number(params.newYearBE || stData.year_be) || 2569;
-              const rcTerm = Number(params.newTerm || stData.term) || 1;
+              const _activeYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+              const rcYear = Number(params.newYearBE || stData.year_be) || _activeYT.yearBE;
+              const rcTerm = Number(params.newTerm || stData.term) || _activeYT.term;
               const cleanRcTerm = String(Number(rcTerm) || 1).replace(/\D/g, '') || '1';
               const rcPrefix = String(rcYear).slice(-2) + cleanRcTerm;
               const minRcR = rcPrefix + '0000';
               const maxRcR = String(Number(rcPrefix) + 1).padStart(rcPrefix.length, '0') + '0000';
               let assignedRcNo = rcPrefix + '0001';
-              const { data: latestRc } = await _supabase.from('receipts')
+              const { data: latestRc, error: latestRcErr } = await _supabase.from('receipts')
                 .select('receipt_no')
                 .gte('receipt_no', minRcR)
                 .lt('receipt_no', maxRcR)
                 .order('receipt_no', { ascending: false })
                 .limit(1);
+              if (latestRcErr) throw latestRcErr;
               let nextRcSeq = 1;
               if (latestRc && latestRc.length > 0 && latestRc[0].receipt_no) {
                 const curRcNum = parseInt(latestRc[0].receipt_no.slice(-4), 10);
@@ -30381,22 +30416,27 @@ if (action === 'getDashboardStats') {
                   break;
                 }
                 if (rcErr.code === '23505' || rcErr.code === '23502') {
-                  const { data: retryRc } = await _supabase.from('receipts')
+                  await new Promise(r => setTimeout(r, Math.floor(Math.random() * 60) + 20));
+                  const { data: retryRc, error: retryRcErr } = await _supabase.from('receipts')
                     .select('receipt_no')
                     .gte('receipt_no', minRcR)
                     .lt('receipt_no', maxRcR)
                     .order('receipt_no', { ascending: false })
                     .limit(1);
+                  if (retryRcErr) throw retryRcErr;
                   let rSeq = 1;
                   if (retryRc && retryRc.length > 0 && retryRc[0].receipt_no) {
                     const cNum = parseInt(retryRc[0].receipt_no.slice(-4), 10);
-                    if (!isNaN(cNum)) rSeq = cNum + 1 + attempt;
+                    if (!isNaN(cNum)) rSeq = cNum + 1;
                   }
                   assignedRcNo = rcPrefix + String(rSeq).padStart(4, '0');
                 } else {
                   console.warn('Transfer fee receipt creation error:', rcErr);
-                  break;
+                  throw rcErr;
                 }
+              }
+              if (!createdReceiptNo) {
+                throw new Error('ไม่สามารถออกเลขใบเสร็จค่าธรรมเนียมย้ายคอร์สได้ กรุณาลองใหม่อีกครั้ง');
               }
             }
             // 4. Record Audit Log
@@ -30556,14 +30596,15 @@ if (action === 'getDashboardStats') {
             if (!totRes.error && typeof totRes.count === 'number') {
               totalCount = Math.max(0, totRes.count - ((!delRes.error && typeof delRes.count === 'number') ? delRes.count : 0));
             } else {
-              const live2569Res = await _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', '6900000').lt('student_id', '7000000');
+              const liveModernRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', '6900000').lt('student_id', '8000000');
               const histReg = window.OCA_ACADEMIC_YEARS_REGISTRY || {};
               const histSum = Object.keys(histReg).reduce((acc, y) => (Number(y) < 2569 ? acc + (Number(histReg[y]?.total) || 0) : acc), 0);
-              const live2569 = (!live2569Res.error && typeof live2569Res.count === 'number') ? live2569Res.count : stList.length;
-              totalCount = histSum > 0 ? (histSum + live2569) : stList.length;
+              const liveModern = (!liveModernRes.error && typeof liveModernRes.count === 'number') ? liveModernRes.count : stList.length;
+              totalCount = histSum > 0 ? (histSum + liveModern) : stList.length;
             }
           } else {
-            const validYear = /^\d{4}$/.test(reqYear) ? reqYear : '2569';
+            const _activeYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+            const validYear = /^\d{4}$/.test(reqYear) ? reqYear : String(_activeYT.yearBE);
             const yrPrefix = validYear.slice(-2);
             const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
             const minId = yrPrefix + '00000';
@@ -30973,7 +31014,7 @@ if (action === 'getDashboardStats') {
           let data = [];
           try {
             data = await fetchAllPaginatedSupabaseRows(() => {
-              let query = _supabase.from('receipts').select('*').gte('receipt_no', '6900000').lt('receipt_no', '7000000');
+              let query = _supabase.from('receipts').select('*').gte('receipt_no', '6900000').lt('receipt_no', '8000000');
               if (params && params.search) {
                 const s = sanitizePostgrestSearchToken(params.search);
                 if (s) {
@@ -33581,10 +33622,11 @@ if (action === 'getDashboardStats') {
       }
       const selYear = document.getElementById('selYear');
       const selTerm = document.getElementById('selTerm');
-      const yearBE = selYear ? selYear.value : '2569';
-      const term = selTerm ? selTerm.value : (window._currentResolvedAcademicTerm ? String(window._currentResolvedAcademicTerm.term) : '5');
+      const _activeYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+      const yearBE = (selYear && selYear.value) ? selYear.value : String(_activeYT.yearBE);
+      const term = (selTerm && selTerm.value) ? selTerm.value : String(_activeYT.term);
       const yy = String(yearBE).slice(-2);
-      const t = String(parseInt(term, 10) || 4);
+      const t = String(parseInt(term, 10) || _activeYT.term || 1);
       const lblPhoto = document.getElementById('lblPhotoName');
       callGasApi('generateStudentId', { year: yearBE, term: term })
         .then(res => {
@@ -36031,6 +36073,8 @@ if (action === 'getDashboardStats') {
                       .eq('student_id', savedStudentId); if (wErr) throw wErr; }
                     const pendingRecord = {
                       studentId: savedStudentId,
+                      yearBE: yearBE,
+                      term: term,
                       fullName: (typeof formatStudentNameWithPrefix === 'function') ? formatStudentNameWithPrefix(prefix, fullName) : fullName,
                       isCorporate: isCorporate,
                       companyName: companyName,
@@ -36058,8 +36102,8 @@ if (action === 'getDashboardStats') {
                           expectedFee: calculatedCourseFee,
                           courseCode: course,
                           scheduleId: schedule,
-                          yearBE: (2500 + Number(String(savedStudentId).slice(0, 2))) || 2569,
-                          term: Number(String(savedStudentId).slice(2, 3)) || 5
+                          yearBE: yearBE || (2500 + Number(String(savedStudentId).slice(0, 2))) || 2569,
+                          term: term || Number(String(savedStudentId).slice(2, 3)) || 5
                         })
                       : String(pendingRecord.slipRef || 'SLIP_' + savedStudentId).slice(0, 80);
                     const pendingRows = [
@@ -48439,8 +48483,9 @@ if (action === 'getDashboardStats') {
     function fetchNextReceiptNumber() {
       const selYear = document.getElementById('selRcptYear') || document.getElementById('selYear');
       const selTerm = document.getElementById('selRcptTerm') || document.getElementById('selTerm');
-      const y = selYear ? selYear.value : (new Date().getFullYear() + 543);
-      const t = selTerm ? selTerm.value : 5;
+      const _activeYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+      const y = (selYear && selYear.value) ? selYear.value : _activeYT.yearBE;
+      const t = (selTerm && selTerm.value) ? selTerm.value : _activeYT.term;
       callGasApi('generateReceiptNo', { type: receiptCurrentType, year: y, term: t })
         .then(res => {
           const receiptNo = (res && res.receiptNo) ? res.receiptNo : (typeof res === 'string' && res.trim() ? res.trim() : '');
@@ -50465,8 +50510,9 @@ if (action === 'getDashboardStats') {
       }
       const selYear = document.getElementById('selRcptYear') || document.getElementById('selYear');
       const selTerm = document.getElementById('selRcptTerm') || document.getElementById('selTerm');
-      const yearBE = selYear ? selYear.value : (new Date().getFullYear() + 543);
-      const term = selTerm ? selTerm.value : 5;
+      const _activeYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+      const yearBE = (selYear && selYear.value) ? selYear.value : _activeYT.yearBE;
+      const term = (selTerm && selTerm.value) ? selTerm.value : _activeYT.term;
       let itemCode = '';
       let itemName = '';
       let schedule = '';
@@ -63762,9 +63808,9 @@ if (action === 'getDashboardStats') {
      * ดำเนินการบันทึกข้อมูลออฟไลน์ชั่วคราวอย่างราบรื่นเมื่อเน็ตหลุด
      */
     async function handleOfflineWriteAction(action, params = {}) {
-      const now = new Date();
-      const yr = (params.yearBE || 2569).toString().slice(-2);
-      const tm = String(Number(params.term) || 5).slice(-1);
+      const _activeYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+      const yr = String(params.yearBE || params.year_be || _activeYT.yearBE).slice(-2);
+      const tm = String(Number(params.term) || _activeYT.term).slice(-1);
       const randomSeq = String(Math.floor(1000 + Math.random() * 9000));
       if (action === 'register') {
         const localStudentId = yr + tm + randomSeq;
@@ -63804,6 +63850,7 @@ if (action === 'getDashboardStats') {
       }
       if (action === 'saveReceipt' || action === 'renewStudentCourseAndReceipt' || action === 'transferStudentCourseAndReceipt') {
         const localReceiptNo = 'RC-OFF-' + randomSeq;
+        delete params.receiptNo;
         await OcaOfflineDB.addOutbox(action, params, { receiptNo: localReceiptNo });
         showToast('บันทึกออฟไลน์สำเร็จ', `ออกใบเสร็จในเครื่องสำเร็จ (เลขที่: ${localReceiptNo})`, '⚡');
         return {
@@ -70921,6 +70968,8 @@ function openPublicRegisterView() {
                     .eq('student_id', sid); if (wErr) throw wErr; }
                   const pendingRecord = {
                     studentId: sid,
+                    yearBE: payload.yearBE,
+                    term: payload.term,
                     fullName: formatStudentNameWithPrefix(prefix, fullName),
                     isCorporate: isCorporate,
                     companyName: companyName,
@@ -70966,8 +71015,8 @@ function openPublicRegisterView() {
                         expectedFee: expectedFee,
                         courseCode: selCourse,
                         scheduleId: selSchedule,
-                        yearBE: pendingRecord.yearBE || (2500 + Number(String(sid).slice(0, 2))) || 2569,
-                        term: pendingRecord.term || Number(String(sid).slice(2, 3)) || 5
+                        yearBE: pendingRecord.yearBE || payload.yearBE || (2500 + Number(String(sid).slice(0, 2))) || 2569,
+                        term: pendingRecord.term || payload.term || Number(String(sid).slice(2, 3)) || 5
                       })
                     : String(slipTransRef || 'ONLINE_' + sid).slice(0, 90);
                   const pendingRows = [
@@ -71992,7 +72041,7 @@ function openPublicRegisterView() {
             rcQb = rcQb.eq('student_id', targetId);
           } else {
             // Guard: active academic years receipts only to avoid statement timeout on 424k rows
-            rcQb = rcQb.gte('receipt_no', '6800000').lt('receipt_no', '7000000').ilike('buyer_name', `%${cleanQ}%`);
+            rcQb = rcQb.gte('receipt_no', '6800000').lt('receipt_no', '8000000').ilike('buyer_name', `%${cleanQ}%`);
           }
           const { data: rawRcData } = await rcQb
             .or('claim_status.is.null,claim_status.neq.VOIDED')
@@ -86113,19 +86162,12 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           info.schedule = info.schedule || stRow.current_schedule || '';
           info.address = info.address || stRow.address || '';
         }
-        // 1. Derive YearBE and Term (inherit from student record or studentId prefix first)
-        let derivedYearBE = Number(info.yearBE || (stRow && stRow.year_be) || 0);
-        let derivedTerm = Number(info.term || (stRow && stRow.term) || 0);
-        if (!derivedYearBE || !derivedTerm) {
-          const idMatch = String(studentId || '').match(/^(\d{2})([1-5])\d{4}$/);
-          if (idMatch) {
-            if (!derivedYearBE) derivedYearBE = 2500 + Number(idMatch[1]);
-            if (!derivedTerm) derivedTerm = Number(idMatch[2]);
-          }
-        }
+        // 1. Derive YearBE and Term (prefer explicit slip year/term -> active academic term -> student record fallback)
         const resolvedFallback = typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null;
-        const yearBE = derivedYearBE || (resolvedFallback && resolvedFallback.yearBE) || 2569;
-        const term = derivedTerm || (resolvedFallback && resolvedFallback.term) || 5;
+        const derivedYearBE = Number(info.yearBE) || (resolvedFallback && resolvedFallback.yearBE) || Number(stRow && stRow.year_be) || 2569;
+        const derivedTerm = Number(info.term) || (resolvedFallback && resolvedFallback.term) || Number(stRow && stRow.term) || 5;
+        const yearBE = derivedYearBE;
+        const term = derivedTerm;
         // 2. Update Student status, course, schedule, and details upon approval
         const stUpdatePayload = {
           status: 'พร้อมเรียน',
@@ -86630,13 +86672,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=223';
+      const swPath = basePath + 'sw.js?v=224';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (223):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (224):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
