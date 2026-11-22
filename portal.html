@@ -12372,7 +12372,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '242';
+      var LATEST_VERSION = '243';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -26527,27 +26527,34 @@ body.printing-report #printReportContainer {
               if (_isCleaningRealtimeChannel) return;
               // Native Phoenix socket auto-reconnects. Do not aggressively destroy in-flight connecting socket.
               if (!_realtimeReconnectTimer) {
+                const chState = _ocaRealtimeChannel ? _ocaRealtimeChannel.state : '';
                 const backoffMs = Math.min(60000, 10000 * Math.pow(2, window._realtimeRetryCount || 0));
                 window._realtimeRetryCount = (window._realtimeRetryCount || 0) + 1;
-                _realtimeReconnectTimer = setTimeout(() => {
+                _realtimeReconnectTimer = setTimeout(async () => {
                   _realtimeReconnectTimer = null;
                   if (_supabase && _ocaRealtimeChannel && !_isCleaningRealtimeChannel) {
                     const socket = _supabase.realtime && _supabase.realtime.conn;
-                    if (socket && socket.readyState === 0) {
+                    if (socket && socket.readyState === 0 && chState !== 'closed') {
                       return; // WebSocket is still establishing connection; avoid premature teardown
                     }
                     const ch = _ocaRealtimeChannel;
-                    if (ch && ch.state !== 'leaving' && ch.state !== 'closed' && ch.state !== 'joining') {
+                    _ocaRealtimeChannel = null;
+                    window._activeOcaChannel = null;
+                    if (ch) {
                       _isCleaningRealtimeChannel = true;
-                      _ocaRealtimeChannel = null;
                       try {
-                        _supabase.removeChannel(ch).then(null, () => {});
-                      } catch (_) {}
-                      _isCleaningRealtimeChannel = false;
+                        await _supabase.removeChannel(ch);
+                      } catch (_) {} finally {
+                        _isCleaningRealtimeChannel = false;
+                      }
                     }
+                  } else if (status === 'CLOSED') {
+                    _ocaRealtimeChannel = null;
+                    window._activeOcaChannel = null;
                   }
                   if (navigator.onLine && !document.hidden && !_ocaRealtimeChannel) {
-                    initOcaRealtimeEngine();
+                    const activeUsr = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+                    if (activeUsr && activeUsr.username) initOcaRealtimeEngine();
                   }
                 }, backoffMs);
               }
@@ -27809,6 +27816,12 @@ body.printing-report #printReportContainer {
         };
       }
       if (action === 'updateSecurityPin') {
+        const actorPinUser = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+        const actorRole = String(actorPinUser?.role || actorPinUser?.userRole || '').trim().toLowerCase();
+        const actorUname = String(actorPinUser?.username || '').trim().toLowerCase();
+        if (!(actorRole === 'admin' || actorRole === 'administrator' || actorUname === 'admin')) {
+          return { success: false, message: 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถเปลี่ยนรหัส PIN ระบบได้' };
+        }
         const newPin = String(params.newPin || '').trim();
         if (!newPin || newPin.length < 4) {
           return { success: false, message: 'รหัส PIN ใหม่ต้องมีอย่างน้อย 4 หลัก' };
@@ -27871,12 +27884,15 @@ body.printing-report #printReportContainer {
             return { success: true };
           }
         }
-        // 2. Verify against active logged-in staff credentials via secure RPC
+        // 2. Verify against active Admin user credentials via secure RPC (strictly Admin role only)
         try {
           const curUser = (typeof getSavedCurrentUser === 'function')
             ? getSavedCurrentUser()
             : JSON.parse(sessionStorage.getItem('oca_current_user') || '{}');
-          if (curUser && curUser.username && typeof _supabase !== 'undefined' && _supabase) {
+          const curRole = String(curUser?.role || curUser?.userRole || '').trim().toLowerCase();
+          const curUname = String(curUser?.username || '').trim().toLowerCase();
+          const isCurAdmin = (curRole === 'admin' || curRole === 'administrator' || curUname === 'admin');
+          if (isCurAdmin && curUser && curUser.username && typeof _supabase !== 'undefined' && _supabase) {
             const { data: rpcUser } = await _supabase.rpc('verify_staff_login', {
               p_username: curUser.username,
               p_password: pin
@@ -29403,7 +29419,7 @@ if (action === 'getDashboardStats') {
           let isFallbackPartial = false;
           while (pageCount < maxFallbackPages) {
             let q = _supabase.from('receipts')
-              .select('receipt_no, buyer_name, grand_total, base_amount, reg_fee, card_fee, other_reg_fee, discount_normal, discount_other, payment_method, receipt_type, year_be, term, created_at, claim_status, edit_notes');
+              .select('receipt_no, buyer_name, grand_total, base_amount, reg_fee, card_fee, other_reg_fee, transfer_fee, shipping_fee, discount_normal, discount_other, payment_method, receipt_type, item_code, year_be, term, created_at, claim_status, edit_notes');
             if (parsedFilterYear) {
               const yy = String(Math.max(0, parsedFilterYear - 2500)).padStart(2, '0');
               const nextYy = String(Math.max(0, parsedFilterYear - 2500 + 1)).padStart(2, '0');
@@ -30136,7 +30152,7 @@ if (action === 'getDashboardStats') {
             const targetItem = (params.itemCode || params.courseId || params.itemName || params.courseName || '').trim();
             const { data: recentDupRows, error: dupQErr } = await dupQ.order('created_at', { ascending: false }).limit(10);
             const recentDup = (!dupQErr && Array.isArray(recentDupRows))
-              ? recentDupRows.filter(r => !targetItem || r.item_code === targetItem || r.item_name === targetItem)
+              ? recentDupRows.filter(r => !isReceiptVoided(r) && String(r.claim_status || '').toUpperCase() !== 'VOIDED' && (!targetItem || r.item_code === targetItem || r.item_name === targetItem))
               : [];
             if (recentDup.length > 0) {
               console.warn('[Idempotency Guard] Duplicate receipt generation blocked. Reusing existing receipt:', recentDup[0].receipt_no);
@@ -30605,8 +30621,8 @@ if (action === 'getDashboardStats') {
             // 2. If textbook reset requested, update tuition receipt claim status & course code
             if (params.textbookOption === 'new') {
               try {
-                const rRaw = await fetchStudentReceiptsSafely(sid, 'receipt_no, edit_notes, item_name, receipt_type', 10);
-                const rList = (rRaw || []).filter(r => r && r.receipt_type === 'tuition');
+                const rRaw = await fetchStudentReceiptsSafely(sid, 'receipt_no, edit_notes, item_name, receipt_type, claim_status', 10);
+                const rList = (rRaw || []).filter(r => r && r.receipt_type === 'tuition' && !isReceiptVoided(r) && String(r.claim_status || '').toUpperCase() !== 'VOIDED');
                 if (rList && rList.length > 0) {
                   const r = rList[0];
                   const rNote = (r.edit_notes || '') + ` [สิทธิ์ตำราใหม่: ${newCourse}]`;
@@ -31184,19 +31200,22 @@ if (action === 'getDashboardStats') {
           // Student Drop / Inactive Status Lock (Block textbook claim for dropped students)
           if (rcpt.student_id) {
             try {
-              const { data: stRow, error: stCheckErr } = await _supabase.from('students').select('status, full_name').eq('student_id', rcpt.student_id).maybeSingle();
+              const { data: stRow, error: stCheckErr } = await _supabase.from('students').select('status, full_name, notes').eq('student_id', rcpt.student_id).maybeSingle();
               if (stCheckErr) console.warn('[verifyAndClaimTextbook] student check warning:', stCheckErr);
               const stStatus = String(stRow?.status || '').toUpperCase();
-              if (stStatus === 'DROPPED' || stStatus.includes('ดรอป') || stStatus.includes('ลาออก') || stStatus.includes('ยกเลิก')) {
+              const isDeletedSt = (typeof isStudentDeleted === 'function' && stRow && isStudentDeleted(stRow)) || stStatus === 'DELETED';
+              if (isDeletedSt || stStatus === 'DROPPED' || stStatus.includes('ดรอป') || stStatus.includes('ลาออก') || stStatus.includes('ยกเลิก')) {
                 return {
                   success: false,
                   studentDropped: true,
-                  studentStatus: stRow?.status || 'DROPPED',
+                  studentStatus: stRow?.status || (isDeletedSt ? 'DELETED' : 'DROPPED'),
                   itemTitle: rcpt.item_name || 'ตำราเรียน',
                   buyerName: rcpt.buyer_name || stRow?.full_name || '',
                   buyerId: rcpt.student_id,
                   receiptNo: rcpt.receipt_no,
-                  message: `ไม่สามารถจ่ายตำราได้: นักเรียนมีสถานะดรอปเรียน (${stRow?.status || 'DROPPED'}) กรุณาคืนสภาพการเรียนก่อน`
+                  message: isDeletedSt
+                    ? `ไม่สามารถจ่ายตำราได้: ข้อมูลนักศึกษาถูกลบออกจากระบบแล้ว (DELETED)`
+                    : `ไม่สามารถจ่ายตำราได้: นักเรียนมีสถานะดรอปเรียน (${stRow?.status || 'DROPPED'}) กรุณาคืนสภาพการเรียนก่อน`
                 };
               }
             } catch (errStCheck) {
@@ -31223,14 +31242,23 @@ if (action === 'getDashboardStats') {
           }
           const claimNow = new Date().toISOString();
           const claimOperator = params.operatorName || (params.operatorUsername ? `${params.operatorUsername} (${params.operatorRole || 'Staff'})` : 'ฝ่ายทะเบียนและตำราเรียน');
-          const { error: claimUpdateErr } = await _supabase.from('receipts').update({
+          const { data: claimUpdatedRows, error: claimUpdateErr } = await _supabase.from('receipts').update({
             claim_status: 'CLAIMED',
             claimed_at: claimNow,
             claimed_by: claimOperator
-          }).eq('id', rcpt.id);
+          }).eq('id', rcpt.id).neq('claim_status', 'CLAIMED').select('id');
           if (claimUpdateErr) {
             console.error('[verifyAndClaimTextbook] update error:', claimUpdateErr);
             return { success: false, message: 'บันทึกการรับตำราไม่สำเร็จ: ' + (claimUpdateErr.message || 'Database error') };
+          }
+          if (!Array.isArray(claimUpdatedRows) || claimUpdatedRows.length === 0) {
+            return {
+              success: false,
+              alreadyClaimed: true,
+              itemTitle: rcpt.item_name || 'ตำราเรียน',
+              receiptNo: rcpt.receipt_no || '',
+              message: 'ตำราเรียนนี้เพิ่งถูกสแกนจ่ายไปแล้วโดยเครื่องอื่น (ป้องกันการตัดสต็อกซ้ำ)'
+            };
           }
           // Deduct tb:* stock for extra purchased textbooks in a single batch upsert
           if (parsedExtraBooks.length > 0) {
@@ -31393,42 +31421,65 @@ if (action === 'getDashboardStats') {
             if (rawCid) citizenIdSet.add(rawCid);
           });
           const studentMap = {};
+          const excludedShipSids = new Set();
+          const excludedShipCids = new Set();
+          const isExcludedShipStudent = (st) => {
+            if (!st) return false;
+            if (typeof isStudentDeleted === 'function' && isStudentDeleted(st)) return true;
+            const sUp = String(st.status || '').trim().toUpperCase();
+            return sUp === 'DELETED' || sUp === 'DROPPED' || sUp.includes('ดรอป') || sUp.includes('ลาออก') || sUp.includes('ยกเลิก');
+          };
           const studentIds = Array.from(studentIdSet);
           if (studentIds.length > 0) {
             const stList = await fetchBatchedSupabaseIn(
               'students',
-              'student_id, citizen_id, full_name, phone_number, address, status',
+              'student_id, citizen_id, full_name, phone_number, address, status, notes',
               'student_id',
               studentIds,
               80
             );
             if (stList) {
               stList.forEach(st => {
-                if (isStudentDeleted(st)) return;
+                if (isExcludedShipStudent(st)) {
+                  if (st.student_id) excludedShipSids.add(String(st.student_id).trim());
+                  if (st.citizen_id) excludedShipCids.add(String(st.citizen_id).trim());
+                  return;
+                }
                 if (st.student_id) studentMap[st.student_id] = st;
                 if (st.citizen_id) studentMap[st.citizen_id] = st;
               });
             }
           }
           // Fallback query for receipts with citizen_id not yet matched
-          const missingCids = Array.from(citizenIdSet).filter(cid => !studentMap[cid]);
+          const missingCids = Array.from(citizenIdSet).filter(cid => !studentMap[cid] && !excludedShipCids.has(cid));
           if (missingCids.length > 0) {
             const stByCid = await fetchBatchedSupabaseIn(
               'students',
-              'student_id, citizen_id, full_name, phone_number, address, status',
+              'student_id, citizen_id, full_name, phone_number, address, status, notes',
               'citizen_id',
               missingCids,
               80
             );
             if (stByCid) {
               stByCid.forEach(st => {
-                if (isStudentDeleted(st)) return;
+                if (isExcludedShipStudent(st)) {
+                  if (st.student_id) excludedShipSids.add(String(st.student_id).trim());
+                  if (st.citizen_id) excludedShipCids.add(String(st.citizen_id).trim());
+                  return;
+                }
                 if (st.student_id) studentMap[st.student_id] = st;
                 if (st.citizen_id) studentMap[st.citizen_id] = st;
               });
             }
           }
-          const mappedOrders = rawReceipts.map(r => {
+          const activeShipReceipts = rawReceipts.filter(r => {
+            const rSid = String(r.student_id || r.buyer_id || '').trim();
+            const rCid = String(r.citizen_id || '').trim();
+            if (rSid && (excludedShipSids.has(rSid) || excludedShipSids.has(toArabic(rSid)))) return false;
+            if (rCid && excludedShipCids.has(rCid)) return false;
+            return true;
+          });
+          const mappedOrders = activeShipReceipts.map(r => {
             const rawSid = String(r.student_id || r.buyer_id || '').trim();
             const arabicSid = toArabic(rawSid);
             const rawCid = String(r.citizen_id || '').trim();
@@ -31496,13 +31547,26 @@ if (action === 'getDashboardStats') {
             updateObj.claimed_by = 'ฝ่ายจัดส่งตำราเรียน (Logistics)';
           } else if (params.status === 'PRINTED' && targetIds.length > 0) {
             try {
-              const { data: existingNotesRows } = await _supabase.from('receipts')
+              const { data: existingNotesRows, error: exNoteErr } = await _supabase.from('receipts')
                 .select('receipt_no, edit_notes')
                 .in('receipt_no', targetIds);
+              const printTag = 'สถานะ: พิมพ์ใบปะหน้าแล้ว';
+              if (!exNoteErr && Array.isArray(existingNotesRows) && existingNotesRows.length > 1) {
+                for (const rowNote of existingNotesRows) {
+                  const curNote = String(rowNote.edit_notes || '').trim();
+                  if (!curNote.includes('พิมพ์ใบปะหน้าแล้ว')) {
+                    const nextNote = curNote ? `${curNote} | ${printTag}` : printTag;
+                    const { error: rowUpdErr } = await _supabase.from('receipts')
+                      .update({ ...updateObj, edit_notes: nextNote })
+                      .eq('receipt_no', rowNote.receipt_no);
+                    if (rowUpdErr) console.warn('[updateShippingStatus batch PRINTED row error]', rowUpdErr);
+                  }
+                }
+                return { success: true, message: 'อัปเดตสถานะพิมพ์ใบปะหน้าเรียบร้อยแล้ว' };
+              }
               const existingNote = (existingNotesRows && existingNotesRows.length === 1 && existingNotesRows[0].edit_notes)
                 ? String(existingNotesRows[0].edit_notes).trim()
                 : '';
-              const printTag = 'สถานะ: พิมพ์ใบปะหน้าแล้ว';
               if (existingNote && !existingNote.includes('พิมพ์ใบปะหน้าแล้ว')) {
                 updateObj.edit_notes = `${existingNote} | ${printTag}`;
               } else if (!existingNote) {
@@ -31835,7 +31899,7 @@ if (action === 'getDashboardStats') {
           feeKeys.forEach(k => {
             const it = items[k] || {};
             let amt = it.amount !== undefined ? Number(it.amount) : (params[k] !== undefined ? Number(params[k]) : 0);
-            if (k === 'discountKids' && (isNaN(amt) || amt === 0)) {
+            if (k === 'discountKids' && isNaN(amt)) {
               if (params.discountKids !== undefined) amt = Number(params.discountKids);
               else if (items.discountNormal && items.discountNormal.kidsAmount !== undefined) amt = Number(items.discountNormal.kidsAmount);
               else amt = 200;
@@ -36717,15 +36781,15 @@ if (action === 'getDashboardStats') {
             let isDuplicate = false;
             let dupMsg = '';
             try {
-              const quoteOrVal = (v) => '"' + String(v).replace(/["\\]/g, '') + '"';
-              const filterParts = ['key.like.pending_slip%'];
-              for (const lk of normKeys.allLookupKeys) {
-                filterParts.push('key.eq.' + quoteOrVal(lk));
-              }
-              const { data: dupKeys, error: dupErr } = await _supabase.from('fee_settings')
-                .select('key, name, mode')
-                .or(filterParts.join(','))
-                .limit(500);
+              const exactKeys = Array.from(new Set(normKeys.allLookupKeys || [])).filter(Boolean);
+              const [{ data: exactLockRows, error: exactLockErr }, { data: pendRows, error: pendErr }] = await Promise.all([
+                exactKeys.length > 0
+                  ? _supabase.from('fee_settings').select('key, name, mode').in('key', exactKeys)
+                  : Promise.resolve({ data: [], error: null }),
+                _supabase.from('fee_settings').select('key, name, mode').like('key', 'pending_slip%').limit(500)
+              ]);
+              const dupErr = exactLockErr || pendErr;
+              const dupKeys = [...(Array.isArray(exactLockRows) ? exactLockRows : []), ...(Array.isArray(pendRows) ? pendRows : [])];
               const lookupSet = new Set(normKeys.allLookupKeys);
               if (!dupErr && Array.isArray(dupKeys)) {
                 const shortRef = String(transRef || '').slice(0, 18);
@@ -39439,7 +39503,7 @@ if (action === 'getDashboardStats') {
         const btnCancel = document.getElementById('btnCancelVerifyPin');
         const btnClose = document.getElementById('btnCloseVerifyPinModal');
         if (!modal || !inpEl || !btnOk) {
-          resolve(true);
+          resolve(false);
           return;
         }
         if (titleEl) titleEl.textContent = actionTitle || 'ยืนยันรหัส PIN ความปลอดภัย';
@@ -41518,14 +41582,12 @@ if (action === 'getDashboardStats') {
         discountNormal: items.discountNormal ? items.discountNormal.amount : 0,
         discountKids: kidsSaveAmt,
         discountOther: items.discountOther ? items.discountOther.amount : 0,
-        cardFee: (globalFeePresets && globalFeePresets.cardFee !== undefined && globalFeePresets.cardFee !== null) ? Number(globalFeePresets.cardFee) : 0,
-        transferFee: (globalFeePresets && globalFeePresets.transferFee !== undefined && globalFeePresets.transferFee !== null) ? Number(globalFeePresets.transferFee) : 0,
+        cardFee: items.cardFee ? Number(items.cardFee.amount ?? 0) : 0,
+        transferFee: items.transferFee ? Number(items.transferFee.amount ?? 0) : 0,
         shippingFee: items.shippingFee ? Number(items.shippingFee.amount ?? 0) : 0,
         ...discRulesSaved,
         items: {
-          ...items,
-          cardFee: (globalFeePresets && globalFeePresets.items && globalFeePresets.items.cardFee) || { amount: 0, mode: 'always', startDate: '', endDate: '' },
-          transferFee: (globalFeePresets && globalFeePresets.items && globalFeePresets.items.transferFee) || { amount: 0, mode: 'always', startDate: '', endDate: '' }
+          ...items
         }
       };
       if (globalFeePresets.items && globalFeePresets.items.discountNormal) {
@@ -41548,9 +41610,9 @@ if (action === 'getDashboardStats') {
         discountNormal: items.discountNormal ? items.discountNormal.amount : 0,
         discountKids: kidsSaveAmt,
         discountOther: items.discountOther ? items.discountOther.amount : 0,
-        cardFee: 0,
-        transferFee: 100,
-        shippingFee: items.shippingFee ? items.shippingFee.amount : 100,
+        cardFee: items.cardFee ? Number(items.cardFee.amount ?? 0) : 0,
+        transferFee: items.transferFee ? Number(items.transferFee.amount ?? 0) : 0,
+        shippingFee: items.shippingFee ? Number(items.shippingFee.amount ?? 0) : 0,
         items: globalFeePresets.items
       })
         .then(res => {
@@ -51567,7 +51629,7 @@ if (action === 'getDashboardStats') {
               window._pendingEnrollSlipHandover = null;
             }
             // Freeze saved receipt preview BEFORE resetting left-side inputs so immediate print shows full receipt
-            if (redeemedCreditAmt > 0 && buyerId && typeof redeemStudentCreditBalance === 'function') {
+            if (redeemedCreditAmt > 0 && buyerId && !res.duplicatePrevented && typeof redeemStudentCreditBalance === 'function') {
               redeemStudentCreditBalance(buyerId, redeemedCreditAmt, res.receiptNo);
             }
             const rcptPreviewEl = document.getElementById('viewContinuousReceipt');
@@ -56398,8 +56460,13 @@ if (action === 'getDashboardStats') {
         exams = Math.min(remOt, examItemsAmt > 0 ? examItemsAmt : (notes.includes('[สอบ ') ? remOt : 0));
         other = rg + cd + tf + sh + Math.max(0, remOt - exams);
       }
-      const calcNet = Math.max(0, tuition + books + exams + other - dc);
-      const grandTotal = (rawGt >= 0 && Math.abs(rawGt - calcNet) <= 1) ? rawGt : calcNet;
+      const crMatch = notes.match(/\[CREDIT_REDEEMED:\s*฿?([\d,]+(?:\.\d+)?)\]/i);
+      const redeemedCredit = crMatch ? (Number(crMatch[1].replace(/,/g, '')) || 0) : 0;
+      const isTuitionType = !rType || rType === 'tuition';
+      const calcNet = isTuitionType && !isOtherFeeType
+        ? Math.max(0, Math.max(0, tuition - dc) + books + exams + other - redeemedCredit)
+        : Math.max(0, tuition + books + exams + other - dc - redeemedCredit);
+      const grandTotal = (rawGt >= 0 && (Math.abs(rawGt - calcNet) <= 1 || redeemedCredit > 0)) ? rawGt : calcNet;
       return { tuition, books, exams, other, discount: dc, grandTotal };
     }
     window.classifyReceiptRevenueBuckets = classifyReceiptRevenueBuckets;
@@ -62161,6 +62228,32 @@ if (action === 'getDashboardStats') {
       if (cInp) cInp.value = '';
       const atInp = document.getElementById('inpAttTrackSearchQuery');
       if (atInp) atInp.value = '';
+      if (typeof isReportSecurityUnlocked !== 'undefined') isReportSecurityUnlocked = false;
+      if (typeof _tbSalesReportRowsCache !== 'undefined') _tbSalesReportRowsCache = [];
+      if (typeof _tbSalesReportQueryKey !== 'undefined') _tbSalesReportQueryKey = '';
+      if (typeof _examReportRowsCache !== 'undefined') _examReportRowsCache = [];
+      if (typeof _examReportQueryKey !== 'undefined') _examReportQueryKey = '';
+      if (typeof _ministryRawStudents !== 'undefined') _ministryRawStudents = [];
+      if (typeof _ministryFilteredStudents !== 'undefined') _ministryFilteredStudents = [];
+      window._ministryReportLoaded = false;
+      if (typeof _courseBreakdownData !== 'undefined') _courseBreakdownData = null;
+      window._courseBreakdownLoaded = false;
+      if (typeof _termTimetableInitialized !== 'undefined') _termTimetableInitialized = false;
+      if (typeof _teacherRosterData !== 'undefined') _teacherRosterData = [];
+      if (typeof _teacherContactsData !== 'undefined') _teacherContactsData = [];
+      if (typeof _cachedTeacherTimesheets !== 'undefined') _cachedTeacherTimesheets = [];
+      if (typeof _cachedProcessedTimesheetRows !== 'undefined') _cachedProcessedTimesheetRows = [];
+      window._ocaSavedSecurityPin = '';
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const chans = [window._activeOcaChannel, _ocaRealtimeChannel, window._activeTeacherContactsChannel, window._activeAttendanceChannel];
+          chans.forEach(ch => { if (ch) { try { _supabase.removeChannel(ch).then(null, () => {}); } catch (_) {} } });
+          window._activeOcaChannel = null;
+          _ocaRealtimeChannel = null;
+          window._activeTeacherContactsChannel = null;
+          window._activeAttendanceChannel = null;
+        } catch (_) {}
+      }
       // เรียก API บันทึกประวัติ LOGOUT ลงใน Audit Log
       callGasApi('logoutStaff', { username, deviceId, deviceInfo }, 'POST').catch(console.warn);
       if (user && user.username && typeof _supabase !== 'undefined' && _supabase) {
@@ -62190,7 +62283,7 @@ if (action === 'getDashboardStats') {
         sessionStorage.removeItem('oca_session_alive');
         sessionStorage.removeItem('oca_security_unlocked');
         // Protocol 4 & Deep Storage Inspection: purge all user-scoped residual keys
-        const purgeRegex = /^oca_(teacher|crm|staff|active_academic_term|cached_|filter_|user_perms_)/;
+        const purgeRegex = /^oca_(teacher|crm|staff|active_academic_term|cached_|filter_|user_perms_|custom_pin|notifications|checkins_|att_|bio_|last_active_)/;
         for (let i = localStorage.length - 1; i >= 0; i--) {
           const k = localStorage.key(i);
           if (k && purgeRegex.test(k)) localStorage.removeItem(k);
@@ -64910,6 +65003,28 @@ if (action === 'getDashboardStats') {
         } catch (_) {}
         await this.updateUIBadge();
       },
+      async updateOutboxItem(item) {
+        if (!item || !item.id) return;
+        if (this.db) {
+          try {
+            await new Promise((resolve, reject) => {
+              const tx = this.db.transaction('outbox', 'readwrite');
+              const store = tx.objectStore('outbox');
+              const req = store.put(item);
+              req.onsuccess = () => resolve();
+              req.onerror = () => reject(req.error);
+            });
+          } catch (_) {}
+        }
+        try {
+          const list = JSON.parse(localStorage.getItem('oca_offline_outbox') || '[]');
+          const idx = list.findIndex(it => it && it.id === item.id);
+          if (idx >= 0) {
+            list[idx] = item;
+            localStorage.setItem('oca_offline_outbox', JSON.stringify(list));
+          }
+        } catch (_) {}
+      },
       async updateUIBadge() {
         const items = await this.getOutbox();
         const count = items.length;
@@ -65060,6 +65175,8 @@ if (action === 'getDashboardStats') {
             if (item._retryCount >= 5) {
               console.warn('[OfflineSync] Dropping poison-pill outbox item after 5 attempts:', item.id, res);
               await OcaOfflineDB.deleteOutbox(item.id);
+            } else {
+              await OcaOfflineDB.updateOutboxItem(item);
             }
           }
         } catch (err) {
@@ -65071,6 +65188,8 @@ if (action === 'getDashboardStats') {
           if (item._retryCount >= 5) {
             console.warn('[OfflineSync] Dropping permanent-fail outbox item after 5 attempts:', item.id);
             await OcaOfflineDB.deleteOutbox(item.id);
+          } else {
+            await OcaOfflineDB.updateOutboxItem(item);
           }
         }
       }
@@ -71842,15 +71961,15 @@ function openPublicRegisterView() {
       window._pubSlipReplayTimeoutWarning = false;
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const quoteOrVal = (v) => '"' + String(v).replace(/["\\]/g, '') + '"';
-          const filterParts = ['key.like.pending_slip%'];
-          for (const lk of normKeys.allLookupKeys) {
-            filterParts.push('key.eq.' + quoteOrVal(lk));
-          }
-          const { data: dupKeys, error: dupKeysErr } = await _supabase.from('fee_settings')
-            .select('key, name, mode')
-            .or(filterParts.join(','))
-            .limit(500);
+          const exactKeys = Array.from(new Set(normKeys.allLookupKeys || [])).filter(Boolean);
+          const [{ data: exactLockRows, error: exactLockErr }, { data: pendRows, error: pendErr }] = await Promise.all([
+            exactKeys.length > 0
+              ? _supabase.from('fee_settings').select('key, name, mode').in('key', exactKeys)
+              : Promise.resolve({ data: [], error: null }),
+            _supabase.from('fee_settings').select('key, name, mode').like('key', 'pending_slip%').limit(500)
+          ]);
+          const dupKeysErr = exactLockErr || pendErr;
+          const dupKeys = [...(Array.isArray(exactLockRows) ? exactLockRows : []), ...(Array.isArray(pendRows) ? pendRows : [])];
           if (dupKeysErr) console.warn('[Slip Anti-Replay Check] fee_settings query error:', dupKeysErr);
           let isDuplicate = false;
           let dupMsg = '';
@@ -87964,7 +88083,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           } catch (slipUpsertErr) {
             console.warn('[approvePendingSlip] receipt_slip upsert error:', slipUpsertErr);
           }
-          if (sv.creditExcessToSave > 0) {
+          if (sv.creditExcessToSave > 0 && !rcRes.duplicatePrevented) {
             const creditKey = 'student_credit_' + studentId;
             const { data: existingCreditRow, error: readCreditErr } = await _supabase
               .from('fee_settings')
@@ -88368,13 +88487,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=242';
+      const swPath = basePath + 'sw.js?v=243';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (242):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (243):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
