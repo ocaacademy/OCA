@@ -12332,7 +12332,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '224';
+      var LATEST_VERSION = '225';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -26068,20 +26068,13 @@ body.printing-report #printReportContainer {
       }
     }
 
-    async function getAppConfig(key, defaultValue = null) {
+    const _ocaAppConfigHydratedKeys = new Set();
+    async function getAppConfig(key, defaultValue = null, force = false) {
       if (!key) return defaultValue;
       const cleanKey = String(key).trim();
-      if (_ocaAppConfigCache[cleanKey] !== undefined) {
+      if (!force && _ocaAppConfigHydratedKeys.has(cleanKey) && _ocaAppConfigCache[cleanKey] !== undefined) {
         return _ocaAppConfigCache[cleanKey];
       }
-      try {
-        const lsVal = localStorage.getItem('oca_cfg_' + cleanKey);
-        if (lsVal !== null) {
-          const parsed = JSON.parse(lsVal);
-          _ocaAppConfigCache[cleanKey] = parsed;
-          return parsed;
-        }
-      } catch (_) {}
 
       if (typeof _supabase !== 'undefined' && _supabase) {
         if (_hasAppSettingsTable !== false) {
@@ -26094,6 +26087,7 @@ body.printing-report #printReportContainer {
             if (!error && data && data.value !== undefined) {
               _hasAppSettingsTable = true;
               _ocaAppConfigCache[cleanKey] = data.value;
+              _ocaAppConfigHydratedKeys.add(cleanKey);
               try { localStorage.setItem('oca_cfg_' + cleanKey, JSON.stringify(data.value)); } catch (_) {}
               return data.value;
             }
@@ -26115,15 +26109,28 @@ body.printing-report #printReportContainer {
             .select('key, name')
             .eq('key', feeKey)
             .maybeSingle();
-          if (!fError && fData && fData.name !== undefined) {
+          if (!fError && fData && fData.name !== undefined && fData.name !== 'APP_CFG_OMITTED') {
             let resVal = fData.name;
             try { resVal = JSON.parse(fData.name); } catch (_) {}
             _ocaAppConfigCache[cleanKey] = resVal;
+            _ocaAppConfigHydratedKeys.add(cleanKey);
             try { localStorage.setItem('oca_cfg_' + cleanKey, JSON.stringify(resVal)); } catch (_) {}
             return resVal;
           }
         } catch (_) {}
       }
+
+      if (_ocaAppConfigCache[cleanKey] !== undefined) {
+        return _ocaAppConfigCache[cleanKey];
+      }
+      try {
+        const lsVal = localStorage.getItem('oca_cfg_' + cleanKey);
+        if (lsVal !== null) {
+          const parsed = JSON.parse(lsVal);
+          _ocaAppConfigCache[cleanKey] = parsed;
+          return parsed;
+        }
+      } catch (_) {}
 
       return defaultValue;
     }
@@ -26133,6 +26140,7 @@ body.printing-report #printReportContainer {
       const cleanKey = String(key).trim();
       const cleanCat = String(category || 'general').slice(0, 50);
       _ocaAppConfigCache[cleanKey] = value;
+      _ocaAppConfigHydratedKeys.add(cleanKey);
       try {
         localStorage.setItem('oca_cfg_' + cleanKey, JSON.stringify(value));
       } catch (_) {}
@@ -26173,23 +26181,27 @@ body.printing-report #printReportContainer {
         try {
           const feeKey = cleanKey.startsWith('cfg_') ? cleanKey.slice(0, 60) : ('cfg_' + cleanKey).slice(0, 60);
           const serialized = (typeof value === 'object' && value !== null) ? JSON.stringify(value) : String(value ?? '');
-          const safeVal = serialized.slice(0, 90);
-          const feeRow = {
-            key: feeKey,
-            name: safeVal,
-            mode: String(category || 'general').slice(0, 90),
-            amount: 0,
-            updated_at: new Date().toISOString()
-          };
-          const { error: fErr } = await _supabase.from('fee_settings').upsert([feeRow], { onConflict: 'key' });
-          if (!fErr) {
-            saved = true;
-            if (typeof broadcastOcaDataSync === 'function') {
-              broadcastOcaDataSync('fee_settings', 'UPDATE', feeRow);
-            }
-            return true;
+          if (typeof value === 'object' && value !== null && serialized.length > 90) {
+            console.warn('[OcaAppConfig] Object exceeds fee_settings VARCHAR(100) limit; skipping corrupted JSON fallback for key:', cleanKey);
           } else {
-            console.warn('[OcaAppConfig] fee_settings fallback save error:', fErr);
+            const safeVal = serialized.slice(0, 90);
+            const feeRow = {
+              key: feeKey,
+              name: safeVal,
+              mode: String(category || 'general').slice(0, 90),
+              amount: 0,
+              updated_at: new Date().toISOString()
+            };
+            const { error: fErr } = await _supabase.from('fee_settings').upsert([feeRow], { onConflict: 'key' });
+            if (!fErr) {
+              saved = true;
+              if (typeof broadcastOcaDataSync === 'function') {
+                broadcastOcaDataSync('fee_settings', 'UPDATE', feeRow);
+              }
+              return true;
+            } else {
+              console.warn('[OcaAppConfig] fee_settings fallback save error:', fErr);
+            }
           }
         } catch (err) {
           console.warn('[OcaAppConfig] fee_settings fallback exception:', err);
@@ -27650,12 +27662,8 @@ body.printing-report #printReportContainer {
       }
       if (action === 'verifySecurityPin') {
         const pin = String(params.pin || '').trim();
-        const customPin = localStorage.getItem('oca_custom_pin');
-        // 1. Verify against custom PIN if configured by admin
-        if (customPin && pin === customPin) {
-          return { success: true };
-        }
-        // 1.5 Verify against cross-device hashed PIN in fee_settings
+        let hasCloudPin = false;
+        // 1. Verify against authoritative cross-device hashed PIN in fee_settings FIRST
         try {
           if (typeof _supabase !== 'undefined' && _supabase && window.crypto && window.crypto.subtle) {
             const msgUint8 = new window.TextEncoder().encode('OCA_PIN_SALT:' + pin);
@@ -27666,11 +27674,22 @@ body.printing-report #printReportContainer {
               .select('name')
               .eq('key', 'security_pin_hash')
               .limit(1);
-            if (!pinRowErr && pinRow && pinRow.length > 0 && pinRow[0].name === hashHex) {
-              return { success: true };
+            if (!pinRowErr && pinRow && pinRow.length > 0 && pinRow[0].name) {
+              hasCloudPin = true;
+              if (pinRow[0].name === hashHex) {
+                try { localStorage.setItem('oca_custom_pin', pin); } catch (_) {}
+                return { success: true };
+              }
             }
           }
         } catch (_) {}
+        // 1.5 Offline/no-cloud fallback only when no cloud PIN hash is stored
+        if (!hasCloudPin) {
+          const customPin = localStorage.getItem('oca_custom_pin');
+          if (customPin && pin === customPin) {
+            return { success: true };
+          }
+        }
         // 2. Verify against active logged-in staff credentials via secure RPC
         try {
           const curUser = (typeof getSavedCurrentUser === 'function')
@@ -29796,6 +29815,25 @@ if (action === 'getDashboardStats') {
           const maskPh = (v) => v ? String(v).replace(/^(\d{3})\d+(\d{4})$/, '$1-XXX-$2') : '';
           const isDupAction = action === 'checkStudentDuplicate';
           const stRaw = hasMatches ? found[0] : null;
+          let stLatestRcMeta = { room: '', classGroup: '', teacherName: '' };
+          if (stRaw && !isDupAction && stRaw.student_id) {
+            try {
+              const { data: stRcRows } = await _supabase.from('receipts')
+                .select('room, class_group, teacher_name, claim_status, edit_notes')
+                .eq('student_id', stRaw.student_id)
+                .or('claim_status.is.null,claim_status.neq.VOIDED')
+                .order('receipt_no', { ascending: false })
+                .limit(3);
+              const validRc = (stRcRows || []).find(r => !isReceiptVoided(r));
+              if (validRc) {
+                stLatestRcMeta = {
+                  room: validRc.room || '',
+                  classGroup: validRc.class_group || '',
+                  teacherName: validRc.teacher_name || ''
+                };
+              }
+            } catch (_) {}
+          }
           const st = (stRaw && isDupAction) ? {
             ...stRaw,
             citizen_id: maskCid(stRaw.citizen_id),
@@ -29832,6 +29870,9 @@ if (action === 'getDashboardStats') {
             phoneNumber: st ? st.phone_number : '',
             course: st ? ((st.current_course && st.current_course !== '-') ? st.current_course : '-') : '',
             schedule: st ? (st.current_schedule || '-') : '',
+            room: stLatestRcMeta.room || '',
+            classGroup: stLatestRcMeta.classGroup || '',
+            teacherName: stLatestRcMeta.teacherName || '',
             yearBE: st ? (st.year_be || 2569) : 2569,
             term: st ? (st.term || 4) : 4,
             deliveryMethod: st ? (st.delivery_method || '-') : '-',
@@ -30337,16 +30378,36 @@ if (action === 'getDashboardStats') {
                 if (rList && rList.length > 0) {
                   const r = rList[0];
                   const rNote = (r.edit_notes || '') + ` [สิทธิ์ตำราใหม่: ${newCourse}]`;
+                  let tRoom = String(params.newRoom || params.room || '').trim();
+                  let tGrp = String(params.newClassGroup || params.classGroup || '').trim();
+                  let tTeacher = String(params.newTeacherName || params.teacherName || '').trim();
+                  if ((!tRoom || !tGrp || !tTeacher) && typeof getCourseGroupInstructorList === 'function') {
+                    try {
+                      const _actYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+                      const gList = getCourseGroupInstructorList(newCourse, newSchedule || 'SCH-01', params.newTerm || stData.term || _actYT.term, params.newYearBE || stData.year_be || _actYT.yearBE);
+                      if (Array.isArray(gList) && gList.length > 0) {
+                        const mg = (tGrp ? gList.find(g => String(g.section || '').toUpperCase() === tGrp.toUpperCase()) : null) || gList[0];
+                        if (!tRoom && mg.room) tRoom = mg.room;
+                        if (!tGrp && mg.section) tGrp = mg.section;
+                        if (!tTeacher && mg.lecturerName) tTeacher = mg.lecturerName;
+                      }
+                    } catch (_) {}
+                  }
+                  const rcResetPayload = {
+                    item_code: newCourse,
+                    item_name: `ค่าเล่าเรียนและอุปกรณ์ (${newCourse})`,
+                    claim_status: 'PENDING',
+                    claimed_at: null,
+                    claimed_by: null,
+                    material_type: 'หนังสือและสมุด',
+                    edit_notes: rNote,
+                    ...(newSchedule ? { schedule: newSchedule } : {}),
+                    ...(tRoom ? { room: tRoom } : {}),
+                    ...(tGrp ? { class_group: tGrp } : {}),
+                    ...(tTeacher ? { teacher_name: tTeacher } : {})
+                  };
                   { const { error: wErr } = await _supabase.from('receipts')
-                    .update({
-                      item_code: newCourse,
-                      item_name: `ค่าเล่าเรียนและอุปกรณ์ (${newCourse})`,
-                      claim_status: 'PENDING',
-                      claimed_at: null,
-                      claimed_by: null,
-                      material_type: 'หนังสือและสมุด',
-                      edit_notes: rNote
-                    })
+                    .update(rcResetPayload)
                     .eq('receipt_no', r.receipt_no); if (wErr) throw wErr; }
                 }
               } catch (tbResetErr) {
@@ -30630,13 +30691,13 @@ if (action === 'getDashboardStats') {
             totalCount = (!yrTotRes.error && typeof yrTotRes.count === 'number')
               ? Math.max(0, yrTotRes.count - ((!yrDelRes.error && typeof yrDelRes.count === 'number') ? yrDelRes.count : 0))
               : stList.length;
-            // Map delivery method from receipts for exact fetched students using batched IN query
+            // Map delivery method + room/class_group/teacher_name from receipts for exact fetched students
             try {
               if (stList.length > 0) {
                 const stIds = stList.map(s => String(s.student_id || '').trim()).filter(Boolean);
                 const recDelivery = await fetchBatchedSupabaseIn(
                   'receipts',
-                  'student_id, delivery_method, claim_status, edit_notes, receipt_no',
+                  'student_id, delivery_method, room, class_group, teacher_name, claim_status, edit_notes, receipt_no',
                   'student_id',
                   stIds,
                   80
@@ -30644,14 +30705,28 @@ if (action === 'getDashboardStats') {
                 if (Array.isArray(recDelivery) && recDelivery.length > 0) {
                   recDelivery.sort((a, b) => String(b.receipt_no || '').localeCompare(String(a.receipt_no || '')));
                   const delivMap = {};
+                  const rcMetaMap = {};
                   recDelivery.forEach(r => {
                     if (isReceiptVoided(r)) return;
-                    if (r.student_id && r.delivery_method && !delivMap[r.student_id]) {
-                      delivMap[r.student_id] = r.delivery_method;
+                    if (r.student_id) {
+                      if (r.delivery_method && !delivMap[r.student_id]) delivMap[r.student_id] = r.delivery_method;
+                      if (!rcMetaMap[r.student_id]) {
+                        rcMetaMap[r.student_id] = {
+                          room: r.room || '',
+                          classGroup: r.class_group || '',
+                          teacherName: r.teacher_name || ''
+                        };
+                      }
                     }
                   });
                   stList.forEach(s => {
                     if (delivMap[s.student_id]) s.delivery_method = delivMap[s.student_id];
+                    const rm = rcMetaMap[s.student_id];
+                    if (rm) {
+                      if (rm.room) s.room = rm.room;
+                      if (rm.classGroup) s.class_group = rm.classGroup;
+                      if (rm.teacherName) s.teacher_name = rm.teacherName;
+                    }
                   });
                 }
               }
@@ -30695,6 +30770,9 @@ if (action === 'getDashboardStats') {
               lineId: s.line_id || '-',
               course: (s.current_course && s.current_course !== '-') ? s.current_course : '-',
               schedule: s.current_schedule || '-',
+              room: s.room || '',
+              classGroup: s.class_group || '',
+              teacherName: s.teacher_name || '',
               yearBE: y,
               term: tm,
               deliveryMethod: s.delivery_method || '-',
@@ -32062,19 +32140,25 @@ if (action === 'getDashboardStats') {
               if (uLower === 'admin' || uLower === 'cake' || (u.role && u.role.toLowerCase().includes('admin'))) {
                 perms = defaultRolePerms['Administrator'];
               }
+              let hasDbPerms = false;
               if (u.permissions) {
                 try {
                   const p = typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions;
-                  if (Array.isArray(p) && p.length > 0) perms = p;
+                  if (Array.isArray(p) && p.length > 0) {
+                    perms = p;
+                    hasDbPerms = true;
+                  }
                 } catch (_) {}
               }
-              try {
-                const saved = localStorage.getItem('oca_user_perms_' + uLower);
-                if (saved) {
-                  const parsed = JSON.parse(saved);
-                  if (Array.isArray(parsed) && parsed.length > 0) perms = parsed;
-                }
-              } catch (_) {}
+              if (!hasDbPerms) {
+                try {
+                  const saved = localStorage.getItem('oca_user_perms_' + uLower);
+                  if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) perms = parsed;
+                  }
+                } catch (_) {}
+              }
               const lastLogin = lastLoginMap[uLower] || u.lastLogin || u.last_login || null;
               const deviceId = deviceIdMap[uLower] || u.deviceId || u.device_id || '';
               return {
@@ -36071,10 +36155,26 @@ if (action === 'getDashboardStats') {
                     { const { error: wErr } = await _supabase.from('students')
                       .update({ status: 'PENDING_PAYMENT_VERIFICATION' })
                       .eq('student_id', savedStudentId); if (wErr) throw wErr; }
+                    let enrollGrp = '';
+                    let enrollTeacher = '';
+                    let enrollRoom = '';
+                    if (typeof getCourseGroupInstructorList === 'function') {
+                      try {
+                        const grpList = getCourseGroupInstructorList(course, schedule, term, yearBE);
+                        if (Array.isArray(grpList) && grpList.length > 0) {
+                          enrollGrp = String(grpList[0].section || '').trim();
+                          enrollTeacher = String(grpList[0].lecturerName || '').trim();
+                          enrollRoom = String(grpList[0].room || '').trim();
+                        }
+                      } catch (_) {}
+                    }
                     const pendingRecord = {
                       studentId: savedStudentId,
                       yearBE: yearBE,
                       term: term,
+                      groupSection: enrollGrp,
+                      instructorName: enrollTeacher,
+                      room: enrollRoom,
                       fullName: (typeof formatStudentNameWithPrefix === 'function') ? formatStudentNameWithPrefix(prefix, fullName) : fullName,
                       isCorporate: isCorporate,
                       companyName: companyName,
@@ -37624,10 +37724,23 @@ if (action === 'getDashboardStats') {
       const elClassroomInst = document.getElementById('srClassroomInstructor');
       const rawCourse = s.course || s.current_course || '';
       const rawSched = s.schedule || s.current_schedule || '';
-      const yt = (s.yearBE || s.year || '2569') + '_' + (s.term || '5');
-      const cfg = typeof getSavedCourseClassroomConfig === 'function' ? getSavedCourseClassroomConfig(yt, rawCourse, rawSched) : null;
+      const _actYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+      const yt = (s.yearBE || s.year || String(_actYT.yearBE)) + '_' + (s.term || String(_actYT.term));
+      let lookupCourseCode = rawCourse;
+      if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
+        const cm = cachedCoursesList.find(c => c.code === rawCourse || c.name === rawCourse || rawCourse.includes(c.code));
+        if (cm && cm.code) lookupCourseCode = cm.code;
+      }
+      const lookupSchedId = (typeof resolveCanonicalScheduleId === 'function' ? resolveCanonicalScheduleId(rawSched) : '') || rawSched;
+      const cfg = typeof getSavedCourseClassroomConfig === 'function' ? getSavedCourseClassroomConfig(yt, lookupCourseCode, lookupSchedId) : null;
+      const dispInstructor = s.teacherName || s.instructor || (cfg && cfg.instructor) || 'อาจารย์ประจำกลุ่มเรียน';
+      const dispRoom = s.room || (cfg && (cfg.room || cfg.roomNo)) || '';
+      const dispGroup = s.classGroup || (cfg && cfg.groupName) || '';
+      if (elClassroom) {
+        elClassroom.textContent = dispRoom ? ('ห้อง ' + toArabicDigits(dispRoom) + (dispGroup ? (' (กลุ่ม ' + dispGroup + ')') : '')) : (dispGroup ? ('กลุ่ม ' + dispGroup) : '-');
+      }
       if (elClassroomInst) {
-        elClassroomInst.textContent = 'อาจารย์ผู้สอน: ' + ((cfg && cfg.instructor) ? cfg.instructor : (s.instructor || 'อาจารย์ประจำกลุ่มเรียน'));
+        elClassroomInst.textContent = 'อาจารย์ผู้สอน: ' + dispInstructor;
       }
       let rawRoom = (s.room || s.classroom || (cfg && cfg.room) || '').toString().trim();
       if (rawRoom === '-') rawRoom = '';
@@ -39241,9 +39354,12 @@ if (action === 'getDashboardStats') {
           isPrepaid = true;
           isFailover = false;
           credits = prepaidCredits;
-          let storedMax = Number(localStorage.getItem('oca_brevo_max_credits') || 0);
-          if (!storedMax && window.OcaAppConfig && typeof window.OcaAppConfig.get === 'function') {
+          let storedMax = 0;
+          if (window.OcaAppConfig && typeof window.OcaAppConfig.get === 'function') {
             try { storedMax = Number(await window.OcaAppConfig.get('brevo_max_credits', 0)) || 0; } catch (_) {}
+          }
+          if (!storedMax) {
+            storedMax = Number(localStorage.getItem('oca_brevo_max_credits') || 0);
           }
           if (credits > storedMax) {
             storedMax = credits >= 10000 ? Math.ceil(credits / 5000) * 5000 : 5000;
@@ -41865,16 +41981,27 @@ if (action === 'getDashboardStats') {
     }
     window.onTermDatesYearChange = onTermDatesYearChange;
     function renderTermOpeningDatesInputs(dates, closeDates) {
-      const savedYear = localStorage.getItem('oca_selected_term_dates_year');
-      const selYear = document.getElementById('selTermDatesYear');
-      if (selYear && savedYear) {
-        if (![...selYear.options].some(o => o.value === savedYear)) {
-          const opt = document.createElement('option');
-          opt.value = savedYear;
-          opt.textContent = savedYear;
-          selYear.appendChild(opt);
+      const applySelectedTermYear = (yr) => {
+        const selYear = document.getElementById('selTermDatesYear');
+        if (selYear && yr) {
+          const yrStr = String(yr);
+          if (![...selYear.options].some(o => o.value === yrStr)) {
+            const opt = document.createElement('option');
+            opt.value = yrStr;
+            opt.textContent = yrStr;
+            selYear.appendChild(opt);
+          }
+          selYear.value = yrStr;
         }
-        selYear.value = savedYear;
+      };
+      applySelectedTermYear(localStorage.getItem('oca_selected_term_dates_year'));
+      if (window.OcaAppConfig && typeof window.OcaAppConfig.get === 'function') {
+        window.OcaAppConfig.get('selected_term_dates_year', null).then(cloudYr => {
+          if (cloudYr) {
+            try { localStorage.setItem('oca_selected_term_dates_year', String(cloudYr)); } catch (_) {}
+            applySelectedTermYear(cloudYr);
+          }
+        }).catch(() => {});
       }
       if (dates && typeof dates === 'object') {
         cachedTermOpenDates = Object.assign(cachedTermOpenDates, dates);
@@ -44590,44 +44717,53 @@ if (action === 'getDashboardStats') {
       const secVal = (document.getElementById('selBatchAssignSec')?.value || 'ALL').trim().toUpperCase();
       const btn = document.getElementById('btnSubmitBatchTeacherAssign');
       if (btn) btn.disabled = true;
-      const y = document.getElementById('selScheduleConfigYear')?.value || document.getElementById('selModalCourseYear')?.value || '2569';
-      const t = document.getElementById('selScheduleConfigTerm')?.value || document.getElementById('selModalCourseTerm')?.value || '5';
-      const allScheds = Array.isArray(cachedSchedulesList) && cachedSchedulesList.length > 0
-        ? cachedSchedulesList
-        : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES : []);
-      let totalUpdatedGroups = 0;
-      for (const cb of checkedBoxes) {
-        const cCode = cb.value.trim().toUpperCase();
-        const targetScheds = (schedVal === 'ALL') ? allScheds.map(s => s.id) : [schedVal];
-        for (const sId of targetScheds) {
-          const curGroups = (typeof getCourseGroupInstructorList === 'function')
-            ? getCourseGroupInstructorList(cCode, sId, t, y)
-            : [{ section: 'A', lecturerName: '', room: '', remark: 'ปกติ' }];
-          let changed = false;
-          curGroups.forEach(g => {
-            const gSec = (g.section || 'A').trim().toUpperCase();
-            if (secVal === 'ALL' || gSec === secVal) {
-              g.lecturerName = teacher;
-              changed = true;
-              totalUpdatedGroups++;
+      try {
+        const _actYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+        const y = document.getElementById('selScheduleConfigYear')?.value || document.getElementById('selModalCourseYear')?.value || String(_actYT.yearBE);
+        const t = document.getElementById('selScheduleConfigTerm')?.value || document.getElementById('selModalCourseTerm')?.value || String(_actYT.term);
+        const allScheds = Array.isArray(cachedSchedulesList) && cachedSchedulesList.length > 0
+          ? cachedSchedulesList
+          : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES : []);
+        let totalUpdatedGroups = 0;
+        for (const cb of checkedBoxes) {
+          const cCode = cb.value.trim().toUpperCase();
+          const targetScheds = (schedVal === 'ALL') ? allScheds.map(s => s.id) : [schedVal];
+          const courseSchedMap = {};
+          let courseChanged = false;
+          allScheds.forEach(s => {
+            const sId = String(s.id).toUpperCase();
+            const curGroups = (typeof getCourseGroupInstructorList === 'function')
+              ? JSON.parse(JSON.stringify(getCourseGroupInstructorList(cCode, sId, t, y) || []))
+              : [];
+            if (targetScheds.includes(sId)) {
+              curGroups.forEach(g => {
+                const gSec = (g.section || 'A').trim().toUpperCase();
+                if (secVal === 'ALL' || gSec === secVal) {
+                  g.lecturerName = teacher;
+                  courseChanged = true;
+                  totalUpdatedGroups++;
+                }
+              });
             }
+            if (curGroups.length > 0) courseSchedMap[sId] = curGroups;
           });
-          if (changed && typeof saveCourseGroupInstructorList === 'function') {
-            await saveCourseGroupInstructorList(cCode, sId, curGroups, t, y, false);
+          if (courseChanged && typeof saveCourseModalMatrix === 'function') {
+            await saveCourseModalMatrix(cCode, courseSchedMap, t, y, false, null);
           }
         }
-      }
-      if (btn) btn.disabled = false;
-      closeBatchTeacherAssignModal();
-      if (typeof toast === 'function') {
-        toast('มอบหมายครูสำเร็จ', 'มอบหมายครู "' + teacher + '" ให้กับ ' + checkedBoxes.length + ' คอร์สเรียน (' + totalUpdatedGroups + ' กลุ่ม) เรียบร้อยแล้ว', '✓');
-      }
-      if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('course_offerings');
-      if (typeof showActivitySuccessPopup === 'function') {
-        showActivitySuccessPopup('มอบหมายครูสำเร็จ', 'มอบหมายครู "' + teacher + '" ให้กับ ' + checkedBoxes.length + ' คอร์สเรียน (' + totalUpdatedGroups + ' กลุ่ม) เรียบร้อยแล้ว', '✅');
-      }
-      if (typeof renderCoursesTable === 'function') {
-        renderCoursesTable(cachedCoursesList);
+        closeBatchTeacherAssignModal();
+        if (typeof toast === 'function') {
+          toast('มอบหมายครูสำเร็จ', 'มอบหมายครู "' + teacher + '" ให้กับ ' + checkedBoxes.length + ' คอร์สเรียน (' + totalUpdatedGroups + ' กลุ่ม) เรียบร้อยแล้ว', '✓');
+        }
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('course_offerings');
+        if (typeof showActivitySuccessPopup === 'function') {
+          showActivitySuccessPopup('มอบหมายครูสำเร็จ', 'มอบหมายครู "' + teacher + '" ให้กับ ' + checkedBoxes.length + ' คอร์สเรียน (' + totalUpdatedGroups + ' กลุ่ม) เรียบร้อยแล้ว', '✅');
+        }
+        if (typeof renderCoursesTable === 'function') {
+          renderCoursesTable(cachedCoursesList);
+        }
+      } finally {
+        if (btn) btn.disabled = false;
       }
     }
     window.submitBatchTeacherAssign = submitBatchTeacherAssign;
@@ -45467,8 +45603,25 @@ if (action === 'getDashboardStats') {
     }
     window.saveCourseModalMatrix = saveCourseModalMatrix;
     async function saveCourseGroupInstructorList(courseCode, scheduleId, groupsArray, termVal, yearVal, applyAllTermsInYear = false) {
+      const _activeYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+      const y = String(yearVal || _activeYT.yearBE || 2569);
+      const t = String(termVal || _activeYT.term || 5);
+      const tKey = `${y}_${t}`;
+      const cCode = String(courseCode || '').trim().toUpperCase();
+      const sId = String(scheduleId || 'ALL').trim().toUpperCase();
       const map = {};
-      map[scheduleId] = groupsArray;
+      if (window._courseGroupInstructorByTermMap && window._courseGroupInstructorByTermMap[tKey]) {
+        const curTermMap = window._courseGroupInstructorByTermMap[tKey];
+        Object.keys(curTermMap).forEach(pairKey => {
+          if (pairKey.startsWith(`${cCode}::`)) {
+            const existingSid = pairKey.split('::')[1];
+            if (existingSid && existingSid !== 'ALL' && Array.isArray(curTermMap[pairKey])) {
+              map[existingSid] = JSON.parse(JSON.stringify(curTermMap[pairKey]));
+            }
+          }
+        });
+      }
+      map[sId] = Array.isArray(groupsArray) ? groupsArray : [];
       return saveCourseModalMatrix(courseCode, map, termVal, yearVal, applyAllTermsInYear, null);
     }
     window.saveCourseGroupInstructorList = saveCourseGroupInstructorList;
@@ -50852,15 +51005,17 @@ if (action === 'getDashboardStats') {
                   amount: Number(grandTotal || 0),
                   mode: String(handover.slipRef || 'COUNTER_VERIFIED').slice(0, 90),
                   updated_at: new Date().toISOString()
-                }]).then(() => {
-                  if (window._receiptSlipsMap) {
+                }], { onConflict: 'key' }).then(({ error: slipUpsertErr }) => {
+                  if (slipUpsertErr) {
+                    console.warn('[saveReceiptForm] receipt_slip handover coupling error:', slipUpsertErr);
+                  } else if (window._receiptSlipsMap) {
                     window._receiptSlipsMap.set(String(res.receiptNo), {
                       name: slipStoragePath,
                       amount: Number(grandTotal || 0),
                       mode: String(handover.slipRef || 'COUNTER_VERIFIED')
                     });
                   }
-                }).catch(slipErr => console.warn('[saveReceiptForm] receipt_slip handover coupling error:', slipErr));
+                }, slipErr => console.warn('[saveReceiptForm] receipt_slip handover coupling error:', slipErr));
               }
               window._pendingEnrollSlipHandover = null;
             }
@@ -54495,6 +54650,13 @@ if (action === 'getDashboardStats') {
       const citizen = st.citizenId ? ('<span class="pdpa-cid" data-cid="' + escapeHtml(st.citizenId) + '" style="font-family:monospace; font-size:12.5px; color:var(--text-main); font-weight:600; letter-spacing:0.5px;">' + citizenDisplay + '</span>') : '<span style="color:var(--text-muted);">-</span>';
       const courseName = escapeHtml(st.course || 'ไม่ระบุคอร์ส');
       const schedule = st.schedule ? ('<div style="font-size:12px; color:#38BDF8; font-weight:600; margin-top:3px;"><i class="fa-regular fa-clock" style="margin-right:4px;"></i>' + escapeHtml(st.schedule) + '</div>') : '';
+      const metaBits = [];
+      if (st.classGroup) metaBits.push('กลุ่ม ' + escapeHtml(st.classGroup));
+      if (st.teacherName) metaBits.push('อ.' + escapeHtml(st.teacherName));
+      if (st.room) metaBits.push('ห้อง ' + escapeHtml(st.room));
+      const groupTeacherRoomLine = metaBits.length > 0
+        ? ('<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">' + metaBits.join(' • ') + '</div>')
+        : '';
       const yearTerm = '<div style="font-weight:700; color:var(--text-main);">' + toArabicDigits(st.yearBE || '-') + '</div>' +
                        '<div style="font-size:12px; color:var(--accent-gold); font-weight:600;">เทอม ' + toArabicDigits(st.term || '4') + '</div>';
       const phoneDisplay = st.phone ? toArabicDigits(formatPhoneMasked(st.phone, true)) : '<span style="color:var(--text-muted);">-</span>';
@@ -54509,7 +54671,7 @@ if (action === 'getDashboardStats') {
         '  <td style="text-align:center;"><strong style="font-family:monospace; font-size:13.5px; color:var(--color-gold); letter-spacing:0.5px;">' + stId + '</strong></td>' +
         '  <td><div style="font-weight:600; color:var(--text-main); font-size:13px;">' + stName + '</div></td>' +
         '  <td style="text-align:center;">' + citizen + '</td>' +
-        '  <td><div style="font-size:13px; font-weight:700; color:var(--text-main);">' + courseName + '</div>' + schedule + '</td>' +
+        '  <td><div style="font-size:13px; font-weight:700; color:var(--text-main);">' + courseName + '</div>' + schedule + groupTeacherRoomLine + '</td>' +
         '  <td style="text-align:center; font-size:12px;">' + yearTerm + '</td>' +
         '  <td style="text-align:center;">' + phone + '</td>' +
         '  <td style="text-align:center; white-space:nowrap;">' + statusBadge + '</td>' +
@@ -61287,6 +61449,10 @@ if (action === 'getDashboardStats') {
         localStorage.removeItem('oca_user');
         localStorage.removeItem('oca_sess_sig_persist');
         localStorage.removeItem('oca_active_session_id');
+        localStorage.removeItem('oca_teacher_selected_schedule');
+        localStorage.removeItem('oca_teacher_selected_course_group');
+        localStorage.removeItem('oca_teacher_selected_date');
+        localStorage.removeItem('oca_teacher_ack_msgs');
         localStorage.removeItem('oca_session_start_time');
         localStorage.removeItem('oca_last_active_nav');
         localStorage.removeItem('oca_last_active_course_subview');
@@ -64090,6 +64256,9 @@ if (action === 'getDashboardStats') {
     document.addEventListener('DOMContentLoaded', () => {
       if (window.OcaSlipGuard && typeof window.OcaSlipGuard.loadConfig === 'function') {
         window.OcaSlipGuard.loadConfig().catch(() => {});
+      }
+      if (window.OcaEmailAdmin && typeof window.OcaEmailAdmin.loadEmailConfig === 'function') {
+        window.OcaEmailAdmin.loadEmailConfig().catch(() => {});
       }
       if (window.OcaEmailAdmin && typeof window.OcaEmailAdmin.loadIdleTimeoutMinutes === 'function') {
         window.OcaEmailAdmin.loadIdleTimeoutMinutes().then(() => {
@@ -71440,7 +71609,7 @@ function openPublicRegisterView() {
           // 1. Query receipts for this course and term (paginated, exclude voided)
           const rawRcData = await fetchAllPaginatedSupabaseRows(() =>
             _supabase.from('receipts')
-              .select('student_id, buyer_name, item_code, item_name, room, schedule, year_be, term, claim_status, edit_notes')
+              .select('student_id, buyer_name, item_code, item_name, room, class_group, teacher_name, schedule, year_be, term, claim_status, edit_notes')
               .gte('receipt_no', tPrefix + '0000')
               .lt('receipt_no', nextTPrefix + '0000')
               .or('claim_status.is.null,claim_status.neq.VOIDED')
@@ -71526,11 +71695,17 @@ function openPublicRegisterView() {
                 } else if (!dispName || dispName.startsWith('นักศึกษา') || /^\d+$/.test(dispName.replace(/\s+/g, ''))) {
                   if (sid) missingIds.push(sid);
                 }
+                const targetGrpFilter = (document.getElementById('txtRosterGroup')?.value || '').trim().replace(/^กลุ่มเรียน\s*/, '').toUpperCase();
+                if (targetGrpFilter && rNorm.classGroup && String(rNorm.classGroup).trim().toUpperCase() !== targetGrpFilter) {
+                  return;
+                }
                 studentsList.push({
                   studentId: sid,
                   fullName: dispName,
                   schedule: rNorm.schedule || '',
                   room: rNorm.room || '',
+                  classGroup: rNorm.classGroup || '',
+                  teacherName: rNorm.teacherName || '',
                   courseCode: rNorm.itemCode || courseVal,
                   courseName: rNorm.itemName || courseText
                 });
@@ -71850,7 +72025,7 @@ function openPublicRegisterView() {
       const courseName = (selCourse && selCourse.selectedIndex >= 0) ? selCourse.options[selCourse.selectedIndex].text : '';
       const schedText = (selSched && selSched.selectedIndex >= 0) ? selSched.options[selSched.selectedIndex].text : 'วันเสาร์ เด็กเช้า';
       const groupName = (document.getElementById('txtRosterGroup')?.value || '').trim().replace(/^กลุ่มเรียน\s*/, '') || 'A';
-      const roomNumber = (document.getElementById('txtRosterRoom')?.value || '').trim() || '5505';
+      const roomNumber = (document.getElementById('txtRosterRoom')?.value || '').trim() || '-';
       const instructor = (document.getElementById('selRosterInstructor')?.value || document.getElementById('txtRosterInstructor')?.value || '').trim() || '-';
       const _openT = (typeof cachedTermOpenDates === 'object' && cachedTermOpenDates && cachedTermOpenDates[termNo]) ? cachedTermOpenDates[termNo] : '';
       const _closeT = (typeof cachedTermCloseDates === 'object' && cachedTermCloseDates && cachedTermCloseDates[termNo]) ? cachedTermCloseDates[termNo] : '';
@@ -72168,23 +72343,20 @@ function openPublicRegisterView() {
      * ดึงข้อมูลการกำหนดห้องและอาจารย์ที่เคยบันทึกไว้ของคอร์ส
      */
     function getSavedCourseClassroomConfig(yearTerm, courseId, schedId = 'ALL') {
-      const storageKey = 'oca_roster_cfg_' + yearTerm + '_' + courseId + '_' + (schedId || 'ALL');
-      const fallbackKey = 'oca_roster_cfg_' + yearTerm + '_' + courseId + '_ALL';
-      try {
-        const local = localStorage.getItem(storageKey) || localStorage.getItem(fallbackKey);
-        if (local) return JSON.parse(local);
-      } catch (e) {}
-      // Fallback to Course Group & Instructor Settings
-      if (typeof getCourseGroupInstructorList === 'function' && yearTerm && courseId) {
+      const _actYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+      // 1. Source of Truth: Supabase-backed Course Group & Instructor Settings (cg_chunk_*) FIRST
+      if (typeof getCourseGroupInstructorList === 'function' && courseId) {
         try {
-          const parts = String(yearTerm).split('_');
-          const y = parts[0] || '2569';
-          const t = parts[1] || '5';
+          const parts = String(yearTerm || (_actYT.yearBE + '_' + _actYT.term)).split('_');
+          const y = parts[0] || String(_actYT.yearBE);
+          const t = parts[1] || String(_actYT.term);
           const groups = getCourseGroupInstructorList(courseId, schedId !== 'ALL' ? schedId : 'SCH-01', t, y);
           if (Array.isArray(groups) && groups.length > 0) {
             const first = groups[0];
+            const resolvedRoom = first.room || '';
             return {
-              roomNo: first.room || '',
+              room: resolvedRoom,
+              roomNo: resolvedRoom,
               instructor: first.lecturerName || '',
               groupName: first.section || 'A',
               groups: groups
@@ -72192,6 +72364,21 @@ function openPublicRegisterView() {
           }
         } catch (_) {}
       }
+      // 2. Fallback to localStorage cache only when cloud map has no entry
+      const storageKey = 'oca_roster_cfg_' + yearTerm + '_' + courseId + '_' + (schedId || 'ALL');
+      const fallbackKey = 'oca_roster_cfg_' + yearTerm + '_' + courseId + '_ALL';
+      try {
+        const local = localStorage.getItem(storageKey) || localStorage.getItem(fallbackKey);
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (parsed && typeof parsed === 'object') {
+            const rVal = parsed.room || parsed.roomNo || '';
+            parsed.room = rVal;
+            parsed.roomNo = rVal;
+          }
+          return parsed;
+        }
+      } catch (e) {}
       return null;
     }
     /**
@@ -72259,13 +72446,36 @@ function openPublicRegisterView() {
             amount: 0,
             updated_at: new Date().toISOString()
           }, { onConflict: 'key' }); if (wErr) throw wErr; }
-          // 3. Update room in receipts for all currently enrolled students in this course
+          // Sync back into cg_chunk_* Source of Truth so receipts, reports, and teacher portal stay aligned
+          if (typeof saveCourseGroupInstructorList === 'function' && schedVal && schedVal !== 'ALL') {
+            try {
+              const existingList = typeof getCourseGroupInstructorList === 'function'
+                ? (getCourseGroupInstructorList(courseVal, schedVal, termNo, yearBE) || [])
+                : [];
+              const nextList = Array.isArray(existingList) ? JSON.parse(JSON.stringify(existingList)) : [];
+              const idxGrp = nextList.findIndex(g => String(g.section || 'A').toUpperCase() === String(groupName || 'A').toUpperCase());
+              const grpItem = {
+                section: String(groupName || 'A').toUpperCase(),
+                lecturerName: instructor || 'อาจารย์ประจำกลุ่มเรียน',
+                room: roomNo
+              };
+              if (idxGrp !== -1) nextList[idxGrp] = grpItem;
+              else nextList.push(grpItem);
+              await saveCourseGroupInstructorList(courseVal, schedVal, nextList, termNo, yearBE, false);
+            } catch (cgErr) {
+              console.warn('[saveClassroomAndInstructorConfig] cg_chunk sync error:', cgErr);
+            }
+          }
+          // 3. Update room, class_group, teacher_name in receipts for all currently enrolled students in this course
           if (chkAutoUpdate) {
             const yr = String(yearBE || '2569').slice(-2);
             const tPrefix = yr + String(termNo || 5);
             const nextTPrefix = (Number(termNo) < 5) ? (yr + String(Number(termNo) + 1)) : (String(Number(yr) + 1) + '0');
+            const rcBatchPatch = { room: roomNo };
+            if (groupName) rcBatchPatch.class_group = groupName;
+            if (instructor) rcBatchPatch.teacher_name = instructor;
             let qb = _supabase.from('receipts')
-              .update({ room: roomNo })
+              .update(rcBatchPatch)
               .gte('receipt_no', tPrefix + '0000')
               .lt('receipt_no', nextTPrefix + '0000')
               .eq('year_be', yearBE)
@@ -72395,24 +72605,24 @@ function openPublicRegisterView() {
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
       }
       try {
-        // 1. Update in Supabase receipts table
+        // 1. Update in Supabase receipts table (latest receipt across all years for returning students)
         if (_supabase) {
-          const sidStr = String(sid || '').trim();
-          const yr = sidStr.slice(0, 2);
-          const minR = /^\d{2}$/.test(yr) ? (yr + '00000') : '6800000';
-          const maxR = /^\d{2}$/.test(yr) ? (String(Number(yr) + 1).padStart(2, '0') + '00000') : '7100000';
-          const { data: latestRcList } = await _supabase.from('receipts')
-            .select('id')
-            .gte('receipt_no', minR)
-            .lt('receipt_no', maxR)
+          const { data: latestRcList, error: rcLookupErr } = await _supabase.from('receipts')
+            .select('id, receipt_no')
             .eq('student_id', sid)
+            .or('claim_status.is.null,claim_status.neq.VOIDED')
             .order('receipt_no', { ascending: false })
             .limit(1);
+          if (rcLookupErr) console.warn('Supabase lookup receipt error:', rcLookupErr);
           if (latestRcList && latestRcList.length > 0) {
             const { error: upErr } = await _supabase.from('receipts')
               .update({ room: newRoom })
               .eq('id', latestRcList[0].id);
-            if (upErr) console.warn('Supabase update room error:', upErr);
+            if (upErr) {
+              console.warn('Supabase update room error:', upErr);
+            } else if (typeof broadcastOcaDataSync === 'function') {
+              broadcastOcaDataSync('receipts', 'UPDATE', { student_id: sid, room: newRoom });
+            }
           }
         }
         // 2. Update memory caches
@@ -80782,12 +80992,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           }
           return;
         }
-        // Sequence & Cooldown Guard (prevent duplicate IN within 5 mins, or OUT without prior IN today)
         let localHistory = [];
-        try {
-          localHistory = JSON.parse(localStorage.getItem(`oca_checkins_${user.username}`) || '[]');
-          if (!Array.isArray(localHistory)) localHistory = [];
-        } catch (_) { localHistory = []; }
+        try { localHistory = JSON.parse(localStorage.getItem(`oca_checkins_${user.username}`) || '[]'); } catch (_) {}
+        if (!Array.isArray(localHistory) || !localHistory.length) localHistory = await hydrateTeacherCheckInHistoryFromDb(user.username);
         const nowLocal = new Date();
         const todayStr = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, '0')}-${String(nowLocal.getDate()).padStart(2, '0')}`;
         const toLocalDay = (ts) => {
@@ -80969,7 +81176,35 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     }
     window.performTeacherCheckInWithType = performTeacherCheckInWithType;
     window.performTeacherCheckIn = () => performTeacherCheckInWithType('IN');
-    function renderTeacherMyHistory() {
+    async function hydrateTeacherCheckInHistoryFromDb(username) {
+      if (!username || typeof _supabase === 'undefined' || !_supabase) return [];
+      try {
+        const { data: dbLogs, error: dbErr } = await _supabase
+          .from('security_audit_logs')
+          .select('action, details, created_at')
+          .eq('username', username)
+          .in('action', ['TEACHER_CLOCK_IN', 'TEACHER_CLOCK_OUT'])
+          .order('created_at', { ascending: false })
+          .limit(15);
+        if (!dbErr && Array.isArray(dbLogs) && dbLogs.length > 0) {
+          const rows = dbLogs.map(r => {
+            let parsed = {};
+            try { if (r.details && r.details.startsWith('{')) parsed = JSON.parse(r.details); } catch (_) {}
+            return {
+              check_type: parsed.check_type || (r.action === 'TEACHER_CLOCK_IN' ? 'IN' : 'OUT'),
+              thai_time_stamp: parsed.thai_time_stamp || r.created_at,
+              created_at: r.created_at,
+              distance_meters: parsed.distance_meters || 0,
+              biometric_verified: parsed.biometric_verified !== false
+            };
+          });
+          try { localStorage.setItem(`oca_checkins_${username}`, JSON.stringify(rows)); } catch (_) {}
+          return rows;
+        }
+      } catch (_) {}
+      return [];
+    }
+    async function renderTeacherMyHistory() {
       const tbody = document.getElementById('tbTeacherMyCheckinHistory');
       const countEl = document.getElementById('lblTeacherCheckinCount');
       if (!tbody) return;
@@ -80983,6 +81218,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const raw = localStorage.getItem(`oca_checkins_${user.username}`) || '[]';
         history = JSON.parse(raw);
       } catch(_) {}
+      if ((!Array.isArray(history) || history.length === 0) && user.username) {
+        history = await hydrateTeacherCheckInHistoryFromDb(user.username);
+      }
       const dict = TEACHER_I18N[_teacherCurrentLanguage] || TEACHER_I18N.th;
       if (countEl) countEl.textContent = `${history.length} ${dict.unitRecords}`;
       if (history.length === 0) {
@@ -81020,6 +81258,22 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         </tr>`;
       }).join('');
     }
+    function isTeacherRbacRestricted(user) {
+      if (!user) return false;
+      const roleLow = String(user.role || '').toLowerCase();
+      if (roleLow.includes('admin') || roleLow.includes('academic') || roleLow.includes('registrar')) return false;
+      return roleLow.includes('teacher') || roleLow.includes('ครู') || roleLow.includes('ผู้สอน');
+    }
+    function isLecturerAssignedToTeacher(lecturerName, user) {
+      if (!lecturerName || !user) return false;
+      const stripTitle = (s) => String(s || '').toLowerCase().trim().replace(/^(อาจารย์|อ\.|ครู|ajarn|teacher|kru)\s*/i, '').trim();
+      const lecClean = stripTitle(lecturerName);
+      if (!lecClean) return false;
+      const candidates = [user.fullName, user.name, user.username]
+        .map(v => stripTitle(v))
+        .filter(Boolean);
+      return candidates.some(c => lecClean === c || lecClean.includes(c) || c.includes(lecClean));
+    }
     function populateTeacherCourseGroupDropdown() {
       const selSched = document.getElementById('selTeacherSchedule');
       const selCG = document.getElementById('selTeacherCourseGroup');
@@ -81032,9 +81286,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         ? getOfferedCourseCodesForSchedule(sId, tNo, yBE)
         : [];
       const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
-      const userName = (user?.fullName || user?.name || user?.username || '').toLowerCase();
-      let html = '<option value="ALL">-- ทุกคอร์สเรียนในรอบเวลานี้ --</option>';
+      const restricted = isTeacherRbacRestricted(user);
+      let html = restricted ? '' : '<option value="ALL">-- ทุกคอร์สเรียนในรอบเวลานี้ --</option>';
       let matchedOptionValue = null;
+      let assignedCount = 0;
       offered.forEach(cCode => {
         const courseObj = (Array.isArray(cachedCoursesList) ? cachedCoursesList : []).find(c => c.id === cCode || c.code === cCode);
         const cName = courseObj ? (courseObj.name || cCode) : cCode;
@@ -81042,26 +81297,29 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           ? getCourseGroupInstructorList(cCode, sId, tNo, yBE)
           : [{ section: 'A', lecturerName: '', room: '', remark: 'ปกติ' }];
         groups.forEach(g => {
+          const isMine = isLecturerAssignedToTeacher(g.lecturerName, user);
+          if (restricted && !isMine) return;
           const val = `${cCode}::${g.section || 'A'}`;
           const lec = g.lecturerName ? ` - ${g.lecturerName}` : '';
           const rm = g.room ? ` (ห้อง ${g.room})` : '';
           html += `<option value="${escapeHtml(val)}">${escapeHtml(cCode)}: ${escapeHtml(cName)} [กลุ่ม ${escapeHtml(g.section || 'A')}${escapeHtml(lec)}${escapeHtml(rm)}]</option>`;
-          if (userName && g.lecturerName) {
-            const lecLow = g.lecturerName.toLowerCase();
-            if (lecLow.includes(userName) || (userName.length > 3 && lecLow.includes(userName.slice(0, 4)))) {
-              matchedOptionValue = val;
-            }
+          assignedCount++;
+          if (!matchedOptionValue && isMine) {
+            matchedOptionValue = val;
           }
         });
       });
+      if (restricted && assignedCount === 0) {
+        html = '<option value="">-- ยังไม่ได้รับมอบหมายคอร์ส/กลุ่มในรอบนี้ --</option>';
+      }
       const prevVal = selCG.value || localStorage.getItem('oca_teacher_selected_course_group');
       selCG.innerHTML = html;
       if (matchedOptionValue) {
         selCG.value = matchedOptionValue;
-      } else if (prevVal && selCG.querySelector(`option[value="${prevVal}"]`)) {
+      } else if (!restricted && prevVal && selCG.querySelector(`option[value="${prevVal}"]`)) {
         selCG.value = prevVal;
-      } else {
-        selCG.value = 'ALL';
+      } else if (selCG.options.length > 0) {
+        selCG.selectedIndex = 0;
       }
     }
     window.populateTeacherCourseGroupDropdown = populateTeacherCourseGroupDropdown;
@@ -81107,10 +81365,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const today = new Date().toISOString().split('T')[0];
         dateEl.value = savedDate || today;
       }
-      // 2. Restore schedule on F5/refresh if default or empty
-      if (selSched) {
+      // 2. Restore schedule on F5/refresh if default or empty (respect RBAC lock)
+      if (selSched && !selSched.disabled) {
         const savedSched = localStorage.getItem('oca_teacher_selected_schedule');
-        if (savedSched && (!selSched.value || selSched.value === 'SCH-01')) {
+        if (savedSched && (!selSched.value || selSched.value === 'SCH-01') && selSched.querySelector(`option[value="${savedSched}"]`)) {
           selSched.value = savedSched;
         }
       }
@@ -81155,21 +81413,23 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const nextTPrefix = (tNo < 5) ? (yrPfx + String(tNo + 1)) : (String(Number(yrPfx) + 1) + '0');
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const [rcRes, stRes] = await Promise.all([
-            _supabase.from('receipts')
-              .select('student_id, buyer_name, item_code, item_name, schedule')
-              .gte('receipt_no', tPrefix + '0000')
-              .lt('receipt_no', nextTPrefix + '0000')
-              .limit(500),
-            _supabase.from('students')
-              .select('student_id, prefix, full_name, current_schedule, current_course, photo_url, status')
-              .or(`term.eq.${tNo},student_id.gte.${tPrefix}0000`)
-              .limit(500)
+          const [rcData, stData] = await Promise.all([
+            fetchAllPaginatedSupabaseRows(() =>
+              _supabase.from('receipts')
+                .select('student_id, buyer_name, item_code, item_name, schedule, class_group')
+                .gte('receipt_no', tPrefix + '0000')
+                .lt('receipt_no', nextTPrefix + '0000')
+                .or('claim_status.is.null,claim_status.neq.VOIDED')
+                .order('receipt_no', { ascending: false })
+            , 1000, 10000),
+            fetchAllPaginatedSupabaseRows(() =>
+              _supabase.from('students')
+                .select('student_id, prefix, full_name, current_schedule, current_course, photo_url, status, year_be, term')
+                .eq('year_be', yBE)
+                .or(`term.eq.${tNo},student_id.gte.${tPrefix}0000`)
+                .order('student_id', { ascending: false })
+            , 1000, 10000)
           ]);
-          const rcData = rcRes?.data || [];
-          if (rcRes?.error) console.warn('[Teacher Roster DB] receipts query notice:', rcRes.error);
-          const stData = stRes?.data || [];
-          if (stRes?.error) console.warn('[Teacher Roster DB] students query notice:', stRes.error);
           const lookupNames = new Map();
           const isDroppedSt = (st) => {
             const stat = String(st?.status || '').toUpperCase();
@@ -81200,7 +81460,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
                   full_name: disp,
                   photo_url: lk?.photoUrl || '',
                   current_schedule: r.schedule || schedName,
-                  current_course: r.item_name || r.item_code || ''
+                  current_course: r.item_name || r.item_code || '',
+                  class_group: r.class_group || ''
                 });
               }
             });
@@ -81255,30 +81516,57 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       }
       // Filter students by selected Course & Section if not ALL
       const cgVal = selCG ? selCG.value : 'ALL';
-      if (cgVal && cgVal !== 'ALL') {
+      if (cgVal === '') {
+        studentsList = [];
+      } else if (cgVal && cgVal !== 'ALL') {
         const [targetCourse, targetSec] = cgVal.split('::');
         const targetCourseUp = (targetCourse || '').toUpperCase();
+        const targetSecUp = (targetSec || '').trim().toUpperCase();
         studentsList = studentsList.filter(st => {
           const cCode = String(st.current_course || '').toUpperCase();
           const matchCourse = cCode.includes(targetCourseUp) ||
             (Array.isArray(cachedCoursesList) && cachedCoursesList.some(c => (c.id === targetCourseUp || c.code === targetCourseUp) && c.name && cCode.includes(c.name.toUpperCase())));
-          return matchCourse;
+          const stSecUp = String(st.class_group || '').trim().toUpperCase();
+          const matchSec = !targetSecUp || !stSecUp || stSecUp === targetSecUp;
+          return matchCourse && matchSec;
         });
       }
-      // 2. Comprehensive Query for Saved Attendance across DB, LocalStorage & Audit Logs
+      // 2. Comprehensive Query for Saved Attendance (Cloud FIRST, then LocalStorage fallback)
       let savedAttMap = {};
-      // 2.1 Query saved attendance from local device cache (schema safe)
+      if (typeof _supabase !== 'undefined' && _supabase) {
+        try {
+          const { data: logs } = await _supabase
+            .from('security_audit_logs')
+            .select('device_info, created_at')
+            .eq('action', 'TEACHER_ATTENDANCE_SAVED')
+            .order('created_at', { ascending: false })
+            .limit(50);
+          if (logs && logs.length > 0) {
+            for (const log of logs) {
+              if (log.device_info && log.device_info.startsWith('{')) {
+                try {
+                  const parsed = JSON.parse(log.device_info);
+                  if (parsed.schedule_id === scheduleId && parsed.attendance_date === attDate && Array.isArray(parsed.rows)) {
+                    parsed.rows.forEach(r => {
+                      if (r.student_id && !savedAttMap[r.student_id]) savedAttMap[r.student_id] = r;
+                    });
+                  }
+                } catch (_) {}
+              }
+            }
+          }
+        } catch (_) {}
+      }
       try {
         const localCacheKey = `oca_teacher_att_${scheduleId}_${attDate}`;
         const raw = localStorage.getItem(localCacheKey);
         if (raw) {
           const arr = JSON.parse(raw);
           if (Array.isArray(arr)) {
-            arr.forEach(r => { if (r.student_id) savedAttMap[r.student_id] = r; });
+            arr.forEach(r => { if (r.student_id && !savedAttMap[r.student_id]) savedAttMap[r.student_id] = r; });
           }
         }
       } catch (_) {}
-      // 2.2 LocalStorage lookup (user-scoped, general, and key pattern)
       try {
         const userKey = user ? `oca_att_${user.username}_${scheduleId}_${attDate}` : null;
         const genKey = `oca_att_${scheduleId}_${attDate}`;
@@ -81301,32 +81589,6 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           } catch (_) {}
         });
       } catch (_) {}
-      // 2.3 security_audit_logs cross-device fallback
-      if (Object.keys(savedAttMap).length === 0 && typeof _supabase !== 'undefined' && _supabase) {
-        try {
-          const { data: logs } = await _supabase
-            .from('security_audit_logs')
-            .select('device_info, created_at')
-            .eq('action', 'TEACHER_ATTENDANCE_SAVED')
-            .order('created_at', { ascending: false })
-            .limit(50);
-          if (logs && logs.length > 0) {
-            for (const log of logs) {
-              if (log.device_info && log.device_info.startsWith('{')) {
-                try {
-                  const parsed = JSON.parse(log.device_info);
-                  if (parsed.schedule_id === scheduleId && parsed.attendance_date === attDate && Array.isArray(parsed.rows)) {
-                    parsed.rows.forEach(r => {
-                      if (r.student_id && !savedAttMap[r.student_id]) savedAttMap[r.student_id] = r;
-                    });
-                    if (Object.keys(savedAttMap).length > 0) break;
-                  }
-                } catch (_) {}
-              }
-            }
-          }
-        } catch (_) {}
-      }
       // 3. Merge roster with exact saved attendance status & notes
       _teacherRosterData = studentsList.map(s => {
         const saved = savedAttMap[s.student_id];
@@ -81392,7 +81654,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
           <td style="padding:10px 14px 10px 28px; vertical-align:middle;">${photoHtml}</td>
           <td style="padding:10px 14px; vertical-align:middle;">
-            <div style="font-weight:800; color:var(--text-main); font-size:13.5px;">${escapeHtml(s.full_name || '-')}</div>
+            <div style="font-weight:800; color:#F8FAFC !important; font-size:13.5px;">${escapeHtml(s.full_name || '-')}</div>
             <div style="display:flex; align-items:center; margin-top:3px; flex-wrap:wrap;">
               <span style="font-size:10.5px; font-weight:800; color:#0F172A; font-family:monospace; background:#FEF3C7; border:1px solid #D97706; padding:1px 7px; border-radius:5px;">ID: ${escapeHtml(s.student_id || '-')}</span>
 
@@ -81496,10 +81758,19 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         created_by: user.username,
         created_at: new Date().toISOString()
       }));
-      // 1. Local Storage immediate persistence (user-scoped + general + selected state)
+      // 1. Local Storage immediate persistence (merge by student_id so filtering one course never wipes sibling courses in same schedule)
+      const mergeAttCacheRows = (key, newRows) => {
+        try {
+          const existing = JSON.parse(localStorage.getItem(key) || '[]');
+          const bySid = new Map();
+          if (Array.isArray(existing)) existing.forEach(r => { if (r && r.student_id) bySid.set(r.student_id, r); });
+          newRows.forEach(r => { if (r && r.student_id) bySid.set(r.student_id, r); });
+          localStorage.setItem(key, JSON.stringify(Array.from(bySid.values())));
+        } catch (_) {}
+      };
+      mergeAttCacheRows(`oca_att_${user.username}_${scheduleId}_${attDate}`, rows);
+      mergeAttCacheRows(`oca_att_${scheduleId}_${attDate}`, rows);
       try {
-        localStorage.setItem(`oca_att_${user.username}_${scheduleId}_${attDate}`, JSON.stringify(rows));
-        localStorage.setItem(`oca_att_${scheduleId}_${attDate}`, JSON.stringify(rows));
         localStorage.setItem('oca_teacher_selected_schedule', scheduleId);
         localStorage.setItem('oca_teacher_selected_date', attDate);
       } catch (_) {}
@@ -81538,11 +81809,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           );
         } catch (_) {}
       }
-      // 3. Cache attendance to local storage for instant offline access
-      try {
-        const localCacheKey = `oca_teacher_att_${scheduleId}_${attDate}`;
-        localStorage.setItem(localCacheKey, JSON.stringify(rows));
-      } catch (_) {}
+      // 3. Cache attendance to local storage for instant offline access (merged by student_id)
+      mergeAttCacheRows(`oca_teacher_att_${scheduleId}_${attDate}`, rows);
       // 4. Multi-channel Real-time Broadcast to Course Attendance Tracking & Reports
       try {
         if (typeof _ocaRealtimeChannel !== 'undefined' && _ocaRealtimeChannel && _ocaRealtimeChannel.state === 'joined') {
@@ -81759,7 +82027,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           const rawData = await fetchAllPaginatedSupabaseRows(() =>
             _supabase
               .from('students')
-              .select('student_id, prefix, full_name, phone_number, email, line_id, current_schedule, current_course, year_be, term, status, notes')
+              .select('student_id, prefix, full_name, phone_number, email, line_id, photo_url, current_schedule, current_course, year_be, term, status, notes')
               .gte('student_id', yrPrefix + '00000')
               .lt('student_id', nextPrefix + '00000')
               .order('student_id', { ascending: false })
@@ -81831,13 +82099,15 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           if (cloudCrmMap[s.student_id].note) crmNote = cloudCrmMap[s.student_id].note;
           if (cloudCrmMap[s.student_id].contacted !== undefined) isContacted = cloudCrmMap[s.student_id].contacted;
         }
+        const emMatch = String(s.notes || '').match(/ฉุกเฉิน\s*:\s*([0-9\-]{9,15})/);
+        const parsedEmergency = (emMatch && emMatch[1]) ? emMatch[1] : '';
         return {
           student_id: s.student_id,
           full_name: s.full_name || '-',
           name_en: s.name_en || '',
           nickname: s.nickname || '',
           phone: s.phone_number || s.phone || '-',
-          emergency_phone: s.emergency_phone || s.guardian_phone || '-',
+          emergency_phone: s.emergency_phone || s.guardian_phone || parsedEmergency || '-',
           email: s.email || '-',
           line_id: s.line_id || '-',
           photo_url: s.photo_url || '',
@@ -82433,7 +82703,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           }
           const { data, error } = await q;
           if (!error && Array.isArray(data)) {
-            records = data.filter(r => r.username && teacherUsernames.has(r.username));
+            records = data.filter(r => r.username && (teacherUsernames.has(r.username) || String(r.username).toUpperCase() === 'ALL'));
           }
         } catch (e) {
           console.warn('[TeacherTracker Fetch Error]:', e);
@@ -83123,10 +83393,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const isForMe = (targetFromMeta === 'all' || targetFromMeta === myUname || target === 'all' || target === myUname);
       if (!isForMe) return;
       const msgId = meta.message_id || ('MSG-' + (row.id || row.created_at || Date.now()));
-      // Check if already acknowledged
+      // Check if already acknowledged (scoped per username)
       let ackList = [];
       try {
-        ackList = JSON.parse(localStorage.getItem('oca_teacher_ack_msgs') || '[]');
+        ackList = JSON.parse(localStorage.getItem(`oca_teacher_ack_msgs_${myUname}`) || '[]');
       } catch (_) {}
       if (ackList.includes(msgId)) return;
       displayTeacherLuxuryNoticeModal({
@@ -83203,13 +83473,15 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         return;
       }
       const uname = user.username;
+      const myUname = String(uname).toLowerCase().trim();
       const fname = user.fullName || user.username || uname;
-      // 1. Mark as acknowledged locally
+      // 1. Mark as acknowledged locally (scoped per username)
       try {
-        let ackList = JSON.parse(localStorage.getItem('oca_teacher_ack_msgs') || '[]');
+        const ackKey = `oca_teacher_ack_msgs_${myUname}`;
+        let ackList = JSON.parse(localStorage.getItem(ackKey) || '[]');
         if (!ackList.includes(notice.messageId)) {
           ackList.push(notice.messageId);
-          localStorage.setItem('oca_teacher_ack_msgs', JSON.stringify(ackList));
+          localStorage.setItem(ackKey, JSON.stringify(ackList));
         }
       } catch (_) {}
       // 2. Hide modal with smooth transition
@@ -83250,20 +83522,43 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
       if (!user || !user.username) return;
       const myUname = String(user.username).toLowerCase().trim();
+      const ackKey = `oca_teacher_ack_msgs_${myUname}`;
       let ackList = [];
       try {
-        ackList = JSON.parse(localStorage.getItem('oca_teacher_ack_msgs') || '[]');
+        ackList = JSON.parse(localStorage.getItem(ackKey) || '[]');
       } catch (_) {}
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
           const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-          const { data, error } = await _supabase
-            .from('security_audit_logs')
-            .select('*')
-            .eq('action', 'TEACHER_DIRECT_MESSAGE')
-            .gte('created_at', sevenDaysAgo)
-            .order('created_at', { ascending: false })
-            .limit(20);
+          const [{ data, error }, { data: ackLogs }] = await Promise.all([
+            _supabase
+              .from('security_audit_logs')
+              .select('*')
+              .eq('action', 'TEACHER_DIRECT_MESSAGE')
+              .gte('created_at', sevenDaysAgo)
+              .order('created_at', { ascending: false })
+              .limit(20),
+            _supabase
+              .from('security_audit_logs')
+              .select('device_info')
+              .eq('action', 'TEACHER_MESSAGE_ACKNOWLEDGED')
+              .eq('username', user.username)
+              .gte('created_at', sevenDaysAgo)
+              .limit(50)
+          ]);
+          if (Array.isArray(ackLogs)) {
+            ackLogs.forEach(a => {
+              try {
+                if (a.device_info && a.device_info.startsWith('{')) {
+                  const p = JSON.parse(a.device_info);
+                  if (p.acknowledged_message_id && !ackList.includes(p.acknowledged_message_id)) {
+                    ackList.push(p.acknowledged_message_id);
+                  }
+                }
+              } catch (_) {}
+            });
+            try { localStorage.setItem(ackKey, JSON.stringify(ackList)); } catch (_) {}
+          }
           if (!error && data && data.length > 0) {
             for (const row of data) {
               const target = String(row.username || '').toLowerCase().trim();
@@ -83650,7 +83945,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           // 1.1 Query receipts for this term (paginated, exclude voided)
           const rawRcData = await fetchAllPaginatedSupabaseRows(() =>
             _supabase.from('receipts')
-              .select('student_id, buyer_name, item_code, item_name, room, schedule, year_be, term, claim_status, edit_notes')
+              .select('student_id, buyer_name, item_code, item_name, room, class_group, teacher_name, schedule, year_be, term, claim_status, edit_notes')
               .gte('receipt_no', tPrefix + '0000')
               .lt('receipt_no', nextTPrefix + '0000')
               .or('claim_status.is.null,claim_status.neq.VOIDED')
@@ -84188,7 +84483,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           }
           const { data, error } = await q;
           if (!error && Array.isArray(data)) {
-            records = data.filter(r => r.username && teacherUsernames.has(r.username));
+            records = data.filter(r => r.username && (teacherUsernames.has(r.username) || String(r.username).toUpperCase() === 'ALL'));
           }
         } catch(e) {
           console.warn('[Report 6 Fetch Error]:', e);
@@ -84518,27 +84813,66 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       checkTeacherGeolocation(false);
       checkTeacherBiometricEnrollment();
       renderTeacherMyHistory();
-      if (!window._ocaScheduleCoursesByTermMap && typeof _supabase !== 'undefined' && _supabase) {
+      if (typeof _supabase !== 'undefined' && _supabase && (!window._ocaScheduleCoursesByTermMap || Object.keys(window._ocaScheduleCoursesByTermMap).length === 0 || !window._courseGroupInstructorByTermMap || Object.keys(window._courseGroupInstructorByTermMap).length === 0)) {
         try {
-          const { data: feeData, error: feeErr } = await _supabase
+          const curYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+          const yBE = Number(curYT && curYT.yearBE) || 2569;
+          const tNo = Number(curYT && curYT.term) || 5;
+          const tKey = `${yBE}_${tNo}`;
+          const { data: chunkRows, error: chunkErr } = await _supabase
             .from('fee_settings')
             .select('key, name')
-            .in('key', ['schedule_courses_by_term_map', 'schedule_courses_map']);
-          if (!feeErr && Array.isArray(feeData)) {
-            feeData.forEach(row => {
-              if (row.key === 'schedule_courses_by_term_map' && row.name) {
-                try {
-                  window._ocaScheduleCoursesByTermMap = JSON.parse(row.name);
-                } catch (_) {}
-              } else if (row.key === 'schedule_courses_map' && row.name) {
-                try {
-                  window._ocaScheduleCoursesMap = JSON.parse(row.name);
-                } catch (_) {}
-              }
-            });
+            .or(`key.like.sched_chunk_${tKey}_%,key.like.cg_chunk_${tKey}_%`);
+          if (!chunkErr && Array.isArray(chunkRows) && chunkRows.length > 0 && typeof reassembleChunkedFeeMap === 'function') {
+            const schedMap = reassembleChunkedFeeMap(chunkRows, 'sched_chunk_', yBE, tNo);
+            if (schedMap && Object.keys(schedMap).length > 0) {
+              window._ocaScheduleCoursesByTermMap = window._ocaScheduleCoursesByTermMap || {};
+              window._ocaScheduleCoursesByTermMap[tKey] = schedMap;
+            }
+            const cgMap = reassembleChunkedFeeMap(chunkRows, 'cg_chunk_', yBE, tNo);
+            if (cgMap && Object.keys(cgMap).length > 0) {
+              window._courseGroupInstructorByTermMap = window._courseGroupInstructorByTermMap || {};
+              window._courseGroupInstructorByTermMap[tKey] = cgMap;
+            }
           }
         } catch (err) {
-          console.warn('[Teacher Portal] Fee settings hydration fallback:', err);
+          console.warn('[Teacher Portal] Chunked map hydration notice:', err);
+        }
+      }
+      if (user && selSched) {
+        if (!selSched.dataset.allOptionsHtml) {
+          selSched.dataset.allOptionsHtml = selSched.innerHTML;
+        } else {
+          selSched.innerHTML = selSched.dataset.allOptionsHtml;
+        }
+        const restricted = (typeof isTeacherRbacRestricted === 'function') ? isTeacherRbacRestricted(user) : false;
+        if (restricted) {
+          const curYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+          const tKey = `${Number(curYT.yearBE) || 2569}_${Number(curYT.term) || 5}`;
+          const allowedScheds = new Set();
+          const primarySched = (typeof getResolvedTeacherSchedule === 'function') ? getResolvedTeacherSchedule(user.username, user) : (user.assignedSchedule || user.assigned_schedule);
+          if (primarySched && primarySched !== 'ALL') allowedScheds.add(String(primarySched).toUpperCase());
+          const termCg = (window._courseGroupInstructorByTermMap && window._courseGroupInstructorByTermMap[tKey]) || {};
+          Object.keys(termCg).forEach(pairKey => {
+            const sId = pairKey.split('::')[1];
+            const grps = termCg[pairKey];
+            if (sId && sId !== 'ALL' && Array.isArray(grps) && grps.some(g => typeof isLecturerAssignedToTeacher === 'function' && isLecturerAssignedToTeacher(g.lecturerName, user))) {
+              allowedScheds.add(sId.toUpperCase());
+            }
+          });
+          if (allowedScheds.size > 0) {
+            Array.from(selSched.options).forEach(opt => {
+              if (!allowedScheds.has(String(opt.value || '').toUpperCase())) opt.remove();
+            });
+            if (selSched.options.length > 0) selSched.selectedIndex = 0;
+            selSched.disabled = allowedScheds.size <= 1;
+            selSched.title = 'ล็อกสิทธิ์เฉพาะรอบเรียนที่เจ้าหน้าที่มอบหมายให้ครูผู้สอน';
+          } else {
+            selSched.innerHTML = '<option value="">-- ยังไม่ได้รับมอบหมายรอบเรียน --</option>';
+            selSched.disabled = true;
+          }
+        } else {
+          selSched.disabled = false;
         }
       }
       populateTeacherCourseGroupDropdown();
@@ -86114,6 +86448,22 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       }
       return Object.assign(rcPayload, overrides);
     }
+    function applySlipGroupTeacherRoom(rcPayload, info, canonicalCourseCode, term, yearBE) {
+      if (!rcPayload.classGroup && info.groupSection) rcPayload.classGroup = info.groupSection;
+      if (!rcPayload.teacherName && info.instructorName) rcPayload.teacherName = info.instructorName;
+      if ((!rcPayload.classGroup || !rcPayload.teacherName || !rcPayload.room) && typeof getCourseGroupInstructorList === 'function') {
+        try {
+          const gList = getCourseGroupInstructorList(canonicalCourseCode || info.course || '', info.schedule || 'SCH-01', term, yearBE);
+          if (Array.isArray(gList) && gList.length > 0) {
+            const mg = (rcPayload.classGroup ? gList.find(g => String(g.section || '').toUpperCase() === String(rcPayload.classGroup).toUpperCase()) : null) || gList[0];
+            if (!rcPayload.classGroup && mg.section) rcPayload.classGroup = mg.section;
+            if (!rcPayload.teacherName && mg.lecturerName) rcPayload.teacherName = mg.lecturerName;
+            if (!rcPayload.room && mg.room) rcPayload.room = mg.room;
+          }
+        } catch (_) {}
+      }
+      return rcPayload;
+    }
     async function approvePendingSlip(studentId, varianceOpts = null) {
       if (!studentId) return;
       // In-Flight Memory Set Lock to prevent duplicate concurrent approval & email dispatch
@@ -86222,7 +86572,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           grandTotal: rTotal, paymentMethod: sv.paymentMethod, paymentRef: info.slipRef || 'ONLINE_SLIP_VERIFIED',
           ...(sv.editNotes ? { editNotes: sv.editNotes } : {})
         };
-        const rcRes = await callGasApi('saveReceipt', mergeSlipBooks(rcPayload, info, sv, appBaseFee, canonicalCourseCode), 'POST');
+        const rcPayloadFinal = applySlipGroupTeacherRoom(mergeSlipBooks(rcPayload, info, sv, appBaseFee, canonicalCourseCode), info, canonicalCourseCode, term, yearBE);
+        const rcRes = await callGasApi('saveReceipt', rcPayloadFinal, 'POST');
         if (!rcRes || !rcRes.success) {
           throw new Error((rcRes && rcRes.message) || 'ไม่สามารถออกใบเสร็จรับเงินได้');
         }
@@ -86672,13 +87023,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=224';
+      const swPath = basePath + 'sw.js?v=225';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (224):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (225):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
