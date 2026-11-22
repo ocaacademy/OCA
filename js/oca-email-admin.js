@@ -397,8 +397,7 @@
         }
         const { data, error } = await q;
         if (error) {
-          console.warn(`[OcaEmailAdmin.backup] keyset table ${tableName} error:`, error.message);
-          break;
+          throw new Error(`[OcaEmailAdmin.backup] keyset table ${tableName} error: ${error.message || error}`);
         }
         if (!Array.isArray(data) || data.length === 0) break;
         all.push(...data);
@@ -410,15 +409,21 @@
       }
       return all;
     }
+    const orderColMap = {
+      courses: 'id',
+      schedules: 'id',
+      fee_settings: 'key',
+      app_settings: 'key',
+      staff_users: 'username'
+    };
+    const orderCol = orderColMap[tableName] || null;
     let from = 0;
     for (let page = 0; page < 250; page++) {
-      const { data, error } = await sb
-        .from(tableName)
-        .select('*')
-        .range(from, from + pageSize - 1);
+      let qPage = sb.from(tableName).select('*');
+      if (orderCol) qPage = qPage.order(orderCol, { ascending: true });
+      const { data, error } = await qPage.range(from, from + pageSize - 1);
       if (error) {
-        console.warn(`[OcaEmailAdmin.backup] table ${tableName} error:`, error.message);
-        break;
+        throw new Error(`[OcaEmailAdmin.backup] table ${tableName} error: ${error.message || error}`);
       }
       if (!Array.isArray(data) || data.length === 0) break;
       all.push(...data);
