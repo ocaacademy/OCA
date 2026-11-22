@@ -12372,7 +12372,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '244';
+      var LATEST_VERSION = '245';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -28095,7 +28095,7 @@ body.printing-report #printReportContainer {
 
                     <div style="font-size:11px; color:#0284c7; font-family:monospace; margin-top:3px;">
 
-                      รหัส Token: <strong>${claimToken}</strong>
+                      รหัส Token: <strong>${escapeHtml(claimToken)}</strong>
 
                     </div>
                   </td>
@@ -28132,7 +28132,7 @@ body.printing-report #printReportContainer {
             <tr>
               <td style="width:50%; text-align:left; vertical-align:bottom; padding:6px 0;">
 
-                ผู้รับเงิน: <span style="color:#0284c7; font-weight:700;">${cashierName}</span><br>
+                ผู้รับเงิน: <span style="color:#0284c7; font-weight:700;">${escapeHtml(cashierName)}</span><br>
 
                 <small style="color:var(--text-muted);">(ลงชื่อเจ้าหน้าที่ฝ่ายการเงิน)</small>
               </td>
@@ -28280,8 +28280,8 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
           <tbody>
             <tr>
               <td style="padding:9px 10px; border-bottom:1px solid #e2e8f0;">
-                <div style="font-weight:700; color:#0f172a;">${courseName}</div>
-                <div style="font-size:11.5px; color:#64748b; margin-top:2px;">รอบเวลา: ${scheduleName}</div>
+                <div style="font-weight:700; color:#0f172a;">${escapeHtml(courseName)}</div>
+                <div style="font-size:11.5px; color:#64748b; margin-top:2px;">รอบเวลา: ${escapeHtml(scheduleName)}</div>
               </td>
 
               <td style="padding:9px 10px; text-align:right; border-bottom:1px solid #e2e8f0; font-family:monospace; font-weight:700; color:#0284c7;">
@@ -28337,13 +28337,13 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
           <tr>
             <td>
 
-              ชำระโดย: <strong style="color:#0284c7;">[✓] ${paymentMethod}</strong>
+              ชำระโดย: <strong style="color:#0284c7;">[✓] ${escapeHtml(paymentMethod)}</strong>
 
             </td>
 
             <td style="text-align:right;">
 
-              รูปแบบการเรียน: <strong style="color:#0284c7;">${learningMode}</strong>
+              รูปแบบการเรียน: <strong style="color:#0284c7;">${escapeHtml(learningMode)}</strong>
 
             </td>
           </tr>
@@ -30470,7 +30470,7 @@ if (action === 'getDashboardStats') {
             const cleanAlpha = safeQ.replace(/[^0-9A-Za-z]/g, '');
             let qBuilder = _supabase.from('students').select('*');
             if (cleanAlpha && /^[0-9A-Za-z]{4,20}$/.test(cleanAlpha)) {
-              qBuilder = qBuilder.or(`full_name.ilike.%${safeQ}%,citizen_id.ilike.%${cleanAlpha}%`);
+              qBuilder = qBuilder.or(`full_name.ilike.%${safeQ}%,citizen_id.ilike.%${cleanAlpha}%,smart_card_uid.ilike.%${cleanAlpha}%`);
             } else {
               qBuilder = qBuilder.ilike('full_name', `%${safeQ}%`);
             }
@@ -30516,7 +30516,7 @@ if (action === 'getDashboardStats') {
             email: s.email || '',
             notes: s.notes || '',
             status: s.status || 'พร้อมเรียน',
-            deliveryMethod: s.delivery_method || (rList && rList.length > 0 ? (rList[0].delivery_method || '-') : '-'),
+            deliveryMethod: s.delivery_method || (s.student_id === st.student_id && rList && rList.length > 0 ? (rList[0].delivery_method || '-') : '-'),
             photoUrl: s.photo_url || ''
           }));
           const studentObj = {
@@ -30578,12 +30578,27 @@ if (action === 'getDashboardStats') {
           const targetUid = (params.smartCardUid || params.cardUid || '').trim().toUpperCase();
           const targetId = extractCleanId(params.studentId);
           if (!targetId) return { success: false, message: 'ไม่พบรหัสนักศึกษา' };
+          if (targetUid) {
+            const { data: dupCards, error: dupErr } = await _supabase.from('students')
+              .select('student_id')
+              .eq('smart_card_uid', targetUid)
+              .neq('status', 'DELETED')
+              .neq('student_id', targetId)
+              .limit(1);
+            if (dupErr) return { success: false, message: dupErr.message };
+            if (dupCards && dupCards.length > 0) {
+              return { success: false, message: `รหัสบัตร ${targetUid} ถูกผูกกับนักศึกษารหัส ${dupCards[0].student_id} แล้ว` };
+            }
+          }
           const { error } = await _supabase.from('students')
             .update({ smart_card_uid: targetUid, updated_at: new Date().toISOString() })
             .eq('student_id', targetId);
           if (error) {
             console.error('updateStudentCardUid error:', error);
             return { success: false, message: error.message };
+          }
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('students', 'UPDATE', { student_id: targetId, smart_card_uid: targetUid });
           }
           return { success: true, message: `ผูกรหัสบัตร ${targetUid} เรียบร้อยแล้ว`, smartCardUid: targetUid };
         }
@@ -31117,8 +31132,9 @@ if (action === 'getDashboardStats') {
           }
           // 3. Match candidateRcNo (with or without RC-)
           if (!rList || rList.length === 0) {
-            if (candidateRcNo) {
-              const { data: d3 } = await _supabase.from('receipts').select('*').or(`receipt_no.eq.${candidateRcNo},receipt_no.eq.RC-${candidateRcNo},receipt_no.eq.RC${candidateRcNo}`).limit(1);
+            const safeCandRc = typeof sanitizePostgrestSearchToken === 'function' ? sanitizePostgrestSearchToken(candidateRcNo) : String(candidateRcNo || '').replace(/[^0-9A-Za-z_-]/g, '');
+            if (safeCandRc) {
+              const { data: d3 } = await _supabase.from('receipts').select('*').or(`receipt_no.eq.${safeCandRc},receipt_no.eq.RC-${safeCandRc},receipt_no.eq.RC${safeCandRc}`).limit(1);
               if (d3 && d3.length > 0) {
                 rList = d3;
               }
@@ -31536,7 +31552,9 @@ if (action === 'getDashboardStats') {
           const targetIds = Array.isArray(params.orderIds) && params.orderIds.length > 0 ? params.orderIds : (rcNo ? [rcNo] : []);
           const updateObj = {};
           const tracking = params.trackingNumber || params.trackingNo || '';
-          if (tracking && tracking !== '-') {
+          if (params.clearTracking === true || params.trackingNumber === '' || params.trackingNo === '') {
+            updateObj.tracking_number = null;
+          } else if (tracking && tracking !== '-') {
             updateObj.tracking_number = params.carrier ? `[${params.carrier}] ${tracking}` : tracking;
           }
           if (params.address) {
@@ -31555,6 +31573,9 @@ if (action === 'getDashboardStats') {
             updateObj.claim_status = 'CLAIMED';
             updateObj.claimed_at = new Date().toISOString();
             updateObj.claimed_by = 'ฝ่ายจัดส่งตำราเรียน (Logistics)';
+          } else if (params.status === 'PENDING_PRINT') {
+            updateObj.claim_status = 'จัดส่งตามที่อยู่';
+            updateObj.tracking_number = null;
           } else if (params.status === 'PRINTED' && targetIds.length > 0) {
             try {
               const { data: existingNotesRows, error: exNoteErr } = await _supabase.from('receipts')
@@ -32291,7 +32312,7 @@ if (action === 'getDashboardStats') {
               if (delId) {
                 const fullKey = delId.startsWith('tb:') ? delId : ('tb:' + delId);
                 const { error: delErr } = await _supabase.from('fee_settings').delete().eq('key', fullKey);
-                if (delErr) console.warn('Supabase deleteTextbook error:', delErr);
+                if (delErr) throw delErr;
               }
             }
             // B. Handle saveTextbook
@@ -38540,11 +38561,7 @@ if (action === 'getDashboardStats') {
     }
     let currentDropStudent = null;
     function openDropStudentModal(studentId, studentName, course) {
-      if (!studentId) {
-        studentId = '6950001';
-        studentName = 'นักศึกษาทดสอบ';
-        course = '-';
-      }
+      if (!studentId) return;
       currentDropStudent = {
         studentId: studentId,
         studentName: studentName || studentId,
@@ -38589,13 +38606,13 @@ if (action === 'getDashboardStats') {
         const dateStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear() + 543}`;
         const officer = (typeof getAuditActor === 'function') ? getAuditActor() : { username: 'Staff', fullName: 'Staff' };
         const dropNote = `[ดรอปเรียน ${dateStr}]: ${fullReason} โดย ${officer.username || officer.fullName}`;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sid);
         let curNotes = '';
         try {
-          const { data: stRow } = await _supabase.from('students').select('notes').eq('student_id', sid).maybeSingle();
+          const { data: stRow } = await _supabase.from('students').select('notes').eq(isUuid ? 'id' : 'student_id', sid).maybeSingle();
           curNotes = stRow?.notes || '';
         } catch (_) {}
         const newNotes = curNotes ? `${curNotes} | ${dropNote}` : dropNote;
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sid);
         let q = _supabase.from('students').update({ status: 'DROPPED', notes: newNotes });
         q = isUuid ? q.eq('id', sid) : q.eq('student_id', sid);
         const { error } = await q;
@@ -38628,6 +38645,8 @@ if (action === 'getDashboardStats') {
         closeDropStudentModal();
         showToast('ดรอปเรียนเรียบร้อย', `${sName} เปลี่ยนสถานะเป็น DROPPED`, 'success');
         if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
+        if (typeof onRosterFilterChanged === 'function') onRosterFilterChanged();
+        if (typeof broadcastOcaDataSync === 'function') broadcastOcaDataSync('students', 'UPDATE', { student_id: sid });
         if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('ดรอปเรียนเรียบร้อย', `${sName} เปลี่ยนสถานะเป็น DROPPED แล้ว`, '✅');
         if (typeof filterAndRenderSearchStudents === 'function') {
           filterAndRenderSearchStudents();
@@ -41993,7 +42012,8 @@ if (action === 'getDashboardStats') {
             }, { onConflict: 'key' });
             if (mapUpErr) throw mapUpErr;
           } catch (eFs) {
-            console.warn('[FeeSettings] matrix fallback save warning:', eFs);
+            console.warn('[FeeSettings] matrix save error:', eFs);
+            throw eFs;
           }
           try {
             const actor = (typeof getAuditActor === 'function') ? getAuditActor() : { username: 'staff', fullName: 'Staff' };
@@ -42250,7 +42270,9 @@ if (action === 'getDashboardStats') {
             if (delOrigErr) throw delOrigErr;
           }
         } catch (errFs) {
-          console.warn('[Classroom] Supabase sync notice:', errFs);
+          console.warn('[Classroom] Supabase sync error:', errFs);
+          showModal('ข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลห้องเรียนลงฐานข้อมูลได้: ' + (errFs.message || ''), '❌');
+          return;
         }
       }
       renderClassroomsTable();
@@ -42280,7 +42302,8 @@ if (action === 'getDashboardStats') {
             const { error: delErr } = await _supabase.from('fee_settings').delete().eq('key', `cl_room_${roomNo}`);
             if (delErr) throw delErr;
           } catch (errFs) {
-            console.warn('[Classroom] Supabase secondary sync notice:', errFs);
+            console.warn('[Classroom] Supabase delete error:', errFs);
+            throw errFs;
           }
         }
         renderClassroomsTable();
@@ -46525,8 +46548,8 @@ if (action === 'getDashboardStats') {
           }
         });
         if (!window._courseGroupInstructorByTermMap) window._courseGroupInstructorByTermMap = {};
-        if (!window._courseGroupInstructorByTermMap[tKey]) window._courseGroupInstructorByTermMap[tKey] = {};
-        // Merge saved pairs
+        window._courseGroupInstructorByTermMap[tKey] = {};
+        // Save current pairs (cleared removed ones)
         Object.keys(groupedMap).forEach(pairKey => {
           window._courseGroupInstructorByTermMap[tKey][pairKey] = groupedMap[pairKey];
           // Sync to oca_roster_cfg
@@ -54057,7 +54080,7 @@ if (action === 'getDashboardStats') {
       logs.forEach(row => {
         const tr = document.createElement('tr');
         const isClaimed = String(row.claimStatus || '').toUpperCase() === 'CLAIMED';
-        const isShipping = (row.deliveryMethod === 'ส่งตำรา' || row.deliveryMethod === 'จัดส่งตามที่อยู่' || String(row.claimStatus).includes('ส่ง'));
+        const isShipping = (row.deliveryMethod === 'ส่งตำรา' || row.deliveryMethod === 'จัดส่งตามที่อยู่' || row.deliveryMethod === 'ส่งไปตามที่อยู่' || String(row.claimStatus).includes('ส่ง'));
         // Date Display
         let dateHtml = '';
         if (isClaimed) {
@@ -55760,7 +55783,7 @@ if (action === 'getDashboardStats') {
      */
     function logSecurityAuditAction(action, details, recordCount) {
       const actor = (typeof getAuditActor === 'function') ? getAuditActor() : (window.currentUser || {});
-      const username = actor.username || (window.currentUser && window.currentUser.username) || 'admin';
+      const username = actor.username || (window.currentUser && window.currentUser.username) || 'UNKNOWN';
       const fullName = actor.fullName || actor.full_name || (window.currentUser && window.currentUser.fullName) || '';
       const role = actor.role || (window.currentUser && window.currentUser.role) || 'Staff';
       callGasApi('logSecurityAudit', {
@@ -72539,11 +72562,12 @@ function openPublicRegisterView() {
                       })
                     : _supabase.from('fee_settings').upsert(pendingRows, { onConflict: 'key' }));
                   if (pendingUpsertErr) {
-                    console.warn('[Pending Slip Record] fee_settings upsert error:', pendingUpsertErr);
+                    throw new Error('ไม่สามารถบันทึกข้อมูลสลิปการโอนเงินได้: ' + (pendingUpsertErr.message || ''));
                   }
                 }
               } catch (pendingErr) {
-                console.warn('[Pending Slip Record] Error:', pendingErr);
+                console.error('[Pending Slip Record] Error:', pendingErr);
+                throw pendingErr;
               }
               const subMsg = document.getElementById('lblSuccessSub');
               if (subMsg) {
@@ -73245,13 +73269,13 @@ function openPublicRegisterView() {
         const dateStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear() + 543}`;
         const officer = (typeof getAuditActor === 'function') ? getAuditActor() : { username: 'Staff', fullName: 'Staff' };
         const restoreNote = `[คืนสภาพ ${dateStr}]: คืนสภาพการเรียนปกติ โดย ${officer.username || officer.fullName}`;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(studentId);
         let curNotes = '';
         try {
-          const { data: stRow } = await _supabase.from('students').select('notes').eq('student_id', studentId).maybeSingle();
+          const { data: stRow } = await _supabase.from('students').select('notes').eq(isUuid ? 'id' : 'student_id', studentId).maybeSingle();
           curNotes = stRow?.notes || '';
         } catch (_) {}
         const newNotes = curNotes ? `${curNotes} | ${restoreNote}` : restoreNote;
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(studentId);
         let query = _supabase.from('students').update({ status: 'พร้อมเรียน', notes: newNotes });
         if (isUuid) {
           query = query.eq('id', studentId);
@@ -88081,7 +88105,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const rcPayload = {
           receiptNo: undefined, type: 'tuition', yearBE, term, studentId, room: info.room || '',
           buyerId: studentId, fullName: corpBuyerName, buyerName: corpBuyerName, cashierName: effectiveCashier,
-          address: corpBuyerAddress, phone: info.phone || '', email: info.email || '', sendEmail: true,
+          address: corpBuyerAddress, phone: info.phone || '', email: info.email || '', sendEmail: (window.OcaEmailAdmin && typeof window.OcaEmailAdmin.loadEmailConfig === 'function') ? ((await window.OcaEmailAdmin.loadEmailConfig()).autoEmailOnApprove !== false) : true,
           courseId: canonicalCourseCode || info.course || '', itemCode: canonicalCourseCode || info.course || '',
           courseName: info.course || '', course: info.course || '', schedule: info.schedule || '', scheduleName: info.schedule || '',
           materialType: 'รับเอกสารที่โรงเรียน', deliveryMethod: info.deliveryMethod || 'รับเอง', learningMode: info.learningMode || 'Onsite',
@@ -88259,6 +88283,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const safeLine = escapeHtml(info.lineId || '');
       const safeEmail = escapeHtml(info.email || '');
       const hasValidEmail = (typeof window.isValidOcaEmail === 'function') ? window.isValidOcaEmail(info.email) : Boolean(info.email && info.email.includes('@'));
+      const _autoRejectEmail = (window.OcaEmailAdmin && typeof window.OcaEmailAdmin.loadEmailConfig === 'function') ? ((await window.OcaEmailAdmin.loadEmailConfig()).autoEmailOnReject !== false) : true;
       window._activeRejectSlipInfo = { studentId, fullName: info.fullName || '-', email: info.email || '', course: info.course || '-', slipRef: info.slipRef || '' };
       modal.innerHTML = `
         <div style="background:var(--bg-subcard); border:1px solid #EF4444; border-radius:16px; max-width:520px; width:100%; padding:20px; color:var(--text-main); box-shadow:0 20px 50px rgba(0,0,0,0.6); max-height:90vh; overflow-y:auto;">
@@ -88295,7 +88320,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               <option value="อื่นๆ"${prefillReason ? ' selected' : ''}>อื่นๆ (ระบุเพิ่มเติมด้านล่าง)</option>
             </select>
             <textarea id="txtRejectSlipNote" class="oca-input" rows="2" style="width:100%; resize:vertical;" placeholder="รายละเอียดเพิ่มเติม...">${escapeHtml(prefillReason || 'ยอดเงินไม่ถูกต้อง')}</textarea>
-            ${hasValidEmail ? `<label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12.5px; color:var(--text-main); cursor:pointer;"><input type="checkbox" id="chkSendRejectSlipEmail" checked style="width:16px; height:16px; accent-color:#047857;"> <span>ส่งอีเมลแจ้งเหตุผลการปฏิเสธสลิปไปยัง <strong>${safeEmail}</strong> อัตโนมัติ</span></label>` : ''}
+            ${hasValidEmail ? `<label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12.5px; color:var(--text-main); cursor:pointer;"><input type="checkbox" id="chkSendRejectSlipEmail"${_autoRejectEmail ? ' checked' : ''} style="width:16px; height:16px; accent-color:#047857;"> <span>ส่งอีเมลแจ้งเหตุผลการปฏิเสธสลิปไปยัง <strong>${safeEmail}</strong> อัตโนมัติ</span></label>` : ''}
           </div>
           <div style="display:flex; justify-content:flex-end; gap:10px;">
             <button type="button" onclick="document.getElementById('modalRejectPendingSlip').style.display='none'" style="background:var(--bg-subcard); color:var(--text-main); border:none; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer;">ยกเลิก</button>
@@ -88546,13 +88571,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=244';
+      const swPath = basePath + 'sw.js?v=245';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (244):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (245):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
