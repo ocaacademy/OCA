@@ -12332,7 +12332,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '219';
+      var LATEST_VERSION = '220';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -51768,9 +51768,10 @@ if (action === 'getDashboardStats') {
                 if (/^\d{7,}$/.test(qClean) && Number(qClean) <= 2147483647) {
                   dbQ = dbQ.or(`receipt_no.eq.${qClean},student_id.eq.${qClean}`);
                 } else if (/^\d{7,}$/.test(qClean)) {
-                  dbQ = dbQ.or(`receipt_no.eq.${qClean},receipt_no.ilike.%${safeToken}%`);
+                  // 10+ digit queries (Citizen ID / Phone): never run unindexed receipt_no.ilike.%...% on 424k rows (57014 timeout)
+                  dbQ = dbQ.eq('receipt_no', qClean);
                 } else {
-                  dbQ = dbQ.or(`receipt_no.ilike.%${safeToken}%,student_id.ilike.%${safeToken}%,buyer_name.ilike.%${safeToken}%`);
+                  dbQ = dbQ.or(`receipt_no.ilike.${safeToken}%,student_id.ilike.${safeToken}%,buyer_name.ilike.${safeToken}%`);
                 }
                 const { data: dbRows, error: dbErr } = await dbQ.order('receipt_no', { ascending: false }).limit(100);
                 if (seq !== window._rcptHistSearchSeq || dbErr || !Array.isArray(dbRows) || dbRows.length === 0) return;
@@ -86629,13 +86630,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=219';
+      const swPath = basePath + 'sw.js?v=220';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (219):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (220):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
