@@ -610,31 +610,74 @@
   }
 
   // Global UI click handlers for Settings Subtab 4 & 5
+  async function _runSettingsSaveWithFeedback(btnId, saveFn, okTitle, okDesc) {
+    const btn = document.getElementById(btnId);
+    if (btn && btn.dataset.saving === '1') return;
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.dataset.saving = '1';
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+    }
+    try {
+      const ok = await saveFn();
+      if (typeof global.showToast === 'function') {
+        global.showToast(ok ? okTitle : 'บันทึกไม่สำเร็จ', ok ? okDesc : 'กรุณาลองใหม่', ok ? '✅' : '❌');
+      }
+      if (ok && btn) {
+        btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> บันทึกสำเร็จแล้ว!';
+        setTimeout(() => {
+          btn.innerHTML = origHtml;
+          btn.disabled = false;
+          delete btn.dataset.saving;
+        }, 2000);
+        if (document.getElementById('tbodyAppSettingsInspector') && typeof renderAppSettingsInspectorTable === 'function') {
+          renderAppSettingsInspectorTable().catch(() => {});
+        }
+        return;
+      }
+    } catch (err) {
+      console.error('[OcaEmailAdmin.save]', btnId, err);
+      if (typeof global.showToast === 'function') {
+        global.showToast('บันทึกไม่สำเร็จ', (err && err.message) || 'เกิดข้อผิดพลาดระหว่างบันทึก', '❌');
+      }
+    }
+    if (btn) {
+      btn.innerHTML = origHtml;
+      btn.disabled = false;
+      delete btn.dataset.saving;
+    }
+  }
+
   global.saveSlipGuardSettingsFromUi = async function () {
     if (!global.OcaSlipGuard) return;
-    const ok = await global.OcaSlipGuard.saveConfig({
-      bankName: document.getElementById('inpSlipGuardBankName')?.value || '',
-      bankAccountName: document.getElementById('inpSlipGuardAccName')?.value || '',
-      bankAccountNo: document.getElementById('inpSlipGuardAccNo')?.value || '',
-      maxSlipAgeDays: Number(document.getElementById('inpSlipGuardMaxAgeDays')?.value || 7),
-      bankApiProvider: document.getElementById('selSlipGuardBankApiProvider')?.value || 'disabled',
-      strictCrc16: Boolean(document.getElementById('chkSlipGuardStrictCrc16')?.checked),
-      autoBlacklistFakeSlip: Boolean(document.getElementById('chkSlipGuardAutoBlacklist')?.checked)
-    });
-    if (typeof global.showToast === 'function') {
-      global.showToast(ok ? 'บันทึกการตั้งค่า Slip Guard แล้ว' : 'บันทึกไม่สำเร็จ', ok ? 'อัปเดตลง app_settings เรียบร้อย' : 'กรุณาลองใหม่', ok ? '✅' : '❌');
-    }
+    await _runSettingsSaveWithFeedback(
+      'btnSaveSlipGuardSettings',
+      () => global.OcaSlipGuard.saveConfig({
+        bankName: document.getElementById('inpSlipGuardBankName')?.value || '',
+        bankAccountName: document.getElementById('inpSlipGuardAccName')?.value || '',
+        bankAccountNo: document.getElementById('inpSlipGuardAccNo')?.value || '',
+        maxSlipAgeDays: Number(document.getElementById('inpSlipGuardMaxAgeDays')?.value || 7),
+        bankApiProvider: document.getElementById('selSlipGuardBankApiProvider')?.value || 'disabled',
+        strictCrc16: Boolean(document.getElementById('chkSlipGuardStrictCrc16')?.checked),
+        autoBlacklistFakeSlip: Boolean(document.getElementById('chkSlipGuardAutoBlacklist')?.checked)
+      }),
+      'บันทึกการตั้งค่า Slip Guard แล้ว',
+      'อัปเดตลง app_settings เรียบร้อย'
+    );
   };
 
   global.saveEmailSettingsFromUi = async function () {
-    const ok = await saveEmailConfig({
-      brevoLowQuotaThreshold: Number(document.getElementById('inpEmailBrevoThreshold')?.value || 50),
-      autoEmailOnApprove: Boolean(document.getElementById('chkEmailAutoOnApprove')?.checked),
-      autoEmailOnReject: Boolean(document.getElementById('chkEmailAutoOnReject')?.checked)
-    });
-    if (typeof global.showToast === 'function') {
-      global.showToast(ok ? 'บันทึกการตั้งค่าอีเมลแล้ว' : 'บันทึกไม่สำเร็จ', ok ? 'อัปเดตลง app_settings เรียบร้อย' : 'กรุณาลองใหม่', ok ? '✅' : '❌');
-    }
+    await _runSettingsSaveWithFeedback(
+      'btnSaveEmailSettings',
+      () => saveEmailConfig({
+        brevoLowQuotaThreshold: Number(document.getElementById('inpEmailBrevoThreshold')?.value || 50),
+        autoEmailOnApprove: Boolean(document.getElementById('chkEmailAutoOnApprove')?.checked),
+        autoEmailOnReject: Boolean(document.getElementById('chkEmailAutoOnReject')?.checked)
+      }),
+      'บันทึกการตั้งค่าอีเมลแล้ว',
+      'อัปเดตลง app_settings เรียบร้อย'
+    );
   };
 
   global.handleSendTestEmailFromSettings = async function () {
@@ -714,10 +757,12 @@
   global.handleSaveIdleTimeoutFromUi = async function () {
     const sel = document.getElementById('selSettingsIdleTimeout');
     const mins = Number(sel ? sel.value : 30);
-    const ok = await saveIdleTimeoutMinutes(mins);
-    if (typeof global.showToast === 'function') {
-      global.showToast(ok ? 'บันทึกเวลา Auto-Logout แล้ว' : 'บันทึกไม่สำเร็จ', `ตั้งค่าเป็น ${mins} นาที`, ok ? '✅' : '❌');
-    }
+    await _runSettingsSaveWithFeedback(
+      'btnSaveIdleTimeout',
+      () => saveIdleTimeoutMinutes(mins),
+      'บันทึกเวลา Auto-Logout แล้ว',
+      `ตั้งค่าเป็น ${mins} นาที`
+    );
   };
 
   global.handleExportFull8TableBackup = async function () {
