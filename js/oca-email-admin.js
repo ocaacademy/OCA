@@ -783,6 +783,10 @@
   let _emailActionBusy = false;
   global.handleRemoveBlacklistedSlip = async function (key) {
     if (!key || !global.OcaSlipGuard || _emailActionBusy) return;
+    if (typeof global.requireSecurityPinVerification === 'function') {
+      const pinOk = await global.requireSecurityPinVerification('ยืนยันการปลดล็อกสลิปบัญชีดำ', `ปลดล็อกสลิป ${key} ออกจากบัญชีดำ`);
+      if (!pinOk) return;
+    }
     _emailActionBusy = true;
     try {
       const ok = await global.OcaSlipGuard.removeBlacklistedSlip(key);
