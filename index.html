@@ -12332,7 +12332,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '218';
+      var LATEST_VERSION = '219';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -25792,7 +25792,7 @@ body.printing-report #printReportContainer {
       if (welcomeOverlay) welcomeOverlay.style.display = 'none';
       const appView = document.getElementById('viewApp');
       if (appView) appView.style.display = 'flex';
-      if (typeof switchView === 'function') switchView('tabDashboard');
+      if (typeof switchNav === 'function') switchNav('dashboard');
     };
     window.handleTouchEnter = window.handleTouchEnter || function(e) {
       window.enterDashboard(e);
@@ -28470,33 +28470,6 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
               }
               return null;
             })(),
-            termCloseDates: (() => {
-              const closeDates = {
-                "1": "20 ก.พ. 2569",
-                "2": "20 เม.ย. 2569",
-                "3": "20 มิ.ย. 2569",
-                "4": "20 ต.ค. 2569",
-                "5": "20 ธ.ค. 2569"
-              };
-              if (fees) {
-                fees.forEach(f => {
-                  if (f.key && f.key.startsWith('term_close_date_')) {
-                    const tNum = f.key.replace('term_close_date_', '');
-                    if (f.name) closeDates[tNum] = f.name;
-                  }
-                });
-              }
-              return closeDates;
-            })(),
-            termDatesByYear: (() => {
-              const byYearSetting = (fees || []).find(f => f.key === 'term_dates_by_year');
-              if (byYearSetting && byYearSetting.name) {
-                try {
-                  return JSON.parse(byYearSetting.name);
-                } catch (_) {}
-              }
-              return null;
-            })(),
             onlineEnrollSchedule: (() => {
               const schedSetting = (fees || []).find(f => f.key === 'online_enroll_schedule');
               if (schedSetting && schedSetting.updated_at) {
@@ -30692,7 +30665,6 @@ if (action === 'getDashboardStats') {
               photo_url: s.photo_url || '',
               email: s.email || '',
               createdAt: safeFormatThaiDateTime(s.created_at),
-              photoUrl: s.photo_url || '',
               photo: s.photo_url || ''
             };
             // Dual compatibility: numeric indices for array callers
@@ -35823,16 +35795,6 @@ if (action === 'getDashboardStats') {
       return String(str || '').replace(/[<>]/g, '').trim();
     }
     // Submit Enrollment
-    function setEnrollStudentMode(mode) {
-      if (mode === 'returning') {
-        window._enrollStudentMode = 'returning';
-        window._enrollRegFeeOverride = 0;
-        document.getElementById('inpEnrollQuickLookup')?.focus();
-      } else {
-        resetEnrollAutoDetectMode();
-      }
-    }
-    window.setEnrollStudentMode = setEnrollStudentMode;
     function submitEnrollment(event) {
       if (event) event.preventDefault();
       if (window._isSubmittingEnrollment) return;
@@ -35971,7 +35933,6 @@ if (action === 'getDashboardStats') {
         address: compiledAddress,
         lineId: lineId,
         level: level,
-        schedule: schedule,
         photoBase64: photoDataUri,
         blockDuplicateCitizenId: !(window._enrollAutoDetectedStudent || window._enrollStudentMode === 'returning'),
         allowExistingReuse: !!(window._enrollAutoDetectedStudent || window._enrollStudentMode === 'returning'),
@@ -44435,65 +44396,6 @@ if (action === 'getDashboardStats') {
       sel.value = currentVal;
     }
     window.populateCourseModalTargetSchedOptions = populateCourseModalTargetSchedOptions;
-    function applyTeacherToSelectedTargetScope() {
-      const inpTeacher = document.getElementById('inpCourseModalTeacherSearch');
-      const teacherName = (inpTeacher?.value || '').trim();
-      if (!teacherName) {
-        if (typeof toast === 'function') {
-          toast('กรุณาระบุครูผู้สอน', 'กรุณาพิมพ์หรือเลือกชื่อครูผู้สอนก่อน', '⚠️');
-        } else {
-          showOcaAlert('กรุณาพิมพ์หรือเลือกชื่อครูผู้สอนก่อน');
-        }
-        return;
-      }
-      const container = document.getElementById('courseModalSchedulesList');
-      if (!container) return;
-      const rows = Array.from(container.querySelectorAll('.course-modal-group-row'));
-      if (rows.length === 0) {
-        if (typeof toast === 'function') toast('ไม่มีกลุ่มเรียน', 'ไม่พบรายการกลุ่มเรียนในตาราง', 'ℹ️');
-        return;
-      }
-      const checkedRows = rows.filter(r => r.querySelector('.chk-cm-row-select')?.checked);
-      let updatedCount = 0;
-      if (checkedRows.length > 0) {
-        checkedRows.forEach(r => {
-          const inp = r.querySelector('.sel-cm-instructor');
-          if (inp) {
-            inp.value = teacherName;
-            updatedCount++;
-          }
-        });
-      } else {
-        const targetSched = (document.getElementById('selModalTargetSched')?.value || 'ALL').trim().toUpperCase();
-        const targetSec = (document.getElementById('selModalTargetSec')?.value || 'ALL').trim().toUpperCase();
-        rows.forEach(r => {
-          const rowSched = (r.querySelector('.sel-cm-sched')?.value || '').trim().toUpperCase();
-          const rowSec = (typeof getCourseModalRowSectionValue === 'function' ? getCourseModalRowSectionValue(r) : (r.querySelector('.sel-cm-sec')?.value || '')).trim().toUpperCase();
-          const matchSched = (targetSched === 'ALL' || rowSched === targetSched);
-          const matchSec = (targetSec === 'ALL' || rowSec === targetSec);
-          if (matchSched && matchSec) {
-            const inp = r.querySelector('.sel-cm-instructor');
-            if (inp) {
-              inp.value = teacherName;
-              updatedCount++;
-            }
-          }
-        });
-      }
-      if (typeof updateCourseLivePreview === 'function') {
-        updateCourseLivePreview();
-      }
-      if (updatedCount > 0) {
-        if (typeof toast === 'function') {
-          toast('กำหนดครูสำเร็จ', 'กำหนดครู "' + teacherName + '" ให้กับ ' + updatedCount + ' กลุ่มเรียนเรียบร้อยแล้ว', '✓');
-        }
-      } else {
-        if (typeof toast === 'function') {
-          toast('ไม่พบกลุ่มที่ตรงเงื่อนไข', 'ไม่มีกลุ่มเรียนที่ตรงกับเงื่อนไขรอบเวลาหรือกลุ่มที่เลือก', 'ℹ️');
-        }
-      }
-    }
-    window.applyTeacherToSelectedTargetScope = applyTeacherToSelectedTargetScope;
     function openBatchTeacherAssignModal() {
       const modal = document.getElementById('modalBatchTeacherAssign');
       if (!modal) return;
@@ -44838,14 +44740,6 @@ if (action === 'getDashboardStats') {
       toast('ดึงข้อมูลเริ่มต้นสำเร็จ', 'นำเข้ากลุ่มเรียนและอาจารย์ของ ' + origId + ' ตามตาราง 5/69 เรียบร้อยแล้ว (' + defaultGroups.length + ' กลุ่ม)', '✓');
     }
     window.applyDefaultTerm695ToCourseModal = applyDefaultTerm695ToCourseModal;
-    function onModalCourseTermYearChange() {
-      const modal = document.getElementById('modalCourse');
-      const origId = (modal?.dataset?.originalId || window._editingOriginalCourseId || document.getElementById('inpCourseId')?.value || '').trim().toUpperCase();
-      const y = document.getElementById('selModalCourseYear')?.value || '2569';
-      const t = document.getElementById('selModalCourseTerm')?.value || '5';
-      renderCourseModalSchedules(origId, t, y);
-    }
-    window.onModalCourseTermYearChange = onModalCourseTermYearChange;
     function updateCourseModalSchedBadge() {
       const badge = document.getElementById('badgeCourseModalSchedCount');
       if (!badge) return;
@@ -44862,14 +44756,6 @@ if (action === 'getDashboardStats') {
       }
     }
     window.updateCourseModalSchedBadge = updateCourseModalSchedBadge;
-    function onCourseModalSchedCheckChange() {
-      return;
-    }
-    window.onCourseModalSchedCheckChange = onCourseModalSchedCheckChange;
-    function toggleAllCourseModalSchedules() {
-      return;
-    }
-    window.toggleAllCourseModalSchedules = toggleAllCourseModalSchedules;
     function openCourseModal(editId = null) {
       window._editingOriginalCourseId = editId || null;
       const modal = document.getElementById('modalCourse');
@@ -45603,29 +45489,10 @@ if (action === 'getDashboardStats') {
       }
     }
     window.populateGlobalLecturerAndRoomDatalists = populateGlobalLecturerAndRoomDatalists;
-    function getCourseGroupSummaryBadgeHtml(courseCode, termVal, yearVal) {
-      if (!courseCode) return '';
-      const cCode = String(courseCode).trim().toUpperCase();
-      const curY = yearVal || document.getElementById('selScheduleConfigYear')?.value || '2569';
-      const curT = termVal || document.getElementById('selScheduleConfigTerm')?.value || '5';
-      const groups = getCourseGroupInstructorList(cCode, 'ALL', curT, curY);
-      if (!Array.isArray(groups) || groups.length === 0) return '';
-      const valid = groups.filter(g => g.lecturerName || g.room);
-      if (valid.length === 0) return '';
-      return '<div style="margin-top:4px; display:flex; flex-wrap:wrap; gap:4px;">' +
-        valid.slice(0, 3).map(g => (
-          '<span style="font-size:11px; padding:1px 6px; border-radius:4px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:var(--accent-emerald); display:inline-flex; align-items:center; gap:4px;">' +
-          '  <i class="fa-solid fa-chalkboard-user"></i> กลุ่ม ' + escapeHtml(g.section || 'A') + ': ' + escapeHtml(g.lecturerName || 'ไม่ระบุ') + (g.room ? (' (' + escapeHtml(g.room) + ')') : '') +
-          '</span>'
-        )).join('') +
-        (valid.length > 3 ? ('<span style="font-size:10.5px; color:var(--text-muted); font-weight:600;">+' + (valid.length - 3) + ' กลุ่ม</span>') : '') +
-        '</div>';
-    }
-    window.getCourseGroupSummaryBadgeHtml = getCourseGroupSummaryBadgeHtml;
     function navigateToCourseGroupInstructorSettings() {
       const y = document.getElementById('selTermTimetableYear')?.value || '2569';
       const t = document.getElementById('selTermTimetableTerm')?.value || '5';
-      if (typeof window.switchView === 'function') window.switchView('tabCourses');
+      if (typeof switchNav === 'function') switchNav('courses');
       if (typeof openCourseGroupInstructorManagerModal === 'function') {
         openCourseGroupInstructorManagerModal(y, t);
       }
@@ -46527,22 +46394,6 @@ if (action === 'getDashboardStats') {
       return JSON.parse(JSON.stringify(fallback));
     }
     window.getScheduleCoursesMapForTerm = getScheduleCoursesMapForTerm;
-    function onScheduleConfigTermYearChange() {
-      const selY = document.getElementById('selScheduleConfigYear');
-      const selT = document.getElementById('selScheduleConfigTerm');
-      const y = selY ? selY.value : '2569';
-      const t = selT ? selT.value : '5';
-      const badge = document.getElementById('badgeScheduleConfigPeriod');
-      if (badge) {
-        badge.innerHTML = `<i class="fa-solid fa-calendar-check" style="margin-right:4px;"></i>ผังคอร์ส: ปี ${y} เทอมที่ ${t}`;
-      }
-      const termMap = getScheduleCoursesMapForTerm(t, y);
-      window._ocaScheduleCoursesMap = termMap;
-      if (typeof renderSchedulesTable === 'function' && Array.isArray(cachedSchedulesList)) {
-        renderSchedulesTable(cachedSchedulesList);
-      }
-    }
-    window.onScheduleConfigTermYearChange = onScheduleConfigTermYearChange;
     async function cloneScheduleCoursesFromPrevTerm(targetYearOverride, targetTermOverride, options = {}) {
       const silentAutoSeed = Boolean(options && options.silentAutoSeed);
       const activeInfo = window._currentResolvedAcademicTerm || (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm(cachedTermOpenDates, cachedTermCloseDates) : { yearBE: 2569, term: 5 });
@@ -46926,34 +46777,6 @@ if (action === 'getDashboardStats') {
       }
     }
     window.onModalScheduleCourseCheckChange = onModalScheduleCourseCheckChange;
-    function toggleAllVisibleScheduleCourses(select) {
-      const container = document.getElementById('boxScheduleCoursesChecklist');
-      if (!container) return;
-      const checkboxes = container.querySelectorAll('input[type="checkbox"]');
-      checkboxes.forEach(chk => {
-        chk.checked = select;
-        if (select) {
-          window._modalScheduleSelectedCoursesSet.add(chk.value);
-        } else {
-          window._modalScheduleSelectedCoursesSet.delete(chk.value);
-        }
-        const label = chk.closest('label');
-        if (label) {
-          label.style.background = select ? 'rgba(215,166,0,0.14)' : 'rgba(255,255,255,0.03)';
-          label.style.borderColor = select ? 'rgba(215,166,0,0.35)' : 'rgba(255,255,255,0.06)';
-          const span = label.querySelector('span');
-          if (span) {
-            span.style.color = select ? 'var(--color-gold)' : '#F1F5F9';
-            span.style.fontWeight = select ? '700' : '500';
-          }
-        }
-      });
-      const badgeCount = document.getElementById('badgeScheduleSelectedCourseCount');
-      if (badgeCount) {
-        badgeCount.textContent = `เลือกแล้ว ${window._modalScheduleSelectedCoursesSet.size} คอร์ส`;
-      }
-    }
-    window.toggleAllVisibleScheduleCourses = toggleAllVisibleScheduleCourses;
     function updateScheduleModalTermButtonLabel() {
       const y = document.getElementById('selModalScheduleYear')?.value || '2569';
       const t = document.getElementById('selModalScheduleTerm')?.value || '5';
@@ -46964,20 +46787,6 @@ if (action === 'getDashboardStats') {
       if (btn) btn.title = `เลือกคอร์สตามตารางเรียนเทอม ${t}/${shortY} อัตโนมัติ`;
     }
     window.updateScheduleModalTermButtonLabel = updateScheduleModalTermButtonLabel;
-    function applyDefaultTerm695CoursesToModal() {
-      const inpId = document.getElementById('inpScheduleId');
-      const inpName = document.getElementById('inpScheduleName');
-      const id = (inpId?.value || '').trim();
-      const name = (inpName?.value || '').trim();
-      const y = document.getElementById('selModalScheduleYear')?.value || '2569';
-      const t = document.getElementById('selModalScheduleTerm')?.value || '5';
-      const shortY = String(y).slice(-2);
-      const defaultCourses = getOfferedCourseCodesForSchedule(id || name, t, y);
-      window._modalScheduleSelectedCoursesSet = new Set(defaultCourses);
-      renderScheduleCourseCheckboxes();
-      toast('เลือกคอร์สอัตโนมัติ', `เลือกตามตารางเรียน ${t}/${shortY} สำเร็จ (${defaultCourses.length} คอร์ส)`, '✓');
-    }
-    window.applyDefaultTerm695CoursesToModal = applyDefaultTerm695CoursesToModal;
     async function saveScheduleCoursesMapToSupabase() {
       try {
         const jsonStr = JSON.stringify(window._ocaScheduleCoursesMap || {});
@@ -47077,19 +46886,6 @@ if (action === 'getDashboardStats') {
       modal.classList.add('active');
     }
     window.openScheduleModal = openScheduleModal;
-    function onModalScheduleTermYearChange() {
-      updateScheduleModalTermButtonLabel();
-      const inpId = document.getElementById('inpScheduleId');
-      const inpName = document.getElementById('inpScheduleName');
-      const id = (inpId?.value || '').trim();
-      const name = (inpName?.value || '').trim();
-      const y = document.getElementById('selModalScheduleYear')?.value || '2569';
-      const t = document.getElementById('selModalScheduleTerm')?.value || '5';
-      const assigned = getOfferedCourseCodesForSchedule(id || name, t, y);
-      window._modalScheduleSelectedCoursesSet = new Set(assigned);
-      renderScheduleCourseCheckboxes();
-    }
-    window.onModalScheduleTermYearChange = onModalScheduleTermYearChange;
     function closeScheduleModal() {
       const modal = document.getElementById('modalSchedule');
       if (modal) {
@@ -49742,17 +49538,6 @@ if (action === 'getDashboardStats') {
       }
     }
     window.resetReceiptDiscountNormal = resetReceiptDiscountNormal;
-    function onReceiptOtherDiscountChanged() {
-      const inp = document.getElementById('inpRcptDiscount');
-      const chk = document.getElementById('chkRcptApplyDiscountOther');
-      const box = document.getElementById('boxDiscountOther');
-      const val = Number(inp ? inp.value : 0) || 0;
-      if (chk) chk.checked = val > 0;
-      if (box) box.classList.toggle('active', val > 0);
-      const inpOther = document.getElementById('inpRcptDiscountOther');
-      if (inpOther) inpOther.value = val;
-      calcReceiptTotals();
-    }
     async function toggleReceiptFee(feeType) {
       const chkMap = {
         tuitionFee: 'chkRcptApplyTuitionFee',
@@ -51980,8 +51765,10 @@ if (action === 'getDashboardStats') {
             (async () => {
               try {
                 let dbQ = _supabase.from('receipts').select('*');
-                if (/^\d{7,}$/.test(qClean)) {
+                if (/^\d{7,}$/.test(qClean) && Number(qClean) <= 2147483647) {
                   dbQ = dbQ.or(`receipt_no.eq.${qClean},student_id.eq.${qClean}`);
+                } else if (/^\d{7,}$/.test(qClean)) {
+                  dbQ = dbQ.or(`receipt_no.eq.${qClean},receipt_no.ilike.%${safeToken}%`);
                 } else {
                   dbQ = dbQ.or(`receipt_no.ilike.%${safeToken}%,student_id.ilike.%${safeToken}%,buyer_name.ilike.%${safeToken}%`);
                 }
@@ -53202,22 +52989,7 @@ if (action === 'getDashboardStats') {
         }
       }
     }
-    function goToTextbookPricingCatalog() {
-      if (typeof switchNav === 'function') switchNav('textbooks');
-      setTimeout(() => {
-        if (typeof switchTextbooksSubTab === 'function') {
-          switchTextbooksSubTab('catalog');
-        } else {
-          const secScan = document.getElementById('secTbScanner');
-          const secCat = document.getElementById('secTbCatalog');
-          if (secScan) secScan.style.display = 'none';
-          if (secCat) secCat.style.display = 'block';
-          if (typeof loadTextbooksData === 'function') loadTextbooksData();
-        }
-      }, 50);
-    }
     window.quickSaveTextbookPrice = quickSaveTextbookPrice;
-    window.goToTextbookPricingCatalog = goToTextbookPricingCatalog;
     function loadTextbooksData() {
       callGasApi('getTextbooksAndInventory')
         .then(res => {
@@ -54531,16 +54303,7 @@ if (action === 'getDashboardStats') {
     // =========================================================================
     let cachedStudentReportData = [];
     let isStudentReportLoading = false;
-    let hasStudentReportInit = false;
     let isReportSecurityUnlocked = true;
-    let pendingSecurityAction = null;
-    /**
-     * กำหนดค่าเริ่มต้นของโมดูลรายงานนักศึกษา
-     */
-    /**
-     * ดึงข้อมูลรายงานนักศึกษา พร้อมตัวกรองปีการศึกษา คอร์สเรียน และคำค้นหา
-     * @param {boolean} forceRefresh
-     */
     // =========================================================================
     // PDPA DATA MASKING & PRIVACY PROTECTION UTILITY (Citizen ID, Phone, Email)
     // =========================================================================
@@ -55091,24 +54854,6 @@ if (action === 'getDashboardStats') {
     // SECURITY GATE & PDPA ACCESS CONTROL (PIN VERIFICATION & AUDIT LOGGING)
     // =========================================================================
     /**
-     * อัปเดตสถานะความปลอดภัย PDPA บนแถบ Subnav
-     */
-    function updateSecurityBadge() {
-      const badge = document.getElementById('badgeSecurityStatus');
-      if (!badge) return;
-      if (isReportSecurityUnlocked) {
-        badge.innerHTML = '<i class="fa-solid fa-lock-open" style="color:#10B981;"></i> ปลดล็อกแล้ว (PDPA Verified)';
-        badge.style.background = 'rgba(16,185,129,0.15)';
-        badge.style.color = '#10B981';
-        badge.style.borderColor = 'rgba(16,185,129,0.3)';
-      } else {
-        badge.innerHTML = '<i class="fa-solid fa-shield-halved" style="color:#D7A600;"></i> PDPA Secured (ล็อก)';
-        badge.style.background = 'rgba(215,166,0,0.15)';
-        badge.style.color = '#D7A600';
-        badge.style.borderColor = 'rgba(215,166,0,0.3)';
-      }
-    }
-    /**
      * ตรวจสอบสิทธิ์ความปลอดภัยก่อนดำเนินการดูหรือส่งออกข้อมูลรายงาน (ควบคุมด้วยสิทธิ์ RBAC โดยไม่ต้องใส่ PIN ซ้ำ)
      * @param {Function} callback
      */
@@ -55116,37 +54861,6 @@ if (action === 'getDashboardStats') {
       isReportSecurityUnlocked = true;
       if (typeof callback === 'function') callback();
     }
-    /**
-     * เปิดหน้าต่างยืนยันรหัส PIN ความปลอดภัย
-     */
-    /**
-     * ปิดหน้าต่างยืนยันรหัส PIN
-     */
-    function closeReportSecurityModal() {
-      const modal = document.getElementById('modalReportSecurity');
-      if (modal) modal.style.display = 'none';
-      pendingSecurityAction = null;
-    }
-    /**
-     * สลับการแสดงผลรหัสผ่านแบบข้อความหรือจุดซ่อนรหัส
-     * @param {string} inputId
-     */
-    /**
-     * ยืนยันรหัส PIN เจ้าหน้าที่กับระบบ Backend
-     */
-    /**
-     * เปิดหน้าต่างเปลี่ยนรหัส PIN เจ้าหน้าที่
-     */
-    /**
-     * ปิดหน้าต่างเปลี่ยนรหัส PIN
-     */
-    function closeChangePinModal() {
-      const modal = document.getElementById('modalChangePin');
-      if (modal) modal.style.display = 'none';
-    }
-    /**
-     * บันทึกการเปลี่ยนรหัส PIN เจ้าหน้าที่
-     */
     /**
      * บันทึก Audit Log เมื่อมีการเข้าถึงหรือส่งออกรายงาน
      * @param {string} action
@@ -55498,92 +55212,6 @@ if (action === 'getDashboardStats') {
     /**
      * สั่งพิมพ์ใบรายชื่อแยกตามคอร์ส (Print Course Rosters)
      */
-    /**
-     * ส่งออกใบรายชื่อแยกตามคอร์สเป็นไฟล์ CSV (ป้องกันสูตร Injection และคงเลข 13 หลัก)
-     */
-    function _doExportCourseRosterCsv() {
-      if (!cachedStudentReportData || cachedStudentReportData.length === 0) {
-        if (typeof showToast === 'function') {
-          showToast('ไม่มีข้อมูลสำหรับส่งออก', 'กรุณากดสร้างใบรายชื่อก่อนส่งออก CSV', '⚠️');
-        }
-        return;
-      }
-      const selYear = document.getElementById('selRosterYear');
-      const selCourse = document.getElementById('selRosterCourse');
-      const filterYear = selYear ? (selYear.value || 'ALL') : 'ALL';
-      const filterCourse = selCourse ? (selCourse.value || 'ALL') : 'ALL';
-      let list = cachedStudentReportData.slice();
-      if (filterYear !== 'ALL') list = list.filter(s => String(s.yearBE || '').trim() === filterYear);
-      if (filterCourse !== 'ALL') list = list.filter(s => (s.course || '').trim() === filterCourse);
-      if (list.length === 0) {
-        if (typeof showToast === 'function') {
-          showToast('ไม่มีข้อมูลที่ตรงกับเงื่อนไข', 'กรุณาเลือกปีหรือคอร์สที่มีนักศึกษา', '⚠️');
-        }
-        return;
-      }
-      // ฟังก์ชันป้องกัน Formula Injection (=, +, -, @)
-      function sanitizeCsvCell(val) {
-        let str = String(val == null ? '' : val).trim();
-        if (/^[=+@\-]/.test(str)) {
-          str = "'" + str;
-        }
-        return str;
-      }
-      const headers = [
-        'คอร์สเรียน',
-        'ลำดับในคอร์ส',
-        'รหัสนักศึกษา',
-        'คำนำหน้า',
-        'ชื่อ-นามสกุล',
-        'เบอร์โทรศัพท์',
-        'ปีการศึกษา',
-        'ภาคเรียน',
-        'รอบเวลาเรียน',
-        'หมายเหตุ'
-      ];
-      const csvLines = [];
-      csvLines.push(headers.map(h => '"' + h.replace(/"/g, '""') + '"').join(','));
-      // จัดกลุ่มตามคอร์ส
-      const courseMap = {};
-      list.forEach(st => {
-        const cName = (st.course || 'หลักสูตรทั่วไป').trim();
-        if (!courseMap[cName]) courseMap[cName] = [];
-        courseMap[cName].push(st);
-      });
-      Object.keys(courseMap).sort().forEach(cName => {
-        const arr = courseMap[cName].sort((a, b) => String(a.studentId || '').localeCompare(String(b.studentId || '')));
-        arr.forEach((st, idx) => {
-          const row = [
-            sanitizeCsvCell(cName),
-            toArabicDigits(idx + 1),
-            '\t' + toArabicDigits(st.studentId || ''),
-            sanitizeCsvCell(st.prefix || ''),
-            sanitizeCsvCell((st.fullName || st.rawName || '').trim()),
-            '\t' + toArabicDigits(st.phone || ''),
-            toArabicDigits(st.yearBE || ''),
-            toArabicDigits(st.term || '4'),
-            sanitizeCsvCell(st.schedule || ''),
-            ''
-          ];
-          csvLines.push(row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(','));
-        });
-      });
-      const csvContent = '\uFEFF' + csvLines.join('\r\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      const fileName = 'OCA_Course_Roster_' + new Date().toISOString().slice(0, 10) + '.csv';
-      link.setAttribute('href', url);
-      link.setAttribute('download', fileName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      if (typeof showToast === 'function') {
-        showToast('ส่งออก CSV สำเร็จ!', 'ดาวน์โหลดไฟล์ ' + fileName + ' เรียบร้อยแล้ว', '📥');
-      }
-      logSecurityAuditAction('EXPORT_CSV_COURSE_ROSTER', 'Records: ' + list.length, list.length);
-    }
     // =========================================================================
     // FINANCIAL SUMMARY REPORT MODULE (รายงานสรุปยอดเงินรายเดือนและรายปี)
     // =========================================================================
@@ -56326,7 +55954,7 @@ if (action === 'getDashboardStats') {
         }
       } catch (err) {
         console.warn('renderFinancialEmbeddedSlipsQueue error:', err);
-        container.innerHTML = `<div style="text-align:center; padding:20px; color:#EF4444;">ไม่สามารถโหลดคิวสลิปได้: ${err.message || ''}</div>`;
+        container.innerHTML = `<div style="text-align:center; padding:20px; color:#EF4444;">ไม่สามารถโหลดคิวสลิปได้: ${escapeHtml(err.message || '')}</div>`;
       }
     }
     window.renderFinancialEmbeddedSlipsQueue = renderFinancialEmbeddedSlipsQueue;
@@ -62269,24 +61897,12 @@ if (action === 'getDashboardStats') {
       }
       return true;
     }
-    function openPayeeSettingModal() {
-      const m = document.getElementById('modalPayeeSetting');
-      if (m) {
-        m.style.display = 'flex';
-        m.style.alignItems = 'center';
-        m.style.justifyContent = 'center';
-      }
-      if (typeof populatePayeeSettingsInputs === 'function') {
-        populatePayeeSettingsInputs();
-      }
-    }
     function closePayeeSettingModal() {
       const m = document.getElementById('modalPayeeSetting');
       if (m) m.style.display = 'none';
       if (document.body) document.body.style.overflow = '';
     }
     window.savePayeeSetting = savePayeeSetting;
-    window.openPayeeSettingModal = openPayeeSettingModal;
     window.closePayeeSettingModal = closePayeeSettingModal;
     window.saveUserPermission = (typeof submitSaveUser === 'function') ? submitSaveUser : function() {};
     window.openUserPermission = (typeof openAddUserModal === 'function') ? openAddUserModal : function() {};
@@ -62330,7 +61946,7 @@ if (action === 'getDashboardStats') {
       }
     }
     function renderDeviceSecurityInfo() {
-      const devId = (typeof getActiveDeviceId === 'function') ? getActiveDeviceId() : 'OCA-DEV-BKK-01';
+      const devId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : 'OCA-DEV-BKK-01';
       const elDev = document.getElementById('lblSettingsDevId');
       if (elDev) elDev.textContent = devId;
       const ua = navigator.userAgent;
@@ -64394,7 +64010,6 @@ if (action === 'getDashboardStats') {
     // =========================================================================
     let _ocaIdleTimer = null;
     let _lastIdleResetTime = 0;
-    const OCA_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // Default 30 นาที (overridden by app_settings.idle_timeout_minutes)
     function resetSecurityIdleTimer(force = false) {
       const now = Date.now();
       if (!force && (now - _lastIdleResetTime < 15000)) return;
@@ -67713,10 +67328,6 @@ function openPublicRegisterView() {
     }
     window.filterKioskHalfBooks = filterKioskHalfBooks;
     window.filterKioskHalfBook = filterKioskHalfBooks;
-    function clearKioskHalfBookFilter() {
-      resetKioskCourseFilters();
-    }
-    window.clearKioskHalfBookFilter = clearKioskHalfBookFilter;
     function resetKioskCourseFilters() {
       if (!window._pubKioskContext) window._pubKioskContext = { mode: window._pubStudentMode || 'new' };
       window._pubKioskContext.halfBookFilter = null;
@@ -67769,10 +67380,6 @@ function openPublicRegisterView() {
       return matched;
     }
     window.findRelatedHalfCourses = findRelatedHalfCourses;
-    function selectKioskHalfCourseByCode(code) {
-      selectKioskCourse(code);
-    }
-    window.selectKioskHalfCourseByCode = selectKioskHalfCourseByCode;
     function getKioskHalfBookPartLabel(hcCode, lang) {
       const norm = String(hcCode || '').trim().toUpperCase();
       const langKey = lang || (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
@@ -69203,17 +68810,6 @@ function openPublicRegisterView() {
       if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
     }
     window.updatePubKioskCartBookQty = updatePubKioskCartBookQty;
-    function clearPubKioskCartCourse() {
-      const cart = getPubKioskCart();
-      cart.courses = [];
-      syncPubCourseSelectFromCart();
-      renderPubKioskFloatingCart();
-      if ((window._pubKioskContext?.selectedCategory || '') !== 'textbooks' && typeof renderKioskCourseGrid === 'function') {
-        renderKioskCourseGrid();
-      }
-      if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
-    }
-    window.clearPubKioskCartCourse = clearPubKioskCartCourse;
     function clearPubKioskCart() {
       window._pubKioskCart = createEmptyPubKioskCart();
       syncPubCourseSelectFromCart();
@@ -73994,8 +73590,6 @@ function openPublicRegisterView() {
         "STAFF AUTHENTICATION": "教职人员身份验证",
         "Welcome Back!": "欢迎回来！",
         "เข้าสู่ระบบ (Sign In)": "登录系统",
-        "[ เข้าสู่ระบบ (Sign In) → ]": "[ 登录系统 → ]",
-        "เข้าสู่ระบบบุคลากรสถาบัน": "学院教职人员登录",
         "เซสชันถูกยกเลิก (Session Terminated)": "会话已终止",
         "ORIENTAL CULTURE ACADEMY • STAFF WORKSPACE": "东方文化书院 · 教职人员工作空间",
         "DEVICE ID:": "设备标识码:",
@@ -74009,10 +73603,6 @@ function openPublicRegisterView() {
         "2. ONSITE (เรียนที่สถาบัน)": "2. 学院线下授课",
         "3. HYBRID (ผสมผสาน)": "3. 线上线下混合授课",
         "Live": "在线",
-        "ชื่อผู้ใช้งาน หรือ อีเมล (Username / Email)": "用户名或电子邮箱",
-        "รหัสผ่าน (Password)": "密码",
-        "กรณีลืมรหัสผ่าน กรุณาแจ้งผู้ดูแลระบบ (Admin) เพื่อรีเซ็ตรหัสผ่านเท่านั้น": "若忘记密码，请联系系统管理员申请重置",
-        "หมายเหตุความปลอดภัย:": "安全须知:",
         "กำหนดให้ 1 บัญชีผู้ใช้งานสามารถเข้าสู่ระบบได้พร้อมกันเพียง 1 เครื่องเท่านั้น หากมีการเข้าใช้งานจากเครื่องใหม่ เครื่องเดิมจะถูกออกจากระบบโดยอัตโนมัติทันที": "每个用户账户同时仅允许在 1 台设备上登录。若在其他新设备上登录，当前设备将被立即自动注销。",
         "ภาคเรียนปัจจุบัน & คอร์สที่เปิดสอน": "当前学期与开设课程",
         "นักศึกษารวม": "学员总数",
@@ -74023,7 +73613,6 @@ function openPublicRegisterView() {
         "ลบ/รีเซ็ต": "删除/重置",
         "เพิ่มค่าธรรมเนียมเพิ่มเติม": "添加附加费用",
         "เพิ่มกฎส่วนลด": "添加折扣规则",
-        "กฎหลัก": "核心规则",
         "เตรียมพิมพ์คนถัดไป": "准备打印下一位",
         "ล้างข้อมูลและเตรียมพิมพ์บัตรนักศึกษาคนถัดไป": "清除信息并准备打印下一位学员证",
         "8. รายงานทะเบียนนักศึกษาเสนอหน่วยงานกระทรวงศึกษาธิการ": "8. 呈报教育部学员学籍名册报告",
@@ -74113,7 +73702,6 @@ function openPublicRegisterView() {
         "1 มี.ค. 2569": "2569 年 3 月 1 日",
         "1. ความโปร่งใสผู้ปฏิบัติงาน": "1. 经办人操作透明度",
         "1. ค่าเล่าเรียน": "1. 课程学费",
-        "1. ตรวจรับตำราเรียน": "1. 教材扫码核销",
         "1. รอบเวลาเรียน *": "1. 授课时间段 *",
         "1. รับเอง (มี QR ในใบเสร็จ)": "1. 校内自取（收据含二维码）",
         "1. เลขประจำตัวประชาชน (13 หลัก) *": "1. 身份证号（13 位）*",
@@ -74129,7 +73717,6 @@ function openPublicRegisterView() {
         "2. ค่าลงทะเบียน": "2. 学员注册费",
         "2. ตารางสรุปยอดเงิน รายเทอม": "2. 各学期财务收入明细表",
         "2. ตารางเปรียบเทียบยอดเงิน รายปี": "2. 各年度财务收支对比表",
-        "2. รายชื่อตำราเรียนและราคา": "2. 教材名录与销售定价",
         "2. วันและเวลาเริ่มต้นเปิดรับสมัคร (Open From)": "2. 报名开放起始时间",
         "2. ส่งตำรา (ไม่มี QR / ส่งพัสดุ)": "2. 快递寄书（无二维码 / 快递寄送）",
         "2. หลักสูตรที่ลงทะเบียนเรียน *": "2. 报读课程体系 *",
@@ -74385,7 +73972,6 @@ function openPublicRegisterView() {
         "จัดการห้องเรียน อาคาร ความจุ และการเชื่อมโยงกับรายงานห้องเรียน / ตารางสอน": "管理教室房号、教学楼栋、容纳座位数及与授课日程和门牌通知单的关联",
         "จัดส่งตามที่อยู่": "按登记地址寄送",
         "จัดส่งสำเร็จแล้ว": "已送达",
-        "จัดส่งแล้ว": "已发货",
         "จำนวน ( คน )": "人数 (人)",
         "จำนวน (คน)": "人数 (人)",
         "จำนวน (เล่ม)": "数量 (本)",
@@ -74524,7 +74110,6 @@ function openPublicRegisterView() {
         "ทศนิยม 2 ตำแหน่ง": "保留 2 位小数",
         "ทศนิยมไม่มี (.00)": "不带小数",
         "ทั้งหมด": "全部",
-        "ทั้งหมด 0 รายการ": "共 0 项",
         "ทำรายการย้ายคอร์ส": "执行调班转课",
         "ที่อยู่": "详细地址",
         "ที่อยู่จัดส่ง": "收件地址",
@@ -74566,7 +74151,6 @@ function openPublicRegisterView() {
         "บันทึก/แก้ไขผู้ใช้ (USER)": "保存 / 编辑系统用户",
         "บันทึกการจับคู่ส่วนลดคอร์สทั้งหมด": "保存全部课程折扣归类",
         "บันทึกการติดตาม (CRM Note)": "跟进备注",
-        "บันทึกการเช็คชื่อ": "保存课堂考勤",
         "บันทึกกำหนดการ": "保存授课排期",
         "บันทึกกิจกรรมทั้งหมดจัดเก็บตามมาตรฐาน PDPA พร้อมเข้ารหัสความปลอดภัย": "全量操作日志均遵照个人数据保护标准加密存证",
         "บันทึกคอร์ส": "保存课程",
@@ -74591,7 +74175,6 @@ function openPublicRegisterView() {
         "ประวัติรายวิชา, อาจารย์ผู้สอน, ห้องเรียน, คะแนนสอบ และใบเสร็จรับเงิน (Realtime & MDB Archive)": "修读科目、授课教师、教室、成绩及缴费收据全量档案（实时与历史归档）",
         "ประวัติใบเสร็จ": "历史收据记录",
         "ประวัติใบเสร็จและตำราเรียน (": "收据与教材配发历史 (",
-        "ประสานงานติดต่อ นร.": "跟进联络学员",
         "ประเภท": "类型",
         "ประเภท:": "业务分类:",
         "ประเภทกิจกรรม": "操作事项类型",
@@ -74604,7 +74187,6 @@ function openPublicRegisterView() {
 "ปิดหน้าต่างข้อมูลนักศึกษา": "关闭学生信息窗口",
         "ปิดหน้าต่าง": "关闭窗口",
         "ปิดหน้าต่างประวัติ": "关闭历史记录窗口",
-        "ปิดเรียน:": "结课时间:",
         "ปี 2569": "2569 年",
         "ปี พ.ศ.": "佛历年份",
         "ปี/เทอม": "学年/学期",
@@ -74873,7 +74455,6 @@ function openPublicRegisterView() {
         "วว/ดด/ปปปป": "日/月/年",
         "วว/ดด/ปปปป (พ.ศ.) *": "日/月/年 (佛历) *",
         "วัน": "星期",
-        "วัน-เวลา": "日期与时间",
         "วัน-เวลา (Timestamp)": "记录时间戳",
         "วัน/เดือน/ปี เกิด (พ.ศ.) *": "出生日期（佛历）*",
         "วันที่ ...... / ...... / ............": "日期 ...... / ...... / ............ ",
@@ -74991,23 +74572,19 @@ function openPublicRegisterView() {
         "หมายเหตุล่าสุด": "最新备注",
         "หมู่ที่": "村号",
         "หยุดเรียนชั่วคราว": "暂停休学",
-        "หรือ": "或",
         "หรือคลิก \"ถ่ายด้วยมือถือ / เลือกรูป\" ได้ทันที": "或直接点击“手机拍照 / 选取照片”",
         "หลักการถ่วงน้ำหนัก 4 เสาหลักความปลอดภัย (Four-Pillar Weighting Formula)": "安全评估四项核心支柱权重机制",
         "หลักการทำงานของระบบใบเสร็จ OCA:": "书院官方收据开具运行规范:",
         "หลักสูตรภาษาจีนและตำราเรียนทุกระดับชั้น": "各级别中文课程体系与标准教材",
         "หลักสูตรและรอบเวลาเรียน (Course & Schedule)": "报读课程与授课时段",
         "หลังเวลานี้ ระบบจะปิดรับสมัครและล็อกแบบฟอร์มทันที": "在此时间之后，系统将立即截止报名并锁定表单",
-        "หัก ส่วนลดปกติ / Less: Discount:": "扣减：常规优惠折扣:",
         "หัก ส่วนลดอื่นๆ / Less: Other Discount:": "扣减：其他特别折扣:",
         "หัวหน้าฝ่ายวิชาการ / ผู้อำนวยการ": "教务主管 / 书院院长",
         "ห้องเรียน": "授课教室",
         "ห้องเรียน (Room)": "授课教室",
         "ห้องเรียน:": "授课教室:",
         "กลุ่มเรียน (Group)": "班级组别",
-        "อาจารย์ผู้สอน (Instructor)": "授课教师",
         "กลุ่ม:": "组别:",
-        "อาจารย์ผู้สอน:": "授课教师:",
         "ห้องเรียนทั้งหมด": "全部教室",
         "ห้องเรียนที่รับผิดชอบ": "负责教室",
         "อนุมัติ": "审核通过",
@@ -75026,7 +74603,6 @@ function openPublicRegisterView() {
         "อัตราเติบโต YoY": "同比年增长率 YoY",
         "อัปเดต GPS": "更新 GPS 定位",
         "อัปเดตห้องเรียนนี้ลงในประวัตินักศึกษาทุกคนในคอร์สนี้โดยอัตโนมัติเมื่อกดบันทึกหรือสั่งพิมพ์": "保存或打印时将自动同步更新该课程所有在读学员的教室归属档案",
-        "อาจารย์ผู้สอน": "任课教师",
         "อาจารย์ผู้สอน & ผลการเรียน": "任课教师与学习成绩",
         "อาจารย์ผู้สอน (ดึงจากบัญชีผู้ใช้ตำแหน่ง Teacher / ครูสอน) *": "任课教师（关联教师账号）*",
         "อาจารย์ผู้สอน:": "任课教师:",
@@ -75118,7 +74694,6 @@ function openPublicRegisterView() {
         "เปิดดูสลิปรอตรวจ": "调取待审核转账凭证",
         "เปิดหน้าตั้งค่ากลุ่มเรียนและอาจารย์ผู้สอนประจำเทอมในเมนูจัดการคอร์ส": "进入课程管理模块配置各学期班级与主讲教师",
         "เปิดหน้าต่างตั้งค่าละเอียดและคู่มือไดรเวอร์": "打开高级配置及驱动手册",
-        "เปิดเรียน:": "开课时间:",
         "เพิ่มคอร์สใหม่": "新增课程",
         "เพิ่มผู้ใช้งานใหม่ (Add Staff)": "新增系统操作员",
         "เพิ่มผู้ใช้ใหม่": "新增系统用户",
@@ -75151,7 +74726,6 @@ function openPublicRegisterView() {
         "เลือกตารางเรียน / รอบเวลาเปิดสอน (8 รอบมาตรฐาน)": "选择授课日程 / 开课时间段（8 大标准时段）",
         "เลือกตำราเรียนที่ซื้อ *": "选择购买的教材 *",
         "เลือกนักศึกษา · แตะบัตร Mifare 1K บันทึกอัตโนมัติ · สั่งพิมพ์ตรงลงบัตรทองในคลิกเดียว": "选择学员 · 感应 Mifare 1K 卡自动写入 · 一键打印金卡",
-        "เลือกปฏิทิน": "选择日历",
         "เลือกปี พ.ศ.:": "选择佛历年份:",
         "เลือกผู้ใหญ่ทั้งหมด": "全选成人",
         "เลือกมิติรายงานเพื่อวิเคราะห์ข้อมูลการเงิน, ตารางเรียน, การปฏิบัติงานครู, และสถิติการเข้าเรียน (Real-time Live Data)": "选择多维报表分析财务收入、课程日程、教师工时及出勤率（实时直通数据）",
@@ -75196,7 +74770,6 @@ function openPublicRegisterView() {
         "แผนภูมิเปรียบเทียบยอดเงินสุทธิแต่ละปีการศึกษา (หน่วย: บาท)": "各学年净收入对比走势图（单位：泰铢）",
         "แพลตฟอร์ม (Platform)": "操作系统平台",
         "แพ็กเกจคำนวณเงินด่วน (Smart Presets):": "智能预设计费方案:",
-        "และ": "与",
         "แสดง 0 รายการ": "展示 0 项记录",
         "แสดง/ซ่อนตารางตัวเลข": "显示 / 隐藏数据表格",
         "แสดงจำนวนนักศึกษาและสัดส่วน % แยกตามรหัสวิชา พร้อมยอดรวมภายในเทอมและเปอร์เซ็นต์ต่อปี": "按课程科目呈现学员选读人数与百分比结构，并计算学期合计与占全年总比",
@@ -75267,7 +74840,6 @@ function openPublicRegisterView() {
         "🔴 วันปิดเรียน": "🔴 结课日期",
         "วันปิดเรียน": "结课日期",
         "วันเริ่มเปิดเรียน": "开学日期",
-        "🟢 วันเริ่มเปิดเรียน": "🟢 开学日期",
         "เปิดเรียน:": "开学:",
         "ปิดเรียน:": "结课:",
         "เลือกปฏิทิน": "选择日历",
@@ -75317,7 +74889,6 @@ function openPublicRegisterView() {
         "วัน/เดือน/ปีเกิด": "出生日期",
         "อายุ (ปี - คำนวณอัตโนมัติ)": "年龄 - 自动计算",
         "คำนวณอัตโนมัติ": "自动计算",
-        "เลขพาสปอร์ต (Passport No.)": "护照号码",
         "กรณีชาวต่างชาติ (ถ้ามี)": "外籍人士填写",
         "ชื่อผู้ติดต่อฉุกเฉิน": "紧急联系人姓名",
         "ชื่อ-นามสกุล ผู้ติดต่อฉุกเฉิน": "紧急联系人全名",
@@ -75361,7 +74932,7 @@ function openPublicRegisterView() {
         "ปีการศึกษา 2544": "2544 学年", "ปีการศึกษา 2543": "2543 学年", "ปีการศึกษา 2542": "2542 学年",
         "ปีการศึกษา 2541": "2541 学年", "ปีการศึกษา 2540": "2540 学年", "ปีการศึกษา 2539": "2539 学年",
         "ปีการศึกษา 2538": "2538 学年", "ปีการศึกษา 2537": "2537 学年", "ปีการศึกษา 2536": "2536 学年",
-        "ปี 2571": "2571 年", "ปี 2570": "2570 年", "ปี 2568": "2568 年", "ปี 2567": "2567 年",
+        "ปี 2571": "2571 年", "ปี 2567": "2567 年",
         "ปี 2566": "2566 年", "ปี 2565": "2565 年", "ปี 2564": "2564 年", "ปี 2563": "2563 年",
         "ปี 2562": "2562 年", "ปี 2561": "2561 年", "ปี 2560": "2560 年", "ปี 2559": "2559 年",
         "ปี 2558": "2558 年", "ปี 2557": "2557 年", "ปี 2556": "2556 年", "ปี 2555": "2555 年",
@@ -75616,9 +75187,7 @@ function openPublicRegisterView() {
         "• ค้นหาประวัติเดิมด้วยเลขบัตรประชาชนหรือรหัสนักศึกษา": "• 通过身份证号或学号检索历史档案",
         "• ยกเว้นค่าลงทะเบียนแรกเข้า (0 บาท)": "• 免收新生注册费（0 泰铢）",
         "สมัครเรียนใหม่ (New Student)": "新生报名",
-        "ต่อคอร์ส — นักศึกษาเก่า (Course Renewal)": "老生续报",
         "เปลี่ยนประเภทนักศึกษา": "更换学员类型",
-        "แจ้งขอบเขตการให้บริการลงทะเบียนออนไลน์ (Online Registration Policy)": "在线报名服务范围说明",
         "หมายเหตุสำคัญ:": "重要提示：",
         "1. รอบเวลาเรียนที่สะดวก *": "1. 选择方便的上课时间段 *",
         "2. หลักสูตรที่ต้องการสมัคร *": "2. 选择报名课程 *",
@@ -75861,9 +75430,6 @@ function openPublicRegisterView() {
         "ที่อยู่อีเมล (Email) *": "电子邮箱 *",
         "ที่อยู่อีเมลปลายทาง (Recipient Email) *": "收件人电子邮箱 *",
         "ทุกรอบเวลา": "全部时段",
-        "นาง": "女士",
-        "นางสาว": "小姐",
-        "นาย": "先生",
         "บัตรสำเร็จรูปพิมพ์ลายทอง (Pre-printed Gold Card Stock)": "预制金边成品证卡基底",
         "บันทึก & ซิงก์ขึ้น Cloud": "保存并同步至云端数据库",
         "บันทึก & ออกใบเสร็จ": "保存并开具收据",
@@ -76232,8 +75798,6 @@ function openPublicRegisterView() {
         "เช่น เสาร์ 09:00 - 12:00": "例如 周六 09:00 - 12:00",
         "เช่น เสาร์-อาทิตย์ 09:00 - 12:00": "例如 周六至周日 09:00 - 12:00",
         "เช่น แจ้งกำหนดการประชุมวิชาการประจำสัปดาห์...": "例如 周教务例会安排通知...",
-        "เด็กชาย": "男童",
-        "เด็กหญิง": "女童",
         "เทอมที่ 1": "第 1 学期",
         "เทอมที่ 2": "第 2 学期",
         "เทอมที่ 3": "第 3 学期",
@@ -76450,8 +76014,6 @@ function openPublicRegisterView() {
         "STAFF AUTHENTICATION": "STAFF AUTHENTICATION",
         "Welcome Back!": "Welcome Back!",
         "เข้าสู่ระบบ (Sign In)": "Sign In",
-        "[ เข้าสู่ระบบ (Sign In) → ]": "[ Sign In → ]",
-        "เข้าสู่ระบบบุคลากรสถาบัน": "Institutional Staff Sign In",
         "เซสชันถูกยกเลิก (Session Terminated)": "Session Terminated",
         "ORIENTAL CULTURE ACADEMY • STAFF WORKSPACE": "ORIENTAL CULTURE ACADEMY • STAFF WORKSPACE",
         "DEVICE ID:": "DEVICE ID:",
@@ -76465,10 +76027,6 @@ function openPublicRegisterView() {
         "2. ONSITE (เรียนที่สถาบัน)": "2. ONSITE (At Academy)",
         "3. HYBRID (ผสมผสาน)": "3. HYBRID (Online & Onsite)",
         "Live": "Live",
-        "ชื่อผู้ใช้งาน หรือ อีเมล (Username / Email)": "Username or Email",
-        "รหัสผ่าน (Password)": "Password",
-        "กรณีลืมรหัสผ่าน กรุณาแจ้งผู้ดูแลระบบ (Admin) เพื่อรีเซ็ตรหัสผ่านเท่านั้น": "If you forget your password, please contact the System Administrator to reset it.",
-        "หมายเหตุความปลอดภัย:": "Security Notice:",
         "กำหนดให้ 1 บัญชีผู้ใช้งานสามารถเข้าสู่ระบบได้พร้อมกันเพียง 1 เครื่องเท่านั้น หากมีการเข้าใช้งานจากเครื่องใหม่ เครื่องเดิมจะถูกออกจากระบบโดยอัตโนมัติทันที": "Each staff account is restricted to 1 active device at a time. Signing in on a new device will immediately log out previous sessions.",
         "\"(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)\"": "\"(Classroom can be checked on opening day)\"",
         "(กรุณาเลือกคอร์สเรียน)": "(Please select course)",
@@ -76528,7 +76086,6 @@ function openPublicRegisterView() {
         "1 มี.ค. 2569": "1 Mar 2026",
         "1. ความโปร่งใสผู้ปฏิบัติงาน": "1. Staff Traceability",
         "1. ค่าเล่าเรียน": "1. Tuition Fee",
-        "1. ตรวจรับตำราเรียน": "1. Textbook Claim Verification",
         "1. รอบเวลาเรียน *": "1. Schedule *",
         "1. รับเอง (มี QR ในใบเสร็จ)": "1. Self-Pickup (QR on receipt)",
         "1. เลขประจำตัวประชาชน (13 หลัก) *": "1. National ID (13 Digits) *",
@@ -76544,7 +76101,6 @@ function openPublicRegisterView() {
         "2. ค่าลงทะเบียน": "2. Registration Fee",
         "2. ตารางสรุปยอดเงิน รายเทอม": "2. Term Revenue Summary Table",
         "2. ตารางเปรียบเทียบยอดเงิน รายปี": "2. Annual Financial Comparison Table",
-        "2. รายชื่อตำราเรียนและราคา": "2. Textbook Catalog & Prices",
         "2. วันและเวลาเริ่มต้นเปิดรับสมัคร (Open From)": "2. Registration Open Date & Time",
         "2. ส่งตำรา (ไม่มี QR / ส่งพัสดุ)": "2. Postal Delivery (No QR / Parcel)",
         "2. หลักสูตรที่ลงทะเบียนเรียน *": "2. Registered Curriculum *",
@@ -76800,7 +76356,6 @@ function openPublicRegisterView() {
         "จัดการห้องเรียน อาคาร ความจุ และการเชื่อมโยงกับรายงานห้องเรียน / ตารางสอน": "Manage classrooms, buildings, capacity, and timetable linkages",
         "จัดส่งตามที่อยู่": "Deliver to Address",
         "จัดส่งสำเร็จแล้ว": "Delivered",
-        "จัดส่งแล้ว": "Shipped",
         "จำนวน ( คน )": "Count (Students)",
         "จำนวน (คน)": "Count (Students)",
         "จำนวน (เล่ม)": "Quantity (Books)",
@@ -76939,7 +76494,6 @@ function openPublicRegisterView() {
         "ทศนิยม 2 ตำแหน่ง": "2 Decimal Places",
         "ทศนิยมไม่มี (.00)": "No Decimals",
         "ทั้งหมด": "All",
-        "ทั้งหมด 0 รายการ": "Total 0 items",
         "ทำรายการย้ายคอร์ส": "Process Course Transfer",
         "ที่อยู่": "Address",
         "ที่อยู่จัดส่ง": "Shipping Address",
@@ -76981,7 +76535,6 @@ function openPublicRegisterView() {
         "บันทึก/แก้ไขผู้ใช้ (USER)": "Save/Edit User",
         "บันทึกการจับคู่ส่วนลดคอร์สทั้งหมด": "Save All Course Discount Mappings",
         "บันทึกการติดตาม (CRM Note)": "CRM Note",
-        "บันทึกการเช็คชื่อ": "Save Attendance Check-in",
         "บันทึกกำหนดการ": "Save Schedule",
         "บันทึกกิจกรรมทั้งหมดจัดเก็บตามมาตรฐาน PDPA พร้อมเข้ารหัสความปลอดภัย": "All activities are encrypted and stored under privacy standards",
         "บันทึกคอร์ส": "Save Course",
@@ -77006,7 +76559,6 @@ function openPublicRegisterView() {
         "ประวัติรายวิชา, อาจารย์ผู้สอน, ห้องเรียน, คะแนนสอบ และใบเสร็จรับเงิน (Realtime & MDB Archive)": "Course history, instructors, classrooms, exam scores, and receipts (Realtime & Archive)",
         "ประวัติใบเสร็จ": "Receipt History",
         "ประวัติใบเสร็จและตำราเรียน (": "Receipt & Book History (",
-        "ประสานงานติดต่อ นร.": "Follow up with Student",
         "ประเภท": "Type",
         "ประเภท:": "Type:",
         "ประเภทกิจกรรม": "Activity Type",
@@ -77019,7 +76571,6 @@ function openPublicRegisterView() {
 "ปิดหน้าต่างข้อมูลนักศึกษา": "Close Student Profile Window",
         "ปิดหน้าต่าง": "Close Window",
         "ปิดหน้าต่างประวัติ": "Close History Window",
-        "ปิดเรียน:": "Term Ends:",
         "ปี 2569": "Year 2569",
         "ปี พ.ศ.": "Year (B.E.)",
         "ปี/เทอม": "Year/Term",
@@ -77288,7 +76839,6 @@ function openPublicRegisterView() {
         "วว/ดด/ปปปป": "DD/MM/YYYY",
         "วว/ดด/ปปปป (พ.ศ.) *": "DD/MM/YYYY (B.E.) *",
         "วัน": "Day",
-        "วัน-เวลา": "Date & Time",
         "วัน-เวลา (Timestamp)": "Timestamp",
         "วัน/เดือน/ปี เกิด (พ.ศ.) *": "Date of Birth (B.E.) *",
         "วันที่ ...... / ...... / ............": "Date ...... / ...... / ............",
@@ -77406,23 +76956,19 @@ function openPublicRegisterView() {
         "หมายเหตุล่าสุด": "Latest Remarks",
         "หมู่ที่": "Moo",
         "หยุดเรียนชั่วคราว": "Suspended",
-        "หรือ": "or",
         "หรือคลิก \"ถ่ายด้วยมือถือ / เลือกรูป\" ได้ทันที": "or click 'Take Photo / Choose Image'",
         "หลักการถ่วงน้ำหนัก 4 เสาหลักความปลอดภัย (Four-Pillar Weighting Formula)": "Four-Pillar Security Weighting Formula",
         "หลักการทำงานของระบบใบเสร็จ OCA:": "OCA Receipt System Operating Principles:",
         "หลักสูตรภาษาจีนและตำราเรียนทุกระดับชั้น": "Chinese curricula and textbooks for all levels",
         "หลักสูตรและรอบเวลาเรียน (Course & Schedule)": "Course & Schedule",
         "หลังเวลานี้ ระบบจะปิดรับสมัครและล็อกแบบฟอร์มทันที": "After this time, registration is closed and form is locked immediately",
-        "หัก ส่วนลดปกติ / Less: Discount:": "Less: Standard Discount:",
         "หัก ส่วนลดอื่นๆ / Less: Other Discount:": "Less: Other Discount:",
         "หัวหน้าฝ่ายวิชาการ / ผู้อำนวยการ": "Head of Academic / Director",
         "ห้องเรียน": "Classroom",
         "ห้องเรียน (Room)": "Classroom",
         "ห้องเรียน:": "Classroom:",
         "กลุ่มเรียน (Group)": "Class Group",
-        "อาจารย์ผู้สอน (Instructor)": "Instructor",
         "กลุ่ม:": "Group:",
-        "อาจารย์ผู้สอน:": "Instructor:",
         "ห้องเรียนทั้งหมด": "All Classrooms",
         "ห้องเรียนที่รับผิดชอบ": "Assigned Classrooms",
         "อนุมัติ": "Approve",
@@ -77441,7 +76987,6 @@ function openPublicRegisterView() {
         "อัตราเติบโต YoY": "YoY Growth Rate",
         "อัปเดต GPS": "Update GPS",
         "อัปเดตห้องเรียนนี้ลงในประวัตินักศึกษาทุกคนในคอร์สนี้โดยอัตโนมัติเมื่อกดบันทึกหรือสั่งพิมพ์": "Auto-syncs assigned classroom to all student records in this course on save/print",
-        "อาจารย์ผู้สอน": "Instructor",
         "อาจารย์ผู้สอน & ผลการเรียน": "Instructor & Grades",
         "อาจารย์ผู้สอน (ดึงจากบัญชีผู้ใช้ตำแหน่ง Teacher / ครูสอน) *": "Instructor (from Teacher accounts) *",
         "อาจารย์ผู้สอน:": "Instructor:",
@@ -77533,7 +77078,6 @@ function openPublicRegisterView() {
         "เปิดดูสลิปรอตรวจ": "Open Pending Slips",
         "เปิดหน้าตั้งค่ากลุ่มเรียนและอาจารย์ผู้สอนประจำเทอมในเมนูจัดการคอร์ส": "Open section & instructor settings in Course Management",
         "เปิดหน้าต่างตั้งค่าละเอียดและคู่มือไดรเวอร์": "Open advanced settings and driver manual",
-        "เปิดเรียน:": "Class Starts:",
         "เพิ่มคอร์สใหม่": "Add New Course",
         "เพิ่มผู้ใช้งานใหม่ (Add Staff)": "Add Staff User",
         "เพิ่มผู้ใช้ใหม่": "Add New User",
@@ -77566,7 +77110,6 @@ function openPublicRegisterView() {
         "เลือกตารางเรียน / รอบเวลาเปิดสอน (8 รอบมาตรฐาน)": "Select Timetable / Schedule (8 Standard Slots)",
         "เลือกตำราเรียนที่ซื้อ *": "Select Purchased Book *",
         "เลือกนักศึกษา · แตะบัตร Mifare 1K บันทึกอัตโนมัติ · สั่งพิมพ์ตรงลงบัตรทองในคลิกเดียว": "Select student · Tap Mifare 1K card to auto-save · One-click print to gold card",
-        "เลือกปฏิทิน": "Select Calendar",
         "เลือกปี พ.ศ.:": "Select Year (B.E.):",
         "เลือกผู้ใหญ่ทั้งหมด": "Select All Adults",
         "เลือกมิติรายงานเพื่อวิเคราะห์ข้อมูลการเงิน, ตารางเรียน, การปฏิบัติงานครู, และสถิติการเข้าเรียน (Real-time Live Data)": "Select report dimensions to analyze finance, timetables, teacher operations, and attendance stats (Real-time data)",
@@ -77608,7 +77151,6 @@ function openPublicRegisterView() {
         "แผนภูมิเปรียบเทียบยอดเงินสุทธิแต่ละปีการศึกษา (หน่วย: บาท)": "Net Revenue Comparison Chart by Year (Unit: THB)",
         "แพลตฟอร์ม (Platform)": "Operating System",
         "แพ็กเกจคำนวณเงินด่วน (Smart Presets):": "Smart Presets:",
-        "และ": "and",
         "แสดง 0 รายการ": "Displaying 0 items",
         "แสดง/ซ่อนตารางตัวเลข": "Toggle Data Table",
         "แสดงจำนวนนักศึกษาและสัดส่วน % แยกตามรหัสวิชา พร้อมยอดรวมภายในเทอมและเปอร์เซ็นต์ต่อปี": "Shows student count and % per subject, with term total and annual percentage",
@@ -77801,7 +77343,6 @@ function openPublicRegisterView() {
         "ลบ/รีเซ็ต": "Delete / Reset",
         "เพิ่มค่าธรรมเนียมเพิ่มเติม": "Add Additional Fee",
         "เพิ่มกฎส่วนลด": "Add Discount Rule",
-        "กฎหลัก": "Core Rule",
         "เตรียมพิมพ์คนถัดไป": "Prepare Next Student",
         "ล้างข้อมูลและเตรียมพิมพ์บัตรนักศึกษาคนถัดไป": "Clear data and prepare next student card",
         "8. รายงานทะเบียนนักศึกษาเสนอหน่วยงานกระทรวงศึกษาธิการ": "8. Ministry of Education Student Registry Report",
@@ -77844,7 +77385,6 @@ function openPublicRegisterView() {
         "วัน/เดือน/ปีเกิด": "Date of Birth",
         "อายุ (ปี - คำนวณอัตโนมัติ)": "Age (Years - Auto-calculated)",
         "คำนวณอัตโนมัติ": "Auto-calculated",
-        "เลขพาสปอร์ต (Passport No.)": "Passport No.",
         "กรณีชาวต่างชาติ (ถ้ามี)": "For foreign nationals (if any)",
         "ชื่อผู้ติดต่อฉุกเฉิน": "Emergency Contact Name",
         "ชื่อ-นามสกุล ผู้ติดต่อฉุกเฉิน": "Emergency Contact Full Name",
@@ -78071,9 +77611,7 @@ function openPublicRegisterView() {
         "• ค้นหาประวัติเดิมด้วยเลขบัตรประชาชนหรือรหัสนักศึกษา": "• Look up existing profile by Citizen ID or Student ID",
         "• ยกเว้นค่าลงทะเบียนแรกเข้า (0 บาท)": "• Registration fee waived (0 THB)",
         "สมัครเรียนใหม่ (New Student)": "New Student",
-        "ต่อคอร์ส — นักศึกษาเก่า (Course Renewal)": "Returning Student (Renewal)",
         "เปลี่ยนประเภทนักศึกษา": "Change Applicant Type",
-        "แจ้งขอบเขตการให้บริการลงทะเบียนออนไลน์ (Online Registration Policy)": "Online Registration Service Policy",
         "หมายเหตุสำคัญ:": "Important Notice:",
         "1. รอบเวลาเรียนที่สะดวก *": "1. Preferred Class Schedule *",
         "2. หลักสูตรที่ต้องการสมัคร *": "2. Select Course *",
@@ -78316,9 +77854,6 @@ function openPublicRegisterView() {
         "ที่อยู่อีเมล (Email) *": "Email Address *",
         "ที่อยู่อีเมลปลายทาง (Recipient Email) *": "Recipient Email *",
         "ทุกรอบเวลา": "All Schedules",
-        "นาง": "Mrs.",
-        "นางสาว": "Miss",
-        "นาย": "Mr.",
         "บัตรสำเร็จรูปพิมพ์ลายทอง (Pre-printed Gold Card Stock)": "Pre-printed Gold Card Stock",
         "บันทึก & ซิงก์ขึ้น Cloud": "Save & Sync to Cloud",
         "บันทึก & ออกใบเสร็จ": "Save & Issue Receipt",
@@ -78687,8 +78222,6 @@ function openPublicRegisterView() {
         "เช่น เสาร์ 09:00 - 12:00": "e.g. Sat 09:00 - 12:00",
         "เช่น เสาร์-อาทิตย์ 09:00 - 12:00": "e.g. Sat-Sun 09:00 - 12:00",
         "เช่น แจ้งกำหนดการประชุมวิชาการประจำสัปดาห์...": "e.g. Weekly academic faculty meeting schedule...",
-        "เด็กชาย": "Master (Boy)",
-        "เด็กหญิง": "Miss (Girl)",
         "เทอมที่ 1": "Term 1",
         "เทอมที่ 2": "Term 2",
         "เทอมที่ 3": "Term 3",
@@ -82039,8 +81572,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       if (typeof showToast === 'function') {
         showToast('ลบลายนิ้วมือสำเร็จ', `ปลดล็อคให้ครู "${username}" ลงทะเบียนลายนิ้วมือใหม่ได้แล้ว`, '🗑️');
       }
-      if (typeof window.renderStaffSettingsTable === 'function') window.renderStaffSettingsTable();
-      if (typeof window.renderStaffUsersList === 'function') window.renderStaffUsersList();
+      if (typeof loadUsersList === 'function') loadUsersList(true, true);
     }
     window.revokeTeacherFingerprint = revokeTeacherFingerprint;
     // =========================================================================
@@ -82447,25 +81979,6 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     /**
      * แจ้งเตือน Popup เมื่อมีนักเรียนใหม่เข้าในคอร์สของครูผู้สอน
      */
-    function triggerTeacherNewStudentAlert(studentObj) {
-      _teacherPendingNewStudent = studentObj;
-      const modal = document.getElementById('modalTeacherNewStudentAlert');
-      const nameEl = document.getElementById('lblAlertNewStudentName');
-      const idEl = document.getElementById('lblAlertNewStudentId');
-      const schedEl = document.getElementById('lblAlertNewStudentSchedule');
-      const phoneEl = document.getElementById('lblAlertNewStudentPhone');
-      const badgeCount = document.getElementById('badgeTeacherNewStudentsCount');
-      if (nameEl) nameEl.textContent = studentObj.student_name || studentObj.full_name || studentObj.buyerName || '-';
-      if (idEl) idEl.textContent = studentObj.student_id || studentObj.buyerId || '-';
-      if (schedEl) schedEl.textContent = studentObj.schedule_id || studentObj.schedule || studentObj.current_schedule || '-';
-      if (phoneEl) phoneEl.textContent = studentObj.phone || '-';
-      if (badgeCount) badgeCount.style.display = 'inline-block';
-      if (modal) modal.style.display = 'flex';
-      // Auto refresh data in teacher portal in real time
-      if (typeof loadTeacherClassroomStudents === 'function') loadTeacherClassroomStudents();
-      if (typeof loadTeacherCourseContacts === 'function') loadTeacherCourseContacts();
-    }
-    window.triggerTeacherNewStudentAlert = triggerTeacherNewStudentAlert;
     function onTeacherAcknowledgeNewStudent(goToContacts) {
       const st = _teacherPendingNewStudent || {};
       const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : {};
@@ -85603,12 +85116,6 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     /**
      * Point 1: Open Pending Slips Queue Modal in #tabReceipts
      */
-    function openPendingSlipsModal() {
-      const modal = document.getElementById('modalPendingSlips');
-      if (modal) modal.style.display = 'flex';
-      loadPendingSlipsQueue();
-    }
-    window.openPendingSlipsModal = openPendingSlipsModal;
     function closePendingSlipsModal() {
       const modal = document.getElementById('modalPendingSlips');
       if (modal) modal.style.display = 'none';
@@ -87122,13 +86629,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=218';
+      const swPath = basePath + 'sw.js?v=219';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (218):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (219):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
