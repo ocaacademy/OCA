@@ -379,9 +379,37 @@
   /**
    * Full 8-Table Backup Exporter + DATA_BACKUP_EXPORT Audit Log + Last Backup Timestamp
    */
-  async function fetchAllTableRowsPaginated(sb, tableName) {
+  async function fetchAllTableRowsPaginated(sb, tableName, onProgress) {
     const all = [];
     const pageSize = 1000;
+    const KEYSET_COLS = {
+      receipts: 'receipt_no',
+      students: 'student_id',
+      security_audit_logs: 'id'
+    };
+    const pkCol = KEYSET_COLS[tableName];
+    if (pkCol) {
+      let lastPk = null;
+      for (let page = 0; page < 1000; page++) {
+        let q = sb.from(tableName).select('*').order(pkCol, { ascending: true }).limit(pageSize);
+        if (lastPk !== null && lastPk !== undefined) {
+          q = q.gt(pkCol, lastPk);
+        }
+        const { data, error } = await q;
+        if (error) {
+          console.warn(`[OcaEmailAdmin.backup] keyset table ${tableName} error:`, error.message);
+          break;
+        }
+        if (!Array.isArray(data) || data.length === 0) break;
+        all.push(...data);
+        if (typeof onProgress === 'function') onProgress(all.length);
+        if (data.length < pageSize) break;
+        const nextPk = data[data.length - 1][pkCol];
+        if (nextPk === undefined || nextPk === null || nextPk === lastPk) break;
+        lastPk = nextPk;
+      }
+      return all;
+    }
     let from = 0;
     for (let page = 0; page < 250; page++) {
       const { data, error } = await sb
@@ -394,13 +422,14 @@
       }
       if (!Array.isArray(data) || data.length === 0) break;
       all.push(...data);
+      if (typeof onProgress === 'function') onProgress(all.length);
       if (data.length < pageSize) break;
       from += pageSize;
     }
     return all;
   }
 
-  async function exportFull8TableBackup() {
+  async function exportFull8TableBackup(onProgress) {
     const sb = global._supabase;
     if (!sb) throw new Error('Supabase client is not initialized');
     const nowIso = new Date().toISOString();
@@ -411,8 +440,16 @@
     const tablesData = {};
     const counts = {};
     let totalRows = 0;
-    for (const tbl of FULL_BACKUP_TABLES) {
-      const rows = await fetchAllTableRowsPaginated(sb, tbl);
+    for (let idx = 0; idx < FULL_BACKUP_TABLES.length; idx++) {
+      const tbl = FULL_BACKUP_TABLES[idx];
+      if (typeof onProgress === 'function') {
+        onProgress({ index: idx + 1, totalTables: FULL_BACKUP_TABLES.length, table: tbl, rows: 0 });
+      }
+      const rows = await fetchAllTableRowsPaginated(sb, tbl, (n) => {
+        if (typeof onProgress === 'function') {
+          onProgress({ index: idx + 1, totalTables: FULL_BACKUP_TABLES.length, table: tbl, rows: n });
+        }
+      });
       tablesData[tbl] = rows;
       counts[tbl] = rows.length;
       totalRows += rows.length;
@@ -448,6 +485,7 @@
       role: actor.role,
       device_id: actor.deviceId,
       device_info: actor.deviceInfo,
+      ip_address: (typeof global.getOcaClientPublicIp === 'function' ? global.getOcaClientPublicIp() : '') || null,
       details: `สำรองข้อมูลครบ 8 ตาราง (${totalRows} รายการ): ` + FULL_BACKUP_TABLES.map(t => `${t}=${counts[t]}`).join(', '),
       records: totalRows,
       status: 'SUCCESS'
@@ -846,14 +884,26 @@
     const btn = document.getElementById('btnExportFull8TableBackup');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังสำรองข้อมูล 8 ตาราง...'; }
     try {
-      const meta = await exportFull8TableBackup();
+      const meta = await exportFull8TableBackup((prog) => {
+        if (btn && prog) {
+          btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังสำรองตาราง ${prog.index}/${prog.totalTables} (${prog.table}: ${Number(prog.rows || 0).toLocaleString()} แถว)...`;
+        }
+      });
+      const summaryDesc = `รวมทั้งหมด ${Number(meta.totalRecords || 0).toLocaleString()} รายการ (บันทึก Audit Log และ last_backup_at แล้ว)`;
       if (typeof global.showToast === 'function') {
-        global.showToast('สำรองข้อมูลครบ 8 ตารางสำเร็จ!', `รวมทั้งหมด ${meta.totalRecords} รายการ (บันทึก Audit Log แล้ว)`, '✅');
+        global.showToast('สำรองข้อมูลครบ 8 ตารางสำเร็จ!', summaryDesc, '✅');
+      }
+      if (typeof global.showOcaAlert === 'function') {
+        global.showOcaAlert('สำรองข้อมูลครบ 8 ตารางสำเร็จ!', summaryDesc, 'success');
       }
       await initSettingsAppConfigView();
     } catch (err) {
+      const errMsg = (err && err.message) || String(err);
       if (typeof global.showToast === 'function') {
-        global.showToast('สำรองข้อมูลไม่สำเร็จ', err.message || String(err), '❌');
+        global.showToast('สำรองข้อมูลไม่สำเร็จ', errMsg, '❌');
+      }
+      if (typeof global.showOcaAlert === 'function') {
+        global.showOcaAlert('สำรองข้อมูลไม่สำเร็จ', errMsg, 'error');
       }
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-database"></i> สำรองข้อมูลครบทั้ง 8 ตาราง (Full JSON Backup)'; }
