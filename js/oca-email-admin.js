@@ -661,30 +661,62 @@
 
   global.saveSlipGuardSettingsFromUi = async function () {
     if (!global.OcaSlipGuard) return;
+    const beforeCfg = (typeof global.OcaSlipGuard.getConfigSync === 'function') ? global.OcaSlipGuard.getConfigSync() : {};
+    const nextCfg = {
+      bankName: document.getElementById('inpSlipGuardBankName')?.value || '',
+      bankAccountName: document.getElementById('inpSlipGuardAccName')?.value || '',
+      bankAccountNo: document.getElementById('inpSlipGuardAccNo')?.value || '',
+      maxSlipAgeDays: Number(document.getElementById('inpSlipGuardMaxAgeDays')?.value || 7),
+      bankApiProvider: document.getElementById('selSlipGuardBankApiProvider')?.value || 'disabled',
+      strictCrc16: Boolean(document.getElementById('chkSlipGuardStrictCrc16')?.checked),
+      autoBlacklistFakeSlip: Boolean(document.getElementById('chkSlipGuardAutoBlacklist')?.checked)
+    };
     await _runSettingsSaveWithFeedback(
       'btnSaveSlipGuardSettings',
-      () => global.OcaSlipGuard.saveConfig({
-        bankName: document.getElementById('inpSlipGuardBankName')?.value || '',
-        bankAccountName: document.getElementById('inpSlipGuardAccName')?.value || '',
-        bankAccountNo: document.getElementById('inpSlipGuardAccNo')?.value || '',
-        maxSlipAgeDays: Number(document.getElementById('inpSlipGuardMaxAgeDays')?.value || 7),
-        bankApiProvider: document.getElementById('selSlipGuardBankApiProvider')?.value || 'disabled',
-        strictCrc16: Boolean(document.getElementById('chkSlipGuardStrictCrc16')?.checked),
-        autoBlacklistFakeSlip: Boolean(document.getElementById('chkSlipGuardAutoBlacklist')?.checked)
-      }),
+      async () => {
+        const ok = await global.OcaSlipGuard.saveConfig(nextCfg);
+        if (ok && typeof global.logDetailedAuditEvent === 'function') {
+          global.logDetailedAuditEvent({
+            action: 'SLIP_GUARD_SAVED',
+            targetType: 'app_settings',
+            targetId: 'slip_guard_config',
+            summary: 'อัปเดตตั้งค่าป้องกันทุจริตสลิปโอนเงิน (Slip Guard)',
+            before: beforeCfg,
+            after: nextCfg,
+            severity: 'WARN'
+          });
+        }
+        return ok;
+      },
       'บันทึกการตั้งค่า Slip Guard แล้ว',
       'อัปเดตลง app_settings เรียบร้อย'
     );
   };
 
   global.saveEmailSettingsFromUi = async function () {
+    const beforeCfg = { ..._cachedEmailConfig };
+    const nextCfg = {
+      brevoLowQuotaThreshold: Number(document.getElementById('inpEmailBrevoThreshold')?.value || 50),
+      autoEmailOnApprove: Boolean(document.getElementById('chkEmailAutoOnApprove')?.checked),
+      autoEmailOnReject: Boolean(document.getElementById('chkEmailAutoOnReject')?.checked)
+    };
     await _runSettingsSaveWithFeedback(
       'btnSaveEmailSettings',
-      () => saveEmailConfig({
-        brevoLowQuotaThreshold: Number(document.getElementById('inpEmailBrevoThreshold')?.value || 50),
-        autoEmailOnApprove: Boolean(document.getElementById('chkEmailAutoOnApprove')?.checked),
-        autoEmailOnReject: Boolean(document.getElementById('chkEmailAutoOnReject')?.checked)
-      }),
+      async () => {
+        const ok = await saveEmailConfig(nextCfg);
+        if (ok && typeof global.logDetailedAuditEvent === 'function') {
+          global.logDetailedAuditEvent({
+            action: 'EMAIL_CONFIG_SAVED',
+            targetType: 'app_settings',
+            targetId: 'email_config',
+            summary: 'อัปเดตตั้งค่าระบบส่งอีเมล & เกณฑ์โควตา Brevo',
+            before: beforeCfg,
+            after: nextCfg,
+            severity: 'INFO'
+          });
+        }
+        return ok;
+      },
       'บันทึกการตั้งค่าอีเมลแล้ว',
       'อัปเดตลง app_settings เรียบร้อย'
     );
@@ -716,6 +748,17 @@
     _emailActionBusy = true;
     try {
       const ok = await global.OcaSlipGuard.removeBlacklistedSlip(key);
+      if (ok && typeof global.logDetailedAuditEvent === 'function') {
+        global.logDetailedAuditEvent({
+          action: 'SLIP_BLACKLIST_REMOVED',
+          targetType: 'fee_settings',
+          targetId: key,
+          summary: `ปลดล็อกสลิปออกจากบัญชีดำ (${key})`,
+          before: { blacklisted: true },
+          after: { blacklisted: false },
+          severity: 'CRITICAL'
+        });
+      }
       if (typeof global.showToast === 'function') {
         global.showToast(ok ? 'ปลดล็อกรายการแล้ว' : 'ปลดล็อกไม่สำเร็จ', key, ok ? '✅' : '❌');
       }
@@ -730,6 +773,15 @@
     _emailActionBusy = true;
     try {
       const res = await retryFailedEmail(id);
+      if (res && res.success && typeof global.logDetailedAuditEvent === 'function') {
+        global.logDetailedAuditEvent({
+          action: 'FAILED_EMAIL_RETRIED',
+          targetType: 'email_queue',
+          targetId: id,
+          summary: `ส่งอีเมลค้างในคิวซ้ำสำเร็จ (${id})`,
+          severity: 'INFO'
+        });
+      }
       if (typeof global.showToast === 'function') {
         global.showToast(res.success ? 'ส่งอีเมลซ้ำสำเร็จ' : 'ส่งอีเมลซ้ำไม่สำเร็จ', res.error || 'นำออกจากคิวเรียบร้อย', res.success ? '✅' : '❌');
       }
@@ -766,10 +818,25 @@
 
   global.handleSaveIdleTimeoutFromUi = async function () {
     const sel = document.getElementById('selSettingsIdleTimeout');
+    const prevMins = Number(global._ocaIdleTimeoutMinutes || 30);
     const mins = Number(sel ? sel.value : 30);
     await _runSettingsSaveWithFeedback(
       'btnSaveIdleTimeout',
-      () => saveIdleTimeoutMinutes(mins),
+      async () => {
+        const ok = await saveIdleTimeoutMinutes(mins);
+        if (ok && typeof global.logDetailedAuditEvent === 'function') {
+          global.logDetailedAuditEvent({
+            action: 'IDLE_TIMEOUT_SAVED',
+            targetType: 'app_settings',
+            targetId: 'idle_timeout_minutes',
+            summary: `ตั้งเวลา Auto-Logout เป็น ${mins} นาที`,
+            before: { minutes: prevMins },
+            after: { minutes: mins },
+            severity: 'WARN'
+          });
+        }
+        return ok;
+      },
       'บันทึกเวลา Auto-Logout แล้ว',
       `ตั้งค่าเป็น ${mins} นาที`
     );
