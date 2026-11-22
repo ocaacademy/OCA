@@ -12332,7 +12332,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '227';
+      var LATEST_VERSION = '228';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -27246,7 +27246,7 @@ body.printing-report #printReportContainer {
       copy.deliveryAddress = copy.address;
       copy.type = String(r.type || r.receipt_type || 'tuition');
       copy.receiptType = copy.type;
-      copy.yearBe = r.yearBe || r.year_be || 2569;
+      copy.yearBe = r.yearBe || r.year_be || ((typeof resolveCurrentAcademicTerm === 'function' && resolveCurrentAcademicTerm()?.yearBE) || (new Date().getFullYear() + 543));
       let rawT = r.term !== undefined ? String(r.term).trim() : '';
       if (!rawT && r.receipt_no && String(r.receipt_no).length >= 3) {
         rawT = String(r.receipt_no).charAt(2);
@@ -27470,7 +27470,7 @@ body.printing-report #printReportContainer {
         copy.deliveryAddress = copy.address;
         copy.type = String(r.type || r.receipt_type || 'tuition');
         copy.receiptType = copy.type;
-        copy.yearBe = r.yearBe || r.year_be || 2569;
+        copy.yearBe = r.yearBe || r.year_be || ((typeof resolveCurrentAcademicTerm === 'function' && resolveCurrentAcademicTerm()?.yearBE) || (new Date().getFullYear() + 543));
         copy.term = r.term !== undefined ? r.term : 1;
         copy.itemCode = String(r.itemCode || r.item_code || '');
         copy.itemName = String(r.itemName || r.item_name || '');
@@ -27643,7 +27643,7 @@ body.printing-report #printReportContainer {
         if (!newPin || newPin.length < 4) {
           return { success: false, message: 'รหัส PIN ใหม่ต้องมีอย่างน้อย 4 หลัก' };
         }
-        localStorage.setItem('oca_custom_pin', newPin);
+        try { localStorage.setItem('oca_custom_pin', newPin); } catch (_) {}
         try {
           if (typeof _supabase !== 'undefined' && _supabase && window.crypto && window.crypto.subtle) {
             const msgUint8 = new window.TextEncoder().encode('OCA_PIN_SALT:' + newPin);
@@ -27763,8 +27763,9 @@ body.printing-report #printReportContainer {
         const subTotal = rawBaseAmount + regFee + cardFee + otherFee;
         const subTotalFormatted = subTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const discountFormatted = discount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const term = (rcpt && rcpt.term) || params.term || '5';
-        const yearBE = (rcpt && rcpt.year_be) || params.yearBE || '2569';
+        const _fallbackTermObj = (typeof resolveCurrentAcademicTerm === 'function') ? resolveCurrentAcademicTerm() : null;
+        const term = (rcpt && rcpt.term) || params.term || String((_fallbackTermObj && _fallbackTermObj.term) || '5');
+        const yearBE = (rcpt && rcpt.year_be) || params.yearBE || String((_fallbackTermObj && _fallbackTermObj.yearBE) || (new Date().getFullYear() + 543));
         const learningMode = (rcpt && rcpt.learning_mode) || params.learningMode || 'Online';
         const deliveryMethod = (rcpt && rcpt.delivery_method) || params.deliveryMethod || 'รับเอง';
         const materialType = (rcpt && rcpt.material_type) || params.materialType || 'หนังสือและสมุด';
@@ -30126,12 +30127,12 @@ if (action === 'getDashboardStats') {
         }
         // --- 9. GET RECEIPTS LIST ---
         if (action === 'getReceipts') {
-          // Fast B-Tree indexed query for modern active receipts (2568-2579: receipt_no >= '6800000' and < '8000000')
+          // Fast B-Tree indexed query for modern active receipts (2568+: receipt_no >= '6800000' and < '9999999')
           // Prevents PostgREST 500 Statement Timeout on 424,000 rows (executes in <150ms)
           let rcQuery = _supabase.from('receipts')
             .select('*')
             .gte('receipt_no', '6800000')
-            .lt('receipt_no', '8000000')
+            .lt('receipt_no', '9999999')
             .order('receipt_no', { ascending: false })
             .limit(300);
           let [rcRes, cntRes] = await Promise.all([
@@ -30139,7 +30140,7 @@ if (action === 'getDashboardStats') {
             _supabase.from('receipts')
               .select('receipt_no', { count: 'estimated', head: true })
               .gte('receipt_no', '6800000')
-              .lt('receipt_no', '8000000')
+              .lt('receipt_no', '9999999')
           ]);
           let { data, error } = rcRes;
           const exactTotalCount = (!cntRes.error && typeof cntRes.count === 'number') ? cntRes.count : null;
@@ -30642,13 +30643,7 @@ if (action === 'getDashboardStats') {
             stList = (qData || []).filter(s => !isStudentDeleted(s));
             totalCount = stList.length;
           } else if (reqYear === 'ALL') {
-            let totRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true });
-            if (totRes.error) {
-              totRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true });
-            }
-            if (totRes.error) {
-              totRes = await _supabase.from('students').select('student_id', { count: 'estimated', head: true });
-            }
+            let totRes = await _supabase.from('students').select('student_id', { count: 'estimated', head: true });
             const delRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', '6800000').eq('status', 'DELETED');
             const { data: allData } = await _supabase.from('students')
               .select(REPORT_STUDENT_COLS)
@@ -30659,7 +30654,7 @@ if (action === 'getDashboardStats') {
             if (!totRes.error && typeof totRes.count === 'number') {
               totalCount = Math.max(0, totRes.count - ((!delRes.error && typeof delRes.count === 'number') ? delRes.count : 0));
             } else {
-              const liveModernRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', '6900000').lt('student_id', '8000000');
+              const liveModernRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', '6900000').lt('student_id', '9999999');
               const histReg = window.OCA_ACADEMIC_YEARS_REGISTRY || {};
               const histSum = Object.keys(histReg).reduce((acc, y) => (Number(y) < 2569 ? acc + (Number(histReg[y]?.total) || 0) : acc), 0);
               const liveModern = (!liveModernRes.error && typeof liveModernRes.count === 'number') ? liveModernRes.count : stList.length;
@@ -31094,7 +31089,7 @@ if (action === 'getDashboardStats') {
           let data = [];
           try {
             data = await fetchAllPaginatedSupabaseRows(() => {
-              let query = _supabase.from('receipts').select('*').gte('receipt_no', '6900000').lt('receipt_no', '8000000');
+              let query = _supabase.from('receipts').select('*').gte('receipt_no', '6900000').lt('receipt_no', '9999999');
               if (params && params.search) {
                 const s = sanitizePostgrestSearchToken(params.search);
                 if (s) {
@@ -31136,7 +31131,7 @@ if (action === 'getDashboardStats') {
               _supabase.from('receipts')
                 .select('id, receipt_no, receipt_type, student_id, buyer_name, citizen_id, address, item_name, material_type, delivery_method, shipping_fee, tracking_number, claim_status, claimed_at, claimed_by, edit_notes, created_at')
                 .gte('receipt_no', '6900000')
-                .lt('receipt_no', '8000000')
+                .lt('receipt_no', '9999999')
                 .order('receipt_no', { ascending: false })
             , 1000, 20000);
             rawYearReceipts = (typeof window.withSupabaseRetry === 'function')
@@ -41467,14 +41462,17 @@ if (action === 'getDashboardStats') {
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:25px; color:var(--text-muted);"><i class="fa-solid fa-door-open" style="margin-right:6px;"></i> ${emptyMsg}</td></tr>`;
         return;
       }
-      tbody.innerHTML = cachedClassroomsList.map(r => `
+      tbody.innerHTML = cachedClassroomsList.map(r => {
+        const safeRoomNo = escapeHtml(r.roomNo || '');
+        const safeRoomJs = escapeHtml(String(r.roomNo || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+        return `
         <tr style="border-bottom:1px solid rgba(255,255,255,0.05); hover:background:rgba(255,255,255,0.02);">
-          <td style="padding:10px 16px; font-weight:800; color:#38bdf8; font-family:monospace; font-size:13.5px;">${r.roomNo}</td>
+          <td style="padding:10px 16px; font-weight:800; color:#38bdf8; font-family:monospace; font-size:13.5px;">${safeRoomNo}</td>
           <td style="padding:10px 16px; font-size:13px; color:var(--text-main);">
-            <div style="font-weight:600;">${r.name || '-'}</div>
-            <div style="font-size:11px; color:var(--text-muted);">${r.notes || ''}</div>
+            <div style="font-weight:600;">${escapeHtml(r.name || '-')}</div>
+            <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(r.notes || '')}</div>
           </td>
-          <td style="padding:10px 16px; text-align:center; font-size:13px; color:var(--text-main); font-weight:700;">${r.capacity || 30}</td>
+          <td style="padding:10px 16px; text-align:center; font-size:13px; color:var(--text-main); font-weight:700;">${escapeHtml(String(r.capacity || 30))}</td>
           <td style="padding:10px 16px; font-size:12px; color:var(--text-muted);">
             <span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; background:rgba(56,189,248,0.12); color:#38bdf8; border:1px solid rgba(56,189,248,0.25);">
               <i class="fa-solid fa-check"></i> ${badgeText}
@@ -41483,18 +41481,18 @@ if (action === 'getDashboardStats') {
 
           <td style="padding:10px 16px; text-align:center;">
             <div style="display:flex; justify-content:center; gap:6px;">
-              <button type="button" class="oca-btn-action" style="padding:4px 8px; font-size:11px; color:#38bdf8; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3); border-radius:6px; cursor:pointer;" onclick="openClassroomModal('${r.roomNo}')" title="แก้ไขห้องเรียน">
+              <button type="button" class="oca-btn-action" style="padding:4px 8px; font-size:11px; color:#38bdf8; background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.3); border-radius:6px; cursor:pointer;" onclick="openClassroomModal('${safeRoomJs}')" title="แก้ไขห้องเรียน">
                 <i class="fa-solid fa-pen-to-square"></i>
               </button>
 
-              <button type="button" class="oca-btn-action" style="padding:4px 8px; font-size:11px; color:#ef4444; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:6px; cursor:pointer;" onclick="deleteClassroomItem('${r.roomNo}')" title="ลบห้องเรียน">
+              <button type="button" class="oca-btn-action" style="padding:4px 8px; font-size:11px; color:#ef4444; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:6px; cursor:pointer;" onclick="deleteClassroomItem('${safeRoomJs}')" title="ลบห้องเรียน">
                 <i class="fa-solid fa-trash"></i>
               </button>
             </div>
           </td>
         </tr>
 
-      `).join('');
+      `; }).join('');
     }
     function updateClassroomDatalists() {
       const dl = document.getElementById('dlRosterRooms');
@@ -44040,8 +44038,9 @@ if (action === 'getDashboardStats') {
       if (_schedPopoverHideTimer) { clearTimeout(_schedPopoverHideTimer); _schedPopoverHideTimer = null; }
       const schedId = triggerEl.getAttribute('data-sched-id') || '';
       const schedName = triggerEl.getAttribute('data-sched-name') || schedId;
-      const termVal = triggerEl.getAttribute('data-term') || '1';
-      const yearVal = triggerEl.getAttribute('data-year') || '2570';
+      const _popTerm = (typeof resolveCurrentAcademicTerm === 'function') ? resolveCurrentAcademicTerm() : null;
+      const termVal = triggerEl.getAttribute('data-term') || String((_popTerm && _popTerm.term) || '1');
+      const yearVal = triggerEl.getAttribute('data-year') || String((_popTerm && _popTerm.yearBE) || (new Date().getFullYear() + 543));
       const codes = (typeof getOfferedCourseCodesForSchedule === 'function')
         ? getOfferedCourseCodesForSchedule(schedId, termVal, yearVal)
         : [];
@@ -47335,10 +47334,12 @@ if (action === 'getDashboardStats') {
           const fullCloudMap = await window.OcaAppConfig.get('card_printer_calibration', null);
           if (fullCloudMap && typeof fullCloudMap === 'object' && Object.keys(fullCloudMap).length > 0) {
             const restored = { ...fullCloudMap };
-            localStorage.setItem('oca_card_calib_map', JSON.stringify(restored));
-            if (restored._activePreset) {
-              localStorage.setItem('oca_card_printer_preset', restored._activePreset);
-            }
+            try {
+              localStorage.setItem('oca_card_calib_map', JSON.stringify(restored));
+              if (restored._activePreset) {
+                localStorage.setItem('oca_card_printer_preset', restored._activePreset);
+              }
+            } catch (_) {}
             loadCardCalibrationSettings();
             return;
           }
@@ -52247,7 +52248,7 @@ if (action === 'getDashboardStats') {
     }
     function submitEditReceiptForm(event) {
       if (event) event.preventDefault();
-      if (!currentEditingReceiptNo) return;
+      if (!currentEditingReceiptNo || window._isSavingEditReceipt) return;
       const buyerName = document.getElementById('inpEditRcptBuyerName')?.value.trim();
       const itemName = document.getElementById('inpEditRcptItemName')?.value.trim();
       const editNotes = document.getElementById('inpEditRcptNotes')?.value.trim();
@@ -52263,6 +52264,9 @@ if (action === 'getDashboardStats') {
         showToast('กรุณาระบุหมายเหตุการแก้ไข', 'จำเป็นต้องระบุเหตุผลเพื่อบันทึกประวัติ', '⚠️');
         return;
       }
+      window._isSavingEditReceipt = true;
+      const submitBtn = document.querySelector('#modalEditReceipt button[type="submit"], #btnSubmitEditReceipt');
+      if (submitBtn) submitBtn.disabled = true;
       const grandTotal = Number(document.getElementById('inpEditRcptGrandTotal')?.dataset.rawTotal) || 0;
       const email = document.getElementById('inpEditRcptEmail')?.value.trim() || '';
       const sendEmail = document.getElementById('chkEditRcptSendEmail')?.checked || false;
@@ -52309,6 +52313,10 @@ if (action === 'getDashboardStats') {
         })
         .catch(err => {
           showToast('ข้อผิดพลาดในการแก้ไข', err.message || '', '❌');
+        })
+        .finally(() => {
+          window._isSavingEditReceipt = false;
+          if (submitBtn) submitBtn.disabled = false;
         });
     }
     function populateContinuousReceiptPreview(item, options = {}) {
@@ -55502,9 +55510,9 @@ if (action === 'getDashboardStats') {
         return `
 
           <tr style="border-bottom:1px solid rgba(255,255,255,0.05); hover:background:rgba(255,255,255,0.02);">
-            <td style="padding:10px 14px; text-align:center; color:var(--text-muted); font-size:12.5px;">${data.termLabel}</td>
-            <td style="padding:10px 14px; font-weight:800; color:var(--accent-emerald); font-family:'JetBrains Mono', monospace; font-size:13px;">${c.courseCode}</td>
-            <td style="padding:10px 14px; color:var(--text-main); font-size:12.5px;">${c.courseName}</td>
+            <td style="padding:10px 14px; text-align:center; color:var(--text-muted); font-size:12.5px;">${escapeHtml(data.termLabel)}</td>
+            <td style="padding:10px 14px; font-weight:800; color:var(--accent-emerald); font-family:'JetBrains Mono', monospace; font-size:13px;">${escapeHtml(c.courseCode)}</td>
+            <td style="padding:10px 14px; color:var(--text-main); font-size:12.5px;">${escapeHtml(c.courseName)}</td>
             <td style="padding:10px 16px; text-align:right; font-weight:700; color:var(--text-main); font-size:13px; font-family:'JetBrains Mono', monospace;">${c.count.toLocaleString()}</td>
             <td style="padding:10px 16px; text-align:right; font-weight:700; color:var(--color-gold); font-size:13px; font-family:'JetBrains Mono', monospace;">${pctDisplay}</td>
           </tr>
@@ -55745,7 +55753,7 @@ if (action === 'getDashboardStats') {
             headers: {
               'apikey': SUPABASE_ANON_KEY,
               'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-              'Prefer': 'count=exact',
+              'Prefer': isAllYears ? 'count=estimated' : 'count=exact',
               'Range': '0-0'
             }
           });
@@ -55817,7 +55825,7 @@ if (action === 'getDashboardStats') {
       } catch (err) {
         console.error('loadCourseBreakdownReport error:', err);
         if (tbody) {
-          tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:#ef4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> เกิดข้อผิดพลาดในการดึงข้อมูล: ${err.message || err}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:#ef4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> เกิดข้อผิดพลาดในการดึงข้อมูล: ${escapeHtml(err.message || err)}</td></tr>`;
         }
       }
     }
@@ -56252,7 +56260,7 @@ if (action === 'getDashboardStats') {
             }
           } else {
             let qCount = _supabase.from('students')
-              .select('*', { count: 'exact', head: true })
+              .select('*', { count: /^\d{4}$/.test(yearFilter) ? 'exact' : 'estimated', head: true })
               .or('status.is.null,status.neq.DELETED');
             if (/^\d{4}$/.test(yearFilter)) {
               const yrPrefix = yearFilter.slice(-2);
@@ -56440,7 +56448,7 @@ if (action === 'getDashboardStats') {
         _ministryLoadedYear = null;
         console.error('loadMinistryReport error:', err);
         if (tbody) {
-          tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:#ef4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> เกิดข้อผิดพลาดในการดึงข้อมูล: ${err.message || err}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:#ef4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> เกิดข้อผิดพลาดในการดึงข้อมูล: ${escapeHtml(err.message || err)}</td></tr>`;
         }
       }
     }
@@ -59491,7 +59499,7 @@ if (action === 'getDashboardStats') {
 
           <td colspan="6" style="padding:8px 16px; font-weight:700; color:var(--accent-emerald); border-top:1px solid rgba(255,255,255,0.1); border-bottom:1px solid rgba(255,255,255,0.1);">
 
-            ▼ ${slot.slotLabel || ''} (${slot.timeBegin || ''} – ${slot.timeEnd || ''} น.)${slot.groupLabel ? ' — ' + slot.groupLabel : ''}
+            ▼ ${escapeHtml(slot.slotLabel || '')} (${escapeHtml(slot.timeBegin || '')} – ${escapeHtml(slot.timeEnd || '')} น.)${slot.groupLabel ? ' — ' + escapeHtml(slot.groupLabel) : ''}
 
           </td>
         </tr>`;
@@ -59499,20 +59507,20 @@ if (action === 'getDashboardStats') {
           const countColor = cls.studentCount >= 30 ? '#92400E' : '#047857';
           html += `<tr style="border-bottom:1px solid var(--border-soft); transition:background 0.15s ease;">
 
-            <td style="padding:10px 16px; font-family:monospace; color:var(--text-main); font-weight:600;">${cls.courseCode || ''}</td>
-            <td style="padding:10px 16px; color:var(--text-main);">${cls.section || ''}</td>
-            <td style="padding:10px 16px; color:var(--text-main); font-weight:500;">${cls.lecturerName || ''}</td>
+            <td style="padding:10px 16px; font-family:monospace; color:var(--text-main); font-weight:600;">${escapeHtml(cls.courseCode || '')}</td>
+            <td style="padding:10px 16px; color:var(--text-main);">${escapeHtml(cls.section || '')}</td>
+            <td style="padding:10px 16px; color:var(--text-main); font-weight:500;">${escapeHtml(cls.lecturerName || '')}</td>
             <td style="padding:10px 16px; text-align:right;">
               <span style="padding:3px 8px; border-radius:12px; font-size:12px; font-weight:700; background:rgba(16,185,129,0.15); color:${countColor};">${(cls.studentCount || 0).toLocaleString()} คน</span>
             </td>
 
             <td style="padding:10px 16px;">
 
-              ${cls.room ? `<span style="padding:3px 8px; border-radius:6px; font-size:12px; font-weight:600; background:rgba(215,166,0,0.15); color:#0F172A;">ห้อง ${cls.room}</span>` : '<span style="color:var(--text-muted);">-</span>'}
+              ${cls.room ? `<span style="padding:3px 8px; border-radius:6px; font-size:12px; font-weight:600; background:rgba(215,166,0,0.15); color:#0F172A;">ห้อง ${escapeHtml(cls.room)}</span>` : '<span style="color:var(--text-muted);">-</span>'}
 
             </td>
 
-            <td style="padding:10px 16px; font-size:12.5px; color:var(--text-muted);">${cls.remark || 'ปกติ'}</td>
+            <td style="padding:10px 16px; font-size:12.5px; color:var(--text-muted);">${escapeHtml(cls.remark || 'ปกติ')}</td>
           </tr>`;
         }
         html += `<tr style="background: rgba(215,166,0,0.1);">
@@ -61149,7 +61157,7 @@ if (action === 'getDashboardStats') {
     if (!window._loginAutoRefreshTimer) {
       window._loginAutoRefreshTimer = setInterval(() => {
         const splitView = document.getElementById('viewLoginSplit');
-        if (splitView && splitView.style.display !== 'none') {
+        if (!document.hidden && splitView && splitView.style.display !== 'none') {
           loadLoginAnalytics(true);
         }
       }, 12000);
@@ -61365,10 +61373,10 @@ if (action === 'getDashboardStats') {
         } else {
           // Security Layer 1: Increment brute-force failure tracking
           let attempts = parseInt(localStorage.getItem('oca_login_attempts') || '0', 10) + 1;
-          localStorage.setItem('oca_login_attempts', String(attempts));
+          try { localStorage.setItem('oca_login_attempts', String(attempts)); } catch (_) {}
           if (attempts >= 5) {
             const lockTime = Date.now() + 3 * 60 * 1000;
-            localStorage.setItem('oca_login_lockout_until', String(lockTime));
+            try { localStorage.setItem('oca_login_lockout_until', String(lockTime)); } catch (_) {}
             if (typeof _supabase !== 'undefined' && _supabase) {
               try {
                 _supabase.from('security_audit_logs').insert([{
@@ -62333,21 +62341,23 @@ if (action === 'getDashboardStats') {
 
                 ${(() => {
                   const uK = (u.username || '').toLowerCase();
+                  const safeUNameHtml = escapeHtml(u.username || '');
+                  const safeUNameJs = escapeHtml(String(u.username || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
                   const av = u.avatarUrl || (typeof _ocaStaffAvatars !== 'undefined' ? _ocaStaffAvatars[uK] : '') || localStorage.getItem('oca_staff_avatar_' + uK);
                   if (av) {
-                    return `<img src="${av}" alt="${u.username}" style="width:32px; height:32px; min-width:32px; min-height:32px; flex-shrink:0; border-radius:50%; object-fit:cover; border:1.5px solid var(--color-gold); cursor:pointer;" onclick="openEditUserModal('${u.username}')" title="คลิกเพื่อแก้ไขผู้ใช้งาน/เปลี่ยนรูปโปรไฟล์">`;
+                    return `<img src="${escapeHtml(av)}" alt="${safeUNameHtml}" style="width:32px; height:32px; min-width:32px; min-height:32px; flex-shrink:0; border-radius:50%; object-fit:cover; border:1.5px solid var(--color-gold); cursor:pointer;" onclick="openEditUserModal('${safeUNameJs}')" title="คลิกเพื่อแก้ไขผู้ใช้งาน/เปลี่ยนรูปโปรไฟล์">`;
                   }
-                  return `<div class="oca-user-avatar-initials" style="width:32px; height:32px; min-width:32px; min-height:32px; flex-shrink:0; border-radius:50%; background:linear-gradient(135deg, #0F3D2E, #065F46); border:1px solid #047857; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; cursor:pointer;" onclick="openEditUserModal('${u.username}')" title="คลิกเพื่อแก้ไขผู้ใช้งาน/เพิ่มรูปโปรไฟล์">${u.username.substring(0, 2).toUpperCase()}</div>`;
+                  return `<div class="oca-user-avatar-initials" style="width:32px; height:32px; min-width:32px; min-height:32px; flex-shrink:0; border-radius:50%; background:linear-gradient(135deg, #0F3D2E, #065F46); border:1px solid #047857; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; cursor:pointer;" onclick="openEditUserModal('${safeUNameJs}')" title="คลิกเพื่อแก้ไขผู้ใช้งาน/เพิ่มรูปโปรไฟล์">${escapeHtml((u.username || '').substring(0, 2).toUpperCase())}</div>`;
                 })()}
 
                 <div>
-                  <div style="font-weight:700; color:var(--text-main); font-size:13.5px;">${u.username}</div>
+                  <div style="font-weight:700; color:var(--text-main); font-size:13.5px;">${escapeHtml(u.username || '')}</div>
                   ${(() => {
                     const lang = window._currentSystemLang || 'th';
                     if (u.lastLogin) {
                       const formattedDate = (typeof formatThaiDateTime === 'function') ? formatThaiDateTime(u.lastLogin) : u.lastLogin.substring(0, 16);
                       const lbl = (lang === 'zh') ? '最近登录: ' : ((lang === 'en') ? 'Last Login: ' : 'เข้าสู่ระบบล่าสุด: ');
-                      return `<div style="font-size:11px; margin-top:2px; color:var(--accent-emerald); font-weight:600;"><i class="fa-solid fa-clock-rotate-left" style="margin-right:3px;"></i>${lbl}${formattedDate}</div>`;
+                      return `<div style="font-size:11px; margin-top:2px; color:var(--accent-emerald); font-weight:600;"><i class="fa-solid fa-clock-rotate-left" style="margin-right:3px;"></i>${lbl}${escapeHtml(formattedDate)}</div>`;
                     }
                     const neverText = (lang === 'zh') ? '从未登录' : ((lang === 'en') ? 'Never logged in' : 'ยังไม่เคยเข้าสู่ระบบ');
                     return `<div style="font-size:11px; margin-top:2px; color:var(--text-muted);">${neverText}</div>`;
@@ -62358,7 +62368,7 @@ if (action === 'getDashboardStats') {
 
             <td style="padding:12px 16px; font-size:13px; color:var(--text-main); font-weight:500;">
 
-              ${u.fullName || '-'}
+              ${escapeHtml(u.fullName || '-')}
 
             </td>
 
@@ -62367,13 +62377,13 @@ if (action === 'getDashboardStats') {
               ${(u.role === 'Teacher') ? `
 
                 <span style="display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:12px; background:rgba(245,158,11,0.18); border:1px solid rgba(180,83,9,0.4); color:#0F172A; font-size:11.5px; font-weight:700; white-space:nowrap;">
-                  <i class="fa-solid fa-chalkboard-user"></i> <span>Teacher</span>${(u.assignedSchedule && u.assignedSchedule !== 'ALL') ? `<span style="font-size:11px; font-family:monospace; color:#0369A1; font-weight:600; margin-left:3px;">(${u.assignedSchedule})</span>` : ''}
+                  <i class="fa-solid fa-chalkboard-user"></i> <span>Teacher</span>${(u.assignedSchedule && u.assignedSchedule !== 'ALL') ? `<span style="font-size:11px; font-family:monospace; color:#0369A1; font-weight:600; margin-left:3px;">(${escapeHtml(u.assignedSchedule)})</span>` : ''}
                 </span>
 
               ` : `
 
                 <span style="display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:12px; background:rgba(2,132,199,0.18); border:1px solid rgba(3,105,161,0.35); color:#0369A1; font-size:11.5px; font-weight:600; white-space:nowrap;">
-                  <span>${u.role || 'Staff'}</span>
+                  <span>${escapeHtml(u.role || 'Staff')}</span>
                 </span>
 
               `}
@@ -62386,7 +62396,7 @@ if (action === 'getDashboardStats') {
 
             <td style="padding:12px 16px; text-align:center; font-family:monospace; font-size:12px; color:var(--color-gold);">
 
-              ${u.deviceId || '-'}
+              ${escapeHtml(u.deviceId || '-')}
 
             </td>
 
@@ -64096,14 +64106,25 @@ if (action === 'getDashboardStats') {
       for (const item of items) {
         try {
           const res = await callSupabaseApi(item.action, item.params, 'POST', true);
-          if (res && (res.success === true || res.studentId || res.receiptNo)) {
+          if (res && (res.success === true || res.studentId || res.receiptNo || res.isDuplicate || res.duplicatePrevented || res.duplicateCitizenId)) {
             await OcaOfflineDB.deleteOutbox(item.id);
             successCount++;
+          } else {
+            item._retryCount = (item._retryCount || 0) + 1;
+            if (item._retryCount >= 5) {
+              console.warn('[OfflineSync] Dropping poison-pill outbox item after 5 attempts:', item.id, res);
+              await OcaOfflineDB.deleteOutbox(item.id);
+            }
           }
         } catch (err) {
           console.warn('Sync failed for item:', item, err);
           if (!navigator.onLine) {
             break;
+          }
+          item._retryCount = (item._retryCount || 0) + 1;
+          if (item._retryCount >= 5) {
+            console.warn('[OfflineSync] Dropping permanent-fail outbox item after 5 attempts:', item.id);
+            await OcaOfflineDB.deleteOutbox(item.id);
           }
         }
       }
@@ -64228,7 +64249,8 @@ if (action === 'getDashboardStats') {
       showToast('โหมดออฟไลน์', 'สัญญาณอินเทอร์เน็ตขาดหาย ระบบเปิดใช้งานโหมดบันทึกข้อมูลในเครื่องชั่วคราว', '⚡');
     });
     // Background Auto-Sync Timer (Every 25 seconds)
-    setInterval(() => {
+    if (window._ocaOfflineSyncInterval) clearInterval(window._ocaOfflineSyncInterval);
+    window._ocaOfflineSyncInterval = setInterval(() => {
       if (navigator.onLine && !_isSyncingOfflineQueue) {
         syncOfflineQueue();
       }
@@ -64267,7 +64289,89 @@ if (action === 'getDashboardStats') {
     ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
       window.addEventListener(evt, resetSecurityIdleTimer, { passive: true });
     });
+    function ensureDynamicAcademicYearOptions(targetMaxYearBE) {
+      try {
+        const curBe = new Date().getFullYear() + 543;
+        const resolved = (typeof resolveCurrentAcademicTerm === 'function') ? resolveCurrentAcademicTerm() : null;
+        const activeYear = Math.max(curBe, Number(resolved && resolved.yearBE) || 0);
+        const maxYear = Math.max(activeYear + 3, Number(targetMaxYearBE) || 0);
+        const singleYearIds = [
+          'dashYearSelect', 'selYear', 'selSearchYear', 'selRcptYear',
+          'selFinanceFilterYearTerm', 'selCourseBreakdownYear', 'selMinistryYear',
+          'selTermDatesYear', 'selReportDeferralYear', 'selReportTbYear',
+          'selReportExamRegYear', 'selCGIMYear', 'selBatchTransferYear',
+          'selCloneSourceYear', 'selActiveGlobalYearBE'
+        ];
+        singleYearIds.forEach((id) => {
+          const sel = document.getElementById(id);
+          if (!sel || !sel.options) return;
+          const prevVal = sel.value;
+          const existingYears = new Set();
+          let firstYearIdx = -1;
+          let maxExistingYear = 0;
+          let hasYearPrefix = false;
+          for (let i = 0; i < sel.options.length; i++) {
+            const val = String(sel.options[i].value || '').trim();
+            if (/^\d{4}$/.test(val)) {
+              if (firstYearIdx === -1) firstYearIdx = i;
+              const yNum = Number(val);
+              existingYears.add(yNum);
+              if (yNum > maxExistingYear) maxExistingYear = yNum;
+              if (String(sel.options[i].textContent || '').trim().startsWith('ปี')) hasYearPrefix = true;
+            }
+          }
+          const startYear = Math.max(maxExistingYear + 1, activeYear);
+          const anchor = firstYearIdx >= 0 ? sel.options[firstYearIdx] : null;
+          for (let y = maxYear; y >= startYear; y--) {
+            if (existingYears.has(y)) continue;
+            const opt = document.createElement('option');
+            opt.value = String(y);
+            opt.textContent = hasYearPrefix ? `ปี ${y}` : String(y);
+            sel.insertBefore(opt, anchor);
+          }
+          if (prevVal) sel.value = prevVal;
+        });
+        const yearTermIds = [
+          { id: 'selRosterYearTerm', format: (y, t) => `ภาคเรียนที่ ${t}/${y}` },
+          { id: 'selAttTrackYearTerm', format: (y, t) => `ปีการศึกษา ${y} / เทอม ${t}` }
+        ];
+        yearTermIds.forEach(({ id, format }) => {
+          const sel = document.getElementById(id);
+          if (!sel || !sel.options) return;
+          const prevVal = sel.value;
+          const existingVals = new Set();
+          let firstYtIdx = -1;
+          let maxExistingYear = 0;
+          for (let i = 0; i < sel.options.length; i++) {
+            const val = String(sel.options[i].value || '').trim();
+            if (/^\d{4}_\d+$/.test(val)) {
+              if (firstYtIdx === -1) firstYtIdx = i;
+              existingVals.add(val);
+              const yNum = Number(val.split('_')[0]);
+              if (yNum > maxExistingYear) maxExistingYear = yNum;
+            }
+          }
+          const startYear = Math.max(maxExistingYear + 1, activeYear);
+          const anchor = firstYtIdx >= 0 ? sel.options[firstYtIdx] : null;
+          for (let y = maxYear; y >= startYear; y--) {
+            for (let t = 5; t >= 1; t--) {
+              const val = `${y}_${t}`;
+              if (existingVals.has(val)) continue;
+              const opt = document.createElement('option');
+              opt.value = val;
+              opt.textContent = format(y, t);
+              sel.insertBefore(opt, anchor);
+            }
+          }
+          if (prevVal) sel.value = prevVal;
+        });
+      } catch (e) {
+        console.warn('[ensureDynamicAcademicYearOptions]', e);
+      }
+    }
+    window.ensureDynamicAcademicYearOptions = ensureDynamicAcademicYearOptions;
     document.addEventListener('DOMContentLoaded', () => {
+      ensureDynamicAcademicYearOptions();
       if (window.OcaSlipGuard && typeof window.OcaSlipGuard.loadConfig === 'function') {
         window.OcaSlipGuard.loadConfig().catch(() => {});
       }
@@ -64339,7 +64443,8 @@ if (action === 'getDashboardStats') {
         setTimeout(() => { try { if (typeof hydrateTeacherSchedulesFromSupabase === 'function') hydrateTeacherSchedulesFromSupabase(); } catch(_) {} }, 360);
         window.addEventListener('focus', () => { if (typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); });
         document.addEventListener('visibilitychange', () => { if (!document.hidden && typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); });
-        setInterval(() => { if (typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); }, 45000);
+        if (window._ocaSessionVerifyInterval) clearInterval(window._ocaSessionVerifyInterval);
+        window._ocaSessionVerifyInterval = setInterval(() => { if (!document.hidden && typeof verifyActiveUserSession === 'function') verifyActiveUserSession(); }, 45000);
         checkInitialAuthState();
       }
       // Restore payee & fee settings from localStorage immediately to guarantee instant persistence
@@ -72246,7 +72351,7 @@ function openPublicRegisterView() {
             rcQb = rcQb.eq('student_id', targetId);
           } else {
             // Guard: active academic years receipts only to avoid statement timeout on 424k rows
-            rcQb = rcQb.gte('receipt_no', '6800000').lt('receipt_no', '8000000').ilike('buyer_name', `%${cleanQ}%`);
+            rcQb = rcQb.gte('receipt_no', '6800000').lt('receipt_no', '9999999').ilike('buyer_name', `%${cleanQ}%`);
           }
           const { data: rawRcData } = await rcQb
             .or('claim_status.is.null,claim_status.neq.VOIDED')
@@ -80970,10 +81075,12 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             .eq('username', user.username);
           if (updErr) throw updErr;
         }
-        localStorage.setItem(`oca_bio_${user.username}`, JSON.stringify({
-          credentialId: credId,
-          enrolledAt
-        }));
+        try {
+          localStorage.setItem(`oca_bio_${user.username}`, JSON.stringify({
+            credentialId: credId,
+            enrolledAt
+          }));
+        } catch (_) {}
         await checkTeacherBiometricEnrollment();
         if (typeof showToast === 'function') {
           showToast('ลงทะเบียนลายนิ้วมือสำเร็จ!', 'ระบบล็อคลายนิ้วมือสำหรับเข้างานเรียบร้อยแล้ว', '🔒');
@@ -82976,7 +83083,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
 
           <td style="border:1px solid #CBD5E1; padding:5px 8px; font-size:8pt; color:#1E293B;">
 
-            ${r.details || '-'}
+            ${escapeHtml(r.details || '-')}
 
           </td>
         </tr>`;
@@ -83265,7 +83372,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           </div>`;
         }).join('');
       } catch (err) {
-        box.innerHTML = `<div style="font-size:11.5px; color:#F87171;">โหลดประวัติไม่สำเร็จ: ${err.message || ''}</div>`;
+        box.innerHTML = `<div style="font-size:11.5px; color:#F87171;">โหลดประวัติไม่สำเร็จ: ${escapeHtml(err.message || '')}</div>`;
       }
     }
     window.loadTeacherNoticeHistoryList = loadTeacherNoticeHistoryList;
@@ -86378,6 +86485,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         return;
       }
       if (actionMode === 'wait_line') {
+        if (window._isSubmittingSlipVariance) return;
+        window._isSubmittingSlipVariance = true;
         const shortfall = Math.max(0, Math.round((expectedFee - actualTransfer) * 100) / 100);
         try {
           if (typeof _supabase !== 'undefined' && _supabase) {
@@ -86402,6 +86511,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         } catch (err) {
           console.error('[submitVerifySlipVariance wait_line] error:', err);
           if (typeof showToast === 'function') showToast('บันทึกไม่สำเร็จ', err.message || 'เกิดข้อผิดพลาด', '❌', 4000);
+        } finally {
+          window._isSubmittingSlipVariance = false;
         }
         return;
       }
@@ -87086,13 +87197,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=227';
+      const swPath = basePath + 'sw.js?v=228';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (227):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (228):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
