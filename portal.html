@@ -12116,7 +12116,11 @@ body.printing-report #printReportContainer {
     padding-right: 38px !important;
   }
   #modalUserPermission .oca-pass-eye-btn,
-  #oca-app-root #modalUserPermission button.oca-pass-eye-btn {
+  #oca-app-root #modalUserPermission button.oca-pass-eye-btn,
+  #modalChangeSecurityPin .oca-pass-eye-btn,
+  #oca-app-root #modalChangeSecurityPin button.oca-pass-eye-btn,
+  #modalVerifySecurityPin .oca-pass-eye-btn,
+  #oca-app-root #modalVerifySecurityPin button.oca-pass-eye-btn {
     position: absolute !important;
     right: 8px !important;
     top: 50% !important;
@@ -12368,7 +12372,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '238';
+      var LATEST_VERSION = '239';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -20304,12 +20308,25 @@ body.printing-report #printReportContainer {
             </div>
             <div style="padding:20px; display:flex; flex-direction:column; gap:12px;">
               <div>
+                <label for="inpCurrentSecurityPin" style="display:block; font-size:12.5px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">รหัส PIN ปัจจุบัน (เดิมที่ตั้งไว้)</label>
+                <div style="position:relative;">
+                  <input type="password" id="inpCurrentSecurityPin" class="oca-input" readonly value="••••" style="width:100%; height:40px; padding-right:42px; background:rgba(255,255,255,0.06); letter-spacing:2px;" />
+                  <button type="button" class="oca-pass-eye-btn" onclick="togglePasswordVisibility('inpCurrentSecurityPin', this)" title="แสดง/ซ่อนรหัส PIN ปัจจุบัน" style="color:var(--text-muted); cursor:pointer;"><i class="fa-solid fa-eye"></i></button>
+                </div>
+              </div>
+              <div>
                 <label for="inpNewSecurityPin" style="display:block; font-size:12.5px; font-weight:700; color:var(--accent-gold); margin-bottom:6px;">รหัส PIN ใหม่ (อย่างน้อย 4 หลัก)</label>
-                <input type="password" id="inpNewSecurityPin" class="oca-input" minlength="4" placeholder="กรอกรหัส PIN ใหม่..." style="width:100%; height:40px;" />
+                <div style="position:relative;">
+                  <input type="password" id="inpNewSecurityPin" class="oca-input" minlength="4" placeholder="กรอกรหัส PIN ใหม่..." style="width:100%; height:40px; padding-right:42px;" />
+                  <button type="button" class="oca-pass-eye-btn" onclick="togglePasswordVisibility('inpNewSecurityPin', this)" title="แสดง/ซ่อนรหัส PIN ใหม่" style="color:var(--text-muted); cursor:pointer;"><i class="fa-solid fa-eye"></i></button>
+                </div>
               </div>
               <div>
                 <label for="inpConfirmSecurityPin" style="display:block; font-size:12.5px; font-weight:700; color:var(--accent-gold); margin-bottom:6px;">ยืนยันรหัส PIN ใหม่</label>
-                <input type="password" id="inpConfirmSecurityPin" class="oca-input" minlength="4" placeholder="กรอกรหัส PIN ใหม่อีกครั้ง..." style="width:100%; height:40px;" />
+                <div style="position:relative;">
+                  <input type="password" id="inpConfirmSecurityPin" class="oca-input" minlength="4" placeholder="กรอกรหัส PIN ใหม่อีกครั้ง..." style="width:100%; height:40px; padding-right:42px;" />
+                  <button type="button" class="oca-pass-eye-btn" onclick="togglePasswordVisibility('inpConfirmSecurityPin', this)" title="แสดง/ซ่อนการยืนยันรหัส PIN" style="color:var(--text-muted); cursor:pointer;"><i class="fa-solid fa-eye"></i></button>
+                </div>
               </div>
               <div class="oca-staff-note">
                 <i class="fa-solid fa-circle-info" style="margin-right:4px;"></i><strong>หมายเหตุ:</strong> รหัส PIN นี้ใช้สำหรับยืนยันคำสั่งสำคัญของหัวหน้างานเท่านั้น (เช่น ยกเลิกใบเสร็จ, แก้ไขตั้งค่ากลาง) ไม่ใช่รหัสผ่านเข้าสู่ระบบ
@@ -20317,6 +20334,32 @@ body.printing-report #printReportContainer {
               <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:6px;">
                 <button type="button" onclick="closeChangeSecurityPinModal()" class="oca-btn-secondary" style="height:38px; padding:0 16px;">ยกเลิก</button>
                 <button type="button" id="btnSubmitChangeSecurityPin" onclick="submitChangeSecurityPin()" style="height:38px; padding:0 18px; border-radius:9px; border:1px solid var(--color-gold); background:linear-gradient(135deg, #047857, #065F46); color:#ffffff; font-weight:700; font-size:13px; cursor:pointer;">บันทึกรหัส PIN</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="modalVerifySecurityPin" class="oca-custom-modal-backdrop oca-formal-modal" style="display:none; padding:20px; z-index:10050;">
+          <div class="oca-custom-modal-box" style="max-width:420px; width:100%; border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1px solid rgba(239,68,68,0.55); background:#01241d; color:var(--text-main);">
+            <div style="padding:16px 20px; border-bottom:1px solid rgba(239,68,68,0.3); display:flex; justify-content:space-between; align-items:center; background:rgba(239,68,68,0.14);">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <i class="fa-solid fa-shield-halved" style="color:var(--accent-crimson); font-size:17px;"></i>
+                <h3 id="lblVerifyPinTitle" style="margin:0; font-size:15.5px; font-weight:700; color:var(--accent-crimson);">ยืนยันรหัส PIN ความปลอดภัย</h3>
+              </div>
+              <button type="button" id="btnCloseVerifyPinModal" style="background:none; border:none; color:var(--text-muted, #475569); font-size:18px; cursor:pointer; padding:4px;">✕</button>
+            </div>
+            <div style="padding:20px; display:flex; flex-direction:column; gap:12px;">
+              <div id="lblVerifyPinDesc" style="font-size:13px; color:var(--text-muted); line-height:1.5;">กรุณากรอกรหัส PIN ความปลอดภัยเพื่อยืนยันการทำรายการสำคัญ</div>
+              <div>
+                <label for="inpVerifySecurityPin" style="display:block; font-size:12.5px; font-weight:700; color:var(--accent-gold); margin-bottom:6px;">รหัส PIN ความปลอดภัย</label>
+                <div style="position:relative;">
+                  <input type="password" id="inpVerifySecurityPin" class="oca-input" autocomplete="off" placeholder="กรอกรหัส PIN..." style="width:100%; height:40px; padding-right:42px;" />
+                  <button type="button" class="oca-pass-eye-btn" onclick="togglePasswordVisibility('inpVerifySecurityPin', this)" title="แสดง/ซ่อนรหัส PIN" style="color:var(--text-muted); cursor:pointer;"><i class="fa-solid fa-eye"></i></button>
+                </div>
+                <div id="lblVerifyPinError" style="display:none; margin-top:6px; font-size:12px; color:var(--accent-crimson); font-weight:600;"></div>
+              </div>
+              <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:6px;">
+                <button type="button" id="btnCancelVerifyPin" class="oca-btn-secondary" style="height:38px; padding:0 16px;">ยกเลิก</button>
+                <button type="button" id="btnConfirmVerifyPin" style="height:38px; padding:0 18px; border-radius:9px; border:1px solid var(--color-gold); background:linear-gradient(135deg, #047857, #065F46); color:#ffffff; font-weight:700; font-size:13px; cursor:pointer;">ยืนยันรหัส PIN</button>
               </div>
             </div>
           </div>
@@ -26239,6 +26282,35 @@ body.printing-report #printReportContainer {
       _isConnectingRealtime = true;
       try {
         _ocaRealtimeChannel = _supabase.channel('oca-global-realtime-sync')
+          .on('broadcast', { event: 'force_pwa_cache_reload' }, async (payload) => {
+            try {
+              const data = (payload && payload.payload) ? payload.payload : (payload || {});
+              const senderDev = data.deviceId || '';
+              const myDev = (typeof window.getOcaDeviceId === 'function') ? window.getOcaDeviceId() : '';
+              if (senderDev && myDev && senderDev === myDev) return;
+              if (window.OcaOfflineDB && typeof window.OcaOfflineDB.getOutbox === 'function') {
+                const pending = await window.OcaOfflineDB.getOutbox();
+                if (Array.isArray(pending) && pending.length > 0) {
+                  if (typeof showToast === 'function') showToast('มีคำสั่งอัปเดตแคช PWA', `พบรายการรอซิงก์ ${pending.length} รายการ ข้ามการรีโหลดอัตโนมัติ`, '⚠️');
+                  return;
+                }
+              }
+              if (typeof showToast === 'function') showToast('ผู้ดูแลระบบสั่งอัปเดตเวอร์ชันใหม่', 'กำลังล้างแคชและรีโหลดหน้าจอใน 3 วินาที...', '🔄');
+              setTimeout(async () => {
+                try {
+                  if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map(r => r.unregister()));
+                  }
+                  if ('caches' in window && window.caches) {
+                    const keys = await window.caches.keys();
+                    await Promise.all(keys.map(k => window.caches.delete(k)));
+                  }
+                } catch (_) {}
+                window.location.reload(true);
+              }, 3000);
+            } catch (_) {}
+          })
           .on('broadcast', { event: 'staff_single_session_login' }, (payload) => {
             console.log('[Realtime Broadcast] Single session login event received:', payload);
             if (typeof handleSingleSessionKick === 'function') {
@@ -38678,7 +38750,9 @@ if (action === 'getDashboardStats') {
         confirmBg: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
         confirmBorder: '#f87171',
         confirmColor: '#ffffff',
-        onConfirm: () => {
+        onConfirm: async () => {
+          const pinOk = await window.requireSecurityPinVerification('ยืนยันการลบนักศึกษา', `ลบข้อมูลนักศึกษา ${studentId} (${dispName})`);
+          if (!pinOk) return;
           callGasApi('deleteStudent', { studentId })
             .then(res => {
               if (res && res.success) {
@@ -38753,6 +38827,8 @@ if (action === 'getDashboardStats') {
         return;
       }
       if (errEl) errEl.style.display = 'none';
+      const pinOk = await window.requireSecurityPinVerification('ยืนยันการยกเลิกใบเสร็จ', `ยกเลิกใบเสร็จเลขที่ ${receiptNo}`);
+      if (!pinOk) return;
       if (btn) btn.disabled = true;
       try {
         const res = await callGasApi('deleteReceipt', { receiptNo, reason });
@@ -39034,6 +39110,34 @@ if (action === 'getDashboardStats') {
     window.exportBackupPaginated = exportBackupPaginated;
     async function clearOcaPwaCacheAndReload() {
       try {
+        const ts = Date.now();
+        const myDev = (typeof window.getOcaDeviceId === 'function') ? window.getOcaDeviceId() : '';
+        try {
+          const rtCh = window._activeOcaChannel || ((typeof _ocaRealtimeChannel !== 'undefined') ? _ocaRealtimeChannel : null);
+          if (rtCh && typeof rtCh.send === 'function') {
+            await rtCh.send({
+              type: 'broadcast',
+              event: 'force_pwa_cache_reload',
+              payload: { ts, deviceId: myDev, triggeredBy: (window._currentUser && window._currentUser.username) || 'admin' }
+            });
+          }
+        } catch (_) {}
+        try {
+          if (window.OcaAppConfig && typeof window.OcaAppConfig.set === 'function') {
+            await window.OcaAppConfig.set('pwa_force_reload_ts', String(ts));
+          }
+        } catch (_) {}
+        try {
+          if (typeof logDetailedAuditEvent === 'function') {
+            logDetailedAuditEvent({
+              action: 'PWA_FORCE_RELOAD_ALL',
+              targetType: 'system',
+              targetId: 'pwa_cache',
+              summary: 'สั่งล้างแคช PWA และรีโหลดระบบทุกเครื่องที่เปิดใช้งาน',
+              severity: 'WARN'
+            });
+          }
+        } catch (_) {}
         if ('serviceWorker' in navigator) {
           const regs = await navigator.serviceWorker.getRegistrations();
           await Promise.all(regs.map(r => r.unregister()));
@@ -39042,20 +39146,141 @@ if (action === 'getDashboardStats') {
           const keys = await window.caches.keys();
           await Promise.all(keys.map(k => window.caches.delete(k)));
         }
-        showToast('ล้างแคชสำเร็จ', 'กำลังโหลดระบบใหม่...', '✓');
-        setTimeout(() => window.location.reload(true), 400);
+        showToast('ล้างแคชสำเร็จ', 'ส่งคำสั่งอัปเดตไปยังทุกเครื่องและกำลังโหลดระบบใหม่...', '✓');
+        setTimeout(() => window.location.reload(true), 500);
       } catch (err) {
         showModal('ล้างแคชไม่สำเร็จ', err.message || '', '❌');
       }
     }
     function openChangeSecurityPinModal() {
       const modal = document.getElementById('modalChangeSecurityPin');
+      const inpCur = document.getElementById('inpCurrentSecurityPin');
       const inp1 = document.getElementById('inpNewSecurityPin');
       const inp2 = document.getElementById('inpConfirmSecurityPin');
-      if (inp1) inp1.value = '';
-      if (inp2) inp2.value = '';
-      if (modal) modal.style.display = 'flex';
+      let savedPin = window._ocaSavedSecurityPin || '';
+      if (!savedPin) {
+        try { savedPin = window.localStorage.getItem('oca_custom_pin') || ''; } catch (_) {}
+      }
+      if (!savedPin) savedPin = '1234';
+      if (inpCur) {
+        inpCur.type = 'password';
+        inpCur.value = savedPin;
+      }
+      if (inp1) {
+        inp1.type = 'password';
+        inp1.value = '';
+      }
+      if (inp2) {
+        inp2.type = 'password';
+        inp2.value = '';
+      }
+      if (modal) {
+        modal.querySelectorAll('.oca-pass-eye-btn i').forEach(ic => {
+          ic.classList.remove('fa-eye-slash');
+          ic.classList.add('fa-eye');
+        });
+        modal.style.display = 'flex';
+      }
     }
+    window.requireSecurityPinVerification = function (actionTitle, actionDesc) {
+      return new Promise((resolve) => {
+        const modal = document.getElementById('modalVerifySecurityPin');
+        const titleEl = document.getElementById('lblVerifyPinTitle');
+        const descEl = document.getElementById('lblVerifyPinDesc');
+        const inpEl = document.getElementById('inpVerifySecurityPin');
+        const errEl = document.getElementById('lblVerifyPinError');
+        const btnOk = document.getElementById('btnConfirmVerifyPin');
+        const btnCancel = document.getElementById('btnCancelVerifyPin');
+        const btnClose = document.getElementById('btnCloseVerifyPinModal');
+        if (!modal || !inpEl || !btnOk) {
+          resolve(true);
+          return;
+        }
+        if (titleEl) titleEl.textContent = actionTitle || 'ยืนยันรหัส PIN ความปลอดภัย';
+        if (descEl) descEl.textContent = actionDesc || 'กรุณากรอกรหัส PIN ความปลอดภัยเพื่อยืนยันการทำรายการสำคัญ';
+        inpEl.type = 'password';
+        inpEl.value = '';
+        modal.querySelectorAll('.oca-pass-eye-btn i').forEach(ic => {
+          ic.classList.remove('fa-eye-slash');
+          ic.classList.add('fa-eye');
+        });
+        if (errEl) {
+          errEl.textContent = '';
+          errEl.style.display = 'none';
+        }
+        let settled = false;
+        let onEsc = null;
+        const cleanup = (result) => {
+          if (settled) return;
+          settled = true;
+          modal.style.display = 'none';
+          btnOk.onclick = null;
+          if (btnCancel) btnCancel.onclick = null;
+          if (btnClose) btnClose.onclick = null;
+          inpEl.onkeydown = null;
+          if (onEsc) document.removeEventListener('keydown', onEsc);
+          resolve(result);
+        };
+        onEsc = (e) => {
+          if (e.key === 'Escape') cleanup(false);
+        };
+        const handleVerify = async () => {
+          const pin = (inpEl.value || '').trim();
+          if (!pin) {
+            if (errEl) {
+              errEl.textContent = 'กรุณากรอกรหัส PIN ความปลอดภัย';
+              errEl.style.display = 'block';
+            }
+            inpEl.focus();
+            return;
+          }
+          btnOk.disabled = true;
+          try {
+            const res = await callGasApi('verifySecurityPin', { pin }, 'POST');
+            if (res && res.success) {
+              cleanup(true);
+              return;
+            }
+            if (errEl) {
+              errEl.textContent = (res && res.message) || 'รหัส PIN ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
+              errEl.style.display = 'block';
+            }
+            try {
+              if (typeof logDetailedAuditEvent === 'function') {
+                logDetailedAuditEvent({
+                  action: 'SECURITY_PIN_FAILED',
+                  targetType: 'security',
+                  targetId: actionTitle || 'pin_gate',
+                  summary: `กรอกรหัส PIN ไม่ถูกต้อง (${actionTitle || 'ยืนยันตัวตน'})`,
+                  severity: 'CRITICAL',
+                  status: 'FAILED'
+                });
+              }
+            } catch (_) {}
+            inpEl.select();
+          } catch (err) {
+            if (errEl) {
+              errEl.textContent = (err && err.message) || 'ไม่สามารถตรวจสอบรหัส PIN ได้';
+              errEl.style.display = 'block';
+            }
+          } finally {
+            btnOk.disabled = false;
+          }
+        };
+        btnOk.onclick = handleVerify;
+        if (btnCancel) btnCancel.onclick = () => cleanup(false);
+        if (btnClose) btnClose.onclick = () => cleanup(false);
+        inpEl.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleVerify();
+          }
+        };
+        document.addEventListener('keydown', onEsc);
+        modal.style.display = 'flex';
+        setTimeout(() => { try { inpEl.focus(); } catch (_) {} }, 50);
+      });
+    };
     function closeChangeSecurityPinModal() {
       const modal = document.getElementById('modalChangeSecurityPin');
       if (modal) modal.style.display = 'none';
@@ -40952,7 +41177,7 @@ if (action === 'getDashboardStats') {
     }
     window.deleteCustomGeneralFeeItem = deleteCustomGeneralFeeItem;
     let isSavingFeeSettings = false;
-    function saveGeneralFeeSettings() {
+    async function saveGeneralFeeSettings() {
       if (isSavingFeeSettings) return;
       const btn = document.querySelector('button[onclick="saveGeneralFeeSettings()"]');
       const origBtnHtml = btn ? btn.innerHTML : '';
@@ -40967,6 +41192,8 @@ if (action === 'getDashboardStats') {
           return;
         }
       }
+      const pinOk = await window.requireSecurityPinVerification('ยืนยันการบันทึกค่าธรรมเนียมกลาง', 'บันทึกอัตราค่าธรรมเนียมและส่วนลดส่วนกลาง');
+      if (!pinOk) return;
       isSavingFeeSettings = true;
       if (btn) {
         btn.disabled = true;
@@ -52296,7 +52523,7 @@ if (action === 'getDashboardStats') {
         grandInput.dataset.rawTotal = total;
       }
     }
-    function submitEditReceiptForm(event) {
+    async function submitEditReceiptForm(event) {
       if (event) event.preventDefault();
       if (!currentEditingReceiptNo || window._isSavingEditReceipt) return;
       const buyerName = document.getElementById('inpEditRcptBuyerName')?.value.trim();
@@ -52314,6 +52541,8 @@ if (action === 'getDashboardStats') {
         showToast('กรุณาระบุหมายเหตุการแก้ไข', 'จำเป็นต้องระบุเหตุผลเพื่อบันทึกประวัติ', '⚠️');
         return;
       }
+      const pinOk = await window.requireSecurityPinVerification('ยืนยันการแก้ไขใบเสร็จ', `แก้ไขข้อมูลใบเสร็จเลขที่ ${currentEditingReceiptNo}`);
+      if (!pinOk) return;
       window._isSavingEditReceipt = true;
       const submitBtn = document.querySelector('#modalEditReceipt button[type="submit"], #btnSubmitEditReceipt');
       if (submitBtn) submitBtn.disabled = true;
@@ -63371,7 +63600,9 @@ if (action === 'getDashboardStats') {
         icon: 'fa-user-xmark',
         iconColor: '#ef4444',
         confirmText: 'ลบบัญชีผู้ใช้',
-        onConfirm: () => {
+        onConfirm: async () => {
+          const pinOk = await window.requireSecurityPinVerification('ยืนยันการลบบัญชีผู้ใช้งาน', `ลบบัญชี "${username}" ออกจากระบบอย่างถาวร`);
+          if (!pinOk) return;
           callGasApi('deleteUser', { username: username }, 'POST')
             .then(res => {
               if (res && res.success) {
@@ -63989,6 +64220,26 @@ if (action === 'getDashboardStats') {
     /**
      * แสดงตาราง Audit Logs
      */
+    function formatShortDeviceInfo(ua) {
+      const s = String(ua || '').trim();
+      if (!s || s === '-') return '-';
+      let os = '';
+      if (/Windows NT 10\.0|Windows NT 11\.0|Windows/i.test(s)) os = 'Windows';
+      else if (/iPhone|iPad|iOS/i.test(s)) os = /iPad/i.test(s) ? 'iPadOS' : 'iOS';
+      else if (/Android/i.test(s)) os = 'Android';
+      else if (/Mac OS X|Macintosh/i.test(s)) os = 'macOS';
+      else if (/Linux/i.test(s)) os = 'Linux';
+      let browser = '';
+      if (/Edg\//i.test(s)) browser = 'Edge';
+      else if (/OPR\/|Opera/i.test(s)) browser = 'Opera';
+      else if (/Chrome\/|CriOS\//i.test(s)) browser = 'Chrome';
+      else if (/Firefox\/|FxiOS\//i.test(s)) browser = 'Firefox';
+      else if (/Safari\//i.test(s)) browser = 'Safari';
+      if (os && browser) return `${os} / ${browser}`;
+      if (os || browser) return os || browser;
+      return s.length > 28 ? (s.slice(0, 28) + '...') : s;
+    }
+    window.formatShortDeviceInfo = formatShortDeviceInfo;
     function renderAuditLogsTable(logs) {
       const tbody = document.getElementById('tbodyAuditLogs');
       if (!tbody) return;
@@ -64050,7 +64301,7 @@ if (action === 'getDashboardStats') {
               <span style="cursor:pointer; text-decoration:underline dotted;" title="คลิกเพื่อกรองเฉพาะ Device ID นี้" onclick="event.stopPropagation(); filterByDeviceId('${escapeHtml(devId)}')">${escapeHtml(devId)}</span>
             </td>
             <td style="padding:10px 14px; text-align:center; font-family:monospace; font-size:11px; color:var(--text-muted); white-space:nowrap;">${escapeHtml(ipAddr)}</td>
-            <td style="padding:10px 14px; font-size:11px; color:var(--text-muted); max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(item.deviceInfo || item.device_info || '-')}">${escapeHtml(item.deviceInfo || item.device_info || '-')}</td>
+            <td style="padding:10px 14px; font-size:11px; color:var(--text-muted); max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(item.deviceInfo || item.device_info || '-')}">${escapeHtml(formatShortDeviceInfo(item.deviceInfo || item.device_info || '-'))}</td>
             <td style="padding:10px 14px; color:var(--text-main); line-height:1.4;">${escapeHtml(detailText)}${diffBadge}</td>
             <td style="padding:10px 14px; text-align:center; white-space:nowrap;">
               <span style="font-weight:700; font-size:11px; color:${isSuccess ? '#047857' : '#B91C1C'};">${isSuccess ? '✓ สำเร็จ' : '✕ ล้มเหลว'}</span>
@@ -76876,6 +77127,16 @@ function openPublicRegisterView() {
         "รายละเอียดประวัติการใช้งาน (Audit Detail Inspector)": "操作日志详情检查器",
         "คัดลอกหลักฐาน": "复制凭证",
         "กำลังโหลด app_settings...": "正在加载全局配置...",
+        "รหัส PIN ปัจจุบัน (เดิมที่ตั้งไว้)": "当前安全密码",
+        "แสดง/ซ่อนรหัส PIN ปัจจุบัน": "显示或隐藏当前安全密码",
+        "แสดง/ซ่อนรหัส PIN ใหม่": "显示或隐藏新安全密码",
+        "แสดง/ซ่อนการยืนยันรหัส PIN": "显示或隐藏确认安全密码",
+        "ยืนยันรหัส PIN ความปลอดภัย": "验证安全密码",
+        "กรุณากรอกรหัส PIN ความปลอดภัยเพื่อยืนยันการทำรายการสำคัญ": "请输入安全密码以确认重要操作",
+        "รหัส PIN ความปลอดภัย": "安全密码",
+        "กรอกรหัส PIN...": "请输入安全密码...",
+        "แสดง/ซ่อนรหัส PIN": "显示或隐藏安全密码",
+        "ยืนยันรหัส PIN": "确认密码",
       },
       en: {
         "+ ซื้อตำราเรียนเพิ่มในใบเสร็จนี้": "+ Add Extra Textbooks to This Receipt",
@@ -79330,6 +79591,16 @@ function openPublicRegisterView() {
         "รายละเอียดประวัติการใช้งาน (Audit Detail Inspector)": "Audit Detail Inspector",
         "คัดลอกหลักฐาน": "Copy Evidence",
         "กำลังโหลด app_settings...": "Loading app_settings...",
+        "รหัส PIN ปัจจุบัน (เดิมที่ตั้งไว้)": "Current Security PIN",
+        "แสดง/ซ่อนรหัส PIN ปัจจุบัน": "Show/Hide Current Security PIN",
+        "แสดง/ซ่อนรหัส PIN ใหม่": "Show/Hide New Security PIN",
+        "แสดง/ซ่อนการยืนยันรหัส PIN": "Show/Hide Confirm Security PIN",
+        "ยืนยันรหัส PIN ความปลอดภัย": "Verify Security PIN",
+        "กรุณากรอกรหัส PIN ความปลอดภัยเพื่อยืนยันการทำรายการสำคัญ": "Please enter the Security PIN to confirm this critical action",
+        "รหัส PIN ความปลอดภัย": "Security PIN",
+        "กรอกรหัส PIN...": "Enter Security PIN...",
+        "แสดง/ซ่อนรหัส PIN": "Show/Hide Security PIN",
+        "ยืนยันรหัส PIN": "Verify PIN",
       }
     };
     window.OCA_INNER_CONTENT_I18N = OCA_INNER_CONTENT_I18N;
@@ -87701,13 +87972,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=238';
+      const swPath = basePath + 'sw.js?v=239';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (238):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (239):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
