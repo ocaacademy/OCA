@@ -129,13 +129,20 @@
       const queue = await getFailedEmailQueue();
       const id = 'fe_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
       const cleanRcpt = String(entry.receiptNo || '').trim();
+      const cleanSid = String(entry.studentId || '').trim();
+      const cleanKind = String(entry.kind || 'payment_confirmation');
       const cleanTo = String(entry.toEmail || '').trim();
-      const filtered = queue.filter(item => !(cleanRcpt && item.receiptNo === cleanRcpt && item.toEmail === cleanTo));
+      const filtered = queue.filter(item => {
+        if (item.toEmail !== cleanTo || String(item.kind || 'payment_confirmation') !== cleanKind) return true;
+        if (cleanRcpt && item.receiptNo === cleanRcpt) return false;
+        if (!cleanRcpt && cleanSid && item.studentId === cleanSid) return false;
+        return true;
+      });
       filtered.unshift({
         id,
-        kind: String(entry.kind || 'payment_confirmation'),
+        kind: cleanKind,
         receiptNo: cleanRcpt,
-        studentId: String(entry.studentId || '').trim(),
+        studentId: cleanSid,
         toEmail: cleanTo,
         toName: String(entry.toName || '').trim().slice(0, 120),
         subject: String(entry.subject || '').trim().slice(0, 200),
@@ -376,7 +383,7 @@
     const all = [];
     const pageSize = 1000;
     let from = 0;
-    for (let page = 0; page < 50; page++) {
+    for (let page = 0; page < 250; page++) {
       const { data, error } = await sb
         .from(tableName)
         .select('*')
@@ -588,7 +595,7 @@
       tbody.innerHTML = rows.map(r => {
         const k = escapeAdminHtml(r.key || '');
         const cat = escapeAdminHtml(r.category || 'general');
-        const valStr = escapeAdminHtml(JSON.stringify(r.value ?? null)).slice(0, 140);
+        const valStr = escapeAdminHtml(String(JSON.stringify(r.value ?? null)).slice(0, 140));
         const ts = r.updated_at ? new Date(r.updated_at).toLocaleString('th-TH') : '-';
         return `<tr style="border-bottom:1px solid var(--border-soft);">
           <td style="padding:8px 10px; font-family:monospace; font-size:12px; font-weight:700; color:var(--text-main);">${k}</td>
@@ -650,26 +657,44 @@
     }
   };
 
+  let _emailActionBusy = false;
   global.handleRemoveBlacklistedSlip = async function (key) {
-    if (!key || !global.OcaSlipGuard) return;
-    const ok = await global.OcaSlipGuard.removeBlacklistedSlip(key);
-    if (typeof global.showToast === 'function') {
-      global.showToast(ok ? 'ปลดล็อกรายการแล้ว' : 'ปลดล็อกไม่สำเร็จ', key, ok ? '✅' : '❌');
+    if (!key || !global.OcaSlipGuard || _emailActionBusy) return;
+    _emailActionBusy = true;
+    try {
+      const ok = await global.OcaSlipGuard.removeBlacklistedSlip(key);
+      if (typeof global.showToast === 'function') {
+        global.showToast(ok ? 'ปลดล็อกรายการแล้ว' : 'ปลดล็อกไม่สำเร็จ', key, ok ? '✅' : '❌');
+      }
+      await renderBlacklistTable();
+    } finally {
+      _emailActionBusy = false;
     }
-    await renderBlacklistTable();
   };
 
   global.handleRetryFailedEmail = async function (id) {
-    const res = await retryFailedEmail(id);
-    if (typeof global.showToast === 'function') {
-      global.showToast(res.success ? 'ส่งอีเมลซ้ำสำเร็จ' : 'ส่งอีเมลซ้ำไม่สำเร็จ', res.error || 'นำออกจากคิวเรียบร้อย', res.success ? '✅' : '❌');
+    if (_emailActionBusy) return;
+    _emailActionBusy = true;
+    try {
+      const res = await retryFailedEmail(id);
+      if (typeof global.showToast === 'function') {
+        global.showToast(res.success ? 'ส่งอีเมลซ้ำสำเร็จ' : 'ส่งอีเมลซ้ำไม่สำเร็จ', res.error || 'นำออกจากคิวเรียบร้อย', res.success ? '✅' : '❌');
+      }
+      await renderFailedEmailQueueTable();
+    } finally {
+      _emailActionBusy = false;
     }
-    await renderFailedEmailQueueTable();
   };
 
   global.handleDeleteFailedEmail = async function (id) {
-    await removeFailedEmailItem(id);
-    await renderFailedEmailQueueTable();
+    if (_emailActionBusy) return;
+    _emailActionBusy = true;
+    try {
+      await removeFailedEmailItem(id);
+      await renderFailedEmailQueueTable();
+    } finally {
+      _emailActionBusy = false;
+    }
   };
 
   global.handleRetryAllFailedEmails = async function () {
