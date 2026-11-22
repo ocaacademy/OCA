@@ -143,6 +143,7 @@
         kind: cleanKind,
         receiptNo: cleanRcpt,
         studentId: cleanSid,
+        course: String(entry.course || '').trim().slice(0, 120),
         toEmail: cleanTo,
         toName: String(entry.toName || '').trim().slice(0, 120),
         subject: String(entry.subject || '').trim().slice(0, 200),
@@ -247,11 +248,13 @@
         kind: 'slip_rejection',
         receiptNo: '',
         studentId,
+        course,
         toEmail,
         toName,
         subject,
         reason,
-        errorMessage: errMsg
+        errorMessage: errMsg,
+        retries: Number(opts?.retries || 0)
       });
     }
 
@@ -282,18 +285,28 @@
     if (!item) return { success: false, error: 'ไม่พบรายการในคิว' };
 
     let res = { success: false, error: 'Unsupported retry kind' };
+    const nextRetries = (Number(item.retries) || 0) + 1;
     if (item.kind === 'slip_rejection') {
       res = await sendSlipRejectionEmail({
         studentId: item.studentId,
         toEmail: item.toEmail,
         toName: item.toName,
-        reason: item.reason || 'ไม่สามารถตรวจสอบสลิปได้'
+        course: item.course || '-',
+        reason: item.reason || 'ไม่สามารถตรวจสอบสลิปได้',
+        retries: nextRetries
       });
     } else if (item.receiptNo && typeof global.callGasApi === 'function') {
       res = await global.callGasApi('sendReceiptEmail', {
         receiptNo: item.receiptNo,
         email: item.toEmail
       }, 'POST');
+      if (!res || !res.success) {
+        await enqueueFailedEmail({
+          ...item,
+          errorMessage: (res && (res.error || res.message)) || item.errorMessage,
+          retries: nextRetries
+        });
+      }
     }
 
     if (res && res.success) {
