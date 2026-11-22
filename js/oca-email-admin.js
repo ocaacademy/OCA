@@ -624,11 +624,11 @@
       if (typeof global.showToast === 'function') {
         global.showToast(ok ? okTitle : 'บันทึกไม่สำเร็จ', ok ? okDesc : 'กรุณาลองใหม่', ok ? '✅' : '❌');
       }
-      if (typeof global.showModal === 'function') {
-        global.showModal(
+      if (typeof global.showOcaAlert === 'function') {
+        global.showOcaAlert(
           ok ? okTitle : 'บันทึกไม่สำเร็จ',
           ok ? okDesc : 'ไม่สามารถบันทึกการตั้งค่าลงฐานข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
-          ok ? '✅' : '❌'
+          ok ? 'success' : 'error'
         );
       }
       if (ok && btn) {
@@ -648,8 +648,8 @@
       if (typeof global.showToast === 'function') {
         global.showToast('บันทึกไม่สำเร็จ', (err && err.message) || 'เกิดข้อผิดพลาดระหว่างบันทึก', '❌');
       }
-      if (typeof global.showModal === 'function') {
-        global.showModal('บันทึกไม่สำเร็จ', (err && err.message) || 'เกิดข้อผิดพลาดระหว่างบันทึก', '❌');
+      if (typeof global.showOcaAlert === 'function') {
+        global.showOcaAlert('บันทึกไม่สำเร็จ', (err && err.message) || 'เกิดข้อผิดพลาดระหว่างบันทึก', 'error');
       }
     }
     if (btn) {
