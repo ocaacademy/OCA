@@ -508,7 +508,7 @@
         .select('key, name, amount, mode, updated_at')
         .or('mode.eq.SLIP_BLACKLIST,name.like.BLACKLISTED:%')
         .order('updated_at', { ascending: false })
-        .limit(100);
+        .limit(1000);
       if (error) {
         console.warn('[OcaSlipGuard.listBlacklistedSlips] query error:', error);
         return [];
