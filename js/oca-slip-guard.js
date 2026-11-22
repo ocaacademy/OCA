@@ -116,9 +116,10 @@
     if (!dt) return { checked: false, ageDays: null, isExpired: false, limitDays: limit };
     const diffMs = Date.now() - dt.getTime();
     const ageDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    const localDateIso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
     return {
       checked: true,
-      dateIso: dt.toISOString().slice(0, 10),
+      dateIso: localDateIso,
       ageDays,
       isExpired: ageDays > limit,
       limitDays: limit
