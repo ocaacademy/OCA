@@ -12372,7 +12372,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '239';
+      var LATEST_VERSION = '240';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -26286,15 +26286,36 @@ body.printing-report #printReportContainer {
             try {
               const data = (payload && payload.payload) ? payload.payload : (payload || {});
               const senderDev = data.deviceId || '';
+              const cmdId = data.cmdId || '';
+              const remoteTs = Number(data.ts) || Date.now();
               const myDev = (typeof window.getOcaDeviceId === 'function') ? window.getOcaDeviceId() : '';
               if (senderDev && myDev && senderDev === myDev) return;
+              let hasPending = false;
               if (window.OcaOfflineDB && typeof window.OcaOfflineDB.getOutbox === 'function') {
                 const pending = await window.OcaOfflineDB.getOutbox();
-                if (Array.isArray(pending) && pending.length > 0) {
-                  if (typeof showToast === 'function') showToast('มีคำสั่งอัปเดตแคช PWA', `พบรายการรอซิงก์ ${pending.length} รายการ ข้ามการรีโหลดอัตโนมัติ`, '⚠️');
-                  return;
-                }
+                hasPending = Array.isArray(pending) && pending.length > 0;
               }
+              try {
+                const rtCh = window._activeOcaChannel || _ocaRealtimeChannel;
+                if (rtCh && typeof rtCh.send === 'function') {
+                  rtCh.send({
+                    type: 'broadcast',
+                    event: 'force_pwa_cache_reload_ack',
+                    payload: {
+                      cmdId,
+                      deviceId: myDev || ('tab_' + Math.random().toString(36).slice(2, 8)),
+                      skippedPending: hasPending
+                    }
+                  });
+                }
+              } catch (_) {}
+              if (hasPending) {
+                if (typeof showToast === 'function') showToast('มีคำสั่งอัปเดตแคช PWA', 'พบรายการรอซิงก์ค้างอยู่ ข้ามการรีโหลดอัตโนมัติ', '⚠️');
+                return;
+              }
+              try {
+                window.localStorage.setItem('oca_last_pwa_reload_ts', String(remoteTs));
+              } catch (_) {}
               if (typeof showToast === 'function') showToast('ผู้ดูแลระบบสั่งอัปเดตเวอร์ชันใหม่', 'กำลังล้างแคชและรีโหลดหน้าจอใน 3 วินาที...', '🔄');
               setTimeout(async () => {
                 try {
@@ -26309,6 +26330,16 @@ body.printing-report #printReportContainer {
                 } catch (_) {}
                 window.location.reload(true);
               }, 3000);
+            } catch (_) {}
+          })
+          .on('broadcast', { event: 'force_pwa_cache_reload_ack' }, (payload) => {
+            try {
+              const data = (payload && payload.payload) ? payload.payload : (payload || {});
+              const collector = window._ocaPwaAckCollector;
+              if (!collector || !data.cmdId || data.cmdId !== collector.cmdId) return;
+              const ackDev = String(data.deviceId || ('dev_' + Math.random().toString(36).slice(2, 6)));
+              collector.devices.add(ackDev);
+              if (data.skippedPending) collector.skipped.add(ackDev);
             } catch (_) {}
           })
           .on('broadcast', { event: 'staff_single_session_login' }, (payload) => {
@@ -39109,16 +39140,24 @@ if (action === 'getDashboardStats') {
     }
     window.exportBackupPaginated = exportBackupPaginated;
     async function clearOcaPwaCacheAndReload() {
+      const btn = document.getElementById('btnClearPwaCacheReload');
+      if (btn) btn.disabled = true;
       try {
         const ts = Date.now();
+        const cmdId = 'pwa_' + ts + '_' + Math.random().toString(36).slice(2, 7);
         const myDev = (typeof window.getOcaDeviceId === 'function') ? window.getOcaDeviceId() : '';
+        const collector = { cmdId, devices: new Set(), skipped: new Set() };
+        window._ocaPwaAckCollector = collector;
+        try {
+          window.localStorage.setItem('oca_last_pwa_reload_ts', String(ts));
+        } catch (_) {}
         try {
           const rtCh = window._activeOcaChannel || ((typeof _ocaRealtimeChannel !== 'undefined') ? _ocaRealtimeChannel : null);
           if (rtCh && typeof rtCh.send === 'function') {
             await rtCh.send({
               type: 'broadcast',
               event: 'force_pwa_cache_reload',
-              payload: { ts, deviceId: myDev, triggeredBy: (window._currentUser && window._currentUser.username) || 'admin' }
+              payload: { ts, cmdId, deviceId: myDev, triggeredBy: (window._currentUser && window._currentUser.username) || 'admin' }
             });
           }
         } catch (_) {}
@@ -39127,13 +39166,19 @@ if (action === 'getDashboardStats') {
             await window.OcaAppConfig.set('pwa_force_reload_ts', String(ts));
           }
         } catch (_) {}
+        await new Promise(r => setTimeout(r, 1500));
+        const ackCount = collector.devices.size;
+        const skippedCount = collector.skipped.size;
+        window._ocaPwaAckCollector = null;
         try {
           if (typeof logDetailedAuditEvent === 'function') {
             logDetailedAuditEvent({
               action: 'PWA_FORCE_RELOAD_ALL',
               targetType: 'system',
               targetId: 'pwa_cache',
-              summary: 'สั่งล้างแคช PWA และรีโหลดระบบทุกเครื่องที่เปิดใช้งาน',
+              summary: ackCount > 0
+                ? `สั่งล้างแคช PWA และรีโหลดระบบทุกเครื่อง (ตอบรับออนไลน์ ${ackCount} เครื่อง)`
+                : 'สั่งล้างแคช PWA และบันทึกคำสั่งให้เครื่องอื่นอัปเดตอัตโนมัติ',
               severity: 'WARN'
             });
           }
@@ -39146,12 +39191,72 @@ if (action === 'getDashboardStats') {
           const keys = await window.caches.keys();
           await Promise.all(keys.map(k => window.caches.delete(k)));
         }
-        showToast('ล้างแคชสำเร็จ', 'ส่งคำสั่งอัปเดตไปยังทุกเครื่องและกำลังโหลดระบบใหม่...', '✓');
-        setTimeout(() => window.location.reload(true), 500);
+        if (ackCount > 0) {
+          const skipTxt = skippedCount > 0 ? ` (ข้าม ${skippedCount} เครื่องที่มีคิวรอซิงก์)` : '';
+          showToast('ล้างแคชสำเร็จ', `ส่งคำสั่งสำเร็จ — ตอบรับออนไลน์ ${ackCount} เครื่อง (+ เครื่องนี้)${skipTxt} กำลังรีโหลด...`, '✓');
+        } else {
+          showToast('ล้างแคชสำเร็จ', 'ล้างแคชเครื่องนี้สำเร็จ — บันทึกคำสั่งให้เครื่องอื่นอัปเดตอัตโนมัติเมื่อเปิดใช้งาน', '✓');
+        }
+        setTimeout(() => window.location.reload(true), 1200);
       } catch (err) {
+        window._ocaPwaAckCollector = null;
+        if (btn) btn.disabled = false;
         showModal('ล้างแคชไม่สำเร็จ', err.message || '', '❌');
       }
     }
+    window.checkPendingPwaForceReload = async function () {
+      try {
+        if (!window.OcaAppConfig || typeof window.OcaAppConfig.get !== 'function') return false;
+        const remoteRaw = await window.OcaAppConfig.get('pwa_force_reload_ts', '0');
+        const remoteTs = Number(remoteRaw) || 0;
+        if (remoteTs <= 0) return false;
+        let localRaw = null;
+        try {
+          localRaw = window.localStorage.getItem('oca_last_pwa_reload_ts');
+        } catch (_) {}
+        if (!localRaw) {
+          try {
+            window.localStorage.setItem('oca_last_pwa_reload_ts', String(remoteTs));
+          } catch (_) {}
+          return false;
+        }
+        const localTs = Number(localRaw) || 0;
+        if (remoteTs <= localTs) return false;
+        if (window.OcaOfflineDB && typeof window.OcaOfflineDB.getOutbox === 'function') {
+          const pending = await window.OcaOfflineDB.getOutbox();
+          if (Array.isArray(pending) && pending.length > 0) return false;
+        }
+        try {
+          window.localStorage.setItem('oca_last_pwa_reload_ts', String(remoteTs));
+        } catch (_) {}
+        if (typeof showToast === 'function') {
+          showToast('พบคำสั่งล้างแคช PWA ล่าสุด', 'กำลังอัปเดตแคชและรีโหลดหน้าจอ...', '🔄');
+        }
+        try {
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+          }
+          if ('caches' in window && window.caches) {
+            const keys = await window.caches.keys();
+            await Promise.all(keys.map(k => window.caches.delete(k)));
+          }
+        } catch (_) {}
+        setTimeout(() => window.location.reload(true), 600);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    };
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        try {
+          if (typeof window.checkPendingPwaForceReload === 'function') {
+            window.checkPendingPwaForceReload();
+          }
+        } catch (_) {}
+      }, 1500);
+    });
     function openChangeSecurityPinModal() {
       const modal = document.getElementById('modalChangeSecurityPin');
       const inpCur = document.getElementById('inpCurrentSecurityPin');
@@ -87972,13 +88077,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=239';
+      const swPath = basePath + 'sw.js?v=240';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (239):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (240):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
