@@ -12410,7 +12410,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '250';
+      var LATEST_VERSION = '251';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -72785,16 +72785,15 @@ function openPublicRegisterView() {
           } catch (err) {
             console.warn('[Classroom View] receipts query failed:', err);
           }
-          // 2. ตรวจสอบจากทะเบียนนักศึกษา (students) ในภาคเรียนที่เลือก
+          // 2. ตรวจสอบจากทะเบียนนักศึกษา (students) ในภาคเรียนที่เลือก (B-Tree student_id range เท่านั้น ป้องกัน 57014 timeout; นศ.เก่าดึงคอร์สจาก receipts ด้านบนแล้ว)
           try {
             const stData = await fetchAllPaginatedSupabaseRows(() =>
               _supabase.from('students')
                 .select('current_course, year_be, term')
-                .eq('year_be', yearBE || _actYT.yearBE)
-                .or(`term.eq.${termNo},student_id.gte.${tPrefix}0000`)
-                .order('student_id', { ascending: false })
+                .gte('student_id', tPrefix + '0000')
+                .lt('student_id', nextTPrefix + '0000')
             , 1000, 20000);
-            if (Array.isArray(stData)) {
+            if (Array.isArray(stData) && stData.length > 0) {
               stData.forEach(s => {
                 const raw = (s.current_course || '').trim();
                 if (raw) {
@@ -83077,7 +83076,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const nextTPrefix = (tNo < 5) ? (yrPfx + String(tNo + 1)) : (String(Number(yrPfx) + 1) + '0');
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          const [rcData, stData] = await Promise.all([
+          const [rcData, stRangeData] = await Promise.all([
             fetchAllPaginatedSupabaseRows(() =>
               _supabase.from('receipts')
                 .select('student_id, buyer_name, item_code, item_name, schedule, class_group, claim_status, edit_notes, receipt_type')
@@ -83089,11 +83088,38 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             fetchAllPaginatedSupabaseRows(() =>
               _supabase.from('students')
                 .select('student_id, prefix, full_name, current_schedule, current_course, photo_url, status, year_be, term')
-                .eq('year_be', yBE)
-                .or(`term.eq.${tNo},student_id.gte.${tPrefix}0000`)
-                .order('student_id', { ascending: false })
+                .gte('student_id', tPrefix + '0000')
+                .lt('student_id', nextTPrefix + '0000')
             , 1000, 10000)
           ]);
+          const stMergedMap = new Map();
+          (Array.isArray(stRangeData) ? stRangeData : []).forEach(s => {
+            if (s && s.student_id && !stMergedMap.has(String(s.student_id))) stMergedMap.set(String(s.student_id), s);
+          });
+          const missingReturningIds = Array.from(new Set(
+            (Array.isArray(rcData) ? rcData : [])
+              .filter(r => {
+                if (typeof isReceiptVoided === 'function' && isReceiptVoided(r)) return false;
+                const rt = String(r.receipt_type || '').trim().toLowerCase();
+                return !rt || rt === 'tuition';
+              })
+              .map(r => String(r.student_id || '').trim())
+              .filter(sid => sid && !stMergedMap.has(sid))
+          ));
+          for (let i = 0; i < missingReturningIds.length; i += 200) {
+            const chunk = missingReturningIds.slice(i, i + 200);
+            const { data: chunkRows, error: chunkErr } = await _supabase.from('students')
+              .select('student_id, prefix, full_name, current_schedule, current_course, photo_url, status, year_be, term')
+              .in('student_id', chunk);
+            if (chunkErr) {
+              console.warn('[Teacher Portal] returning students chunk lookup failed:', chunkErr);
+            } else if (Array.isArray(chunkRows)) {
+              chunkRows.forEach(s => {
+                if (s && s.student_id && !stMergedMap.has(String(s.student_id))) stMergedMap.set(String(s.student_id), s);
+              });
+            }
+          }
+          const stData = Array.from(stMergedMap.values());
           const lookupNames = new Map();
           const isDroppedSt = (st) => {
             const stat = String(st?.status || '').toUpperCase();
@@ -85535,10 +85561,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           const stData = await fetchAllPaginatedSupabaseRows(() =>
             _supabase.from('students')
               .select('current_course')
-              .or(`term.eq.${termNo},student_id.gte.${tPrefix}0000`)
-              .order('student_id', { ascending: false })
+              .gte('student_id', tPrefix + '0000')
+              .lt('student_id', nextTPrefix + '0000')
           , 1000, 20000);
-          if (Array.isArray(stData)) {
+          if (Array.isArray(stData) && stData.length > 0) {
             stData.forEach(s => {
               const raw = (s.current_course || '').trim();
               if (raw) {
@@ -88775,13 +88801,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=250';
+      const swPath = basePath + 'sw.js?v=251';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (250):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (251):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
