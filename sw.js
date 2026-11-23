@@ -1,4 +1,4 @@
-const CACHE_NAME = '260';
+const CACHE_NAME = '261';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -6,6 +6,11 @@ const ASSETS_TO_CACHE = [
   './manifest.json',
   './js/oca-slip-guard.js',
   './js/oca-email-admin.js',
+  './css/oca-modular-v261.css',
+  './js/oca-watchdog.js',
+  './js/oca-offline-queue.js',
+  './js/oca-rls-guard.js',
+  './js/oca-backup-ops.js',
   './modnet_quantized.onnx',
   'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js',
