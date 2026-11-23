@@ -24,12 +24,12 @@
             </div>
           </div>
           <span class="oca-mod-badge-ok" id="badgeOcaBackupSchedule">
-            <i class="fa-solid fa-shield-check"></i> Read-Only Dry-Run
+            <i class="fa-solid fa-circle-check"></i> Read-Only Dry-Run
           </span>
         </div>
 
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-          <label for="inpOcaBackupDryRunFile" class="oca-mod-btn-primary" style="margin:0;">
+          <label for="inpOcaBackupDryRunFile" role="button" tabindex="0" class="oca-mod-btn-primary" style="margin:0;" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('inpOcaBackupDryRunFile').click();}">
             <i class="fa-solid fa-file-shield"></i> เลือกไฟล์ Backup (.json) เพื่อทดสอบ Dry-Run
           </label>
           <input type="file" id="inpOcaBackupDryRunFile" accept=".json,application/json" style="display:none;" />
@@ -37,7 +37,7 @@
             ตรวจสอบโครงสร้าง 7 ตาราง, 8 ตารางเรียนหลัก และ 4 บัญชีเจ้าหน้าที่หลัก (ไม่แก้ไขข้อมูลจริง)
           </span>
         </div>
-        <div id="boxOcaBackupDryRunResult" class="oca-mod-validator-result" style="display:none;"></div>
+        <div id="boxOcaBackupDryRunResult" class="oca-mod-validator-result" aria-live="polite" style="display:none;"></div>
       </div>
     `;
 
@@ -46,14 +46,22 @@
       fileInp.onchange = async (evt) => {
         const file = evt.target && evt.target.files ? evt.target.files[0] : null;
         if (!file) return;
-        const text = await file.text();
-        const report = validateBackupJsonText(text, file.name);
         const box = document.getElementById('boxOcaBackupDryRunResult');
-        if (box) {
-          box.style.display = 'block';
-          box.innerHTML = report.html;
+        try {
+          const text = await file.text();
+          const report = validateBackupJsonText(text, file.name);
+          if (box) {
+            box.style.display = 'block';
+            box.innerHTML = report.html;
+          }
+        } catch (err) {
+          if (box) {
+            box.style.display = 'block';
+            box.innerHTML = `<div style="color:#EF4444; font-weight:700;">✗ อ่านไฟล์ไม่สำเร็จ: ${String(err?.message || err).replace(/[<>&"]/g, '')}</div>`;
+          }
+        } finally {
+          fileInp.value = '';
         }
-        fileInp.value = '';
       };
     }
   }
