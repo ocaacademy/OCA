@@ -12567,7 +12567,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '271';
+      var LATEST_VERSION = '272';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -13688,6 +13688,9 @@ body.printing-report #printReportContainer {
               <div id="lblEnrollPhotoAiStatus" style="display:none; margin-top:10px; background:rgba(185,28,28,0.12); border:1px solid #B91C1C; border-radius:8px; padding:7px 12px; font-size:11.5px; color:#B91C1C; text-align:center;">
                 <i class="fa-solid fa-wand-magic-sparkles" style="color:#B91C1C; margin-right:4px;"></i>
                 <span id="lblEnrollPhotoAiStatusText">AI MediaPipe: ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย</span>
+                <button type="button" id="btnToggleEnrollPhotoOriginal" onclick="toggleEnrollPhotoOriginalMode()" style="display:none; align-items:center; gap:4px; cursor:pointer; background:#F1F5F9; color:#1E293B; border:1px solid #CBD5E1; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:700; margin-left:6px;">
+                  <i class="fa-solid fa-image"></i> <span id="lblBtnToggleEnrollPhotoOriginal">ใช้รูปต้นฉบับ</span>
+                </button>
               </div>
 
               <!-- Real System Photo Result Preview Box in #tabEnroll -->
@@ -34778,6 +34781,13 @@ if (action === 'getDashboardStats') {
     }
     function retakePhoto() {
       photoDataUri = '';
+      window._enrollRawPhotoDataUri = '';
+      window._enrollProcessedPhotoDataUri = '';
+      window._enrollPhotoUseOriginal = false;
+      const btnEnrollOrig = document.getElementById('btnToggleEnrollPhotoOriginal');
+      if (btnEnrollOrig) btnEnrollOrig.style.display = 'none';
+      const lblEnrollOrig = document.getElementById('lblEnrollPhotoAiStatus');
+      if (lblEnrollOrig) lblEnrollOrig.style.display = 'none';
       const preview = document.getElementById('capturedPreview');
       if (preview) {
         preview.src = '';
@@ -35777,9 +35787,33 @@ if (action === 'getDashboardStats') {
      * Enhanced Offline Enrollment: AI Maroon (#800000) Background Standardizer
      * Uses Unified Portrait Matting Engine with zero-freeze timeout and guaranteed UI recovery.
      */
+    function toggleEnrollPhotoOriginalMode() {
+      if (!window._enrollRawPhotoDataUri) return;
+      window._enrollPhotoUseOriginal = !window._enrollPhotoUseOriginal;
+      const targetUri = (window._enrollPhotoUseOriginal || !window._enrollProcessedPhotoDataUri)
+        ? window._enrollRawPhotoDataUri
+        : window._enrollProcessedPhotoDataUri;
+      applyCapturedPhoto(targetUri);
+      const lblBtn = document.getElementById('lblBtnToggleEnrollPhotoOriginal');
+      if (lblBtn) lblBtn.textContent = window._enrollPhotoUseOriginal ? 'ใช้พื้นหลัง AI (#800000)' : 'ใช้รูปต้นฉบับ';
+      const aiStatusText = document.getElementById('lblEnrollPhotoAiStatusText');
+      if (aiStatusText) {
+        aiStatusText.textContent = window._enrollPhotoUseOriginal
+          ? 'กำลังใช้รูปถ่ายต้นฉบับ (กดเพื่อสลับกลับเป็นพื้นหลัง AI ได้)'
+          : 'AI Studio: ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย';
+      }
+    }
+    window.toggleEnrollPhotoOriginalMode = toggleEnrollPhotoOriginalMode;
     async function applyPhotoBackgroundMaroonForEnroll(rawUri) {
       if (!rawUri) return;
       const MAROON_COLOR = '#800000';
+      window._enrollRawPhotoDataUri = rawUri;
+      window._enrollProcessedPhotoDataUri = '';
+      window._enrollPhotoUseOriginal = false;
+      const btnOrig = document.getElementById('btnToggleEnrollPhotoOriginal');
+      const lblOrig = document.getElementById('lblBtnToggleEnrollPhotoOriginal');
+      if (btnOrig) btnOrig.style.display = 'none';
+      if (lblOrig) lblOrig.textContent = 'ใช้รูปต้นฉบับ';
       const aiStatus = document.getElementById('lblEnrollPhotoAiStatus');
       const aiStatusText = document.getElementById('lblEnrollPhotoAiStatusText');
       const overlay = document.getElementById('enrollPhotoAiOverlay');
@@ -35797,6 +35831,7 @@ if (action === 'getDashboardStats') {
       try {
         const processedUri = await processPortraitToMaroonDataUri(rawUri, MAROON_COLOR);
         if (processedUri) {
+          window._enrollProcessedPhotoDataUri = processedUri;
           applyCapturedPhoto(processedUri);
           // Update dedicated Real System Result Box
           const realImg = document.getElementById('imgEnrollPhotoRealSystem');
@@ -35804,6 +35839,7 @@ if (action === 'getDashboardStats') {
           if (realImg) realImg.src = processedUri;
           if (realBox) realBox.style.display = 'block';
           const engineUsed = window._lastPortraitAiEngine || 'fallback';
+          if (btnOrig) btnOrig.style.display = (engineUsed !== 'fallback') ? 'inline-flex' : 'none';
           if (aiStatusText) {
             if (engineUsed === 'modnet') {
               aiStatusText.textContent = 'AI Studio (MODNet): ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย';
@@ -50362,8 +50398,8 @@ if (action === 'getDashboardStats') {
           const elPhone = document.getElementById('stCardPhone');
           if (elPhone) elPhone.textContent = student.profile.phone ? toArabicDigits(student.profile.phone) : '-';
           const elCourse = document.getElementById('stCardLatestCourse');
-          const rawRcptCourse = student.profile.latestCourse || student.profile.course || '';
-          const hasRcptCourse = Boolean(rawRcptCourse && rawRcptCourse !== '-' && rawRcptCourse !== 'หลักสูตรทั่วไป');
+          const rawRcptCourse = (student.profile.latestCourse || student.profile.course || '').trim();
+          const hasRcptCourse = Boolean(rawRcptCourse && rawRcptCourse !== '-' && rawRcptCourse !== 'หลักสูตรทั่วไป' && rawRcptCourse !== 'รอเลือกคอร์ส' && rawRcptCourse !== 'รอจัดระดับหลักสูตร');
           if (elCourse) elCourse.textContent = hasRcptCourse ? rawRcptCourse : 'ยังไม่เคยลงทะเบียนคอร์ส (นักศึกษาใหม่)';
           const elYearTerm = document.getElementById('stCardLatestYearTerm');
           if (elYearTerm) {
@@ -57963,7 +57999,7 @@ if (action === 'getDashboardStats') {
           pendingList.forEach(item => {
             const sid = item.studentId || '-';
             const name = item.fullName || '-';
-            const course = item.course || '-';
+            const course = typeof formatPendingSlipItemLabel === 'function' ? formatPendingSlipItemLabel(item) : (item.course || '-');
             const expectedFee = Number(item.expectedFee || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 });
             const slipUrl = item.slipUrl || '';
             const slipThumb = slipUrl
@@ -74076,7 +74112,7 @@ function openPublicRegisterView() {
             if (Array.isArray(stData) && stData.length > 0) {
               stData.forEach(s => {
                 const raw = (s.current_course || '').trim();
-                if (raw) {
+                if (raw && raw !== '-' && raw !== 'รอเลือกคอร์ส' && raw !== 'รอจัดระดับหลักสูตร') {
                   const key = raw.toUpperCase();
                   if (!enrolledMap.has(key)) {
                     enrolledMap.set(key, { code: raw, name: raw });
@@ -74095,7 +74131,7 @@ function openPublicRegisterView() {
             : (Array.isArray(cachedSearchStudentsData) ? cachedSearchStudentsData : []);
           localList.forEach(st => {
             const raw = (st.course || st.current_course || '').trim();
-            if (raw) {
+            if (raw && raw !== '-' && raw !== 'รอเลือกคอร์ส' && raw !== 'รอจัดระดับหลักสูตร') {
               const key = raw.toUpperCase();
               if (!enrolledMap.has(key)) {
                 enrolledMap.set(key, { code: raw, name: raw });
@@ -79362,6 +79398,8 @@ function openPublicRegisterView() {
         "- (ไม่ระบุ / ไม่ใช่ค่าเรียน)": "未指定或非学费项目",
         "3. ส่งตำรา (จัดส่งตามที่อยู่)": "邮寄教材",
         "- (ไม่ระบุ)": "未指定",
+        "ใช้รูปต้นฉบับ": "使用原图",
+        "ใช้พื้นหลัง AI (#800000)": "使用智能红底"
       },
       en: {
         "+ ซื้อตำราเรียนเพิ่มในใบเสร็จนี้": "+ Add Extra Textbooks to This Receipt",
@@ -81851,6 +81889,8 @@ function openPublicRegisterView() {
         "- (ไม่ระบุ / ไม่ใช่ค่าเรียน)": "- (Unspecified / Non-Tuition)",
         "3. ส่งตำรา (จัดส่งตามที่อยู่)": "3. Ship Textbooks (Delivery)",
         "- (ไม่ระบุ)": "- (Unspecified)",
+        "ใช้รูปต้นฉบับ": "Use Original Photo",
+        "ใช้พื้นหลัง AI (#800000)": "Use AI Background (#800000)"
       }
     };
     window.OCA_INNER_CONTENT_I18N = OCA_INNER_CONTENT_I18N;
@@ -84661,7 +84701,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           if (Array.isArray(stData)) {
             stData.forEach(s => {
               const sid = String(s.student_id || '').trim();
-              if (!sid || stTeacherMap.has(sid) || isDroppedSt(s)) return;
+              const curCourseT = String(s.current_course || '').trim();
+              if (!sid || stTeacherMap.has(sid) || isDroppedSt(s) || curCourseT === 'รอเลือกคอร์ส') return;
               const cs = (s.current_schedule || '').trim();
               const isMatch = isRosterScheduleMatch(cs);
               if (isMatch) {
@@ -88998,6 +89039,32 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       }
       return rows;
     }
+    function formatPendingSlipItemLabel(item) {
+      if (!item || typeof item !== 'object') return '-';
+      const rawCourse = String(item.course || '').trim();
+      const extraBooks = Array.isArray(item.extraBooks) ? item.extraBooks : [];
+      const extraExams = Array.isArray(item.extraExams) ? item.extraExams : [];
+      const hasValidCourse = Boolean(rawCourse && rawCourse !== '-' && rawCourse !== 'รอเลือกคอร์ส' && rawCourse !== 'รอจัดระดับหลักสูตร');
+      if (hasValidCourse) {
+        const parts = [rawCourse];
+        if (extraBooks.length > 0) parts.push(`+ ตำรา ${extraBooks.length} รายการ`);
+        if (extraExams.length > 0) parts.push(`+ สอบ ${extraExams.length} รายการ`);
+        return parts.join(' ');
+      }
+      if (item.isExamOnly || (extraExams.length > 0 && extraBooks.length === 0)) {
+        const examStr = extraExams.map(ex => `${(typeof formatExamDisplayLevel === 'function' ? formatExamDisplayLevel(ex) : (ex.level || ex.group || 'HSK'))}${Number(ex.qty) > 1 ? ' ×' + ex.qty : ''}`).join(', ');
+        return examStr ? `สมัครสอบวัดระดับ: ${examStr}` : 'สมัครสอบวัดระดับ HSK / YCT';
+      }
+      if (extraBooks.length > 0 && extraExams.length > 0) {
+        return `ซื้อตำราเรียน (${extraBooks.length}) + สมัครสอบวัดระดับ (${extraExams.length})`;
+      }
+      if (item.isBooksOnly || extraBooks.length > 0) {
+        const bookStr = extraBooks.map(b => `${b.title || b.name || 'ตำรา'} ×${b.qty || 1}`).join(', ');
+        return bookStr ? `ซื้อตำราเรียน: ${bookStr}` : 'ซื้อตำราเรียน';
+      }
+      return rawCourse || '-';
+    }
+    window.formatPendingSlipItemLabel = formatPendingSlipItemLabel;
     function parsePendingSlipRows(sid, mainRow, allRows) {
       const item = { studentId: sid };
       if (mainRow && mainRow.name) {
@@ -89266,7 +89333,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const name = item.fullName || '-';
         const phone = item.phone || '-';
         const lineId = item.lineId || '';
-        const course = item.course || '-';
+        const course = escapeHtml(formatPendingSlipItemLabel(item));
         const schedule = item.schedule || '-';
         const expectedFee = Number(item.expectedFee || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 });
         const slipAmount = item.slipAmount ? Number(item.slipAmount).toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-';
@@ -89508,7 +89575,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             info.phone = info.phone || stRow.phone_number || '';
             info.email = info.email || stRow.email || '';
             info.lineId = info.lineId || stRow.line_id || '';
-            info.course = (info.course && info.course !== '-') ? info.course : (stRow.current_course || '-');
+            info.course = (info.course && info.course !== '-' && info.course !== 'รอเลือกคอร์ส') ? info.course : '';
             info.schedule = (info.schedule && info.schedule !== '-') ? info.schedule : (stRow.current_schedule || '-');
           }
         } catch (err) {
@@ -89539,7 +89606,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       }
       const safeSid = escapeHtml(studentId);
       const safeName = escapeHtml(info.fullName || '-');
-      const safeCourse = escapeHtml(info.course || '-');
+      const safeCourse = escapeHtml(formatPendingSlipItemLabel(info));
       const safeSched = escapeHtml(info.schedule || '-');
       const safeRef = escapeHtml(info.slipRef || '-');
       const safeSlipUrl = escapeHtml(info.slipUrl || '');
@@ -90405,13 +90472,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=271';
+      const swPath = basePath + 'sw.js?v=272';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (271):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (272):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
