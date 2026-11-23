@@ -16,15 +16,15 @@
         <div class="oca-mod-card-header">
           <div>
             <h3 class="oca-mod-card-title">
-              <i class="fa-solid fa-cloud-arrow-down" style="color:#0284C7;"></i>
-              <span>สำรองข้อมูลอัตโนมัติรายสัปดาห์ & ตรวจสอบไฟล์สำรอง (Restore Dry-Run)</span>
+              <i class="fa-solid fa-file-shield" style="color:#0284C7;"></i>
+              <span>ตัวตรวจสอบไฟล์สำรอง (Backup Dry-Run Validator)</span>
             </h3>
             <div class="oca-mod-card-sub">
-              ระบบ GitHub Actions (<code>weekly-supabase-backup.yml</code>) จะสำรอง 7 ตารางหลักอัตโนมัติทุกวันอาทิตย์ 02:00 น. (เก็บ 90 วัน) และสามารถเลือกไฟล์ JSON เพื่อตรวจสอบความสมบูรณ์ก่อนกู้คืนได้ที่นี่
+              เลือกไฟล์สำรองข้อมูล (.json) ที่เก็บไว้ภายนอก เพื่อตรวจสอบความครบถ้วนของ 7 ตารางหลักและข้อมูลสำคัญก่อนใช้งานกู้คืนจริง (อ่านอย่างเดียว ไม่แก้ไขฐานข้อมูล)
             </div>
           </div>
           <span class="oca-mod-badge-ok" id="badgeOcaBackupSchedule">
-            <i class="fa-solid fa-calendar-check"></i> Weekly Cron (02:00 ICT)
+            <i class="fa-solid fa-shield-check"></i> Read-Only Dry-Run
           </span>
         </div>
 
