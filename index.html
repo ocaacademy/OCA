@@ -12567,7 +12567,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '266';
+      var LATEST_VERSION = '267';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -14534,8 +14534,8 @@ body.printing-report #printReportContainer {
                   <i class="fa-solid fa-pen-to-square"></i> เปลี่ยนห้องเรียน
                 </button>
 
-                <button type="button" class="oca-btn-gold-submit oca-btn-print" style="padding:7px 16px; font-size:12.5px;" onclick="printClassroomNoticeForCurrentStudent()">
-                  <i class="fa-solid fa-print"></i> พิมพ์ใบแจ้งห้องเรียนคอร์สนี้
+                <button type="button" class="oca-btn-gold-submit oca-btn-print" style="padding:7px 16px; font-size:12.5px;" onclick="printIndividualStudentProfile()">
+                  <i class="fa-solid fa-print"></i> พิมพ์ประวัติรายบุคคล
                 </button>
               </div>
             </div>
@@ -15825,7 +15825,7 @@ body.printing-report #printReportContainer {
 
                 <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                   <div style="flex:1; min-width:200px;">
-                    <input type="text" id="cardMifareUidInput" class="oca-input" placeholder="แตะบัตรบนเครื่องอ่าน RFID USB หรือพิมพ์รหัส UID..." style="height:38px; font-family:monospace; font-size:15px; font-weight:700; letter-spacing:1px; color:var(--color-gold-light);" oninput="onMifareUidChanged(this.value)" onkeydown="if(event.key==='Enter') saveCardMifareUid(true)">
+                    <input type="text" id="cardMifareUidInput" class="oca-input" placeholder="แตะบัตรบนเครื่องอ่าน RFID USB หรือพิมพ์รหัส UID..." style="height:38px; font-family:monospace; font-size:15px; font-weight:700; letter-spacing:1px; color:var(--text-main);" oninput="onMifareUidChanged(this.value)" onkeydown="if(event.key==='Enter') saveCardMifareUid(true)">
                   </div>
 
                   <button type="button" class="oca-btn-gold-submit" style="height:38px; padding:0 16px; border-radius:8px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px; flex-shrink:0;" onclick="saveCardMifareUid()">
@@ -24007,7 +24007,7 @@ body.printing-report #printReportContainer {
                       <label class="oca-label" for="inpTransferNewRoom" style="font-size:11.5px; color:var(--color-gold); font-weight:700;">
                         <i class="fa-solid fa-door-open"></i> เลขที่ห้องเรียนปลายทาง (New Classroom No.)
                       </label>
-                      <input type="text" id="inpTransferNewRoom" class="oca-input" placeholder="เช่น 5505 (ระบบค้นหาห้องให้อัตโนมัติ)" style="font-size:13px; padding:7px 10px; font-family:monospace; font-weight:700; color:var(--color-gold-light);">
+                      <input type="text" id="inpTransferNewRoom" class="oca-input" placeholder="เช่น 5505 (ระบบค้นหาห้องให้อัตโนมัติ)" style="font-size:13px; padding:7px 10px; font-family:monospace; font-weight:700; color:var(--text-main);">
                     </div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
                       <div class="oca-input-group">
@@ -24218,7 +24218,7 @@ body.printing-report #printReportContainer {
                 <label class="oca-label" for="inpQuickEditNewRoom" style="font-size:12px; color:var(--color-gold); font-weight:700;">
                   เลขที่ห้องเรียนใหม่ (New Room No.) *
                 </label>
-                <input type="text" id="inpQuickEditNewRoom" class="oca-input" placeholder="เช่น 402 หรือ 5505" style="font-size:16px; font-weight:700; font-family:monospace; color:var(--color-gold-light);">
+                <input type="text" id="inpQuickEditNewRoom" class="oca-input" placeholder="เช่น 402 หรือ 5505" style="font-size:16px; font-weight:700; font-family:monospace; color:var(--text-main);">
               </div>
               <div style="margin-bottom:10px;">
                 <label class="oca-label" for="inpQuickEditReason" style="font-size:12px;">
@@ -74534,15 +74534,73 @@ function openPublicRegisterView() {
       runOcaInlinePrint('printing-classroom-roster', printContainer, pStyle);
     }
     /**
-     * พิมพ์ใบแจ้งห้องเรียนของนักศึกษาที่กำลังดูในบัตร
+     * พิมพ์ประวัติรายบุคคล พร้อมตารางประวัติการศึกษา การลงทะเบียน และใบเสร็จ (A4)
      */
-    function printClassroomNoticeForCurrentStudent() {
-      if (!activeSearchStudent) return;
-      const c = activeSearchStudent.course || activeSearchStudent.current_course;
-      const s = activeSearchStudent.schedule || activeSearchStudent.current_schedule;
-      const r = activeSearchStudent.room || activeSearchStudent.classroom;
-      openCourseClassroomRosterModal(c, s, r);
+    function printIndividualStudentProfile() {
+      if (!activeSearchStudent) {
+        if (typeof showToast === 'function') showToast('กรุณาเลือกนักศึกษาก่อนพิมพ์', '', '⚠️');
+        return;
+      }
+      const getTxt = (id, fallback = '-') => {
+        const el = document.getElementById(id);
+        const t = el ? (el.textContent || '').trim() : '';
+        return t || fallback;
+      };
+      const st = activeSearchStudent;
+      const sid = toArabicDigits(st.studentId || st.student_id || getTxt('srId'));
+      const fullName = getTxt('srName', st.fullName || st.full_name || '-');
+      const courseTxt = getTxt('srCourse', st.course || st.current_course || '-');
+      const statusTxt = getTxt('srStatusBadge', st.status || '-');
+      const modeTxt = getTxt('srLearningMode', st.learningMode || st.learning_mode || '-');
+      const roomTxt = getTxt('srClassroomName', st.room || st.classroom || '-');
+      const instructorTxt = getTxt('srClassroomInstructor', '-');
+      const yearTxt = getTxt('srYear', st.yearBE || st.year_be || '-');
+      const termTxt = getTxt('srTerm', st.term || '-');
+      const cardUidTxt = getTxt('srCardUid', '-');
+      const phoneTxt = getTxt('srPhone', '-');
+      const emergTxt = getTxt('srEmergencyPhone', '-');
+      const emailTxt = getTxt('srEmail', '-');
+      const citizenTxt = getTxt('srCitizen', '-');
+      const lineTxt = getTxt('srLineId', '-');
+      const schedTxt = getTxt('srSchedule', '-');
+      const addrTxt = getTxt('srAddress', '-');
+      const notesTxt = getTxt('srNotes', '-');
+
+      const tbodyEl = document.getElementById('tbodySrStudentReceiptHist');
+      let histRowsHtml = '';
+      if (tbodyEl) {
+        const trList = Array.from(tbodyEl.querySelectorAll('tr'));
+        histRowsHtml = trList.map(tr => {
+          const tds = Array.from(tr.querySelectorAll('td'));
+          if (tds.length === 1) {
+            return `<tr><td colspan="6" style="text-align:center; padding:10px; color:#64748B;">${escapeHtml((tds[0].textContent || '').trim())}</td></tr>`;
+          }
+          const cells = tds.slice(0, 6).map((td, idx) => {
+            const align = idx === 4 ? 'text-align:right;' : (idx === 5 ? 'text-align:center;' : '');
+            return `<td style="border:1px solid #CBD5E1; padding:6px 8px; vertical-align:top; ${align}">${escapeHtml((td.innerText || td.textContent || '').replace(/\s+/g, ' ').trim())}</td>`;
+          }).join('');
+          return `<tr>${cells}</tr>`;
+        }).join('');
+      }
+      if (!histRowsHtml) {
+        histRowsHtml = '<tr><td colspan="6" style="text-align:center; padding:12px; color:#64748B;">ไม่พบประวัติการศึกษาและใบเสร็จ</td></tr>';
+      }
+
+      const win = window.open('', '_blank', 'width=960,height=780');
+      if (!win) {
+        if (typeof showToast === 'function') showToast('Pop-up ถูกบล็อก', 'กรุณาอนุญาต Pop-up เพื่อพิมพ์ประวัติรายบุคคล', '⚠️');
+        return;
+      }
+      const headerHtml = (typeof buildOfficialOcaPrintHeaderHtml === 'function')
+        ? buildOfficialOcaPrintHeaderHtml('ระเบียนประวัติผู้เรียนรายบุคคล (Individual Student Profile)', `รหัสนักศึกษา: ${sid} | ชื่อ-นามสกุล: ${fullName}`)
+        : `<h2>ระเบียนประวัติผู้เรียนรายบุคคล - ${escapeHtml(sid)} ${escapeHtml(fullName)}</h2>`;
+      const printedAt = new Date().toLocaleString('th-TH');
+      const actor = (typeof getAuditActor === 'function') ? getAuditActor() : { fullName: 'เจ้าหน้าที่ทะเบียน' };
+
+      win.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>ประวัติรายบุคคล ${escapeHtml(sid)} - OCA</title><style>@page{size:A4 portrait;margin:6mm;}body{font-family:'Sarabun','Prompt',sans-serif;color:#0F172A;margin:0;padding:2mm;font-size:12px;line-height:1.45;}table{width:100%;border-collapse:collapse;margin-top:8px;}th,td{border:1px solid #CBD5E1;padding:6px 8px;word-break:break-word;}th{background:#F1F5F9;text-align:left;font-weight:700;color:#0F172A;}.sec-title{margin:14px 0 6px;font-size:13.5px;font-weight:800;color:#0F3D2E;border-left:4px solid #D7A600;padding-left:8px;}.info-tbl th{width:18%;background:#F8FAFC;color:#334155;}.info-tbl td{width:32%;}.sig-row{display:flex;justify-content:space-between;margin-top:26px;font-size:11.5px;color:#334155;}@media print{body{-webkit-print-color-adjust:exact;}}</style></head><body onload="try{window.print();}catch(_){}">${headerHtml}<div class="sec-title">ข้อมูลส่วนตัวและสถานะการเรียนปัจจุบัน</div><table class="info-tbl"><tbody><tr><th>รหัสนักศึกษา</th><td><strong>${escapeHtml(sid)}</strong></td><th>ชื่อ-นามสกุล</th><td><strong>${escapeHtml(fullName)}</strong></td></tr><tr><th>สถานะปัจจุบัน</th><td>${escapeHtml(statusTxt)}</td><th>รูปแบบการเรียน</th><td>${escapeHtml(modeTxt)}</td></tr><tr><th>คอร์สปัจจุบัน</th><td>${escapeHtml(courseTxt)}</td><th>ห้องเรียน</th><td>${escapeHtml(roomTxt)} (${escapeHtml(instructorTxt)})</td></tr><tr><th>ปีการศึกษา / เทอม</th><td>${escapeHtml(yearTxt)} / ${escapeHtml(termTxt)}</td><th>รอบเวลาเรียน</th><td>${escapeHtml(schedTxt)}</td></tr><tr><th>บัตร Mifare 1K</th><td>${escapeHtml(cardUidTxt)}</td><th>เลขบัตรประชาชน</th><td>${escapeHtml(citizenTxt)}</td></tr><tr><th>เบอร์โทรศัพท์</th><td>${escapeHtml(phoneTxt)}</td><th>เบอร์ฉุกเฉิน</th><td>${escapeHtml(emergTxt)}</td></tr><tr><th>อีเมล</th><td>${escapeHtml(emailTxt)}</td><th>LINE ID</th><td>${escapeHtml(lineTxt)}</td></tr><tr><th>ที่อยู่จัดส่ง</th><td colspan="3">${escapeHtml(addrTxt)}</td></tr><tr><th>หมายเหตุ</th><td colspan="3">${escapeHtml(notesTxt)}</td></tr></tbody></table><div class="sec-title">ประวัติการศึกษา การลงทะเบียน และใบเสร็จ (Academic &amp; Receipt History)</div><table><thead><tr><th style="width:14%;">เลขที่ใบเสร็จ / เทอม</th><th style="width:28%;">วิชาที่เรียน &amp; กลุ่ม/ห้องเรียน</th><th style="width:22%;">อาจารย์ผู้สอน &amp; ผลการเรียน</th><th style="width:14%;">รายการที่ทำ</th><th style="width:10%;text-align:right;">ยอด (฿)</th><th style="width:12%;text-align:center;">สถานะตำรา</th></tr></thead><tbody>${histRowsHtml}</tbody></table><div class="sig-row"><div>พิมพ์เมื่อ: ${escapeHtml(printedAt)}</div><div style="text-align:right;">ผู้พิมพ์เอกสาร: ${escapeHtml(actor.fullName || actor.username || 'เจ้าหน้าที่ OCA')}</div></div></body></html>`);
+      win.document.close();
     }
+    window.printIndividualStudentProfile = printIndividualStudentProfile;
     /**
      * นำทางไปยังระบบตรวจสอบห้องเรียนนักศึกษา (REPORTS ข้อที่ 5)
      */
@@ -75108,46 +75166,58 @@ function openPublicRegisterView() {
     async function submitQuickEditRoom() {
       const sid = activeQuickEditStudentId;
       const inpRoom = document.getElementById('inpQuickEditNewRoom');
+      const inpReason = document.getElementById('inpQuickEditReason');
       const newRoom = (inpRoom ? inpRoom.value : '').trim();
+      const reason = (inpReason ? inpReason.value : '').trim();
       if (!sid) return;
       if (!newRoom) {
         showToast('กรุณาระบุเลขที่ห้องเรียนใหม่', '', '⚠️');
         if (inpRoom) inpRoom.focus();
         return;
       }
+      const prevRoom = (activeSearchStudent && activeSearchStudent.studentId === sid && (activeSearchStudent.room || activeSearchStudent.classroom))
+        || (activeCheckerStudent && activeCheckerStudent.studentId === sid && activeCheckerStudent.room)
+        || '-';
       const btn = document.getElementById('btnSubmitQuickEditRoom');
       if (btn) {
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
       }
       try {
-        // 1. Update in Supabase receipts table (latest receipt across all years for returning students)
+        // 1. Update in Supabase receipts table (prefer latest TUITION receipt across all years)
         if (_supabase) {
           const { data: latestRcList, error: rcLookupErr } = await _supabase.from('receipts')
-            .select('id, receipt_no')
+            .select('id, receipt_no, receipt_type')
             .eq('student_id', sid)
             .or('claim_status.is.null,claim_status.neq.VOIDED')
             .order('receipt_no', { ascending: false })
-            .limit(1);
-          if (rcLookupErr) console.warn('Supabase lookup receipt error:', rcLookupErr);
-          if (latestRcList && latestRcList.length > 0) {
-            const { error: upErr } = await _supabase.from('receipts')
-              .update({ room: newRoom })
-              .eq('id', latestRcList[0].id);
-            if (upErr) {
-              console.warn('Supabase update room error:', upErr);
-            } else if (typeof broadcastOcaDataSync === 'function') {
-              broadcastOcaDataSync('receipts', 'UPDATE', { student_id: sid, room: newRoom });
-            }
+            .limit(10);
+          if (rcLookupErr) throw rcLookupErr;
+          const rows = Array.isArray(latestRcList) ? latestRcList : [];
+          const targetRc = rows.find(r => !r.receipt_type || String(r.receipt_type).toUpperCase() === 'TUITION') || rows[0] || null;
+          if (!targetRc) {
+            showToast('ไม่พบใบเสร็จสำหรับบันทึกห้องเรียน', `ไม่พบใบเสร็จที่ใช้งานได้ของรหัส ${sid}`, '⚠️');
+            return;
+          }
+          const { error: upErr } = await _supabase.from('receipts')
+            .update({ room: newRoom })
+            .eq('id', targetRc.id);
+          if (upErr) throw upErr;
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('receipts', 'UPDATE', { student_id: sid, room: newRoom });
           }
         }
         // 2. Update memory caches
         if (cachedSearchStudentsData) {
           const idx = cachedSearchStudentsData.findIndex(s => s.studentId === sid);
-          if (idx !== -1) cachedSearchStudentsData[idx].room = newRoom;
+          if (idx !== -1) {
+            cachedSearchStudentsData[idx].room = newRoom;
+            cachedSearchStudentsData[idx].classroom = newRoom;
+          }
         }
         if (activeSearchStudent && activeSearchStudent.studentId === sid) {
           activeSearchStudent.room = newRoom;
+          activeSearchStudent.classroom = newRoom;
           displayStudentDetailCard(activeSearchStudent);
         }
         if (activeCheckerStudent && activeCheckerStudent.studentId === sid) {
@@ -75158,18 +75228,20 @@ function openPublicRegisterView() {
         closeQuickEditRoomModal();
         showToast('เปลี่ยนห้องเรียนสำเร็จ', 'รหัส ' + sid + ' เป็นห้อง ' + newRoom, '✅');
         if (typeof logDetailedAuditEvent === 'function') {
-          const prevRoom = (activeSearchStudent && activeSearchStudent.studentId === sid && activeSearchStudent.room) || (activeCheckerStudent && activeCheckerStudent.studentId === sid && activeCheckerStudent.room) || '-';
           logDetailedAuditEvent({
             action: 'QUICK_EDIT_ROOM',
             targetType: 'student',
             targetId: sid,
-            summary: `เปลี่ยนห้องเรียนนักศึกษารหัส ${sid}`,
+            summary: `เปลี่ยนห้องเรียนนักศึกษารหัส ${sid}${reason ? ' (' + reason + ')' : ''}`,
             before: { room: prevRoom },
-            after: { room: newRoom },
+            after: reason ? { room: newRoom, reason } : { room: newRoom },
             severity: 'INFO'
           });
         }
-        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
+        if (typeof invalidateOcaReportCaches === 'function') {
+          invalidateOcaReportCaches('students');
+          invalidateOcaReportCaches('receipts');
+        }
         if (typeof filterAndRenderSearchStudents === 'function') filterAndRenderSearchStudents();
         if (typeof loadDashData === 'function') { try { loadDashData(); } catch(_) {} }
         setTimeout(() => onRosterFilterChanged(), 300);
@@ -77032,6 +77104,7 @@ function openPublicRegisterView() {
         "พิมพ์ใบเสร็จทันที": "立即打印收据",
         "พิมพ์ใบแจ้งห้องเรียน": "打印教室使用通知单",
         "พิมพ์ใบแจ้งห้องเรียนคอร์สนี้": "打印该课程教室使用通知单",
+        "พิมพ์ประวัติรายบุคคล": "打印个人学籍档案",
         "พิมพ์ใบแจ้งห้องเรียนตามคอร์ส": "打印该课程教室使用通知单",
         "พิมพ์ใบแจ้งห้องเรียนประจำคอร์สนี้ (A4)": "打印本课程官方 A4 教室使用通知单",
         "พู่กันจีน (Chinese Calligraphy Brush)": "毛笔",
@@ -79480,6 +79553,7 @@ function openPublicRegisterView() {
         "พิมพ์ใบเสร็จทันที": "Print Receipt Immediately",
         "พิมพ์ใบแจ้งห้องเรียน": "Print Classroom Notice",
         "พิมพ์ใบแจ้งห้องเรียนคอร์สนี้": "Print Classroom Notice for this Course",
+        "พิมพ์ประวัติรายบุคคล": "Print Individual Profile",
         "พิมพ์ใบแจ้งห้องเรียนตามคอร์ส": "Print Classroom Notice by Course",
         "พิมพ์ใบแจ้งห้องเรียนประจำคอร์สนี้ (A4)": "Print Official A4 Classroom Notice for Course",
         "พู่กันจีน (Chinese Calligraphy Brush)": "Chinese Calligraphy Brush",
@@ -89821,13 +89895,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=266';
+      const swPath = basePath + 'sw.js?v=267';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (266):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (267):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
