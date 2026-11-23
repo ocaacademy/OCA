@@ -12410,7 +12410,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '252';
+      var LATEST_VERSION = '253';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -23853,14 +23853,30 @@ body.printing-report #printReportContainer {
                       </label>
                       <input type="text" id="inpTransferNewRoom" class="oca-input" placeholder="เช่น 5505 (ระบบค้นหาห้องให้อัตโนมัติ)" style="font-size:13px; padding:7px 10px; font-family:monospace; font-weight:700; color:var(--color-gold-light);">
                     </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
+                      <div class="oca-input-group">
+                        <label class="oca-label" for="selTransferNewGroup" style="font-size:11.5px;">กลุ่มเรียน (Group)</label>
+                        <select id="selTransferNewGroup" class="oca-input" style="font-size:12.5px; padding:5px 8px;" onchange="onTransferGroupChange()">
+                          <option value="">-- อัตโนมัติ / ไม่ระบุ --</option>
+                          <option value="A">กลุ่ม A</option>
+                          <option value="B">กลุ่ม B</option>
+                          <option value="C">กลุ่ม C</option>
+                          <option value="D">กลุ่ม D</option>
+                        </select>
+                      </div>
+                      <div class="oca-input-group">
+                        <label class="oca-label" for="inpTransferNewTeacher" style="font-size:11.5px;">อาจารย์ผู้สอนปลายทาง</label>
+                        <input type="text" id="inpTransferNewTeacher" class="oca-input" placeholder="ดึงอัตโนมัติตามกลุ่มเรียน" style="font-size:12.5px; padding:5px 8px;" readonly>
+                      </div>
+                    </div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
                       <div class="oca-input-group">
                         <label class="oca-label" for="inpTransferNewYearBE" style="font-size:11.5px;">ปีการศึกษา (พ.ศ.)</label>
-                        <input type="number" id="inpTransferNewYearBE" class="oca-input" style="font-size:12.5px; padding:5px 8px;">
+                        <input type="number" id="inpTransferNewYearBE" class="oca-input" style="font-size:12.5px; padding:5px 8px;" onchange="onTransferDestinationChange()">
                       </div>
                       <div class="oca-input-group">
                         <label class="oca-label" for="selTransferNewTerm" style="font-size:11.5px;">ภาคเรียน (Term)</label>
-                        <select id="selTransferNewTerm" class="oca-input" style="font-size:12.5px; padding:5px 8px;">
+                        <select id="selTransferNewTerm" class="oca-input" style="font-size:12.5px; padding:5px 8px;" onchange="onTransferDestinationChange()">
                           <option value="1">เทอม 1</option>
                           <option value="2">เทอม 2</option>
                           <option value="3">เทอม 3</option>
@@ -23871,6 +23887,8 @@ body.printing-report #printReportContainer {
                     </div>
                   </div>
                 </div>
+                <!-- Live Course Price Difference Banner -->
+                <div id="boxTransferPriceDiff" style="display:none; border-radius:9px; padding:10px 14px; margin-bottom:14px; font-size:12.5px; line-height:1.5;"></div>
                 <!-- Transfer Settings Grid -->
                 <div style="background:var(--bg-subcard); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px; margin-bottom:14px;">
                   <div style="font-size:12.5px; font-weight:700; color:var(--color-gold); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
@@ -23890,12 +23908,20 @@ body.printing-report #printReportContainer {
                       </div>
                     </div>
                     <div class="oca-input-group">
-                      <label class="oca-label" for="selTransferTextbookOption">การรับตำราเรียน (Textbook Policy)</label>
-                      <select id="selTransferTextbookOption" class="oca-input">
-                        <option value="keep">ใช้ตำราเรียนเดิม (ไม่ต้องรับตำราใหม่)</option>
-                        <option value="new">ต้องรับตำราเล่มใหม่สำหรับคอร์สนี้ (รีเซ็ตสิทธิ์รับตำรา)</option>
+                      <label class="oca-label" for="selTransferPaymentMethod">วิธีชำระค่าธรรมเนียม (Payment Method)</label>
+                      <select id="selTransferPaymentMethod" class="oca-input">
+                        <option value="โอนเงิน">โอนเงิน (Bank Transfer)</option>
+                        <option value="เงินสด">เงินสด (Cash)</option>
+                        <option value="บัตรเครดิต">บัตรเครดิต (Credit Card)</option>
                       </select>
                     </div>
+                  </div>
+                  <div class="oca-input-group" style="margin-bottom:10px;">
+                    <label class="oca-label" for="selTransferTextbookOption">การรับตำราเรียน (Textbook Policy)</label>
+                    <select id="selTransferTextbookOption" class="oca-input">
+                      <option value="keep">ใช้ตำราเรียนเดิม (ไม่ต้องรับตำราใหม่)</option>
+                      <option value="new">ต้องรับตำราเล่มใหม่สำหรับคอร์สนี้ (รีเซ็ตสิทธิ์รับตำรา)</option>
+                    </select>
                   </div>
                   <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
                     <input type="checkbox" id="chkTransferIssueReceipt" checked style="width:16px; height:16px; accent-color:var(--color-gold); cursor:pointer;">
@@ -23943,6 +23969,7 @@ body.printing-report #printReportContainer {
                 <div>นักศึกษา: <strong id="lblDropStudentName" style="color:var(--text-main);">-</strong> (รหัส: <span id="lblDropStudentId" style="font-family:monospace; color:var(--accent-crimson);">-</span>)</div>
                 <div style="color:var(--text-muted); margin-top:2px;">คอร์สปัจจุบัน: <span id="lblDropStudentCourse">-</span></div>
               </div>
+              <div id="boxDropReceiptWarning" style="display:none; border-radius:8px; padding:9px 12px; font-size:12px; line-height:1.45;"></div>
               <div class="oca-input-group">
                 <label class="oca-label" for="selDropReasonType" style="font-size:12px;">สาเหตุการดรอปเรียน *</label>
                 <select id="selDropReasonType" class="oca-input" style="font-size:12.5px; padding:6px 10px;" required>
@@ -23951,6 +23978,15 @@ body.printing-report #printReportContainer {
                   <option value="ปัญหาสุขภาพ/การเดินทาง">ปัญหาสุขภาพ / ติดปัญหาการเดินทาง</option>
                   <option value="ต้องการเลื่อนไปเรียนเทอมถัดไป">ต้องการเลื่อนไปเรียนเทอมถัดไป</option>
                   <option value="อื่นๆ">อื่นๆ (ระบุในหมายเหตุ)</option>
+                </select>
+              </div>
+              <div class="oca-input-group">
+                <label class="oca-label" for="selDropFinancialAction" style="font-size:12px;">การจัดการสิทธิ์ / การเงินเมื่อดรอป *</label>
+                <select id="selDropFinancialAction" class="oca-input" style="font-size:12.5px; padding:6px 10px;">
+                  <option value="พักการเรียนชั่วคราว (เก็บสิทธิ์ไว้)">พักการเรียนชั่วคราว (เก็บสิทธิ์ไว้)</option>
+                  <option value="เลื่อนไปเรียนเทอมถัดไป (Deferral)">เลื่อนไปเรียนเทอมถัดไป (Deferral)</option>
+                  <option value="ขอคืนเงินค่าเล่าเรียน (Refund)">ขอคืนเงินค่าเล่าเรียน (Refund)</option>
+                  <option value="สละสิทธิ์ / ลาออกถาวร">สละสิทธิ์ / ลาออกถาวร</option>
                 </select>
               </div>
               <div class="oca-input-group">
@@ -30664,6 +30700,14 @@ if (action === 'getDashboardStats') {
             if (stErr || !stData) {
               return { success: false, message: 'ไม่พบข้อมูลนักศึกษารหัส ' + sid };
             }
+            const stStatusUp = String(stData.status || '').toUpperCase();
+            const isDeletedSt = (typeof isStudentDeleted === 'function' && isStudentDeleted(stData)) || stStatusUp === 'DELETED';
+            if (isDeletedSt || stStatusUp === 'DROPPED' || stStatusUp.includes('ดรอป') || stStatusUp.includes('ลาออก')) {
+              return {
+                success: false,
+                message: `ไม่สามารถย้ายคอร์สได้: นักศึกษามีสถานะ ${stData.status || (isDeletedSt ? 'DELETED' : 'DROPPED')} กรุณาคืนสภาพการเรียนก่อน`
+              };
+            }
             const oldCourse = stData.current_course || '-';
             const oldSchedule = stData.current_schedule || '-';
             const reason = (params.reason || 'ย้ายคอร์ส/รอบเวลาเรียน').toString().trim();
@@ -30687,49 +30731,50 @@ if (action === 'getDashboardStats') {
             if (updErr) {
               return { success: false, message: 'ไม่สามารถอัปเดตข้อมูลนักศึกษาได้: ' + updErr.message };
             }
-            // 2. If textbook reset requested, update tuition receipt claim status & course code
-            if (params.textbookOption === 'new') {
-              try {
-                const rRaw = await fetchStudentReceiptsSafely(sid, 'receipt_no, edit_notes, item_name, receipt_type, claim_status', 10);
-                const rList = (rRaw || []).filter(r => r && r.receipt_type === 'tuition' && !isReceiptVoided(r) && String(r.claim_status || '').toUpperCase() !== 'VOIDED');
-                if (rList && rList.length > 0) {
-                  const r = rList[0];
-                  const rNote = (r.edit_notes || '') + ` [สิทธิ์ตำราใหม่: ${newCourse}]`;
-                  let tRoom = String(params.newRoom || params.room || '').trim();
-                  let tGrp = String(params.newClassGroup || params.classGroup || '').trim();
-                  let tTeacher = String(params.newTeacherName || params.teacherName || '').trim();
-                  if ((!tRoom || !tGrp || !tTeacher) && typeof getCourseGroupInstructorList === 'function') {
-                    try {
-                      const _actYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
-                      const gList = getCourseGroupInstructorList(newCourse, newSchedule || 'SCH-01', params.newTerm || stData.term || _actYT.term, params.newYearBE || stData.year_be || _actYT.yearBE);
-                      if (Array.isArray(gList) && gList.length > 0) {
-                        const mg = (tGrp ? gList.find(g => String(g.section || '').toUpperCase() === tGrp.toUpperCase()) : null) || gList[0];
-                        if (!tRoom && mg.room) tRoom = mg.room;
-                        if (!tGrp && mg.section) tGrp = mg.section;
-                        if (!tTeacher && mg.lecturerName) tTeacher = mg.lecturerName;
-                      }
-                    } catch (_) {}
-                  }
-                  const rcResetPayload = {
-                    item_code: newCourse,
-                    item_name: `ค่าเล่าเรียนและอุปกรณ์ (${newCourse})`,
+            // 2. Always sync latest tuition receipt (course/schedule/room/group/teacher) for BOTH keep and new
+            try {
+              const rRaw = await fetchStudentReceiptsSafely(sid, 'receipt_no, edit_notes, item_name, receipt_type, claim_status', 10);
+              const rList = (rRaw || []).filter(r => r && r.receipt_type === 'tuition' && !isReceiptVoided(r) && String(r.claim_status || '').toUpperCase() !== 'VOIDED');
+              if (rList && rList.length > 0) {
+                const r = rList[0];
+                const isNewTextbook = params.textbookOption === 'new';
+                const rNote = (r.edit_notes || '') + ` [ย้ายคอร์ส: ${oldCourse} -> ${newCourse}${isNewTextbook ? ' | สิทธิ์ตำราใหม่' : ''}]`;
+                let tRoom = String(params.newRoom || params.room || '').trim();
+                let tGrp = String(params.newClassGroup || params.classGroup || '').trim();
+                let tTeacher = String(params.newTeacherName || params.teacherName || '').trim();
+                if ((!tRoom || !tGrp || !tTeacher) && typeof getCourseGroupInstructorList === 'function') {
+                  try {
+                    const _actYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: 2569, term: 5 };
+                    const gList = getCourseGroupInstructorList(newCourse, newSchedule || 'SCH-01', params.newTerm || stData.term || _actYT.term, params.newYearBE || stData.year_be || _actYT.yearBE);
+                    if (Array.isArray(gList) && gList.length > 0) {
+                      const mg = (tGrp ? gList.find(g => String(g.section || '').toUpperCase() === tGrp.toUpperCase()) : null) || gList[0];
+                      if (!tRoom && mg.room) tRoom = mg.room;
+                      if (!tGrp && mg.section) tGrp = mg.section;
+                      if (!tTeacher && mg.lecturerName) tTeacher = mg.lecturerName;
+                    }
+                  } catch (_) {}
+                }
+                const rcUpdatePayload = {
+                  item_code: newCourse,
+                  item_name: `ค่าเล่าเรียนและอุปกรณ์ (${newCourse})`,
+                  edit_notes: rNote,
+                  ...(newSchedule ? { schedule: newSchedule } : {}),
+                  ...(tRoom ? { room: tRoom } : {}),
+                  ...(tGrp ? { class_group: tGrp } : {}),
+                  ...(tTeacher ? { teacher_name: tTeacher } : {}),
+                  ...(isNewTextbook ? {
                     claim_status: 'PENDING',
                     claimed_at: null,
                     claimed_by: null,
-                    material_type: 'หนังสือและสมุด',
-                    edit_notes: rNote,
-                    ...(newSchedule ? { schedule: newSchedule } : {}),
-                    ...(tRoom ? { room: tRoom } : {}),
-                    ...(tGrp ? { class_group: tGrp } : {}),
-                    ...(tTeacher ? { teacher_name: tTeacher } : {})
-                  };
-                  { const { error: wErr } = await _supabase.from('receipts')
-                    .update(rcResetPayload)
-                    .eq('receipt_no', r.receipt_no); if (wErr) throw wErr; }
-                }
-              } catch (tbResetErr) {
-                console.warn('Textbook reset error:', tbResetErr);
+                    material_type: 'หนังสือและสมุด'
+                  } : {})
+                };
+                { const { error: wErr } = await _supabase.from('receipts')
+                  .update(rcUpdatePayload)
+                  .eq('receipt_no', r.receipt_no); if (wErr) throw wErr; }
               }
+            } catch (tbResetErr) {
+              console.warn('Tuition receipt transfer sync error:', tbResetErr);
             }
             // 3. If fee is charged and receipt requested
             let createdReceiptNo = null;
@@ -30831,6 +30876,10 @@ if (action === 'getDashboardStats') {
                 status: 'SUCCESS'
               }]); if (wErr) console.warn('[Supabase write failed] security_audit_logs:', wErr.message); }
             } catch (_) {}
+            if (typeof broadcastOcaDataSync === 'function') {
+              broadcastOcaDataSync('students', 'UPDATE', { student_id: sid });
+              broadcastOcaDataSync('receipts', 'UPDATE', { student_id: sid });
+            }
             return {
               success: true,
               message: 'ย้ายคอร์สเรียนสำเร็จ เรียบร้อยแล้ว',
@@ -38467,7 +38516,20 @@ if (action === 'getDashboardStats') {
       const selTerm = document.getElementById('selTransferNewTerm');
       if (inpYear) inpYear.value = curYear;
       if (selTerm) selTerm.value = curTerm;
-      // Reset fee & options
+      // Reset fee, room, group, teacher & price diff
+      const inpRoomReset = document.getElementById('inpTransferNewRoom');
+      if (inpRoomReset) inpRoomReset.value = '';
+      const selGrpReset = document.getElementById('selTransferNewGroup');
+      if (selGrpReset) selGrpReset.value = '';
+      const inpTeacherReset = document.getElementById('inpTransferNewTeacher');
+      if (inpTeacherReset) inpTeacherReset.value = '';
+      const selPayReset = document.getElementById('selTransferPaymentMethod');
+      if (selPayReset) selPayReset.value = 'โอนเงิน';
+      const boxPriceDiff = document.getElementById('boxTransferPriceDiff');
+      if (boxPriceDiff) {
+        boxPriceDiff.style.display = 'none';
+        boxPriceDiff.innerHTML = '';
+      }
       const selFee = document.getElementById('selTransferFeeType');
       if (selFee) selFee.value = '0';
       const boxCustom = document.getElementById('boxTransferCustomFee');
@@ -38503,15 +38565,22 @@ if (action === 'getDashboardStats') {
       }
       const selCourse = document.getElementById('selTransferNewCourse');
       const selSch = document.getElementById('selTransferNewSchedule');
+      const selGrp = document.getElementById('selTransferNewGroup');
+      const inpTeacher = document.getElementById('inpTransferNewTeacher');
+      const inpRoom = document.getElementById('inpTransferNewRoom');
       const inpYear = document.getElementById('inpTransferNewYearBE');
       const selTerm = document.getElementById('selTransferNewTerm');
       const selFee = document.getElementById('selTransferFeeType');
+      const selPay = document.getElementById('selTransferPaymentMethod');
       const inpCustom = document.getElementById('inpTransferCustomFee');
       const chkRcpt = document.getElementById('chkTransferIssueReceipt');
       const selTb = document.getElementById('selTransferTextbookOption');
       const inpReason = document.getElementById('inpTransferReason');
       const newCourse = (selCourse ? selCourse.value : '').trim();
       const newSchedule = (selSch ? selSch.value : '').trim();
+      const newGroup = (selGrp ? selGrp.value : '').trim();
+      const newTeacher = (inpTeacher ? inpTeacher.value : '').trim();
+      const transferNewRoom = (inpRoom ? inpRoom.value : '').trim();
       const newYearBE = (inpYear ? inpYear.value : '').trim();
       const newTerm = (selTerm ? selTerm.value : '1').trim();
       if (!newCourse) {
@@ -38521,8 +38590,8 @@ if (action === 'getDashboardStats') {
       }
       const oldCourse = currentTransferStudent.course || currentTransferStudent.current_course || '';
       const oldSchedule = currentTransferStudent.schedule || currentTransferStudent.current_schedule || '';
-      if (newCourse === oldCourse && newSchedule === oldSchedule) {
-        showModal('แจ้งเตือน', 'คอร์สเรียนและรอบเวลาที่เลือกตรงกับข้อมูลเดิม กรุณาเลือกคอร์สหรือรอบเวลาใหม่ที่แตกต่างจากเดิม', '⚠️');
+      if (newCourse === oldCourse && newSchedule === oldSchedule && !newGroup && !transferNewRoom) {
+        showModal('แจ้งเตือน', 'คอร์สเรียนและรอบเวลาที่เลือกตรงกับข้อมูลเดิม กรุณาเลือกคอร์ส, รอบเวลา, กลุ่มเรียน หรือห้องใหม่', '⚠️');
         return;
       }
       let feeAmount = 0;
@@ -38531,15 +38600,38 @@ if (action === 'getDashboardStats') {
       } else if (selFee) {
         feeAmount = Number(selFee.value || 0);
       }
+      const paymentMethod = (selPay && selPay.value) ? selPay.value : 'โอนเงิน';
+      const studentDisplayName = formatStudentNameWithPrefix(currentTransferStudent.prefix, currentTransferStudent.fullName || currentTransferStudent.rawName || '') || currentTransferStudent.studentId;
+      const transferFormSnapshot = {
+        studentId: currentTransferStudent.studentId,
+        studentName: studentDisplayName,
+        oldCourse,
+        oldSchedule,
+        newCourse,
+        newSchedule,
+        newGroup,
+        newRoom: transferNewRoom,
+        newTeacher,
+        newYearBE,
+        newTerm,
+        feeAmount,
+        paymentMethod,
+        textbookOption: selTb ? selTb.value : 'keep',
+        reason: inpReason ? inpReason.value : 'ย้ายคอร์ส/รอบเวลาเรียน'
+      };
       const payload = {
         studentId: currentTransferStudent.studentId,
         oldCourse: oldCourse,
         oldSchedule: oldSchedule,
         newCourse: newCourse,
         newSchedule: newSchedule,
+        newRoom: transferNewRoom,
+        newClassGroup: newGroup,
+        newTeacherName: newTeacher,
         newYearBE: newYearBE,
         newTerm: newTerm,
         feeAmount: feeAmount,
+        paymentMethod: paymentMethod,
         issueReceipt: (chkRcpt ? chkRcpt.checked : false) && feeAmount > 0,
         textbookOption: selTb ? selTb.value : 'keep',
         reason: inpReason ? inpReason.value : 'ย้ายคอร์ส/รอบเวลาเรียน'
@@ -38559,9 +38651,6 @@ if (action === 'getDashboardStats') {
             showModal('ย้ายคอร์สไม่สำเร็จ', (res && res.message) || 'เกิดข้อผิดพลาดในการย้ายคอร์ส', '❌');
             return;
           }
-          // Retrieve specified new room
-          const transferNewRoom = (document.getElementById('inpTransferNewRoom')?.value || '').trim();
-          // Update memory cache
           const sid = currentTransferStudent.studentId;
           const idx = cachedSearchStudentsData.findIndex(item => item.studentId === sid);
           if (idx !== -1 && transferNewRoom) {
@@ -38569,36 +38658,6 @@ if (action === 'getDashboardStats') {
           }
           if (activeSearchStudent && activeSearchStudent.studentId === sid && transferNewRoom) {
             activeSearchStudent.room = transferNewRoom;
-          }
-          // Update room directly in Supabase receipts for this transferred student
-          if (_supabase && transferNewRoom) {
-            (async () => {
-              try {
-                let rList = [];
-                if (typeof fetchStudentReceiptsSafely === 'function') {
-                  const fetched = await fetchStudentReceiptsSafely(sid, 'id, receipt_no', 5);
-                  if (fetched && fetched.length > 0) {
-                    fetched.sort((a, b) => String(b.receipt_no || '').localeCompare(String(a.receipt_no || '')));
-                    rList = fetched;
-                  }
-                } else {
-                  const { data: qList, error: rSelErr } = await _supabase.from('receipts')
-                    .select('id')
-                    .eq('student_id', sid)
-                    .order('receipt_no', { ascending: false })
-                    .limit(1);
-                  if (!rSelErr && qList) rList = qList;
-                }
-                if (rList && rList.length > 0) {
-                  const { error: rUpdErr } = await _supabase.from('receipts')
-                    .update({ room: transferNewRoom, schedule: newSchedule })
-                    .eq('id', rList[0].id);
-                  if (rUpdErr) console.warn('[submitTransferCourse] receipt room update error:', rUpdErr);
-                }
-              } catch (errRoom) {
-                console.warn('[submitTransferCourse] room update exception:', errRoom);
-              }
-            })();
           }
           if (idx !== -1) {
             cachedSearchStudentsData[idx].course = newCourse;
@@ -38629,9 +38688,32 @@ if (action === 'getDashboardStats') {
           }
           closeTransferCourseModal();
           const rcptSuffix = res.receiptNo ? (' (ใบเสร็จ: ' + res.receiptNo + ')') : '';
+          transferFormSnapshot.receiptNo = res.receiptNo || '';
+          window._lastTransferFormRecord = transferFormSnapshot;
           showToast('ย้ายคอร์สเรียนสำเร็จ', newCourse + rcptSuffix, '🎓');
-        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
-          if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('ย้ายคอร์สเรียนสำเร็จ', newCourse + rcptSuffix, '🎓');
+          if (typeof invalidateOcaReportCaches === 'function') {
+            invalidateOcaReportCaches('students');
+            invalidateOcaReportCaches('receipts');
+          }
+          if (typeof onRosterFilterChanged === 'function') onRosterFilterChanged();
+          if (typeof showConfirmModal === 'function') {
+            showConfirmModal({
+              title: 'ย้ายคอร์สเรียนสำเร็จ!',
+              subtitle: 'บันทึกข้อมูลนักศึกษาและอัปเดตใบเสร็จเรียบร้อยแล้ว',
+              message: `${transferFormSnapshot.studentName} (${toArabicDigits(sid)})\nเปลี่ยนจาก ${oldCourse} เป็น ${newCourse}${transferNewRoom ? (' ห้อง ' + transferNewRoom) : ''}${rcptSuffix}`,
+              icon: 'fa-right-left',
+              iconColor: '#10b981',
+              confirmText: '🖨️ พิมพ์ใบคำร้องขอย้ายคอร์ส (A4)',
+              cancelText: 'ปิด',
+              onConfirm: () => {
+                if (typeof printStudentTransferRequestForm === 'function') {
+                  printStudentTransferRequestForm(window._lastTransferFormRecord);
+                }
+              }
+            });
+          } else if (typeof showActivitySuccessPopup === 'function') {
+            showActivitySuccessPopup('ย้ายคอร์สเรียนสำเร็จ', newCourse + rcptSuffix, '🎓');
+          }
         })
         .catch(err => {
           if (btnSubmit) {
@@ -38647,7 +38729,8 @@ if (action === 'getDashboardStats') {
       currentDropStudent = {
         studentId: studentId,
         studentName: studentName || studentId,
-        course: course || '-'
+        course: course || '-',
+        textbookStatusSummary: '-'
       };
       const modal = document.getElementById('modalDropStudentReason');
       if (!modal) return;
@@ -38656,12 +38739,52 @@ if (action === 'getDashboardStats') {
       const elCourse = document.getElementById('lblDropStudentCourse');
       const inpRem = document.getElementById('inpDropReasonRemarks');
       const selReason = document.getElementById('selDropReasonType');
+      const selFin = document.getElementById('selDropFinancialAction');
+      const boxWarn = document.getElementById('boxDropReceiptWarning');
       if (elName) elName.textContent = currentDropStudent.studentName;
       if (elId) elId.textContent = toArabicDigits(currentDropStudent.studentId);
       if (elCourse) elCourse.textContent = currentDropStudent.course;
       if (inpRem) inpRem.value = '';
       if (selReason) selReason.selectedIndex = 0;
+      if (selFin) selFin.selectedIndex = 0;
+      if (boxWarn) {
+        boxWarn.style.display = 'none';
+        boxWarn.innerHTML = '';
+      }
       modal.style.display = 'flex';
+      // Fetch latest tuition receipt to warn about textbook claim or pending parcel delivery
+      if (typeof fetchStudentReceiptsSafely === 'function') {
+        fetchStudentReceiptsSafely(studentId, 'receipt_no, receipt_type, claim_status, delivery_method, material_type', 5)
+          .then(rows => {
+            if (!boxWarn || !currentDropStudent || currentDropStudent.studentId !== studentId) return;
+            const latest = (rows || []).find(r => r && r.receipt_type === 'tuition' && String(r.claim_status || '').toUpperCase() !== 'VOIDED');
+            if (!latest) return;
+            const cs = String(latest.claim_status || '').toUpperCase();
+            const dm = String(latest.delivery_method || '');
+            const isShip = dm.includes('ส่ง');
+            boxWarn.style.display = 'block';
+            if (cs === 'CLAIMED') {
+              currentDropStudent.textbookStatusSummary = `รับตำราไปแล้ว (ใบเสร็จ ${latest.receipt_no})`;
+              boxWarn.style.background = '#FEF3C7';
+              boxWarn.style.border = '1px solid #D97706';
+              boxWarn.style.color = '#0F172A';
+              boxWarn.innerHTML = `<i class="fa-solid fa-book" style="color:#B45309; margin-right:5px;"></i> <strong>สถานะตำราเรียน (ใบเสร็จ ${toArabicDigits(latest.receipt_no)}):</strong> รับตำราไปแล้ว`;
+            } else if (isShip) {
+              currentDropStudent.textbookStatusSummary = `จัดส่งพัสดุ (ใบเสร็จ ${latest.receipt_no}) — ระงับการจัดส่ง`;
+              boxWarn.style.background = '#EFF6FF';
+              boxWarn.style.border = '1px solid #3B82F6';
+              boxWarn.style.color = '#0F172A';
+              boxWarn.innerHTML = `<i class="fa-solid fa-truck" style="color:#1D4ED8; margin-right:5px;"></i> <strong>สถานะจัดส่งพัสดุ (ใบเสร็จ ${toArabicDigits(latest.receipt_no)}):</strong> มีรายการจัดส่งพัสดุ (กรุณาระงับการจัดส่งหากยังไม่ส่งออก)`;
+            } else {
+              currentDropStudent.textbookStatusSummary = `ยังไม่ได้รับตำรา (ใบเสร็จ ${latest.receipt_no}) — ระบบล็อกห้ามรับอัตโนมัติ`;
+              boxWarn.style.background = '#ECFDF5';
+              boxWarn.style.border = '1px solid #10B981';
+              boxWarn.style.color = '#0F172A';
+              boxWarn.innerHTML = `<i class="fa-solid fa-lock" style="color:#047857; margin-right:5px;"></i> <strong>สถานะตำราเรียน (ใบเสร็จ ${toArabicDigits(latest.receipt_no)}):</strong> ยังไม่ได้รับ (ระบบจะล็อกห้ามสแกนรับตำราอัตโนมัติ)`;
+            }
+          })
+          .catch(() => {});
+      }
     }
     function closeDropStudentModal() {
       const modal = document.getElementById('modalDropStudentReason');
@@ -38673,9 +38796,12 @@ if (action === 'getDashboardStats') {
       if (!currentDropStudent || !currentDropStudent.studentId) return;
       const sid = currentDropStudent.studentId;
       const sName = currentDropStudent.studentName;
+      const sCourse = currentDropStudent.course || '-';
+      const tbSummary = currentDropStudent.textbookStatusSummary || '-';
       const reasonType = document.getElementById('selDropReasonType')?.value || 'พักการเรียน';
+      const finAction = document.getElementById('selDropFinancialAction')?.value || 'พักการเรียนชั่วคราว (เก็บสิทธิ์ไว้)';
       const remarks = (document.getElementById('inpDropReasonRemarks')?.value || '').trim();
-      const fullReason = remarks ? `${reasonType} (${remarks})` : reasonType;
+      const fullReason = remarks ? `${reasonType} | สิทธิ์: ${finAction} (${remarks})` : `${reasonType} | สิทธิ์: ${finAction}`;
       const btn = document.getElementById('btnSubmitDropStudent');
       if (btn) {
         btn.disabled = true;
@@ -38690,10 +38816,17 @@ if (action === 'getDashboardStats') {
         const dropNote = `[ดรอปเรียน ${dateStr}]: ${fullReason} โดย ${officer.username || officer.fullName}`;
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sid);
         let curNotes = '';
+        let curStatusUp = '';
         try {
-          const { data: stRow } = await _supabase.from('students').select('notes').eq(isUuid ? 'id' : 'student_id', sid).maybeSingle();
+          const { data: stRow } = await _supabase.from('students').select('status, notes').eq(isUuid ? 'id' : 'student_id', sid).maybeSingle();
           curNotes = stRow?.notes || '';
+          curStatusUp = String(stRow?.status || '').toUpperCase();
         } catch (_) {}
+        if (curStatusUp === 'DROPPED' || curStatusUp.includes('ดรอป') || curStatusUp.includes('ลาออก')) {
+          showToast('นักศึกษารายนี้มีสถานะดรอปเรียนอยู่แล้ว', 'ไม่ต้องบันทึกดรอปซ้ำ', '⚠️');
+          closeDropStudentModal();
+          return;
+        }
         const newNotes = curNotes ? `${curNotes} | ${dropNote}` : dropNote;
         let q = _supabase.from('students').update({ status: 'DROPPED', notes: newNotes });
         q = isUuid ? q.eq('id', sid) : q.eq('student_id', sid);
@@ -38724,16 +38857,44 @@ if (action === 'getDashboardStats') {
           activeSearchStudent.notes = newNotes;
           if (typeof displayStudentDetailCard === 'function') displayStudentDetailCard(activeSearchStudent);
         }
+        const dropSnapshot = {
+          studentId: sid,
+          studentName: sName,
+          course: sCourse,
+          reasonType,
+          financialAction: finAction,
+          remarks,
+          textbookStatusSummary: tbSummary,
+          recordedAt: dateStr
+        };
+        window._lastDropFormRecord = dropSnapshot;
         closeDropStudentModal();
         showToast('ดรอปเรียนเรียบร้อย', `${sName} เปลี่ยนสถานะเป็น DROPPED`, 'success');
         if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
         if (typeof onRosterFilterChanged === 'function') onRosterFilterChanged();
         if (typeof broadcastOcaDataSync === 'function') broadcastOcaDataSync('students', 'UPDATE', { student_id: sid });
-        if (typeof showActivitySuccessPopup === 'function') showActivitySuccessPopup('ดรอปเรียนเรียบร้อย', `${sName} เปลี่ยนสถานะเป็น DROPPED แล้ว`, '✅');
         if (typeof filterAndRenderSearchStudents === 'function') {
           filterAndRenderSearchStudents();
         } else if (typeof renderSearchStudentsTable === 'function') {
           renderSearchStudentsTable(cachedSearchStudentsData);
+        }
+        if (typeof showConfirmModal === 'function') {
+          showConfirmModal({
+            title: 'ดรอปเรียนเรียบร้อยแล้ว',
+            subtitle: `${sName} (${toArabicDigits(sid)}) สถานะ: DROPPED`,
+            message: `สาเหตุ: ${reasonType}\nการจัดการสิทธิ์: ${finAction}`,
+            icon: 'fa-user-slash',
+            iconColor: '#ef4444',
+            confirmText: '🖨️ พิมพ์ใบคำร้องขอดรอปเรียน (A4)',
+            cancelText: 'ปิด',
+            onConfirm: () => {
+              if (typeof printStudentDropRequestForm === 'function') {
+                printStudentDropRequestForm(window._lastDropFormRecord);
+              }
+            }
+          });
+        } else if (typeof showActivitySuccessPopup === 'function') {
+          showActivitySuccessPopup('ดรอปเรียนเรียบร้อย', `${sName} เปลี่ยนสถานะเป็น DROPPED แล้ว`, '✅');
         }
       } catch (err) {
         console.error('submitDropStudent error:', err);
@@ -73730,6 +73891,8 @@ function openPublicRegisterView() {
           if (typeof displayStudentDetailCard === 'function') displayStudentDetailCard(activeSearchStudent);
         }
         showToast('คืนสภาพนักศึกษาเรียบร้อย', `${studentName || studentId} กลับเป็น พร้อมเรียน`, 'success');
+        if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
+        if (typeof broadcastOcaDataSync === 'function') broadcastOcaDataSync('students', 'UPDATE', { student_id: studentId });
         if (typeof filterAndRenderSearchStudents === 'function') {
           filterAndRenderSearchStudents();
         } else if (typeof renderSearchStudentsTable === 'function') {
@@ -74360,25 +74523,156 @@ function openPublicRegisterView() {
     /**
      * Auto-lookup room for destination course during transfer
      */
+    function onTransferGroupChange() {
+      const selCourse = document.getElementById('selTransferNewCourse');
+      const selSch = document.getElementById('selTransferNewSchedule');
+      const selGrp = document.getElementById('selTransferNewGroup');
+      const inpYear = document.getElementById('inpTransferNewYearBE');
+      const selTerm = document.getElementById('selTransferNewTerm');
+      const inpRoom = document.getElementById('inpTransferNewRoom');
+      const inpTeacher = document.getElementById('inpTransferNewTeacher');
+      const cVal = selCourse ? selCourse.value : '';
+      const sVal = selSch ? selSch.value : 'ALL';
+      const grpVal = selGrp ? selGrp.value.trim().toUpperCase() : '';
+      const actYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: new Date().getFullYear() + 543, term: 1 };
+      const yearBE = (inpYear && inpYear.value) ? inpYear.value : String(actYT.yearBE);
+      const termNo = (selTerm && selTerm.value) ? selTerm.value : String(actYT.term);
+      if (!cVal || typeof getCourseGroupInstructorList !== 'function') return;
+      try {
+        const gList = getCourseGroupInstructorList(cVal, sVal || 'SCH-01', termNo, yearBE);
+        if (Array.isArray(gList) && gList.length > 0) {
+          const mg = (grpVal ? gList.find(g => String(g.section || '').toUpperCase() === grpVal) : null) || gList[0];
+          if (inpRoom && mg.room) inpRoom.value = mg.room;
+          if (inpTeacher) inpTeacher.value = mg.lecturerName || '';
+          if (selGrp && !grpVal && mg.section) selGrp.value = mg.section;
+        } else if (inpTeacher) {
+          inpTeacher.value = '';
+        }
+      } catch (_) {}
+    }
+    window.onTransferGroupChange = onTransferGroupChange;
     function onTransferDestinationChange() {
       const selCourse = document.getElementById('selTransferNewCourse');
       const selSch = document.getElementById('selTransferNewSchedule');
       const inpYear = document.getElementById('inpTransferNewYearBE');
       const selTerm = document.getElementById('selTransferNewTerm');
       const inpRoom = document.getElementById('inpTransferNewRoom');
-      if (!inpRoom) return;
+      const boxDiff = document.getElementById('boxTransferPriceDiff');
       const cVal = selCourse ? selCourse.value : '';
       const sVal = selSch ? selSch.value : 'ALL';
-      const yearBE = inpYear ? inpYear.value : '2569';
-      const termNo = selTerm ? selTerm.value : '5';
+      const actYT = (typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm() : null) || { yearBE: new Date().getFullYear() + 543, term: 1 };
+      const yearBE = (inpYear && inpYear.value) ? inpYear.value : String(actYT.yearBE);
+      const termNo = (selTerm && selTerm.value) ? selTerm.value : String(actYT.term);
       const yt = yearBE + '_' + termNo;
-      if (!cVal) return;
-      const cfg = getSavedCourseClassroomConfig(yt, cVal, sVal);
-      if (cfg && cfg.room) {
-        inpRoom.value = cfg.room;
-        inpRoom.style.borderColor = 'var(--color-gold)';
+      if (cVal && inpRoom) {
+        const cfg = getSavedCourseClassroomConfig(yt, cVal, sVal);
+        if (cfg && cfg.room) {
+          inpRoom.value = cfg.room;
+          inpRoom.style.borderColor = 'var(--color-gold)';
+        }
+      }
+      onTransferGroupChange();
+      // Compute course tuition price difference (Old Course vs New Course)
+      if (boxDiff && cVal && typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
+        const oldC = (currentTransferStudent && (currentTransferStudent.course || currentTransferStudent.current_course)) || '';
+        const findPrice = (codeOrName) => {
+          const q = String(codeOrName || '').trim().toUpperCase();
+          if (!q) return null;
+          const m = cachedCoursesList.find(c => {
+            const cc = String(c.course_code || c.code || '').trim().toUpperCase();
+            const cn = String(c.course_name || c.name || '').trim().toUpperCase();
+            return (cc && (q === cc || q.startsWith(cc + ' ') || q.startsWith(cc + '-'))) || (cn && q === cn);
+          });
+          return m && m.price !== undefined && m.price !== null ? Number(m.price) : null;
+        };
+        const oldP = findPrice(oldC);
+        const newP = findPrice(cVal);
+        if (oldP !== null && newP !== null) {
+          const diff = newP - oldP;
+          boxDiff.style.display = 'block';
+          if (diff > 0) {
+            boxDiff.style.background = '#FEF3C7';
+            boxDiff.style.border = '1.5px solid #D97706';
+            boxDiff.style.color = '#0F172A';
+            boxDiff.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:#B45309; margin-right:6px;"></i> <strong>ส่วนต่างค่าเล่าเรียน: +${toArabicDigits(diff.toLocaleString())} บาท</strong> (คอร์สเดิม ${toArabicDigits(oldP.toLocaleString())} ฿ → คอร์สใหม่ ${toArabicDigits(newP.toLocaleString())} ฿) — แนะนำกดปุ่ม <em>"ออกใบเสร็จส่วนต่างที่หน้าแคชเชียร์"</em>`;
+          } else if (diff < 0) {
+            boxDiff.style.background = '#EFF6FF';
+            boxDiff.style.border = '1px solid #3B82F6';
+            boxDiff.style.color = '#0F172A';
+            boxDiff.innerHTML = `<i class="fa-solid fa-circle-info" style="color:#1D4ED8; margin-right:6px;"></i> <strong>ส่วนต่างค่าเล่าเรียน: -${toArabicDigits(Math.abs(diff).toLocaleString())} บาท</strong> (คอร์สเดิม ${toArabicDigits(oldP.toLocaleString())} ฿ → คอร์สใหม่ ${toArabicDigits(newP.toLocaleString())} ฿) — คอร์สใหม่ราคาต่ำกว่าเดิม`;
+          } else {
+            boxDiff.style.background = '#ECFDF5';
+            boxDiff.style.border = '1px solid #10B981';
+            boxDiff.style.color = '#0F172A';
+            boxDiff.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#047857; margin-right:6px;"></i> <strong>ราคาคอร์สเท่ากัน (${toArabicDigits(newP.toLocaleString())} บาท)</strong> — ไม่มีส่วนต่างค่าเล่าเรียน`;
+          }
+        } else {
+          boxDiff.style.display = 'none';
+          boxDiff.innerHTML = '';
+        }
+      } else if (boxDiff) {
+        boxDiff.style.display = 'none';
+        boxDiff.innerHTML = '';
       }
     }
+    function buildOcaRequestFormHtml(title, subtitle, rowsHtml) {
+      const hdr = (typeof buildOfficialOcaPrintHeaderHtml === 'function')
+        ? buildOfficialOcaPrintHeaderHtml(title, subtitle)
+        : `<h2 style="text-align:center;">${escapeHtml(title)}</h2><p style="text-align:center;">${escapeHtml(subtitle)}</p>`;
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const todayThai = `${toArabicDigits(pad(now.getDate()))}/${toArabicDigits(pad(now.getMonth() + 1))}/${toArabicDigits(now.getFullYear() + 543)}`;
+      return `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+        <style>
+          @page { size: A4 portrait; margin: 6mm; }
+          body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; color: #0f172a; background: #fff; margin: 0; padding: 8px; font-size: 13.5px; line-height: 1.5; }
+          table.req-tbl { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          table.req-tbl th, table.req-tbl td { border: 1px solid #334155; padding: 7px 10px; text-align: left; vertical-align: top; }
+          table.req-tbl th { width: 32%; background: #f1f5f9; font-weight: 700; color: #0f172a; }
+          .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; margin-top: 42px; text-align: center; font-size: 13px; }
+          .sig-line { border-bottom: 1px dotted #0f172a; height: 34px; margin-bottom: 6px; }
+        </style></head><body>
+        ${hdr}
+        <table class="req-tbl">${rowsHtml}</table>
+        <div class="sig-grid">
+          <div><div class="sig-line"></div><div>ลงชื่อ ....................................................</div><div>(นักศึกษา / ผู้ยื่นคำร้อง)</div><div>วันที่ ...... / ...... / ..........</div></div>
+          <div><div class="sig-line"></div><div>ลงชื่อ ....................................................</div><div>(เจ้าหน้าที่รับเรื่อง / ผู้อนุมัติ)</div><div>วันที่ ${todayThai}</div></div>
+        </div>
+      </body></html>`;
+    }
+    function printStudentTransferRequestForm(rec) {
+      if (!rec) return;
+      const tbLabel = rec.textbookOption === 'new' ? 'รับตำราเล่มใหม่ (รีเซ็ตสิทธิ์)' : 'ใช้ตำราเรียนเดิม';
+      const rows =
+        `<tr><th>รหัสนักศึกษา / ชื่อ-สกุล</th><td><strong>${escapeHtml(toArabicDigits(rec.studentId || '-'))}</strong> — ${escapeHtml(rec.studentName || '-')}</td></tr>` +
+        `<tr><th>คอร์ส / รอบเวลาเดิม</th><td>${escapeHtml(rec.oldCourse || '-')} (${escapeHtml(rec.oldSchedule || '-')})</td></tr>` +
+        `<tr><th>คอร์ส / รอบเวลาใหม่</th><td><strong>${escapeHtml(rec.newCourse || '-')}</strong> (${escapeHtml(rec.newSchedule || '-')})${rec.newGroup ? ' | กลุ่ม ' + escapeHtml(rec.newGroup) : ''}${rec.newRoom ? ' | ห้อง ' + escapeHtml(toArabicDigits(rec.newRoom)) : ''}${rec.newTeacher ? ' | อ.' + escapeHtml(rec.newTeacher) : ''}</td></tr>` +
+        `<tr><th>ปีการศึกษา / ภาคเรียน</th><td>พ.ศ. ${escapeHtml(toArabicDigits(rec.newYearBE || '-'))} เทอม ${escapeHtml(toArabicDigits(rec.newTerm || '-'))}</td></tr>` +
+        `<tr><th>นโยบายตำราเรียน</th><td>${escapeHtml(tbLabel)}</td></tr>` +
+        `<tr><th>ค่าธรรมเนียม / เลขใบเสร็จ</th><td>${toArabicDigits(Number(rec.feeAmount || 0).toLocaleString())} บาท (${escapeHtml(rec.paymentMethod || '-')})${rec.receiptNo ? ' — ใบเสร็จเลขที่ ' + escapeHtml(toArabicDigits(rec.receiptNo)) : ''}</td></tr>` +
+        `<tr><th>เหตุผล / หมายเหตุ</th><td>${escapeHtml(rec.reason || '-')}</td></tr>`;
+      const html = buildOcaRequestFormHtml('ใบคำร้องขอย้ายคอร์สและรอบเวลาเรียน', 'Course & Schedule Transfer Request Form', rows);
+      window._lastOcaPrintRequestHtml = html;
+      const w = window.open('', '_blank', 'width=850,height=900');
+      if (w) { w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try { w.focus(); w.print(); } catch (_) {} }, 350); }
+    }
+    function printStudentDropRequestForm(rec) {
+      if (!rec) return;
+      const rows =
+        `<tr><th>รหัสนักศึกษา / ชื่อ-สกุล</th><td><strong>${escapeHtml(toArabicDigits(rec.studentId || '-'))}</strong> — ${escapeHtml(rec.studentName || '-')}</td></tr>` +
+        `<tr><th>คอร์สเรียนปัจจุบัน</th><td>${escapeHtml(rec.course || '-')}</td></tr>` +
+        `<tr><th>สาเหตุการดรอปเรียน</th><td>${escapeHtml(rec.reasonType || '-')}</td></tr>` +
+        `<tr><th>การจัดการสิทธิ์ / การเงิน</th><td><strong>${escapeHtml(rec.financialAction || '-')}</strong></td></tr>` +
+        `<tr><th>สถานะตำราเรียน / พัสดุ</th><td>${escapeHtml(rec.textbookStatusSummary || '-')}</td></tr>` +
+        `<tr><th>รายละเอียด / บันทึกเพิ่มเติม</th><td>${escapeHtml(rec.remarks || '-')}</td></tr>`;
+      const html = buildOcaRequestFormHtml('ใบคำร้องขอดรอปเรียน / พักการเรียน', 'Student Drop & Deferral Request Form', rows);
+      window._lastOcaPrintRequestHtml = html;
+      const w = window.open('', '_blank', 'width=850,height=900');
+      if (w) { w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try { w.focus(); w.print(); } catch (_) {} }, 350); }
+    }
+    window.buildOcaRequestFormHtml = buildOcaRequestFormHtml;
+    window.printStudentTransferRequestForm = printStudentTransferRequestForm;
+    window.printStudentDropRequestForm = printStudentDropRequestForm;
     // Quick Edit Student Classroom Functions
     let activeQuickEditStudentId = null;
     function openQuickEditRoomModal(studentId, currentRoom = '') {
@@ -89109,13 +89403,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=252';
+      const swPath = basePath + 'sw.js?v=253';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (252):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (253):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
