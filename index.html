@@ -12096,6 +12096,12 @@ body.printing-report #printReportContainer {
   html[data-theme="dark"] #oca-app-root #kpiShipPrintedCount {
     color: #7DD3FC !important;
   }
+  html[data-theme="dark"] #oca-app-root #badgeReportHubModules {
+    color: #FDE68A !important;
+  }
+  html[data-theme="dark"] #oca-app-root #badgeReportHubLiveDb {
+    color: #6EE7B7 !important;
+  }
   #modalSystemManual #manualLiveBadge {
     color: #6EE7B7 !important;
   }
@@ -12550,7 +12556,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '259';
+      var LATEST_VERSION = '260';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -18178,7 +18184,7 @@ body.printing-report #printReportContainer {
                 <div class="chinese-calligraphy" data-i18n-locked="zh" style="font-size:24px; color:var(--color-gold);">综合统计报表</div>
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                   <h2 id="lblReportHubMainTitle" style="font-size:16px; font-weight:800; color:var(--text-main); margin:0; letter-spacing:0.3px;">ศูนย์รวมรายงานและข้อมูลสถิติผู้บริหาร</h2>
-                  <span style="background:rgba(245,158,11,0.15); border:1px solid rgba(180,83,9,0.35); color:#0F172A; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:10px;">12 โมดูลวิเคราะห์หลัก</span>
+                  <span id="badgeReportHubModules" style="background:rgba(245,158,11,0.15); border:1px solid rgba(180,83,9,0.35); color:#0F172A; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:10px;">12 โมดูลวิเคราะห์หลัก</span>
                 </div>
 
                 <p style="font-size:12px; color:var(--text-muted); margin:4px 0 0 0;">เลือกมิติรายงานเพื่อวิเคราะห์ข้อมูลการเงิน, ตารางเรียน, การปฏิบัติงานครู, และสถิติการเข้าเรียน (Real-time Live Data)</p>
@@ -18186,7 +18192,7 @@ body.printing-report #printReportContainer {
             </div>
 
             <div style="display:flex; align-items:center; gap:8px;">
-              <span style="font-size:11px; color:#047857; background:rgba(16,185,129,0.12); border:1px solid rgba(4,120,87,0.3); padding:4px 10px; border-radius:20px; font-weight:700; display:inline-flex; align-items:center; gap:5px;">
+              <span id="badgeReportHubLiveDb" style="font-size:11px; color:#047857; background:rgba(16,185,129,0.12); border:1px solid rgba(4,120,87,0.3); padding:4px 10px; border-radius:20px; font-weight:700; display:inline-flex; align-items:center; gap:5px;">
                 <span style="width:7px; height:7px; border-radius:50%; background:#10b981; box-shadow:0 0 8px #10b981;"></span> สดจากฐานข้อมูล OCA
               </span>
             </div>
@@ -32963,6 +32969,25 @@ if (action === 'getDashboardStats') {
                 if (uname !== cleanUsername) localStorage.setItem('oca_teacher_sched_' + uname, assignedScheduleVal);
               } catch (_) {}
             };
+            const logUserSavedAudit = async (modeLabel) => {
+              try {
+                const actor = getAuditActor();
+                const { error: auditErr } = await _supabase.from('security_audit_logs').insert([{
+                  action: 'USER_SAVED',
+                  username: actor.username,
+                  full_name: actor.fullName,
+                  role: actor.role,
+                  device_id: actor.deviceId,
+                  device_info: actor.deviceInfo,
+                  details: `บันทึกข้อมูลผู้ใช้ ${uname} (บทบาท: ${urole}, สถานะ: ${ustatus}, ${modeLabel})`,
+                  records: 1,
+                  status: 'SUCCESS'
+                }]);
+                if (auditErr) console.warn('saveUser audit log error:', auditErr);
+              } catch (auditEx) {
+                console.warn('saveUser audit log exception:', auditEx);
+              }
+            };
             // 1. Prioritize secure RPC (updates staff credentials safely under RLS)
             let rpcSucceeded = false;
             let rpcReturnPayload = null;
@@ -32975,13 +33000,18 @@ if (action === 'getDashboardStats') {
             } catch (_) {}
             if (rpcSucceeded) {
               await persistTeacherSched();
+              if (typeof broadcastOcaDataSync === 'function') {
+                broadcastOcaDataSync('staff_users', 'UPSERT', { username: uname, role: updateData.role, full_name: updateData.full_name });
+              }
+              await logUserSavedAudit('RPC');
               return rpcReturnPayload;
             }
             // 2. Fallback to direct query
-            const { data: existing } = await _supabase.from('staff_users')
+            const { data: existing, error: existingErr } = await _supabase.from('staff_users')
               .select('id')
               .eq('username', uname)
               .maybeSingle();
+            if (existingErr) throw existingErr;
             if (existing && existing.id) {
               const res = await _supabase.from('staff_users').update(updateData).eq('id', existing.id);
               if (res && res.error) {
@@ -33000,6 +33030,7 @@ if (action === 'getDashboardStats') {
             if (typeof broadcastOcaDataSync === 'function') {
               broadcastOcaDataSync('staff_users', existing && existing.id ? 'UPDATE' : 'INSERT', { username: uname, role: updateData.role, full_name: updateData.full_name });
             }
+            await logUserSavedAudit(existing && existing.id ? 'UPDATE' : 'INSERT');
             return { success: true, message: `บันทึกข้อมูลผู้ใช้งาน ${uname} เรียบร้อยแล้ว` };
           } catch(e) {
             return { success: false, message: e.message };
@@ -33022,6 +33053,25 @@ if (action === 'getDashboardStats') {
                 if (uname !== cleanDelUser) localStorage.removeItem('oca_teacher_sched_' + uname);
               } catch (_) {}
             };
+            const logUserDeletedAudit = async (modeLabel) => {
+              try {
+                const actor = getAuditActor();
+                const { error: auditErr } = await _supabase.from('security_audit_logs').insert([{
+                  action: 'USER_DELETED',
+                  username: actor.username,
+                  full_name: actor.fullName,
+                  role: actor.role,
+                  device_id: actor.deviceId,
+                  device_info: actor.deviceInfo,
+                  details: `ลบบัญชีผู้ใช้งาน ${uname} (${modeLabel})`,
+                  records: 1,
+                  status: 'SUCCESS'
+                }]);
+                if (auditErr) console.warn('deleteUser audit log error:', auditErr);
+              } catch (auditEx) {
+                console.warn('deleteUser audit log exception:', auditEx);
+              }
+            };
             // 1. Prioritize secure RPC
             try {
               const { data: rpcRes, error: rpcErr } = await _supabase.rpc('delete_staff_user', { p_username: uname });
@@ -33034,6 +33084,7 @@ if (action === 'getDashboardStats') {
                   if (typeof broadcastOcaDataSync === 'function') {
                     broadcastOcaDataSync('staff_users', 'DELETE', { username: uname });
                   }
+                  await logUserDeletedAudit('RPC');
                 }
                 return rpcRes;
               }
@@ -33057,6 +33108,10 @@ if (action === 'getDashboardStats') {
               return { success: false, message: delErr.message || `ไม่สามารถลบผู้ใช้งาน ${uname} ได้` };
             }
             await cleanupTeacherSched();
+            if (typeof broadcastOcaDataSync === 'function') {
+              broadcastOcaDataSync('staff_users', 'DELETE', { username: uname });
+            }
+            await logUserDeletedAudit('FALLBACK');
             return { success: true, message: `ลบผู้ใช้งาน ${uname} เรียบร้อยแล้ว` };
           } catch(e) {
             return { success: false, message: e.message };
@@ -89692,13 +89747,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=259';
+      const swPath = basePath + 'sw.js?v=260';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (259):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (260):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
