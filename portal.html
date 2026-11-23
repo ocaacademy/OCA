@@ -12040,6 +12040,28 @@ body.printing-report #printReportContainer {
     border: 1px solid #0284C7 !important;
     color: #0369A1 !important;
   }
+  html[data-theme="dark"] #oca-app-root #coursesCountBadge {
+    background: rgba(16, 185, 129, 0.18) !important;
+    border: 1px solid rgba(110, 231, 183, 0.45) !important;
+    color: #6EE7B7 !important;
+  }
+  html[data-theme="light"] #oca-app-root #tabTeacher .chinese-calligraphy {
+    color: #92400E !important;
+  }
+  html[data-theme="light"] #oca-app-root #txtTeacherPortalSub {
+    color: #334155 !important;
+  }
+  html[data-theme="light"] #oca-app-root #txtCheckinCardTitle {
+    color: #0F172A !important;
+  }
+  html[data-theme="light"] #oca-app-root #badgeGeofenceActive {
+    background: #ECFDF5 !important;
+    border: 1px solid #059669 !important;
+    color: #065F46 !important;
+  }
+  html[data-theme="light"] #oca-app-root #lblTeacherAttAutoSaveText {
+    color: #065F46 !important;
+  }
   #modalSystemManual #manualLiveBadge {
     color: #6EE7B7 !important;
   }
@@ -12494,7 +12516,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '256';
+      var LATEST_VERSION = '257';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -31859,10 +31881,11 @@ if (action === 'getDashboardStats') {
           // Check if there is an existing row with code === courseCode but different id to avoid courses_code_key collision
           try {
             const searchKeys = Array.from(new Set([courseId, courseCode].filter(Boolean)));
-            const { data: existingRows } = await _supabase
+            const { data: existingRows, error: dupCourseErr } = await _supabase
               .from('courses')
               .select('id, code, is_active')
               .in('code', searchKeys);
+            if (dupCourseErr) console.warn('[saveCourse dup check]', dupCourseErr.message);
             if (Array.isArray(existingRows) && existingRows.length > 0) {
               for (const row of existingRows) {
                 if (row.code === courseCode && row.id !== courseId) {
@@ -31999,15 +32022,37 @@ if (action === 'getDashboardStats') {
             console.error('[Supabase saveCourse error]', error);
             return { success: false, message: error.message };
           }
+          if (typeof invalidateOcaReportCaches === 'function') {
+            invalidateOcaReportCaches('courses');
+          }
           if (typeof broadcastOcaDataSync === 'function') {
             broadcastOcaDataSync('courses', 'UPDATE', { id: courseId, code: courseCode, name: params.name, price: Number(params.price) || 0, linked_book: linkedBookVal, is_active: true });
           }
           return { success: true };
         }
         if (action === 'deleteCourse') {
-          { const { error: wErr } = await _supabase.from('courses').update({ is_active: false }).eq('id', params.courseId || params.id); if (wErr) throw wErr; }
+          const delCourseId = String(params.courseId || params.id || '').trim();
+          { const { error: wErr } = await _supabase.from('courses').update({ is_active: false }).eq('id', delCourseId); if (wErr) throw wErr; }
+          try {
+            const actor = getAuditActor();
+            const { error: wErr } = await _supabase.from('security_audit_logs').insert([{
+              action: 'COURSE_DELETED',
+              username: actor.username,
+              full_name: actor.fullName,
+              role: actor.role,
+              device_id: actor.deviceId,
+              device_info: actor.deviceInfo,
+              details: `ปิดใช้งาน/ลบคอร์สเรียน รหัส: ${delCourseId}`,
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+            if (wErr) console.warn('[Supabase write failed] security_audit_logs:', wErr.message);
+          } catch (_) {}
+          if (typeof invalidateOcaReportCaches === 'function') {
+            invalidateOcaReportCaches('courses');
+          }
           if (typeof broadcastOcaDataSync === 'function') {
-            broadcastOcaDataSync('courses', 'DELETE', { id: params.courseId || params.id });
+            broadcastOcaDataSync('courses', 'DELETE', { id: delCourseId });
           }
           return { success: true };
         }
@@ -32039,15 +32084,55 @@ if (action === 'getDashboardStats') {
               console.warn('[Supabase delete old schedule error]', delErr);
             }
           }
+          try {
+            const actor = getAuditActor();
+            const { error: wErr } = await _supabase.from('security_audit_logs').insert([{
+              action: 'SCHEDULE_SAVED',
+              username: actor.username,
+              full_name: actor.fullName,
+              role: actor.role,
+              device_id: actor.deviceId,
+              device_info: actor.deviceInfo,
+              details: `บันทึก/แก้ไขรอบเวลาเรียน: ${schedName} (${schedId})`,
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+            if (wErr) console.warn('[Supabase write failed] security_audit_logs:', wErr.message);
+          } catch (_) {}
+          if (typeof invalidateOcaReportCaches === 'function') {
+            invalidateOcaReportCaches('schedules');
+          }
           if (typeof broadcastOcaDataSync === 'function') {
             broadcastOcaDataSync('schedules', 'UPDATE', { id: schedId, name: schedName, day_time: params.day_time || params.timeSlot || schedName, learning_mode: params.learningMode || 'Hybrid', is_active: true });
           }
           return { success: true };
         }
         if (action === 'deleteSchedule') {
-          { const { error: wErr } = await _supabase.from('schedules').update({ is_active: false }).eq('id', params.scheduleId || params.id); if (wErr) throw wErr; }
+          const delSchedId = String(params.scheduleId || params.id || '').trim().toUpperCase();
+          if (/^SCH-0[1-8]$/.test(delSchedId)) {
+            return { success: false, message: `ไม่สามารถลบรอบเวลาเรียนหลักของสถาบัน (${delSchedId}) ได้` };
+          }
+          { const { error: wErr } = await _supabase.from('schedules').update({ is_active: false }).eq('id', delSchedId); if (wErr) throw wErr; }
+          try {
+            const actor = getAuditActor();
+            const { error: wErr } = await _supabase.from('security_audit_logs').insert([{
+              action: 'SCHEDULE_DELETED',
+              username: actor.username,
+              full_name: actor.fullName,
+              role: actor.role,
+              device_id: actor.deviceId,
+              device_info: actor.deviceInfo,
+              details: `ปิดใช้งาน/ลบรอบเวลาเรียน รหัส: ${delSchedId}`,
+              records: 1,
+              status: 'SUCCESS'
+            }]);
+            if (wErr) console.warn('[Supabase write failed] security_audit_logs:', wErr.message);
+          } catch (_) {}
+          if (typeof invalidateOcaReportCaches === 'function') {
+            invalidateOcaReportCaches('schedules');
+          }
           if (typeof broadcastOcaDataSync === 'function') {
-            broadcastOcaDataSync('schedules', 'DELETE', { id: params.scheduleId || params.id });
+            broadcastOcaDataSync('schedules', 'DELETE', { id: delSchedId });
           }
           return { success: true };
         }
@@ -32122,6 +32207,12 @@ if (action === 'getDashboardStats') {
             if (upsertErr) {
               console.error('[Supabase saveFeeSettings: classroom_master_list error]', upsertErr);
               throw new Error(upsertErr.message || 'บันทึกรายการห้องเรียนลงฐานข้อมูลไม่สำเร็จ');
+            }
+            if (typeof invalidateOcaReportCaches === 'function') {
+              invalidateOcaReportCaches('classrooms');
+            }
+            if (typeof broadcastOcaDataSync === 'function') {
+              broadcastOcaDataSync('fee_settings', 'UPDATE', { key: 'classroom_master_list' });
             }
             return { success: true };
           }
@@ -89491,13 +89582,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=256';
+      const swPath = basePath + 'sw.js?v=257';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (256):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (257):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
