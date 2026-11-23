@@ -12567,7 +12567,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '265';
+      var LATEST_VERSION = '266';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -13148,9 +13148,6 @@ body.printing-report #printReportContainer {
             <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:rgba(215,166,0,0.2); color:var(--color-gold); font-size:13px;"><i class="fa-solid fa-calendar-check"></i></span>
             <span id="txtGlobalActiveTermBanner" style="font-size:13px; font-weight:700; color:#FFFFFF; text-shadow:0 1px 3px rgba(0,0,0,0.6);">กำลังเปิดรับสมัคร: เทอม 5 / 2569 (รหัส น.ศ. 695XXXX)</span>
           </div>
-          <button type="button" id="btnBannerGoTermConfig" onclick="goToActiveGlobalTermConfig()" class="oca-btn-gold-submit" style="padding:5px 12px; font-size:12px; display:inline-flex; align-items:center; gap:5px;">
-            <i class="fa-solid fa-gear"></i> <span>ตั้งค่าเทอม</span>
-          </button>
         </div>
 
         <!-- ===================================================================
@@ -32366,6 +32363,9 @@ if (action === 'getDashboardStats') {
             console.error('[Supabase saveFeeSettings error]', upsertErr);
             throw new Error(upsertErr.message || 'บันทึกค่าธรรมเนียมลงฐานข้อมูลไม่สำเร็จ');
           }
+          if (typeof broadcastOcaDataSync === 'function') {
+            broadcastOcaDataSync('fee_settings', 'UPDATE', { key: 'general_fee_presets' });
+          }
           try {
             const actor = getAuditActor();
             { const { error: wErr } = await _supabase.from('security_audit_logs').insert([{
@@ -41560,9 +41560,15 @@ if (action === 'getDashboardStats') {
         categoryLabel = 'ส่วนลดปกติ (ผู้ใหญ่ 5 ชม./สัปดาห์)';
       }
       const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(targetItem) : { active: true };
+      const effectivePeriodItem = (targetItem && targetItem.mode === 'period')
+        ? targetItem
+        : ((normItem && normItem.mode === 'period') ? normItem : targetItem);
+      const stEff = (effectivePeriodItem !== targetItem && typeof getFeeItemStatus === 'function') ? getFeeItemStatus(effectivePeriodItem) : st;
       const today = (typeof getBangkokTodayDateStr === 'function') ? getBangkokTodayDateStr() : '';
-      const isExpired = Boolean(targetItem && targetItem.mode === 'period' && targetItem.endDate && today > targetItem.endDate);
-      const isActive = (targetItem && targetItem.mode === 'always') ? true : Boolean(st && st.active);
+      const isExpired = Boolean(effectivePeriodItem && effectivePeriodItem.mode === 'period' && effectivePeriodItem.endDate && today > effectivePeriodItem.endDate);
+      const isActive = (effectivePeriodItem && effectivePeriodItem.mode === 'period')
+        ? Boolean(stEff && stEff.active)
+        : ((targetItem && targetItem.mode === 'always') ? true : Boolean(st && st.active));
       if (isNaN(baseAmount) || baseAmount < 0) baseAmount = 0;
       const effectiveAmount = isActive ? baseAmount : 0;
       const expiredNotice = isExpired ? 'เลยกำหนดรับส่วนลด (ค่าปรับเท่ากับส่วนลด: 0 บาท)' : '';
@@ -42211,12 +42217,15 @@ if (action === 'getDashboardStats') {
         { key: 'disc_rule_music', inpId: 'inpDiscRuleMusic', def: 0 }
       ];
       const discRulesSaved = {};
+      const normMode = (items.discountNormal && items.discountNormal.mode) ? items.discountNormal.mode : 'always';
+      const normStart = (items.discountNormal && items.discountNormal.startDate) ? items.discountNormal.startDate : '';
+      const normEnd = (items.discountNormal && items.discountNormal.endDate) ? items.discountNormal.endDate : '';
       discRuleSaveSpec.forEach(spec => {
         const el = document.getElementById(spec.inpId);
         const s = el ? el.value.trim() : '';
         const val = (el && s !== '' && !isNaN(Number(s)) && Number(s) >= 0) ? Number(s) : spec.def;
         discRulesSaved[spec.key] = val;
-        items[spec.key] = { amount: val, mode: 'always', startDate: '', endDate: '' };
+        items[spec.key] = { amount: val, mode: normMode, startDate: normStart, endDate: normEnd };
       });
       // Update in-memory state and local storage immediately
       globalFeePresets = {
@@ -89812,13 +89821,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=265';
+      const swPath = basePath + 'sw.js?v=266';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (265):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (266):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
