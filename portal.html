@@ -12567,7 +12567,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '267';
+      var LATEST_VERSION = '268';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -24213,9 +24213,10 @@ body.printing-report #printReportContainer {
               <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 14px; margin-bottom:14px; line-height:1.6;">
                 <div><span style="color:var(--text-muted);">นักศึกษา:</span> <strong id="lblQuickEditStudentName" style="color:var(--text-main);">-</strong></div>
                 <div><span style="color:var(--text-muted);">รหัสนักศึกษา:</span> <code id="lblQuickEditStudentId" style="color:var(--color-gold);">-</code></div>
+                <div><span style="color:var(--text-muted);">ห้องเรียนเดิม:</span> <strong id="lblQuickEditCurrentRoom" style="color:var(--text-main);">-</strong></div>
               </div>
               <div style="margin-bottom:14px;">
-                <label class="oca-label" for="inpQuickEditNewRoom" style="font-size:12px; color:var(--color-gold); font-weight:700;">
+                <label class="oca-label" for="inpQuickEditNewRoom" style="display:block; margin-bottom:6px; font-size:12px; color:var(--color-gold); font-weight:700;">
                   เลขที่ห้องเรียนใหม่ (New Room No.) *
                 </label>
                 <input type="text" id="inpQuickEditNewRoom" class="oca-input" placeholder="เช่น 402 หรือ 5505" style="font-size:16px; font-weight:700; font-family:monospace; color:var(--text-main);">
@@ -34863,13 +34864,20 @@ if (action === 'getDashboardStats') {
           if (ort.env && ort.env.wasm) {
             ort.env.wasm.numThreads = 1;
           }
+          let sess = null;
           try {
-            return await ort.InferenceSession.create('./modnet_quantized.onnx', { executionProviders: ['wasm'] });
+            sess = await ort.InferenceSession.create('./modnet_quantized.onnx', { executionProviders: ['wasm'] });
           } catch (localErr) {
             console.warn('[MODNet] Local model file load failed, falling back to CDN...', localErr);
-            return await ort.InferenceSession.create('https://huggingface.co/Xenova/modnet/resolve/main/onnx/model_quantized.onnx', { executionProviders: ['wasm'] });
+            sess = await ort.InferenceSession.create('https://huggingface.co/Xenova/modnet/resolve/main/onnx/model_quantized.onnx', { executionProviders: ['wasm'] });
           }
-        })();
+          window._modnetSessionReady = true;
+          return sess;
+        })().catch((err) => {
+          _modnetSessionPromise = null;
+          window._modnetSessionReady = false;
+          throw err;
+        });
       }
       return _modnetSessionPromise;
     }
@@ -35588,12 +35596,15 @@ if (action === 'getDashboardStats') {
             } else {
               inCtx.drawImage(imgEl, 0, 0, imgW, imgH, 0, 0, 600, 800);
             }
+            window._lastPortraitAiEngine = 'fallback';
             // 1. Primary Engine: MODNet Studio AI Portrait Matting (512x672 studio portrait alpha, fine hair & edge fidelity)
             try {
+              const modnetTimeoutMs = window._modnetSessionReady ? 7500 : 15000;
               const mattingPromise = renderModnetMatting(inCanvas, targetHexColor, 600, 800);
-              const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('MODNet timeout')), 7500));
+              const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('MODNet timeout')), modnetTimeoutMs));
               const outCanvas = await Promise.race([mattingPromise, timeoutPromise]);
               if (outCanvas) {
+                window._lastPortraitAiEngine = 'modnet';
                 resolve(outCanvas.toDataURL('image/jpeg', 0.92));
                 return;
               }
@@ -35606,6 +35617,7 @@ if (action === 'getDashboardStats') {
               const mpTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('MediaPipe timeout')), 5000));
               const outCanvas = await Promise.race([mpPromise, mpTimeout]);
               if (outCanvas) {
+                window._lastPortraitAiEngine = 'mediapipe';
                 resolve(outCanvas.toDataURL('image/jpeg', 0.92));
                 return;
               }
@@ -35613,6 +35625,7 @@ if (action === 'getDashboardStats') {
               console.warn('[Portrait AI] MediaPipe matting fallback to 3:4 crop:', mpErr);
             }
             // 3. High-safety fallback: 3:4 crop
+            window._lastPortraitAiEngine = 'fallback';
             resolve(inCanvas.toDataURL('image/jpeg', 0.92));
           } catch (e) {
             resolve(rawUri);
@@ -35640,10 +35653,10 @@ if (action === 'getDashboardStats') {
       if (overlay) overlay.style.display = 'flex';
       // Immediately display raw photo in viewfinder so staff sees instant feedback
       applyCapturedPhoto(rawUri);
-      // Failsafe auto-close safety timer: guarantees overlay closes in max 13.5s no matter what
+      // Failsafe auto-close safety timer: guarantees overlay closes in max 21s no matter what
       const safetyTimer = setTimeout(() => {
         if (overlay) overlay.style.display = 'none';
-      }, 13500);
+      }, 21000);
       try {
         const processedUri = await processPortraitToMaroonDataUri(rawUri, MAROON_COLOR);
         if (processedUri) {
@@ -35653,7 +35666,16 @@ if (action === 'getDashboardStats') {
           const realBox = document.getElementById('boxEnrollPhotoRealSystemPreview');
           if (realImg) realImg.src = processedUri;
           if (realBox) realBox.style.display = 'block';
-          if (aiStatusText) aiStatusText.textContent = 'AI Studio: ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย';
+          const engineUsed = window._lastPortraitAiEngine || 'fallback';
+          if (aiStatusText) {
+            if (engineUsed === 'modnet') {
+              aiStatusText.textContent = 'AI Studio (MODNet): ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย';
+            } else if (engineUsed === 'mediapipe') {
+              aiStatusText.textContent = 'AI Studio (MediaPipe): ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย';
+            } else {
+              aiStatusText.textContent = 'AI Studio: ไม่สามารถแยกพื้นหลังได้ชั่วคราว (ใช้รูปถ่ายต้นฉบับ — กดถ่ายหรืออัปโหลดใหม่ได้)';
+            }
+          }
         }
       } catch (err) {
         console.warn('[Enroll AI Maroon Photo] fallback:', err);
@@ -74547,20 +74569,25 @@ function openPublicRegisterView() {
         return t || fallback;
       };
       const st = activeSearchStudent;
-      const sid = toArabicDigits(st.studentId || st.student_id || getTxt('srId'));
-      const fullName = getTxt('srName', st.fullName || st.full_name || '-');
+      const sid = toArabicDigits(st.studentId || st.student_id || getTxt('srStudentId'));
+      const fullName = getTxt('srStudentName', (typeof formatStudentNameWithPrefix === 'function' ? formatStudentNameWithPrefix(st.prefix, st.fullName || st.full_name) : (st.fullName || st.full_name)) || '-');
       const courseTxt = getTxt('srCourse', st.course || st.current_course || '-');
-      const statusTxt = getTxt('srStatusBadge', st.status || '-');
-      const modeTxt = getTxt('srLearningMode', st.learningMode || st.learning_mode || '-');
-      const roomTxt = getTxt('srClassroomName', st.room || st.classroom || '-');
+      const statusTxt = getTxt('srStatus', st.status || '-');
+      const modeTxt = getTxt('srLearningModeBadge', st.learningMode || st.learning_mode || '-');
+      const roomTxt = getTxt('srClassroomNumber', st.room || st.classroom || '-');
       const instructorTxt = getTxt('srClassroomInstructor', '-');
       const yearTxt = getTxt('srYear', st.yearBE || st.year_be || '-');
       const termTxt = getTxt('srTerm', st.term || '-');
       const cardUidTxt = getTxt('srCardUid', '-');
-      const phoneTxt = getTxt('srPhone', '-');
-      const emergTxt = getTxt('srEmergencyPhone', '-');
-      const emailTxt = getTxt('srEmail', '-');
-      const citizenTxt = getTxt('srCitizen', '-');
+      const rawPhone = st.phone || st.phone_number || st.phoneNumber || '';
+      const phoneTxt = rawPhone ? toArabicDigits(String(rawPhone).trim()) : getTxt('srPhone', '-');
+      const notesRaw = String(st.notes || '');
+      const emergMatch = notesRaw.match(/ฉุกเฉิน\s*:\s*([0-9\-+\s]{7,20})/);
+      const rawEmerg = st.emergencyPhone || st.emergency_phone || (emergMatch ? emergMatch[1].trim() : '');
+      const emergTxt = rawEmerg ? toArabicDigits(String(rawEmerg).trim()) : getTxt('srEmergencyPhone', '-');
+      const emailTxt = (st.email && String(st.email).trim()) ? String(st.email).trim() : getTxt('srEmail', '-');
+      const rawCitizen = st.citizenId || st.citizen_id || '';
+      const citizenTxt = rawCitizen ? toArabicDigits(String(rawCitizen).trim()) : getTxt('srCitizen', '-');
       const lineTxt = getTxt('srLineId', '-');
       const schedTxt = getTxt('srSchedule', '-');
       const addrTxt = getTxt('srAddress', '-');
@@ -75143,12 +75170,17 @@ function openPublicRegisterView() {
       if (st) sName = st.fullName || st.buyerName || '-';
       const elName = document.getElementById('lblQuickEditStudentName');
       const elId = document.getElementById('lblQuickEditStudentId');
+      const elPrevRoom = document.getElementById('lblQuickEditCurrentRoom');
       const inpRoom = document.getElementById('inpQuickEditNewRoom');
       const inpReason = document.getElementById('inpQuickEditReason');
+      const rawPrevRoom = String(currentRoom || (st && (st.room || st.classroom)) || (document.getElementById('srClassroomNumber')?.textContent || '') || '').trim();
+      const displayPrevRoom = (rawPrevRoom && rawPrevRoom !== '-') ? (rawPrevRoom.startsWith('ห้อง') ? rawPrevRoom : 'ห้อง ' + toArabicDigits(rawPrevRoom)) : '-';
+      window._quickEditPrevRoom = displayPrevRoom;
       if (elName) elName.textContent = sName;
       if (elId) elId.textContent = toArabicDigits(studentId);
+      if (elPrevRoom) elPrevRoom.textContent = displayPrevRoom;
       if (inpRoom) {
-        inpRoom.value = currentRoom || '';
+        inpRoom.value = '';
         setTimeout(() => inpRoom.focus(), 200);
       }
       if (inpReason) inpReason.value = '';
@@ -75175,7 +75207,8 @@ function openPublicRegisterView() {
         if (inpRoom) inpRoom.focus();
         return;
       }
-      const prevRoom = (activeSearchStudent && activeSearchStudent.studentId === sid && (activeSearchStudent.room || activeSearchStudent.classroom))
+      const prevRoom = window._quickEditPrevRoom
+        || (activeSearchStudent && activeSearchStudent.studentId === sid && (activeSearchStudent.room || activeSearchStudent.classroom))
         || (activeCheckerStudent && activeCheckerStudent.studentId === sid && activeCheckerStudent.room)
         || '-';
       const btn = document.getElementById('btnSubmitQuickEditRoom');
@@ -75226,7 +75259,7 @@ function openPublicRegisterView() {
           if (lblRoom) lblRoom.textContent = 'ห้อง ' + toArabicDigits(newRoom);
         }
         closeQuickEditRoomModal();
-        showToast('เปลี่ยนห้องเรียนสำเร็จ', 'รหัส ' + sid + ' เป็นห้อง ' + newRoom, '✅');
+        showToast('เปลี่ยนห้องเรียนสำเร็จ', `รหัส ${sid}: ${prevRoom} → ห้อง ${newRoom}`, '✅');
         if (typeof logDetailedAuditEvent === 'function') {
           logDetailedAuditEvent({
             action: 'QUICK_EDIT_ROOM',
@@ -89895,13 +89928,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=267';
+      const swPath = basePath + 'sw.js?v=268';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (267):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (268):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
