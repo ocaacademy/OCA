@@ -12087,6 +12087,15 @@ body.printing-report #printReportContainer {
   html[data-theme="dark"] #oca-app-root #boxFinance4CategoryBreakdown .fin-cat-lbl-other {
     color: #FDE68A !important;
   }
+  html[data-theme="dark"] #oca-app-root .oca-helper-note.info-blue {
+    color: #E2E8F0 !important;
+  }
+  html[data-theme="dark"] #oca-app-root .oca-helper-note.info-blue strong {
+    color: #7DD3FC !important;
+  }
+  html[data-theme="dark"] #oca-app-root #kpiShipPrintedCount {
+    color: #7DD3FC !important;
+  }
   #modalSystemManual #manualLiveBadge {
     color: #6EE7B7 !important;
   }
@@ -12541,7 +12550,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '258';
+      var LATEST_VERSION = '259';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -31847,6 +31856,7 @@ if (action === 'getDashboardStats') {
                 .in('receipt_no', targetIds);
               const printTag = 'สถานะ: พิมพ์ใบปะหน้าแล้ว';
               if (!exNoteErr && Array.isArray(existingNotesRows) && existingNotesRows.length > 1) {
+                let batchErr = null;
                 for (const rowNote of existingNotesRows) {
                   const curNote = String(rowNote.edit_notes || '').trim();
                   if (!curNote.includes('พิมพ์ใบปะหน้าแล้ว')) {
@@ -31854,10 +31864,39 @@ if (action === 'getDashboardStats') {
                     const { error: rowUpdErr } = await _supabase.from('receipts')
                       .update({ ...updateObj, edit_notes: nextNote })
                       .eq('receipt_no', rowNote.receipt_no);
-                    if (rowUpdErr) console.warn('[updateShippingStatus batch PRINTED row error]', rowUpdErr);
+                    if (rowUpdErr) {
+                      console.warn('[updateShippingStatus batch PRINTED row error]', rowUpdErr);
+                      if (!batchErr) batchErr = rowUpdErr;
+                    }
                   }
                 }
-                return { success: true, message: 'อัปเดตสถานะพิมพ์ใบปะหน้าเรียบร้อยแล้ว' };
+                if (!batchErr) {
+                  if (typeof invalidateOcaReportCaches === 'function') {
+                    invalidateOcaReportCaches('receipts');
+                  }
+                  if (typeof broadcastOcaDataSync === 'function') {
+                    broadcastOcaDataSync('shipping_parcels', 'UPDATE', { receipt_nos: targetIds, status: 'PRINTED' });
+                    broadcastOcaDataSync('receipts', 'UPDATE', { receipt_no: targetIds[0] || '' });
+                  }
+                  try {
+                    const actor = getAuditActor();
+                    const { error: auditErr } = await _supabase.from('security_audit_logs').insert([{
+                      action: 'SHIPPING_STATUS_UPDATED',
+                      username: actor.username,
+                      full_name: actor.fullName,
+                      role: actor.role,
+                      device_id: actor.deviceId,
+                      device_info: actor.deviceInfo,
+                      details: `พิมพ์ใบปะหน้าแบบกลุ่ม (${targetIds.length} รายการ): ${targetIds.slice(0, 5).join(', ')}`,
+                      records: targetIds.length,
+                      status: 'SUCCESS'
+                    }]);
+                    if (auditErr) console.warn('shipping audit log error:', auditErr);
+                  } catch (auditEx) {
+                    console.warn('shipping audit log exception:', auditEx);
+                  }
+                }
+                return { success: !batchErr, message: batchErr ? batchErr.message : 'อัปเดตสถานะพิมพ์ใบปะหน้าเรียบร้อยแล้ว' };
               }
               const existingNote = (existingNotesRows && existingNotesRows.length === 1 && existingNotesRows[0].edit_notes)
                 ? String(existingNotesRows[0].edit_notes).trim()
@@ -31892,9 +31931,31 @@ if (action === 'getDashboardStats') {
               }
             }
           }
-          if (!updateError && typeof broadcastOcaDataSync === 'function') {
-            broadcastOcaDataSync('shipping_parcels', 'UPDATE', { receipt_nos: targetIds, status: params.status || 'UPDATED' });
-            broadcastOcaDataSync('receipts', 'UPDATE', { receipt_no: targetIds[0] || '' });
+          if (!updateError) {
+            if (typeof invalidateOcaReportCaches === 'function') {
+              invalidateOcaReportCaches('receipts');
+            }
+            if (typeof broadcastOcaDataSync === 'function') {
+              broadcastOcaDataSync('shipping_parcels', 'UPDATE', { receipt_nos: targetIds, status: params.status || 'UPDATED' });
+              broadcastOcaDataSync('receipts', 'UPDATE', { receipt_no: targetIds[0] || '' });
+            }
+            try {
+              const actor = getAuditActor();
+              const { error: auditErr } = await _supabase.from('security_audit_logs').insert([{
+                action: 'SHIPPING_STATUS_UPDATED',
+                username: actor.username,
+                full_name: actor.fullName,
+                role: actor.role,
+                device_id: actor.deviceId,
+                device_info: actor.deviceInfo,
+                details: `อัปเดตจัดส่ง [${params.status || 'UPDATED'}] เลขที่ใบเสร็จ: ${targetIds.join(', ') || '-'}${tracking ? ' | Tracking: ' + tracking : ''}`,
+                records: targetIds.length || 1,
+                status: 'SUCCESS'
+              }]);
+              if (auditErr) console.warn('shipping audit log error:', auditErr);
+            } catch (auditEx) {
+              console.warn('shipping audit log exception:', auditEx);
+            }
           }
           return { success: !updateError, message: updateError ? updateError.message : 'บันทึกข้อมูลจัดส่งเรียบร้อย' };
         }
@@ -32671,7 +32732,7 @@ if (action === 'getDashboardStats') {
             }
             // C. Query current live textbooks from Supabase
             const { data: tbRows, error: qErr } = await _supabase.from('fee_settings').select('*').like('key', 'tb:%').order('key', { ascending: true });
-            if (qErr) console.warn('Supabase getTextbooks error:', qErr);
+            if (qErr) throw qErr;
             let list = [];
             if (Array.isArray(tbRows) && tbRows.length > 0) {
               list = tbRows.map(r => {
@@ -32692,8 +32753,8 @@ if (action === 'getDashboardStats') {
               });
             }
             if (action === 'saveTextbook' || action === 'deleteTextbook') {
+              const tbKeyId = (params && (params.id || params.code || params.bookId || ''))?.toString().trim();
               if (typeof broadcastOcaDataSync === 'function') {
-                const tbKeyId = (params && (params.id || params.code || params.bookId || ''))?.toString().trim();
                 const fullTbKey = tbKeyId.startsWith('tb:') ? tbKeyId : ('tb:' + tbKeyId);
                 broadcastOcaDataSync('textbooks', action === 'deleteTextbook' ? 'DELETE' : 'UPDATE', { id: tbKeyId });
                 broadcastOcaDataSync('fee_settings', action === 'deleteTextbook' ? 'DELETE' : 'UPDATE', {
@@ -32701,6 +32762,25 @@ if (action === 'getDashboardStats') {
                   name: (params && params.title) ? String(params.title).slice(0, 90) : tbKeyId,
                   amount: Number(params && params.price) || 0
                 });
+              }
+              try {
+                const actor = getAuditActor();
+                const { error: auditErr } = await _supabase.from('security_audit_logs').insert([{
+                  action: action === 'deleteTextbook' ? 'TEXTBOOK_DELETED' : 'TEXTBOOK_SAVED',
+                  username: actor.username,
+                  full_name: actor.fullName,
+                  role: actor.role,
+                  device_id: actor.deviceId,
+                  device_info: actor.deviceInfo,
+                  details: action === 'deleteTextbook'
+                    ? `ลบตำราเรียนรหัส ${tbKeyId || '-'}`
+                    : `บันทึกตำราเรียน ${tbKeyId || '-'} (${String((params && params.title) || '').slice(0, 60)}, ราคา ฿${Number(params && params.price) || 0}, สต็อก ${parseInt((params && params.stock) || 0, 10) || 0})`,
+                  records: 1,
+                  status: 'SUCCESS'
+                }]);
+                if (auditErr) console.warn('textbook audit log error:', auditErr);
+              } catch (auditEx) {
+                console.warn('textbook audit log exception:', auditEx);
               }
             }
             return {
@@ -89612,13 +89692,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=258';
+      const swPath = basePath + 'sw.js?v=259';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (258):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (259):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
