@@ -40,6 +40,11 @@
   <!-- OCA Modular Engines (v217): Slip Anti-Fraud Guard & Email/Admin Config -->
   <script src="js/oca-slip-guard.js?v=217"></script>
   <script src="js/oca-email-admin.js?v=217"></script>
+  <link rel="stylesheet" href="css/oca-modular-v261.css?v=261">
+  <script src="js/oca-watchdog.js?v=261"></script>
+  <script src="js/oca-offline-queue.js?v=261"></script>
+  <script src="js/oca-rls-guard.js?v=261"></script>
+  <script src="js/oca-backup-ops.js?v=261"></script>
   <style>
     /* =========================================================================
        GLOBAL RESET: ZERO-SCROLLBAR WELCOME ENGINE
@@ -12556,7 +12561,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '260';
+      var LATEST_VERSION = '261';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -20219,6 +20224,7 @@ body.printing-report #printReportContainer {
                 </div>
               </div>
             </div>
+            <div id="ocaRlsPostureMount"></div>
           </div>
 
           <!-- SUBTAB 4: SLIP ANTI-FRAUD GUARD & EMAIL QUEUE (v217) -->
@@ -20411,6 +20417,7 @@ body.printing-report #printReportContainer {
                 </table>
               </div>
             </div>
+            <div id="ocaScheduledBackupMount"></div>
           </div>
         </div>
 
@@ -41118,6 +41125,12 @@ if (action === 'getDashboardStats') {
         .catch(err => {
           console.warn('loadDashData error:', err);
         });
+      if (window.OcaWatchdog && typeof window.OcaWatchdog.runCheck === 'function') {
+        setTimeout(() => {
+          const cu = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+          window.OcaWatchdog.runCheck(typeof _supabase !== 'undefined' ? _supabase : null, cu ? cu.role : '');
+        }, 2500);
+      }
     }
     // =========================================================================
     // COURSES & SCHEDULES MANAGEMENT CONTROLLER
@@ -63663,6 +63676,9 @@ if (action === 'getDashboardStats') {
         const view = document.getElementById('subviewSettingsDevice');
         if (view) view.style.display = 'block';
         renderDeviceSecurityInfo();
+        if (window.OcaRlsGuard && typeof window.OcaRlsGuard.checkPosture === 'function') {
+          window.OcaRlsGuard.checkPosture(typeof _supabase !== 'undefined' ? _supabase : null, false);
+        }
       } else if (subTab === 'slipEmail') {
         const view = document.getElementById('subviewSettingsSlipEmail');
         if (view) view.style.display = 'block';
@@ -63674,6 +63690,9 @@ if (action === 'getDashboardStats') {
         if (view) view.style.display = 'block';
         if (window.OcaEmailAdmin && typeof window.OcaEmailAdmin.initSettingsAppConfigView === 'function') {
           window.OcaEmailAdmin.initSettingsAppConfigView();
+        }
+        if (window.OcaBackupOps && typeof window.OcaBackupOps.renderBackupOpsCard === 'function') {
+          window.OcaBackupOps.renderBackupOpsCard();
         }
       } else {
         const btn = document.getElementById('btnSubnavUsers');
@@ -84432,7 +84451,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const lCount = rows.filter(r => r.status === 'LATE').length;
       const lvCount = rows.filter(r => r.status === 'LEAVE').length;
       const aCount = rows.filter(r => r.status === 'ABSENT').length;
-      if (typeof logTeacherActivity === 'function') {
+      let cloudAttSaved = false;
+      if (typeof logTeacherActivity === 'function' && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
         try {
           await logTeacherActivity(
             'TEACHER_ATTENDANCE_SAVED',
@@ -84449,7 +84469,24 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               absent: aCount
             }
           );
-        } catch (_) {}
+          cloudAttSaved = true;
+        } catch (attNetErr) {
+          console.warn('[autoSaveTeacherAttendance] cloud save failed, queuing offline:', attNetErr);
+        }
+      }
+      if (!cloudAttSaved && window.OcaOfflineQueue && typeof window.OcaOfflineQueue.enqueue === 'function') {
+        window.OcaOfflineQueue.enqueue('TEACHER_ATTENDANCE', {
+          summary: `อาจารย์ ${user.fullName || user.username} เช็คชื่อห้อง ${schedName}: มา ${pCount}, สาย ${lCount}, ลา ${lvCount}, ขาด ${aCount}`,
+          schedule_id: scheduleId,
+          schedule_name: schedName,
+          attendance_date: attDate,
+          rows: rows,
+          total: rows.length,
+          present: pCount,
+          late: lCount,
+          leave: lvCount,
+          absent: aCount
+        }, `att_${scheduleId}_${attDate}`);
       }
       // 3. Cache attendance to local storage for instant offline access (merged by student_id)
       mergeAttCacheRows(`oca_teacher_att_${scheduleId}_${attDate}`, rows);
@@ -84500,6 +84537,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     }
     window.autoSaveTeacherAttendance = autoSaveTeacherAttendance;
     window.saveTeacherAttendance = autoSaveTeacherAttendance;
+    if (window.OcaOfflineQueue && typeof window.OcaOfflineQueue.registerExecutor === 'function') {
+      window.OcaOfflineQueue.registerExecutor('TEACHER_ATTENDANCE', async (payload) => {
+        if (typeof logTeacherActivity !== 'function') return false;
+        await logTeacherActivity('TEACHER_ATTENDANCE_SAVED', payload.summary || 'เช็คชื่อชั้นเรียน (ซิงก์ออฟไลน์)', payload);
+        return true;
+      });
+    }
     async function revokeTeacherFingerprint(username) {
       if (!username) return;
       if (!(await showConfirmModal(`ยืนยันการลบลายนิ้วมือของครู "${username}" หรือไม่? (หลังจากลบ ครูจะสามารถลงทะเบียนลายนิ้วมือใหม่ได้อีกครั้ง)`))) {
@@ -85197,6 +85241,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         } else if (n.action && n.action.includes('TIMESHEET')) {
           iconHtml = '<div class="oca-notif-icon" style="background:#FAF5FF; color:#7C3AED; border:1px solid #E9D5FF;"><i class="fa-solid fa-clock"></i></div>';
           title = 'ลงเวลาเข้า-ออกงาน';
+        } else if (n.action && n.action.startsWith('ACCOUNTING_WATCHDOG')) {
+          iconHtml = '<div class="oca-notif-icon" style="background:#FEF3C7; color:#B45309; border:1px solid #F59E0B;"><i class="fa-solid fa-triangle-exclamation"></i></div>';
+          title = 'แจ้งเตือนบัญชี (Watchdog)';
         }
         const dt = new Date(n.created_at || Date.now());
         const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} น. (${dt.toLocaleDateString('th-TH')})`;
@@ -89747,13 +89794,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=260';
+      const swPath = basePath + 'sw.js?v=261';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (260):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (261):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
