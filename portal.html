@@ -12012,6 +12012,34 @@ body.printing-report #printReportContainer {
   .oca-user-avatar-initials {
     color: #F8FAFC !important;
   }
+  html[data-theme="light"] #oca-app-root #lblActiveCardPrinterBadge {
+    background: #FEF3C7 !important;
+    border: 1px solid #D97706 !important;
+    color: #0F172A !important;
+  }
+  html[data-theme="dark"] #oca-app-root #btnCardNextStudent {
+    color: #ECFDF5 !important;
+  }
+  html[data-theme="light"] #oca-app-root #btnCardNextStudent {
+    background: #ECFDF5 !important;
+    border: 1px solid #059669 !important;
+    color: #065F46 !important;
+  }
+  html[data-theme="light"] #oca-app-root #cardPreviewStage .oca-card-actions-bottom .oca-btn-cancel-custom:not(#btnCardNextStudent) {
+    background: #F1F5F9 !important;
+    border: 1px solid #94A3B8 !important;
+    color: #0F172A !important;
+  }
+  html[data-theme="dark"] #oca-app-root #btnEnrollSlipCamera {
+    background: rgba(56, 189, 248, 0.16) !important;
+    border: 1px solid #38BDF8 !important;
+    color: #7DD3FC !important;
+  }
+  html[data-theme="light"] #oca-app-root #btnEnrollSlipCamera {
+    background: #E0F2FE !important;
+    border: 1px solid #0284C7 !important;
+    color: #0369A1 !important;
+  }
   #modalSystemManual #manualLiveBadge {
     color: #6EE7B7 !important;
   }
@@ -12466,7 +12494,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '255';
+      var LATEST_VERSION = '256';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -15869,7 +15897,7 @@ body.printing-report #printReportContainer {
                 <button type="button" class="oca-btn-gold-submit oca-btn-print" style="flex:1; height:42px; padding:0 20px; font-size:14px;" onclick="startExecutingCardPrint()">
                   <i class="fa-solid fa-print"></i> พิมพ์บัตรทันที (Print Now)
                 </button>
-                <button type="button" id="btnCardNextStudent" class="oca-btn-cancel-custom" style="height:42px; padding:0 14px; border-radius:9px; font-size:12.5px; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:rgba(16,185,129,0.22); color:#ECFDF5 !important; border:1px solid rgba(110,231,183,0.5);" onclick="clearCardStudentSelection(); const sInp=document.getElementById('inpCardStudentSearch'); if(sInp) sInp.focus();" title="ล้างข้อมูลและเตรียมพิมพ์บัตรนักศึกษาคนถัดไป">
+                <button type="button" id="btnCardNextStudent" class="oca-btn-cancel-custom" style="height:42px; padding:0 14px; border-radius:9px; font-size:12.5px; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:rgba(16,185,129,0.22); border:1px solid rgba(110,231,183,0.5);" onclick="clearCardStudentSelection(); const sInp=document.getElementById('inpCardStudentSearch'); if(sInp) sInp.focus();" title="ล้างข้อมูลและเตรียมพิมพ์บัตรนักศึกษาคนถัดไป">
                   <i class="fa-solid fa-user-plus"></i> เตรียมพิมพ์คนถัดไป
                 </button>
                 <button type="button" class="oca-btn-cancel-custom" style="height:42px; padding:0 14px; border-radius:9px; font-size:12.5px; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:rgba(255,255,255,0.14); border:1px solid rgba(255,255,255,0.32);" onclick="openCardPrintModal()" title="เปิดหน้าต่างตั้งค่าละเอียดและคู่มือไดรเวอร์">
@@ -30112,11 +30140,12 @@ if (action === 'getDashboardStats') {
             if (insErr.code === '23505') {
               // Microsecond jitter to serialize concurrent inserts cleanly
               await new Promise(r => setTimeout(r, Math.floor(Math.random() * 60) + 20));
-              const { data: latest } = await _supabase.from('students')
+              const { data: latest, error: latestErr } = await _supabase.from('students')
                 .select('student_id')
                 .gte('student_id', `${idPrefix}0000`).lte('student_id', `${idPrefix}9999`)
                 .order('student_id', { ascending: false })
                 .limit(1);
+              if (latestErr) throw latestErr;
               let nextSeq = 1;
               if (latest && latest.length > 0 && latest[0].student_id) {
                 const curNum = parseInt(latest[0].student_id.slice(-4), 10);
@@ -31065,11 +31094,12 @@ if (action === 'getDashboardStats') {
           } else if (reqYear === 'ALL') {
             let totRes = await _supabase.from('students').select('student_id', { count: 'estimated', head: true });
             const delRes = await _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', '6800000').eq('status', 'DELETED');
-            const { data: allData } = await _supabase.from('students')
+            const { data: allData, error: allErr } = await _supabase.from('students')
               .select(REPORT_STUDENT_COLS)
               .or('status.is.null,status.neq.DELETED')
               .order('student_id', { ascending: false })
               .limit(300);
+            if (allErr) console.warn('[getStudentsList ALL] error:', allErr.message);
             stList = (allData || []).filter(s => !isStudentDeleted(s));
             if (!totRes.error && typeof totRes.count === 'number') {
               totalCount = Math.max(0, totRes.count - ((!delRes.error && typeof delRes.count === 'number') ? delRes.count : 0));
@@ -89461,13 +89491,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=255';
+      const swPath = basePath + 'sw.js?v=256';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (255):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (256):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
