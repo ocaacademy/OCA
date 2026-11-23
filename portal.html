@@ -12410,7 +12410,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '251';
+      var LATEST_VERSION = '252';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -30483,16 +30483,18 @@ if (action === 'getDashboardStats') {
                 .limit(20);
               if (dRange && dRange.length > 0) stList = dRange;
             } else if (cleanQ.length === 13) {
-              const { data: dCid } = await _supabase.from('students')
+              const { data: dCid, error: errCid } = await _supabase.from('students')
                 .select('*')
                 .eq('citizen_id', cleanQ)
                 .limit(1);
+              if (errCid) console.warn('[searchStudentsForCard] citizen_id error:', errCid.message);
               if (dCid && dCid.length > 0) stList = dCid;
             } else if (cleanQ.length >= 9 && cleanQ.length <= 10) {
-              const { data: dPhone } = await _supabase.from('students')
+              const { data: dPhone, error: errPhone } = await _supabase.from('students')
                 .select('*')
                 .or(`phone_number.eq.${cleanQ},smart_card_uid.eq.${cleanQ}`)
                 .limit(5);
+              if (errPhone) console.warn('[searchStudentsForCard] phone/card error:', errPhone.message);
               if (dPhone && dPhone.length > 0) stList = dPhone;
             }
             if (stList.length === 0 && cleanQ.length >= 7) {
@@ -30502,10 +30504,11 @@ if (action === 'getDashboardStats') {
                 const hexVal = Number(cleanQ).toString(16).toUpperCase();
                 if (hexVal && hexVal.length >= 4) orList.push(`smart_card_uid.eq.${hexVal}`);
               } catch(_) {}
-              const { data: dRfid } = await _supabase.from('students')
+              const { data: dRfid, error: errRfid } = await _supabase.from('students')
                 .select('*')
                 .or(orList.join(','))
                 .limit(5);
+              if (errRfid) console.warn('[searchStudentsForCard] rfid error:', errRfid.message);
               if (dRfid && dRfid.length > 0) stList = dRfid;
             }
           } else {
@@ -30516,9 +30519,10 @@ if (action === 'getDashboardStats') {
             } else {
               qBuilder = qBuilder.ilike('full_name', `%${safeQ}%`);
             }
-            const { data: dName } = await qBuilder
+            const { data: dName, error: errName } = await qBuilder
               .order('student_id', { ascending: false })
               .limit(20);
+            if (errName) console.warn('[searchStudentsForCard] name error:', errName.message);
             if (dName && dName.length > 0) stList = dName;
           }
         }
@@ -30949,7 +30953,8 @@ if (action === 'getDashboardStats') {
                 qb = qb.gte('student_id', yrPrefix + '00000').lt('student_id', nextPrefix + '00000');
               }
             }
-            const { data: qData } = await qb.order('student_id', { ascending: false }).limit(200);
+            const { data: qData, error: qErr } = await qb.order('student_id', { ascending: false }).limit(200);
+            if (qErr) console.warn('[getStudentsList] query error:', qErr.message);
             stList = (qData || []).filter(s => !isStudentDeleted(s));
             totalCount = stList.length;
           } else if (reqYear === 'ALL') {
@@ -31160,37 +31165,49 @@ if (action === 'getDashboardStats') {
             candidateRcNo = convertedInput.replace(/^RC-?/i, '');
           }
           let rList = null;
-          // 1. Direct match by claim_token (e.g. CLAIM-...)
-          const { data: d1 } = await _supabase.from('receipts').select('*').eq('claim_token', rawInput).limit(1);
-          if (d1 && d1.length > 0) {
-            rList = d1;
-          }
-          // 2. Direct match by receipt_no exact
-          if (!rList || rList.length === 0) {
-            const { data: d2 } = await _supabase.from('receipts').select('*').eq('receipt_no', convertedInput).limit(1);
-            if (d2 && d2.length > 0) {
-              rList = d2;
+          const isTokenFormat = /^(CLAIM-|CLM-|OCA-CLAIM:\/\/)/i.test(rawInput);
+          const safeCandRc = typeof sanitizePostgrestSearchToken === 'function' ? sanitizePostgrestSearchToken(candidateRcNo) : String(candidateRcNo || '').replace(/[^0-9A-Za-z_-]/g, '');
+          const lookupByClaimToken = async () => {
+            const { data: d1, error: err1 } = await _supabase.from('receipts').select('*').eq('claim_token', rawInput).limit(1);
+            if (err1) throw new Error('เชื่อมต่อฐานข้อมูลไม่สำเร็จ (claim_token): ' + (err1.message || 'Database error'));
+            return (d1 && d1.length > 0) ? d1 : null;
+          };
+          const lookupByReceiptNo = async () => {
+            const { data: d2, error: err2 } = await _supabase.from('receipts').select('*').eq('receipt_no', convertedInput).limit(1);
+            if (err2) throw new Error('เชื่อมต่อฐานข้อมูลไม่สำเร็จ (receipt_no): ' + (err2.message || 'Database error'));
+            if (d2 && d2.length > 0) return d2;
+            if (safeCandRc && safeCandRc !== convertedInput) {
+              const { data: d3, error: err3 } = await _supabase.from('receipts').select('*').or(`receipt_no.eq.${safeCandRc},receipt_no.eq.RC-${safeCandRc},receipt_no.eq.RC${safeCandRc}`).limit(1);
+              if (err3) throw new Error('เชื่อมต่อฐานข้อมูลไม่สำเร็จ (rc_match): ' + (err3.message || 'Database error'));
+              if (d3 && d3.length > 0) return d3;
             }
-          }
-          // 3. Match candidateRcNo (with or without RC-)
-          if (!rList || rList.length === 0) {
-            const safeCandRc = typeof sanitizePostgrestSearchToken === 'function' ? sanitizePostgrestSearchToken(candidateRcNo) : String(candidateRcNo || '').replace(/[^0-9A-Za-z_-]/g, '');
-            if (safeCandRc) {
-              const { data: d3 } = await _supabase.from('receipts').select('*').or(`receipt_no.eq.${safeCandRc},receipt_no.eq.RC-${safeCandRc},receipt_no.eq.RC${safeCandRc}`).limit(1);
-              if (d3 && d3.length > 0) {
-                rList = d3;
+            return null;
+          };
+          try {
+            if (isTokenFormat) {
+              rList = await lookupByClaimToken();
+              if (!rList && candidateRcNo) rList = await lookupByReceiptNo();
+            } else {
+              rList = await lookupByReceiptNo();
+              if (!rList) rList = await lookupByClaimToken();
+            }
+            // Fallback search by dynamic 2-year indexed receipt_no range (prevents full-table scan without hardcoded year)
+            if (!rList || rList.length === 0) {
+              const searchPat = candidateRcNo || convertedInput;
+              if (searchPat.length >= 4) {
+                const actYrBE = (typeof getResolvedActiveYearTerm === 'function')
+                  ? Number(getResolvedActiveYearTerm().yearBE || (new Date().getFullYear() + 543))
+                  : (new Date().getFullYear() + 543);
+                const minYearPrefix = String(Math.max(0, (actYrBE - 1) - 2500)).padStart(2, '0') + '00000';
+                const { data: d4, error: err4 } = await _supabase.from('receipts').select('*').gte('receipt_no', minYearPrefix).ilike('receipt_no', `%${searchPat}%`).limit(1);
+                if (err4) throw new Error('เชื่อมต่อฐานข้อมูลไม่สำเร็จ (range_search): ' + (err4.message || 'Database error'));
+                if (d4 && d4.length > 0) {
+                  rList = d4;
+                }
               }
             }
-          }
-          // 4. Fallback search by indexed receipt_no range (prevents 57014 full-table scan across 424k rows)
-          if (!rList || rList.length === 0) {
-            const searchPat = candidateRcNo || convertedInput;
-            if (searchPat.length >= 4) {
-              const { data: d4 } = await _supabase.from('receipts').select('*').gte('receipt_no', '6900000').ilike('receipt_no', `%${searchPat}%`).limit(1);
-              if (d4 && d4.length > 0) {
-                rList = d4;
-              }
-            }
+          } catch (lookupErr) {
+            return { success: false, dbError: true, message: lookupErr.message || 'เชื่อมต่อฐานข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' };
           }
           if (!rList || rList.length === 0) {
             return { success: false, message: 'ไม่พบสิทธิ์รับตำราเรียนตามรหัสใบเสร็จนี้' };
@@ -31308,6 +31325,24 @@ if (action === 'getDashboardStats') {
               message: 'ตำราเรียนนี้ถูกจ่ายไปแล้วเมื่อ ' + safeFormatThaiDateTime(rcpt.claimed_at) + ' โดยเจ้าหน้าที่ ' + (rcpt.claimed_by || '-')
             };
           }
+          // Mode 2 (Safe 2-Step Verification): Return preview details without mutating DB when previewOnly === true
+          if (params.previewOnly === true) {
+            return {
+              success: true,
+              previewOnly: true,
+              readyToClaim: true,
+              receipt: rcpt,
+              claimToken: rcpt.claim_token || '',
+              receiptNo: rcpt.receipt_no || '',
+              buyerName: rcpt.buyer_name || '',
+              buyerId: rcpt.student_id || '',
+              itemTitle: rcpt.item_name || 'ตำราเรียน',
+              materialType: effectiveMaterial || rcpt.material_type || 'หนังสือและสมุด',
+              editNotes: rcpt.edit_notes || '',
+              extraBooks: parsedExtraBooks,
+              receiptType: rcpt.receipt_type || 'tuition'
+            };
+          }
           const claimNow = new Date().toISOString();
           const claimOperator = params.operatorName || (params.operatorUsername ? `${params.operatorUsername} (${params.operatorRole || 'Staff'})` : 'ฝ่ายทะเบียนและตำราเรียน');
           const { data: claimUpdatedRows, error: claimUpdateErr } = await _supabase.from('receipts').update({
@@ -31413,20 +31448,26 @@ if (action === 'getDashboardStats') {
         if (action === 'getTextbookClaimLogs') {
           let data = [];
           try {
-            data = await fetchAllPaginatedSupabaseRows(() => {
-              let query = _supabase.from('receipts').select('*').gte('year_be', 2569);
-              if (params && params.search) {
-                const s = sanitizePostgrestSearchToken(params.search);
-                if (s) {
-                  if (/^\d+$/.test(s) && s.length === 7) {
+            let query = _supabase.from('receipts').select('*').gte('year_be', 2569);
+            let rowLimit = 500;
+            if (params && params.search) {
+              const s = sanitizePostgrestSearchToken(params.search);
+              if (s) {
+                rowLimit = 200;
+                if (/^\d{7,8}$/.test(s)) {
+                  if (s.length === 7 && Number(s) <= 2147483647) {
                     query = query.or(`receipt_no.eq.${s},student_id.eq.${s}`);
                   } else {
-                    query = query.or(`receipt_no.ilike.%${s}%,student_id.ilike.%${s}%,buyer_name.ilike.%${s}%`);
+                    query = query.eq('receipt_no', s);
                   }
+                } else {
+                  query = query.ilike('buyer_name', `%${s}%`);
                 }
               }
-              return query.order('created_at', { ascending: false });
-            }, 1000, 20000);
+            }
+            const { data: rows, error } = await query.order('created_at', { ascending: false }).limit(rowLimit);
+            if (error) throw error;
+            data = rows || [];
           } catch (error) {
             console.error('getTextbookClaimLogs Supabase error:', error);
             return { success: false, message: error.message || 'Fetch error', logs: [], receipts: [], data: [] };
@@ -51163,6 +51204,10 @@ if (action === 'getDashboardStats') {
       const selDelivery = document.getElementById('selRcptDeliveryMethod');
       const deliveryMethod = selDelivery ? selDelivery.value : 'รับเอง';
       const isDelivery = (deliveryMethod === 'ส่งตำรา' || deliveryMethod === 'ส่งไปตามที่อยู่' || deliveryMethod.indexOf('ส่ง') !== -1);
+      const selMatEl = document.getElementById('selRcptMaterial');
+      const matVal = selMatEl ? selMatEl.value : '';
+      const hasExtraBooks = Array.isArray(window._rcptExtraBooks) && window._rcptExtraBooks.length > 0;
+      const isNoBook = !hasExtraBooks && isReceiptNoBookEntitlement({ materialType: matVal, receiptType: document.getElementById('selRcptType')?.value || '' });
       const boxQrWrap = document.getElementById('boxPrevQrCodeWrap');
       const boxShipBadge = document.getElementById('boxPrevShippingBadge');
       const lblHeader = document.getElementById('lblPrevClaimHeader');
@@ -51180,6 +51225,16 @@ if (action === 'getDashboardStats') {
         if (boxShipAddr) boxShipAddr.style.display = 'block';
         if (lblShipAddrText) lblShipAddrText.textContent = inputAddress;
         if (lblSecNote) lblSecNote.innerHTML = '<i class="fa-solid fa-truck-fast" style="margin-right:4px;"></i> สถาบันจะจัดส่งอุปกรณ์และตำราเรียนไปยังที่อยู่ข้างต้น (ไม่ต้องสแกน QR Code รับที่สถาบัน)';
+      } else if (isNoBook) {
+        if (boxQrWrap) boxQrWrap.style.display = 'none';
+        if (boxShipBadge) boxShipBadge.style.display = 'none';
+        if (boxShipAddr) boxShipAddr.style.display = 'none';
+        if (lblHeader) lblHeader.innerHTML = '<i class="fa-solid fa-receipt" style="color:#64748b; margin-right:4px;"></i> สิทธิ์รับตำราและอุปกรณ์การเรียน';
+        if (lblBookClaimSub) {
+          lblBookClaimSub.style.display = 'block';
+          lblBookClaimSub.innerHTML = '<div style="font-size:12px; color:#64748b; font-weight:600;">ใบเสร็จนี้ไม่มีรายการตำราเรียน (ไม่มี QR Code)</div>';
+        }
+        if (lblSecNote) lblSecNote.innerHTML = '<i class="fa-solid fa-circle-info" style="margin-right:4px;"></i> รายการค่าธรรมเนียม/บริการอื่นๆ ไม่ต้องสแกน QR Code รับตำราเรียน';
       } else {
         if (boxQrWrap) boxQrWrap.style.display = 'flex';
         if (boxShipBadge) boxShipBadge.style.display = 'none';
@@ -51203,7 +51258,21 @@ if (action === 'getDashboardStats') {
         generateReceiptQrCode(qrPayload);
       }
     }
-    function generateLocalQrDataUri(text, size = 115, colorDark = '#01231C') {
+    function isReceiptNoBookEntitlement(itemOrParams) {
+      if (!itemOrParams || typeof itemOrParams !== 'object') return false;
+      const editNotes = String(itemOrParams.editNotes || itemOrParams.edit_notes || '');
+      if (/\[EXTRA_BOOKS:\[\s*\{/.test(editNotes)) return false;
+      const cs = String(itemOrParams.claimStatus || itemOrParams.claim_status || '').trim().toUpperCase();
+      if (cs === 'NO_BOOK_CLAIM' || cs === 'NOT_REQUIRED') return true;
+      const mat = String(itemOrParams.materialType || itemOrParams.material_type || '').trim();
+      const matU = mat.toUpperCase();
+      if (matU === 'NONE' || mat === 'ไม่มี' || mat === 'ไม่มีอุปกรณ์' || mat.includes('ไม่มีตำรา') || mat === 'บัตรนักศึกษา') return true;
+      const rType = String(itemOrParams.receiptType || itemOrParams.receipt_type || '').trim().toUpperCase();
+      if (rType === 'CARD' || rType === 'CARD_FEE' || rType === 'OTHER') return true;
+      return false;
+    }
+    window.isReceiptNoBookEntitlement = isReceiptNoBookEntitlement;
+    function generateLocalQrDataUri(text, size = 115, colorDark = '#000000') {
       try {
         if (typeof QRCode !== 'undefined' && typeof document !== 'undefined' && document.body) {
           const tmp = document.createElement('div');
@@ -51250,7 +51319,7 @@ if (action === 'getDashboardStats') {
             text: safePayload,
             width: 105,
             height: 105,
-            colorDark: '#01231C',
+            colorDark: '#000000',
             colorLight: '#ffffff',
             correctLevel: QRCode.CorrectLevel.M
           });
@@ -51684,11 +51753,12 @@ if (action === 'getDashboardStats') {
               badge.style.background = 'rgba(16, 185, 129, 0.2)';
               badge.style.color = '#10B981';
             }
-            if (res.deliveryMethod === 'ส่งตำรา' || res.deliveryMethod === 'ส่งไปตามที่อยู่' || (res.deliveryMethod && res.deliveryMethod.indexOf('ส่ง') !== -1) || !res.claimToken) {
+            const issuedNoBook = isReceiptNoBookEntitlement(res);
+            if (res.deliveryMethod === 'ส่งตำรา' || res.deliveryMethod === 'ส่งไปตามที่อยู่' || (res.deliveryMethod && res.deliveryMethod.indexOf('ส่ง') !== -1) || !res.claimToken || issuedNoBook) {
               const boxQr = document.getElementById('boxPrevQrCodeWrap');
               const boxShip = document.getElementById('boxPrevShippingBadge');
               if (boxQr) boxQr.style.display = 'none';
-              if (boxShip) boxShip.style.display = 'flex';
+              if (boxShip) boxShip.style.display = issuedNoBook ? 'none' : 'flex';
             } else {
               const boxQr = document.getElementById('boxPrevQrCodeWrap');
               const boxShip = document.getElementById('boxPrevShippingBadge');
@@ -52052,7 +52122,8 @@ if (action === 'getDashboardStats') {
     function showClaimAlertPopup(title, message, icon = 'fa-triangle-exclamation', iconColor = '#ef4444', customOpts = {}) {
       const isGreen = (iconColor === '#10b981' || iconColor === 'green' || iconColor === '#059669' || customOpts.statusType === 'success');
       const isBlue = (iconColor === '#38bdf8' || iconColor === '#0284c7' || customOpts.statusType === 'delivery');
-      const isRed = (iconColor === '#ef4444' || iconColor === '#dc2626' || customOpts.statusType === 'alreadyClaimed' || customOpts.statusType === 'error');
+      const isPreview = (customOpts.statusType === 'preview');
+      const isRed = (!isPreview && (iconColor === '#ef4444' || iconColor === '#dc2626' || customOpts.statusType === 'alreadyClaimed' || customOpts.statusType === 'error'));
       let boxBorder = '1px solid rgba(215,166,0,0.45)';
       let boxShadow = '0 24px 64px rgba(0,0,0,0.85)';
       let headerBg = 'rgba(0,0,0,0.35)';
@@ -52063,7 +52134,19 @@ if (action === 'getDashboardStats') {
       let confirmBg = 'linear-gradient(135deg, #f59e0b, #d97706)';
       let confirmBorder = iconColor;
       let confirmText = customOpts.confirmText || 'รับทราบ';
-      if (isGreen) {
+      if (isPreview) {
+        // Two-step verification preview (Not committed yet)
+        boxBorder = '2.5px solid #f59e0b';
+        boxShadow = '0 24px 64px rgba(0,0,0,0.9), 0 0 42px rgba(245,158,11,0.45)';
+        headerBg = 'rgba(245,158,11,0.16)';
+        headerBorderBottom = '1px solid rgba(245,158,11,0.35)';
+        titleColor = '#fbbf24';
+        subtitle = customOpts.subtitle || '📋 กรุณาตรวจสอบรายการหนังสือให้ถูกต้องก่อนกดยืนยันตัดสิทธิ์';
+        subtitleColor = '#f59e0b';
+        confirmBg = 'linear-gradient(135deg, #10b981, #059669)';
+        confirmBorder = '#10b981';
+        confirmText = customOpts.confirmText || 'ยืนยันจ่ายตำราเรียน';
+      } else if (isGreen) {
         // First scan (SUCCESS): High-visibility GREEN
         boxBorder = '2.5px solid #10b981';
         boxShadow = '0 24px 64px rgba(0,0,0,0.9), 0 0 45px rgba(16,185,129,0.5)';
@@ -52100,7 +52183,7 @@ if (action === 'getDashboardStats') {
         confirmBorder = '#38bdf8';
         confirmText = customOpts.confirmText || 'รับทราบ (จัดส่งทางพัสดุ)';
       }
-      const iconBg = isGreen ? 'rgba(16,185,129,0.22)' : (isBlue ? 'rgba(56,189,248,0.22)' : (isRed ? 'rgba(239,68,68,0.22)' : 'rgba(245,158,11,0.2)'));
+      const iconBg = isPreview ? 'rgba(245,158,11,0.22)' : (isGreen ? 'rgba(16,185,129,0.22)' : (isBlue ? 'rgba(56,189,248,0.22)' : (isRed ? 'rgba(239,68,68,0.22)' : 'rgba(245,158,11,0.2)')));
       showConfirmModal({
         title: title || 'แจ้งเตือนการสแกนตำรา',
         subtitle: subtitle,
@@ -52113,7 +52196,9 @@ if (action === 'getDashboardStats') {
         iconBg: iconBg,
         iconBorder: iconColor,
         confirmText: confirmText,
-        cancelText: false,
+        cancelText: customOpts.cancelText || false,
+        onConfirm: typeof customOpts.onConfirm === 'function' ? customOpts.onConfirm : null,
+        onCancel: typeof customOpts.onCancel === 'function' ? customOpts.onCancel : null,
         confirmBg: confirmBg,
         confirmBorder: confirmBorder,
         boxBorder: boxBorder,
@@ -52125,17 +52210,25 @@ if (action === 'getDashboardStats') {
     function closeConfirmModal(isConfirmed) {
       const modal = document.getElementById('modalGlobalConfirm');
       if (modal) modal.style.display = 'none';
-      if (globalConfirmCallback) {
-        if (isConfirmed && typeof globalConfirmCallback.onConfirm === 'function') {
-          globalConfirmCallback.onConfirm();
-        } else if (!isConfirmed && typeof globalConfirmCallback.onCancel === 'function') {
-          globalConfirmCallback.onCancel();
+      const activeCb = globalConfirmCallback;
+      globalConfirmCallback = null;
+      if (activeCb) {
+        if (isConfirmed && typeof activeCb.onConfirm === 'function') {
+          activeCb.onConfirm();
+        } else if (!isConfirmed && typeof activeCb.onCancel === 'function') {
+          activeCb.onCancel();
         }
       }
-      globalConfirmCallback = null;
-      // ปิดและเคลียร์การแจ้งเตือนสแกนตำราทันทีเมื่อกดรับทราบใน Modal ป้องกันค้างบนหน้าจอมือถือ
-      if (typeof dismissClaimFeedbackCard === 'function') {
-        dismissClaimFeedbackCard();
+      // Keep #claimFeedbackCard visible as last-scanned summary; auto-refocus USB scanner input when on Textbooks tab
+      const tabTb = document.getElementById('tabTextbooks');
+      if (tabTb && tabTb.classList.contains('active')) {
+        setTimeout(() => {
+          const curModal = document.getElementById('modalGlobalConfirm');
+          if (!curModal || curModal.style.display === 'none') {
+            const inp = document.getElementById('txtManualTokenClaim');
+            if (inp) inp.focus();
+          }
+        }, 60);
       }
     }
     /**
@@ -52710,7 +52803,7 @@ if (action === 'getDashboardStats') {
                   // 10+ digit queries (Citizen ID / Phone): never run unindexed receipt_no.ilike.%...% on 424k rows (57014 timeout)
                   dbQ = dbQ.eq('receipt_no', qClean);
                 } else {
-                  dbQ = dbQ.or(`receipt_no.ilike.${safeToken}%,student_id.ilike.${safeToken}%,buyer_name.ilike.${safeToken}%`);
+                  dbQ = dbQ.ilike('buyer_name', `%${safeToken}%`);
                 }
                 const { data: dbRows, error: dbErr } = await dbQ.order('created_at', { ascending: false }).limit(100);
                 if (seq !== window._rcptHistSearchSeq || dbErr || !Array.isArray(dbRows) || dbRows.length === 0) return;
@@ -53269,6 +53362,16 @@ if (action === 'getDashboardStats') {
         if (boxShipAddr) boxShipAddr.style.display = 'block';
         if (lblShipAddrText) lblShipAddrText.textContent = item.address && item.address !== '-' ? item.address : 'จัดส่งตามที่อยู่ที่ลงทะเบียน';
         if (lblSecNote) lblSecNote.innerHTML = '<i class="fa-solid fa-truck-fast" style="margin-right:4px;"></i> สถาบันจะจัดส่งอุปกรณ์และตำราเรียนไปยังที่อยู่ข้างต้น (ไม่ต้องสแกน QR Code)';
+      } else if (isReceiptNoBookEntitlement(item)) {
+        if (boxQrWrap) boxQrWrap.style.display = 'none';
+        if (boxShipBadge) boxShipBadge.style.display = 'none';
+        if (boxShipAddr) boxShipAddr.style.display = 'none';
+        if (lblHeader) lblHeader.innerHTML = '<i class="fa-solid fa-receipt" style="color:#64748b; margin-right:4px;"></i> สิทธิ์รับตำราและอุปกรณ์การเรียน';
+        if (lblBookClaimSub) {
+          lblBookClaimSub.style.display = 'block';
+          lblBookClaimSub.innerHTML = '<div style="font-size:12px; color:#64748b; font-weight:600;">ใบเสร็จนี้ไม่มีรายการตำราเรียน (ไม่มี QR Code)</div>';
+        }
+        if (lblSecNote) lblSecNote.innerHTML = '<i class="fa-solid fa-circle-info" style="margin-right:4px;"></i> รายการค่าธรรมเนียม/บริการอื่นๆ ไม่ต้องสแกน QR Code รับตำราเรียน';
       } else {
         if (boxQrWrap) boxQrWrap.style.display = 'flex';
         if (boxShipBadge) boxShipBadge.style.display = 'none';
@@ -53752,6 +53855,40 @@ if (action === 'getDashboardStats') {
     let tbScannerTimer = null;
     let tbLastScannedToken = '';
     let tbLastScanTime = 0;
+    let tbScanInFlight = false;
+    let tbFrameBusy = false;
+    function playOcaScanBeep(type = 'success') {
+      try {
+        if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+          navigator.vibrate(type === 'error' ? [90, 50, 90] : 50);
+        }
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const playTone = (freq, startOffset, duration, vol = 0.14) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = type === 'error' ? 'sawtooth' : 'sine';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + startOffset);
+          gain.gain.setValueAtTime(vol, ctx.currentTime + startOffset);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startOffset + duration);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + startOffset);
+          osc.stop(ctx.currentTime + startOffset + duration);
+        };
+        if (type === 'preview') {
+          playTone(780, 0, 0.1, 0.12);
+        } else if (type === 'error') {
+          playTone(260, 0, 0.12, 0.14);
+          playTone(220, 0.15, 0.15, 0.14);
+        } else {
+          playTone(880, 0, 0.09, 0.12);
+          playTone(1175, 0.1, 0.14, 0.14);
+        }
+        setTimeout(() => { try { ctx.close(); } catch (_) {} }, 500);
+      } catch (_) {}
+    }
     function getAuthoritativeLoggedInStaff() {
       let user = null;
       if (typeof getSavedCurrentUser === 'function') {
@@ -54095,6 +54232,10 @@ if (action === 'getDashboardStats') {
       });
     }
     let cachedTextbookClaimLogs = [];
+    const CLAIM_HISTORY_CHUNK_SIZE = 50;
+    window._claimHistoryFilteredCache = [];
+    window._claimHistoryRenderedCount = 0;
+    let _claimHistSearchSeq = 0;
     function clearClaimHistoryFilter() {
       const txt = document.getElementById('txtClaimHistorySearch');
       const sel = document.getElementById('selClaimStatusFilter');
@@ -54111,7 +54252,8 @@ if (action === 'getDashboardStats') {
       const doFilter = () => {
         const searchInput = document.getElementById('txtClaimHistorySearch');
         const statusSelect = document.getElementById('selClaimStatusFilter');
-        const term = (searchInput ? searchInput.value : '').toLowerCase().trim();
+        const rawTerm = (searchInput ? searchInput.value : '').trim();
+        const term = rawTerm.toLowerCase();
         const btnClrClaim = document.getElementById('btnClearClaimHistorySearch');
         if (btnClrClaim) btnClrClaim.style.display = term ? 'block' : 'none';
         const statusFilter = (statusSelect ? statusSelect.value : 'ALL').toUpperCase();
@@ -54137,91 +54279,161 @@ if (action === 'getDashboardStats') {
           return true;
         });
         renderClaimHistoryLogsTable(filtered);
+        // Server-side fallback when local 500-row cache has 0 matches (uses GIN / B-Tree index in ~130ms)
+        if (filtered.length === 0 && rawTerm.length >= 2 && typeof callGasApi === 'function') {
+          const seq = (++_claimHistSearchSeq);
+          callGasApi('getTextbookClaimLogs', { search: rawTerm })
+            .then(res => {
+              if (seq !== _claimHistSearchSeq) return;
+              const curTerm = (document.getElementById('txtClaimHistorySearch')?.value || '').trim().toLowerCase();
+              if (curTerm !== term) return;
+              const rawRows = (res && res.success) ? (res.logs || res.receipts || res.data || []) : [];
+              if (!Array.isArray(rawRows) || rawRows.length === 0) return;
+              let remoteMapped = rawRows.map(r => normalizeReceiptObject(r)).filter(row => {
+                const isVoided = String(row.claimStatus || '').toUpperCase() === 'VOIDED' || String(row.editNotes || '').includes('[ยกเลิกใบเสร็จ');
+                if (isVoided) return false;
+                const isClaimed = String(row.claimStatus || '').toUpperCase() === 'CLAIMED';
+                if (statusFilter === 'CLAIMED' && !isClaimed) return false;
+                if (statusFilter === 'PENDING' && isClaimed) return false;
+                return true;
+              });
+              renderClaimHistoryLogsTable(remoteMapped);
+            })
+            .catch(() => {});
+        }
       };
       if (immediate || !document.getElementById('txtClaimHistorySearch')?.value?.trim()) {
         doFilter();
       } else {
-        _claimHistoryDebounceTimer = setTimeout(doFilter, 250);
+        _claimHistoryDebounceTimer = setTimeout(doFilter, 280);
       }
     }
+    function createClaimHistoryRow(row) {
+      const tr = document.createElement('tr');
+      const isClaimed = String(row.claimStatus || '').toUpperCase() === 'CLAIMED';
+      const isShipping = (row.deliveryMethod === 'ส่งตำรา' || row.deliveryMethod === 'จัดส่งตามที่อยู่' || row.deliveryMethod === 'ส่งไปตามที่อยู่' || String(row.claimStatus).includes('ส่ง'));
+      // Date Display
+      let dateHtml = '';
+      if (isClaimed) {
+        dateHtml = '<div style="font-size:12.5px; color:var(--text-main); font-weight:700; font-family:monospace;">' + formatThaiDateTime(row.claimedAt || row.createdAt) + '</div>' +
+                   '<div style="font-size:11px; color:#047857; font-weight:600; margin-top:3px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-check" style="font-size:10px;"></i> สแกนรับตำราแล้ว</div>';
+      } else {
+        dateHtml = '<div style="font-size:12.5px; color:var(--text-main); font-weight:600; font-family:monospace;">' + formatThaiDateTime(row.createdAt) + '</div>' +
+                   '<div style="font-size:11px; color:#92400E; font-weight:600; margin-top:3px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-regular fa-clock" style="font-size:10px;"></i> ออกใบเสร็จ (รอรับตำรา)</div>';
+      }
+      // Receipt Badge
+      const receiptBadgeHtml = '<span style="display:inline-flex; align-items:center; gap:6px; font-family:monospace; font-weight:800; font-size:13px; color:var(--text-main); background:rgba(215,166,0,0.14); border:1px solid rgba(180,83,9,0.38); padding:4px 11px; border-radius:7px; letter-spacing:0.4px; white-space:nowrap !important; word-break:keep-all !important; font-variant-numeric:tabular-nums;"><i class="fa-solid fa-receipt" style="font-size:10.5px; opacity:0.85;"></i>' + escapeHtml(toArabicDigits(row.receiptNo || '-')) + '</span>';
+      // Buyer ID Badge
+      const hasBuyerId = row.buyerId && String(row.buyerId).trim() !== '' && String(row.buyerId).trim() !== '-';
+      const buyerIdBadgeHtml = hasBuyerId
+        ? '<span style="display:inline-flex; align-items:center; gap:5px; font-family:monospace; font-weight:700; font-size:12.5px; color:var(--text-main); background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.14); padding:3px 10px; border-radius:6px; white-space:nowrap !important; word-break:keep-all !important; font-variant-numeric:tabular-nums;"><i class="fa-regular fa-id-badge" style="color:#38bdf8; font-size:11px;"></i>' + escapeHtml(toArabicDigits(row.buyerId)) + '</span>'
+        : '<span style="display:inline-flex; align-items:center; justify-content:center; font-family:monospace; font-size:12px; color:var(--text-muted); background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:2px 10px; border-radius:6px;">-</span>';
+      // Material Badge
+      let matBadge = '';
+      if (row.materialType) {
+        const isNoMat = row.materialType.includes('ไม่มี') || row.materialType === 'NONE';
+        const badgeBg = isNoMat ? 'rgba(148,163,184,0.15)' : 'rgba(59,130,246,0.18)';
+        const badgeBorder = isNoMat ? 'rgba(148,163,184,0.3)' : 'rgba(59,130,246,0.35)';
+        const badgeColor = isNoMat ? 'var(--text-muted)' : 'var(--accent-sky)';
+        matBadge = ' <span style="background:' + badgeBg + '; border:1px solid ' + badgeBorder + '; color:' + badgeColor + '; padding:1px 6px; border-radius:4px; font-size:11px; margin-left:4px; white-space:nowrap;">' + escapeHtml(row.materialType) + '</span>';
+      }
+      // Officer Display
+      let officerHtml = '';
+      if (isClaimed) {
+        officerHtml = '<div style="display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
+          '<span style="font-weight:700; color:var(--text-main); display:inline-flex; align-items:center; gap:5px;"><i class="fa-solid fa-user-check" style="font-size:12px; color:#10b981;"></i> ' + escapeHtml(row.claimedBy || 'เจ้าหน้าที่') + '</span>' +
+          '<span style="font-size:10.5px; color:#38bdf8; background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.25); border-radius:4px; padding:1px 6px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-hand-holding-hand" style="font-size:9.5px;"></i>ผู้สแกนส่งมอบตำรา</span>' +
+          '</div>';
+      } else {
+        officerHtml = '<span style="color:var(--text-muted); font-size:12px;">- (ยังไม่ตัดจ่าย)</span>';
+      }
+      // Status & Action Column
+      let statusColHtml = '';
+      if (isClaimed) {
+        statusColHtml = '<span style="background:rgba(16,185,129,0.15); color:#047857; border:1px solid rgba(4,120,87,0.35); padding:3px 10px; border-radius:12px; font-weight:700; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-check"></i> รับเรียบร้อยแล้ว</span>';
+      } else if (isShipping) {
+        statusColHtml = '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:3px;">' +
+          '<span style="background:rgba(56,189,248,0.15); color:#0369A1; border:1px solid rgba(3,105,161,0.35); padding:3px 10px; border-radius:12px; font-weight:700; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-truck"></i> จัดส่งทางพัสดุ</span>' +
+          '<button type="button" class="oca-btn-icon" style="padding:2px 8px; font-size:10.5px; border-radius:5px; background:rgba(56,189,248,0.1); border:1px solid rgba(3,105,161,0.35); color:var(--accent-sky); cursor:pointer;" onclick="handleScannedQrToken(\'' + escapeHtml(row.receiptNo) + '\')">ตรวจสอบพัสดุ</button>' +
+          '</div>';
+      } else {
+        statusColHtml = '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:4px;">' +
+          '<span style="background:#FEF3C7; color:#0F172A; border:1px solid rgba(180,83,9,0.45); padding:3px 10px; border-radius:12px; font-weight:700; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-regular fa-clock"></i> ยังไม่ได้รับ</span>' +
+          '<button type="button" class="oca-btn-gold-submit" style="padding:3px 9px; font-size:11px; border-radius:6px; background:#B45309 !important; border:none; color:#ffffff !important; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.25);" onclick="handleScannedQrToken(\'' + escapeHtml(row.receiptNo) + '\')"><i class="fa-solid fa-barcode"></i> ตัดจ่ายตำรา</button>' +
+          '</div>';
+      }
+      const rawItemStr = String(row.itemName || '-');
+      const itemDisplayHtml = (rawItemStr.includes(',') && rawItemStr.includes('เล่ม)'))
+        ? rawItemStr.split(',').map(part => '<div style="font-size:12.5px; color:var(--text-main); line-height:1.4;">• ' + escapeHtml(part.trim()) + '</div>').join('')
+        : '<span style="font-size:13px; color:var(--text-main);">' + escapeHtml(rawItemStr) + '</span>';
+      tr.innerHTML =
+        '<td style="padding:13px 16px 13px 28px !important; white-space:nowrap; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle;">' + dateHtml + '</td>' +
+        '<td style="padding:13px 14px !important; white-space:nowrap; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle;">' + receiptBadgeHtml + '</td>' +
+        '<td style="padding:13px 14px !important; white-space:nowrap; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle;">' + buyerIdBadgeHtml + '</td>' +
+        '<td style="padding:13px 14px !important; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle; min-width:160px; white-space:nowrap;"><strong style="color:var(--text-main); font-size:13px;">' + escapeHtml(row.buyerName || '-') + '</strong></td>' +
+        '<td style="padding:13px 14px !important; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle; min-width:180px; max-width:340px; white-space:normal; word-break:break-word;">' + itemDisplayHtml + matBadge + '</td>' +
+        '<td style="padding:13px 14px !important; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle; min-width:150px; white-space:nowrap;">' + officerHtml + '</td>' +
+        '<td style="padding:13px 28px 13px 14px !important; white-space:nowrap; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle;">' + statusColHtml + '</td>';
+      return tr;
+    }
+    function appendClaimHistoryMoreButton(tbody) {
+      const existingMore = document.getElementById('rowClaimHistoryMoreBtn');
+      if (existingMore) existingMore.remove();
+      const total = window._claimHistoryFilteredCache.length;
+      const rendered = window._claimHistoryRenderedCount;
+      if (rendered < total) {
+        const remaining = total - rendered;
+        const nextStep = Math.min(CLAIM_HISTORY_CHUNK_SIZE, remaining);
+        const trMore = document.createElement('tr');
+        trMore.id = 'rowClaimHistoryMoreBtn';
+        trMore.innerHTML =
+          '<td colspan="7" style="text-align:center; padding:14px 16px; border-bottom:none;">' +
+          '  <button type="button" class="oca-btn-secondary" onclick="renderMoreClaimHistoryLogs()" style="padding:8px 18px; border-radius:8px; font-size:12.5px; font-weight:700; display:inline-flex; align-items:center; gap:8px;">' +
+          '    <i class="fa-solid fa-angles-down"></i> แสดงเพิ่มเติม (+' + toArabicDigits(nextStep) + ' รายการ • เหลืออีก ' + toArabicDigits(remaining) + ' รายการ)' +
+          '  </button>' +
+          '</td>';
+        tbody.appendChild(trMore);
+      }
+    }
+    function renderMoreClaimHistoryLogs() {
+      const tbody = document.getElementById('tbodyClaimHistoryLogs');
+      if (!tbody) return;
+      const list = window._claimHistoryFilteredCache || [];
+      const start = window._claimHistoryRenderedCount || 0;
+      const end = Math.min(list.length, start + CLAIM_HISTORY_CHUNK_SIZE);
+      if (start >= end) return;
+      const existingMore = document.getElementById('rowClaimHistoryMoreBtn');
+      if (existingMore) existingMore.remove();
+      const frag = document.createDocumentFragment();
+      for (let i = start; i < end; i++) {
+        frag.appendChild(createClaimHistoryRow(list[i]));
+      }
+      tbody.appendChild(frag);
+      window._claimHistoryRenderedCount = end;
+      appendClaimHistoryMoreButton(tbody);
+    }
+    window.renderMoreClaimHistoryLogs = renderMoreClaimHistoryLogs;
     function renderClaimHistoryLogsTable(logs) {
       const tbody = document.getElementById('tbodyClaimHistoryLogs');
       if (!tbody) return;
       tbody.innerHTML = '';
+      const safeLogs = Array.isArray(logs) ? logs : [];
+      window._claimHistoryFilteredCache = safeLogs;
+      window._claimHistoryRenderedCount = 0;
       const countBadge = document.getElementById('badgeClaimHistoryCount');
-      if (countBadge) countBadge.textContent = (Array.isArray(logs) ? logs.length : 0) + ' รายการ';
-      if (!Array.isArray(logs) || logs.length === 0) {
+      if (countBadge) countBadge.textContent = toArabicDigits(safeLogs.length) + ' รายการ';
+      if (safeLogs.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:28px 20px; color:var(--text-muted); font-size:13px;"><i class="fa-solid fa-inbox" style="margin-right:8px; font-size:16px;"></i>ไม่พบรายการประวัติการรับตำราเรียนตามเงื่อนไขที่ค้นหา</td></tr>';
         return;
       }
-      logs.forEach(row => {
-        const tr = document.createElement('tr');
-        const isClaimed = String(row.claimStatus || '').toUpperCase() === 'CLAIMED';
-        const isShipping = (row.deliveryMethod === 'ส่งตำรา' || row.deliveryMethod === 'จัดส่งตามที่อยู่' || row.deliveryMethod === 'ส่งไปตามที่อยู่' || String(row.claimStatus).includes('ส่ง'));
-        // Date Display
-        let dateHtml = '';
-        if (isClaimed) {
-          dateHtml = '<div style="font-size:12.5px; color:var(--text-main); font-weight:700; font-family:monospace;">' + formatThaiDateTime(row.claimedAt || row.createdAt) + '</div>' +
-                     '<div style="font-size:11px; color:#047857; font-weight:600; margin-top:3px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-check" style="font-size:10px;"></i> สแกนรับตำราแล้ว</div>';
-        } else {
-          dateHtml = '<div style="font-size:12.5px; color:var(--text-main); font-weight:600; font-family:monospace;">' + formatThaiDateTime(row.createdAt) + '</div>' +
-                     '<div style="font-size:11px; color:#92400E; font-weight:600; margin-top:3px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-regular fa-clock" style="font-size:10px;"></i> ออกใบเสร็จ (รอรับตำรา)</div>';
-        }
-        // Receipt Badge
-        const receiptBadgeHtml = '<span style="display:inline-flex; align-items:center; gap:6px; font-family:monospace; font-weight:800; font-size:13px; color:var(--text-main); background:rgba(215,166,0,0.14); border:1px solid rgba(180,83,9,0.38); padding:4px 11px; border-radius:7px; letter-spacing:0.4px; white-space:nowrap !important; word-break:keep-all !important; font-variant-numeric:tabular-nums;"><i class="fa-solid fa-receipt" style="font-size:10.5px; opacity:0.85;"></i>' + escapeHtml(toArabicDigits(row.receiptNo || '-')) + '</span>';
-        // Buyer ID Badge
-        const hasBuyerId = row.buyerId && String(row.buyerId).trim() !== '' && String(row.buyerId).trim() !== '-';
-        const buyerIdBadgeHtml = hasBuyerId
-          ? '<span style="display:inline-flex; align-items:center; gap:5px; font-family:monospace; font-weight:700; font-size:12.5px; color:var(--text-main); background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.14); padding:3px 10px; border-radius:6px; white-space:nowrap !important; word-break:keep-all !important; font-variant-numeric:tabular-nums;"><i class="fa-regular fa-id-badge" style="color:#38bdf8; font-size:11px;"></i>' + escapeHtml(toArabicDigits(row.buyerId)) + '</span>'
-          : '<span style="display:inline-flex; align-items:center; justify-content:center; font-family:monospace; font-size:12px; color:var(--text-muted); background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); padding:2px 10px; border-radius:6px;">-</span>';
-        // Material Badge
-        let matBadge = '';
-        if (row.materialType) {
-          const isNoMat = row.materialType.includes('ไม่มี') || row.materialType === 'NONE';
-          const badgeBg = isNoMat ? 'rgba(148,163,184,0.15)' : 'rgba(59,130,246,0.18)';
-          const badgeBorder = isNoMat ? 'rgba(148,163,184,0.3)' : 'rgba(59,130,246,0.35)';
-          const badgeColor = isNoMat ? 'var(--text-muted)' : 'var(--accent-sky)';
-          matBadge = ' <span style="background:' + badgeBg + '; border:1px solid ' + badgeBorder + '; color:' + badgeColor + '; padding:1px 6px; border-radius:4px; font-size:11px; margin-left:4px; white-space:nowrap;">' + escapeHtml(row.materialType) + '</span>';
-        }
-        // Officer Display
-        let officerHtml = '';
-        if (isClaimed) {
-          officerHtml = '<div style="display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
-            '<span style="font-weight:700; color:var(--text-main); display:inline-flex; align-items:center; gap:5px;"><i class="fa-solid fa-user-check" style="font-size:12px; color:#10b981;"></i> ' + escapeHtml(row.claimedBy || 'เจ้าหน้าที่') + '</span>' +
-            '<span style="font-size:10.5px; color:#38bdf8; background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.25); border-radius:4px; padding:1px 6px; display:inline-flex; align-items:center; gap:3px;"><i class="fa-solid fa-hand-holding-hand" style="font-size:9.5px;"></i>ผู้สแกนส่งมอบตำรา</span>' +
-            '</div>';
-        } else {
-          officerHtml = '<span style="color:var(--text-muted); font-size:12px;">- (ยังไม่ตัดจ่าย)</span>';
-        }
-        // Status & Action Column
-        let statusColHtml = '';
-        if (isClaimed) {
-          statusColHtml = '<span style="background:rgba(16,185,129,0.15); color:#047857; border:1px solid rgba(4,120,87,0.35); padding:3px 10px; border-radius:12px; font-weight:700; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-check"></i> รับเรียบร้อยแล้ว</span>';
-        } else if (isShipping) {
-          statusColHtml = '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:3px;">' +
-            '<span style="background:rgba(56,189,248,0.15); color:#0369A1; border:1px solid rgba(3,105,161,0.35); padding:3px 10px; border-radius:12px; font-weight:700; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-truck"></i> จัดส่งทางพัสดุ</span>' +
-            '<button type="button" class="oca-btn-icon" style="padding:2px 8px; font-size:10.5px; border-radius:5px; background:rgba(56,189,248,0.1); border:1px solid rgba(3,105,161,0.35); color:var(--accent-sky); cursor:pointer;" onclick="handleScannedQrToken(\'' + escapeHtml(row.receiptNo) + '\')">ตรวจสอบพัสดุ</button>' +
-            '</div>';
-        } else {
-          statusColHtml = '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:4px;">' +
-            '<span style="background:#FEF3C7; color:#0F172A; border:1px solid rgba(180,83,9,0.45); padding:3px 10px; border-radius:12px; font-weight:700; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-regular fa-clock"></i> ยังไม่ได้รับ</span>' +
-            '<button type="button" class="oca-btn-gold-submit" style="padding:3px 9px; font-size:11px; border-radius:6px; background:#B45309 !important; border:none; color:#ffffff !important; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.25);" onclick="handleScannedQrToken(\'' + escapeHtml(row.receiptNo) + '\')"><i class="fa-solid fa-barcode"></i> ตัดจ่ายตำรา</button>' +
-            '</div>';
-        }
-        const rawItemStr = String(row.itemName || '-');
-        const itemDisplayHtml = (rawItemStr.includes(',') && rawItemStr.includes('เล่ม)'))
-          ? rawItemStr.split(',').map(part => '<div style="font-size:12.5px; color:var(--text-main); line-height:1.4;">• ' + escapeHtml(part.trim()) + '</div>').join('')
-          : '<span style="font-size:13px; color:var(--text-main);">' + escapeHtml(rawItemStr) + '</span>';
-        tr.innerHTML =
-          '<td style="padding:13px 16px 13px 28px !important; white-space:nowrap; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle;">' + dateHtml + '</td>' +
-          '<td style="padding:13px 14px !important; white-space:nowrap; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle;">' + receiptBadgeHtml + '</td>' +
-          '<td style="padding:13px 14px !important; white-space:nowrap; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle;">' + buyerIdBadgeHtml + '</td>' +
-          '<td style="padding:13px 14px !important; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle; min-width:160px; white-space:nowrap;"><strong style="color:var(--text-main); font-size:13px;">' + escapeHtml(row.buyerName || '-') + '</strong></td>' +
-          '<td style="padding:13px 14px !important; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle; min-width:180px; max-width:340px; white-space:normal; word-break:break-word;">' + itemDisplayHtml + matBadge + '</td>' +
-          '<td style="padding:13px 14px !important; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle; min-width:150px; white-space:nowrap;">' + officerHtml + '</td>' +
-          '<td style="padding:13px 28px 13px 14px !important; white-space:nowrap; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); vertical-align:middle;">' + statusColHtml + '</td>';
-        tbody.appendChild(tr);
-      });
+      const frag = document.createDocumentFragment();
+      const initialEnd = Math.min(safeLogs.length, CLAIM_HISTORY_CHUNK_SIZE);
+      for (let i = 0; i < initialEnd; i++) {
+        frag.appendChild(createClaimHistoryRow(safeLogs[i]));
+      }
+      tbody.appendChild(frag);
+      window._claimHistoryRenderedCount = initialEnd;
+      appendClaimHistoryMoreButton(tbody);
     }
     function loadTextbookClaimLogs(force = false) {
       const tbody = document.getElementById('tbodyClaimHistoryLogs');
@@ -54356,15 +54568,32 @@ if (action === 'getDashboardStats') {
               }
             } catch (_) {}
           }
-          // 2. Fallback to jsQR
+          // 2. Fallback to jsQR (Downscale large photos to max 1200px + bottom-right receipt QR crop retry)
           if (!detectedText && typeof jsQR !== 'undefined') {
+            const natW = img.naturalWidth || img.width || 1;
+            const natH = img.naturalHeight || img.height || 1;
+            const maxDim = 1200;
+            const scale = Math.min(1, maxDim / Math.max(natW, natH));
             const canvas = document.createElement('canvas');
-            canvas.width = img.naturalWidth || img.width;
-            canvas.height = img.naturalHeight || img.height;
+            canvas.width = Math.max(1, Math.round(natW * scale));
+            canvas.height = Math.max(1, Math.round(natH * scale));
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            ctx.drawImage(img, 0, 0);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imgData.data, imgData.width, imgData.height);
+            let code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'attemptBoth' });
+            if (!code) {
+              // Retry bottom-right quadrant (where receipt QR is located) at full natural resolution capped at 1000px
+              const cropX = Math.floor(natW * 0.45);
+              const cropY = Math.floor(natH * 0.45);
+              const cropW = Math.max(1, natW - cropX);
+              const cropH = Math.max(1, natH - cropY);
+              const cropScale = Math.min(1, 1000 / Math.max(cropW, cropH));
+              canvas.width = Math.max(1, Math.round(cropW * cropScale));
+              canvas.height = Math.max(1, Math.round(cropH * cropScale));
+              ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+              const cropData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              code = jsQR(cropData.data, cropData.width, cropData.height, { inversionAttempts: 'attemptBoth' });
+            }
             if (code && code.data) detectedText = code.data;
           }
           if (detectedText) {
@@ -54409,29 +54638,36 @@ if (action === 'getDashboardStats') {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       tbScannerTimer = setInterval(async () => {
-        if (!tbScannerActive || videoElem.readyState < 2) return;
-        // 1. Try Native BarcodeDetector API (Hardware Accelerated)
-        if (detector) {
-          try {
-            const barcodes = await detector.detect(videoElem);
-            if (barcodes.length > 0 && barcodes[0].rawValue) {
-              handleScannedQrToken(barcodes[0].rawValue);
-              return;
-            }
-          } catch (e) {}
-        }
-        // 2. Fallback to jsQR canvas scanning
-        if (typeof jsQR !== 'undefined') {
-          canvas.width = videoElem.videoWidth;
-          canvas.height = videoElem.videoHeight;
-          if (canvas.width > 0 && canvas.height > 0) {
-            ctx.drawImage(videoElem, 0, 0, canvas.width, canvas.height);
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imgData.data, imgData.width, imgData.height);
-            if (code && code.data) {
-              handleScannedQrToken(code.data);
+        const activeModal = document.getElementById('modalGlobalConfirm');
+        const isModalOpen = Boolean(activeModal && activeModal.style.display && activeModal.style.display !== 'none');
+        if (!tbScannerActive || tbScanInFlight || tbFrameBusy || isModalOpen || videoElem.readyState < 2) return;
+        tbFrameBusy = true;
+        try {
+          // 1. Try Native BarcodeDetector API (Hardware Accelerated)
+          if (detector) {
+            try {
+              const barcodes = await detector.detect(videoElem);
+              if (barcodes.length > 0 && barcodes[0].rawValue) {
+                handleScannedQrToken(barcodes[0].rawValue);
+                return;
+              }
+            } catch (e) {}
+          }
+          // 2. Fallback to jsQR canvas scanning
+          if (typeof jsQR !== 'undefined') {
+            canvas.width = videoElem.videoWidth;
+            canvas.height = videoElem.videoHeight;
+            if (canvas.width > 0 && canvas.height > 0) {
+              ctx.drawImage(videoElem, 0, 0, canvas.width, canvas.height);
+              const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const code = jsQR(imgData.data, imgData.width, imgData.height);
+              if (code && code.data) {
+                handleScannedQrToken(code.data);
+              }
             }
           }
+        } finally {
+          tbFrameBusy = false;
         }
       }, 250);
     }
@@ -54685,9 +54921,10 @@ if (action === 'getDashboardStats') {
     }
     window.renderMaterialClaimBox = renderMaterialClaimBox;
     window.verifyAndClaimTextbook = (params) => callGasApi('verifyAndClaimTextbook', params, 'POST');
-    function handleScannedQrToken(rawToken) {
+    function handleScannedQrToken(rawToken, opts = {}) {
+      const isConfirmCommit = Boolean(opts && opts.confirmCommit);
       const now = Date.now();
-      if (rawToken === tbLastScannedToken && now - tbLastScanTime < 2500) {
+      if (!isConfirmCommit && (tbScanInFlight || (rawToken === tbLastScannedToken && now - tbLastScanTime < 2500))) {
         return;
       }
       tbLastScannedToken = rawToken;
@@ -54696,6 +54933,7 @@ if (action === 'getDashboardStats') {
       const content = document.getElementById('claimFeedbackContent');
       const cleanToken = (rawToken || '').toString().trim();
       if (!cleanToken) {
+        playOcaScanBeep('error');
         displayClaimFeedbackCard('warning',
           '<div style="font-size:16px; font-weight:800; color:#ef4444;">' +
           '  <i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i>ไม่พบรหัส QR Code' +
@@ -54707,15 +54945,72 @@ if (action === 'getDashboardStats') {
       }
       const loggedStaff = (typeof getAuthoritativeLoggedInStaff === 'function') ? getAuthoritativeLoggedInStaff() : { fullName: getActiveTextbookClaimStaffName(), username: 'staff', role: 'Staff' };
       const activeScanningOfficer = getActiveTextbookClaimStaffName();
+      tbScanInFlight = true;
       callGasApi('verifyAndClaimTextbook', {
         tokenString: cleanToken,
+        previewOnly: !isConfirmCommit,
         operatorName: activeScanningOfficer,
         operatorUsername: loggedStaff.username,
         operatorRole: loggedStaff.role
       }, 'POST')
         .then(res => {
           if (!card || !content) return;
+          if (res && res.previewOnly && res.readyToClaim) {
+            playOcaScanBeep('preview');
+            const matBox = renderMaterialClaimBox(res.materialType, res.itemTitle, res.editNotes, res.extraBooks);
+            displayClaimFeedbackCard('warning',
+              '<div style="font-size:17px; font-weight:800; color:#f59e0b; display:flex; align-items:center; gap:8px;">' +
+              '  <span><i class="fa-solid fa-book-open" style="margin-right:6px;"></i>ตรวจสอบรายการก่อนส่งมอบ (ยังไม่ตัดสิทธิ์)</span>' +
+              '</div>' +
+              matBox +
+              '<div style="font-size:14px; font-weight:700; color:var(--text-main); margin-top:6px;">' +
+              '  หลักสูตร: ' + escapeHtml(res.itemTitle || '') +
+              '</div>' +
+              '<div style="font-size:13px; color:var(--text-main); margin-top:4px;">' +
+              '  ผู้รับ: <strong>' + escapeHtml(res.buyerName || '') + '</strong> (รหัส: ' + toArabicDigits(res.buyerId || '-') + ')<br>' +
+              '  เลขที่ใบเสร็จ: <strong>' + toArabicDigits(res.receiptNo || '-') + '</strong>' +
+              '</div>',
+              0
+            );
+            const parsedPrev = parseCourseMaterialItems(res.materialType, res.itemTitle, res.editNotes, res.extraBooks);
+            const prevItemsHtml = parsedPrev.items.map((it) => '<div style="padding:2px 0;">• ' + escapeHtml(it) + '</div>').join('');
+            const previewModalBody =
+              '<div style="background:rgba(245,158,11,0.16); border:2px solid #f59e0b; border-radius:10px; padding:12px 14px; margin-bottom:14px;">' +
+              '  <div style="font-size:14px; font-weight:800; color:#fbbf24; display:flex; align-items:center; gap:8px; margin-bottom:4px;">' +
+              '    <i class="fa-solid fa-clipboard-check" style="font-size:18px; color:#f59e0b;"></i>' +
+              '    <span>ตรวจสอบรายการก่อนส่งมอบ (ยังไม่ตัดสิทธิ์)</span>' +
+              '  </div>' +
+              '  <div style="font-size:12.5px; color:var(--text-main); line-height:1.45;">' +
+              '    กรุณาตรวจสอบชื่อผู้เรียนและรายการตำราให้ตรงกัน แล้วกดปุ่ม <strong>"ยืนยันจ่ายตำราเรียน"</strong> ด้านล่าง' +
+              '  </div>' +
+              '</div>' +
+              '<div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; color:var(--text-main);">' +
+              '  <div><strong>ผู้รับ:</strong> ' + escapeHtml(res.buyerName || '-') + ' (รหัส: ' + toArabicDigits(res.buyerId || '-') + ')</div>' +
+              '  <div><strong>เลขที่ใบเสร็จ:</strong> ' + toArabicDigits(res.receiptNo || '-') + '</div>' +
+              '  <div><strong>หลักสูตร:</strong> ' + escapeHtml(res.itemTitle || '-') + '</div>' +
+              '  <div style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.12);">' +
+              '    <strong style="color:#fbbf24;">รายการอุปกรณ์ที่ต้องส่งมอบ:</strong>' +
+              '    <div style="margin-left:6px; margin-top:4px; color:var(--text-main);">' + prevItemsHtml + '</div>' +
+              '  </div>' +
+              '</div>';
+            showClaimAlertPopup(
+              'ตรวจสอบสิทธิ์รับตำราเรียน',
+              previewModalBody,
+              'fa-book-open',
+              '#f59e0b',
+              {
+                statusType: 'preview',
+                isHtml: true,
+                subtitle: '📋 กรุณาตรวจสอบรายการหนังสือให้ถูกต้องก่อนกดยืนยันตัดสิทธิ์',
+                confirmText: '✅ ยืนยันจ่ายตำราเรียน',
+                cancelText: 'ยกเลิก',
+                onConfirm: () => handleScannedQrToken(res.claimToken || res.receiptNo || cleanToken, { confirmCommit: true })
+              }
+            );
+            return;
+          }
           if (res && res.isVoided) {
+            playOcaScanBeep('error');
             displayClaimFeedbackCard('error',
               '<div style="font-size:17px; font-weight:800; color:#ef4444; display:flex; align-items:center; gap:8px;">' +
               '  <span><i class="fa-solid fa-ban" style="margin-right:6px;"></i> ใบเสร็จถูกยกเลิก (VOID) ไม่สามารถจ่ายตำราได้</span>' +
@@ -54734,6 +55029,7 @@ if (action === 'getDashboardStats') {
             return;
           }
           if (res && res.studentDropped) {
+            playOcaScanBeep('error');
             displayClaimFeedbackCard('error',
               '<div style="font-size:17px; font-weight:800; color:#ef4444; display:flex; align-items:center; gap:8px;">' +
               '  <span><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> ระงับการจ่ายตำรา: นักศึกษาพักการเรียน / ดรอปเรียน</span>' +
@@ -54754,6 +55050,7 @@ if (action === 'getDashboardStats') {
             return;
           }
           if (res && res.deliveryOrder) {
+            playOcaScanBeep('error');
             const matBox = renderMaterialClaimBox(res.materialType, res.itemTitle, res.editNotes, res.extraBooks);
             displayClaimFeedbackCard('warning',
               '<div style="font-size:17px; font-weight:800; color:#38bdf8; display:flex; align-items:center; gap:8px;">' +
@@ -54809,6 +55106,7 @@ if (action === 'getDashboardStats') {
             return;
           }
           if (res && res.alreadyClaimed) {
+            playOcaScanBeep('error');
             // Already Claimed Warning (Repeat Scan -> High Visibility RED Alert)
             const matBox = renderMaterialClaimBox(res.materialType, res.itemTitle, res.editNotes, res.extraBooks);
             displayClaimFeedbackCard('warning',
@@ -54866,6 +55164,7 @@ if (action === 'getDashboardStats') {
               }
             );
           } else if (res && res.isCardReceipt) {
+            playOcaScanBeep('error');
             displayClaimFeedbackCard('warning',
               '<div style="font-size:16px; font-weight:800; color:#ef4444;">' +
               '  <i class="fa-solid fa-id-card" style="margin-right:6px;"></i>ไม่มีสิทธิ์ขอรับตำราเรียน' +
@@ -54881,7 +55180,8 @@ if (action === 'getDashboardStats') {
               '#f59e0b'
             );
           } else if (res && res.success) {
-            // Success Claim (First Scan -> High Visibility GREEN Alert)
+            playOcaScanBeep('success');
+            // Success Claim (Confirmed -> High Visibility GREEN Alert, keep summary card visible)
             const matBox = renderMaterialClaimBox(res.materialType, res.itemTitle, res.editNotes, res.extraBooks);
             displayClaimFeedbackCard('success',
               '<div style="font-size:18px; font-weight:800; color:#10b981; display:flex; align-items:center; gap:8px;">' +
@@ -54896,7 +55196,8 @@ if (action === 'getDashboardStats') {
               '  เลขที่ใบเสร็จ: <strong>' + toArabicDigits(res.receiptNo) + '</strong><br>' +
               '  วันเวลาที่บันทึก: <strong>' + toArabicDigits(res.claimedAt) + '</strong><br>' +
               '  ผู้บันทึกจ่าย: <strong>' + (res.claimedBy || '') + '</strong>' +
-              '</div>'
+              '</div>',
+              0
             );
             loadTextbookClaimLogs();
             loadTextbooksData();
@@ -54940,6 +55241,7 @@ if (action === 'getDashboardStats') {
               }
             );
           } else {
+            playOcaScanBeep('error');
             displayClaimFeedbackCard('warning',
               '<div style="font-size:16px; font-weight:800; color:#ef4444;">' +
               '  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>ไม่พบข้อมูลสิทธิ์ใบเสร็จนี้' +
@@ -54957,12 +55259,16 @@ if (action === 'getDashboardStats') {
           }
         })
         .catch(err => {
+          playOcaScanBeep('error');
           showClaimAlertPopup(
             'เกิดข้อผิดพลาดในการตรวจสอบ',
             err.message || 'ระบบไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
             'fa-circle-xmark',
             '#ef4444'
           );
+        })
+        .finally(() => {
+          tbScanInFlight = false;
         });
     }
     function doVerifyClaimByInput() {
@@ -54973,6 +55279,7 @@ if (action === 'getDashboardStats') {
         showClaimAlertPopup('กรุณากรอกข้อมูล', 'กรุณากรอกเลขที่ใบเสร็จ หรือ Token ที่ต้องการตรวจสอบ', 'fa-pen-to-square', '#f59e0b');
         return;
       }
+      inp.value = '';
       const cleanVal = toArabicDigits(val);
       const fromCache = Array.isArray(receiptHistoryCachedLogs) ? receiptHistoryCachedLogs.find(l =>
         l.receiptNo === cleanVal ||
@@ -73774,7 +74081,8 @@ function openPublicRegisterView() {
               stQb = stQb.ilike('full_name', `%${cleanNameQ}%`);
             }
           }
-          const { data: stData } = await stQb.limit(1);
+          const { data: stData, error: stErr } = await stQb.limit(1);
+          if (stErr) console.warn('[ClassroomLookup] students query error:', stErr.message);
           if (stData && stData.length > 0) {
             const st = stData[0];
             found = {
@@ -88801,13 +89109,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=251';
+      const swPath = basePath + 'sw.js?v=252';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (251):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (252):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
