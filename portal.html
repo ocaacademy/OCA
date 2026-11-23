@@ -12567,7 +12567,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '268';
+      var LATEST_VERSION = '269';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -25289,9 +25289,12 @@ body.printing-report #printReportContainer {
                       <div id="lblPhotoAiProcessing" style="font-size:11.5px; font-weight:700; color:#047857; display:none;">
                         <i class="fa-solid fa-spinner fa-spin" style="margin-right:4px;"></i> <span id="lblPhotoAiProcessingText">AI กำลังจัดภาพครึ่งตัวบนและปรับพื้นหลัง...</span>
                       </div>
-                      <div id="lblPhotoAiSuccess" style="font-size:11.5px; font-weight:700; color:#047857; display:flex; align-items:center; gap:6px;">
+                      <div id="lblPhotoAiSuccess" style="font-size:11.5px; font-weight:700; color:#047857; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                         <i class="fa-solid fa-circle-check" style="color:#10B981; font-size:13px;"></i>
                         <span id="lblPhotoAiSuccessText">จัดภาพครึ่งตัวบนและปรับพื้นหลังสีแดงเลือดหมูทางการ (#800000) เรียบร้อย</span>
+                        <button type="button" id="btnTogglePubPhotoOriginal" onclick="togglePublicPhotoOriginalMode()" style="display:none; align-items:center; gap:4px; cursor:pointer; background:#F1F5F9; color:#1E293B; border:1px solid #CBD5E1; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:700; margin-left:4px;">
+                          <i class="fa-solid fa-image"></i> <span id="lblBtnTogglePubPhotoOriginal">ใช้รูปต้นฉบับ</span>
+                        </button>
                       </div>
                     </div>
                     <!-- Hidden legacy element for JS compatibility -->
@@ -35038,13 +35041,13 @@ if (action === 'getDashboardStats') {
           break;
         }
       }
-      const needsDehaze = p05 > 24;
-      const isOverBright = meanLuma > 162 || p90 > 228;
+      const needsDehaze = p05 > 35;
+      const isOverBright = meanLuma > 165 || p90 > 228;
       if (!needsDehaze && !isOverBright) {
         return srcCanvas;
       }
-      const blackFloor = needsDehaze ? Math.min(45, p05 - 8) : 0;
-      const gamma = meanLuma > 180 ? 1.35 : (meanLuma > 162 ? 1.20 : 1.08);
+      const blackFloor = needsDehaze ? Math.min(28, p05 - 12) : 0;
+      const gamma = meanLuma > 185 ? 1.12 : (meanLuma > 165 ? 1.08 : 1.04);
       const invRange = 1 / Math.max(1, 255 - blackFloor);
       for (let i = 0; i < pix.length; i += 4) {
         let r = pix[i];
@@ -35069,7 +35072,7 @@ if (action === 'getDashboardStats') {
     }
     window.normalizeCanvasForAiMatting = normalizeCanvasForAiMatting;
     function sampleBackdropColorFromMask(srcPixels, alphaArr, w, h) {
-      let sumR = 0, sumG = 0, sumB = 0, count = 0;
+      let sumR = 0, sumG = 0, sumB = 0, sumR2 = 0, sumG2 = 0, sumB2 = 0, count = 0;
       const topH = Math.floor(h * 0.12);
       const latH = Math.floor(h * 0.45);
       const latW1 = Math.floor(w * 0.12);
@@ -35082,9 +35085,9 @@ if (action === 'getDashboardStats') {
             const i = row + x;
             if (alphaArr && alphaArr[i] < 0.12) {
               const j = i * 4;
-              sumR += srcPixels[j];
-              sumG += srcPixels[j + 1];
-              sumB += srcPixels[j + 2];
+              const r = srcPixels[j], g = srcPixels[j + 1], b = srcPixels[j + 2];
+              sumR += r; sumG += g; sumB += b;
+              sumR2 += r * r; sumG2 += g * g; sumB2 += b * b;
               count++;
             }
           }
@@ -35095,38 +35098,59 @@ if (action === 'getDashboardStats') {
         for (let y = 0; y < fbTopH; y += 2) {
           for (let x = 0; x < Math.floor(w * 0.15); x += 2) {
             const j = (y * w + x) * 4;
-            sumR += srcPixels[j]; sumG += srcPixels[j + 1]; sumB += srcPixels[j + 2]; count++;
+            const r = srcPixels[j], g = srcPixels[j + 1], b = srcPixels[j + 2];
+            sumR += r; sumG += g; sumB += b;
+            sumR2 += r * r; sumG2 += g * g; sumB2 += b * b;
+            count++;
           }
           for (let x = Math.floor(w * 0.85); x < w; x += 2) {
             const j = (y * w + x) * 4;
-            sumR += srcPixels[j]; sumG += srcPixels[j + 1]; sumB += srcPixels[j + 2]; count++;
+            const r = srcPixels[j], g = srcPixels[j + 1], b = srcPixels[j + 2];
+            sumR += r; sumG += g; sumB += b;
+            sumR2 += r * r; sumG2 += g * g; sumB2 += b * b;
+            count++;
           }
         }
       }
       const refR = count > 0 ? sumR / count : 240;
       const refG = count > 0 ? sumG / count : 240;
       const refB = count > 0 ? sumB / count : 240;
+      const varR = count > 0 ? Math.max(0, sumR2 / count - refR * refR) : 0;
+      const varG = count > 0 ? Math.max(0, sumG2 / count - refG * refG) : 0;
+      const varB = count > 0 ? Math.max(0, sumB2 / count - refB * refB) : 0;
+      const bgStdDev = Math.sqrt((varR + varG + varB) / 3);
+      const isUniformBackdrop = bgStdDev <= 38;
       const isBackdropBlue = (refB > refR + 22 && refB > refG + 15 && refB > 95);
       const isBackdropGreen = (refG > refR + 22 && refG > refB + 18 && refG > 90);
-      return { refR, refG, refB, isBackdropBlue, isBackdropGreen };
+      return { refR, refG, refB, isBackdropBlue, isBackdropGreen, bgStdDev, isUniformBackdrop };
     }
-    function computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB) {
+    function computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB, alphaArr = null, isUniformBackdrop = true) {
       const N = w * h;
       const exteriorBg = new Uint8Array(N);
-      if (!srcPixels || !w || !h) return exteriorBg;
+      if (!srcPixels || !w || !h || !isUniformBackdrop) return exteriorBg;
       const bgLuma = 0.299 * refR + 0.587 * refG + 0.114 * refB;
       const queue = new Int32Array(N);
       let head = 0;
       let tail = 0;
-      const maxY = h;
+      const maxY = Math.floor(h * 0.85);
+      const torsoTopY = Math.floor(h * 0.42);
+      const torsoMinX = Math.floor(w * 0.18);
+      const torsoMaxX = Math.floor(w * 0.82);
       const isBgPixel = (idx) => {
+        if (alphaArr && alphaArr[idx] >= 0.45) return false;
+        const cx = idx % w;
+        const cy = (idx - cx) / w;
+        const inCoreTorso = cy >= torsoTopY && cx >= torsoMinX && cx <= torsoMaxX;
+        if (inCoreTorso && alphaArr && alphaArr[idx] >= 0.25) return false;
         const j = idx * 4;
         const sR = srcPixels[j];
         const sG = srcPixels[j + 1];
         const sB = srcPixels[j + 2];
         const luma = 0.299 * sR + 0.587 * sG + 0.114 * sB;
         const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
-        return distBg < 48 && Math.abs(luma - bgLuma) < 34;
+        const maxDist = inCoreTorso ? 32 : 44;
+        const maxLumaDiff = inCoreTorso ? 22 : 30;
+        return distBg < maxDist && Math.abs(luma - bgLuma) < maxLumaDiff;
       };
       for (let x = 0; x < w; x++) {
         if (isBgPixel(x) && exteriorBg[x] === 0) {
@@ -35250,13 +35274,14 @@ if (action === 'getDashboardStats') {
       return q;
     }
     window.refineAlphaWithGuidedFilter = refineAlphaWithGuidedFilter;
-    function applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels, exteriorBgMask = null) {
+    function applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels, exteriorBgMask = null, isUniformBackdrop = true) {
       isolatePrimarySubjectAlpha(alphaArr, w, h);
       const N = w * h;
-      const exteriorBg = exteriorBgMask || computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB);
-      // Torso Notch/Hole Closure: protect interior non-backdrop pixels surrounded horizontally by foreground
-      const torsoStartY = Math.floor(h * 0.45);
-      for (let y = torsoStartY; y < h; y++) {
+      const exteriorBg = exteriorBgMask || computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB, alphaArr, isUniformBackdrop);
+      // Head/Face/Glasses Interior Hole Closure: prevent eyeglasses glare/reflections from turning into background holes
+      const headStartY = Math.floor(h * 0.10);
+      const headEndY = Math.floor(h * 0.48);
+      for (let y = headStartY; y < headEndY; y++) {
         const row = y * w;
         let leftFg = -1;
         let rightFg = -1;
@@ -35270,6 +35295,27 @@ if (action === 'getDashboardStats') {
           for (let x = leftFg + 1; x < rightFg; x++) {
             const idx = row + x;
             if (exteriorBg[idx] === 0) {
+              alphaArr[idx] = Math.max(alphaArr[idx], 0.98);
+            }
+          }
+        }
+      }
+      // Torso Notch/Hole Closure: protect interior torso/garment pixels surrounded horizontally by foreground
+      const torsoStartY = Math.floor(h * 0.48);
+      for (let y = torsoStartY; y < h; y++) {
+        const row = y * w;
+        let leftFg = -1;
+        let rightFg = -1;
+        for (let x = 0; x < w; x++) {
+          if (alphaArr[row + x] >= 0.55) {
+            if (leftFg === -1) leftFg = x;
+            rightFg = x;
+          }
+        }
+        if (leftFg !== -1 && rightFg > leftFg) {
+          for (let x = leftFg + 1; x < rightFg; x++) {
+            const idx = row + x;
+            if (exteriorBg[idx] === 0 || alphaArr[idx] >= 0.35) {
               alphaArr[idx] = 1.0;
             }
           }
@@ -35335,7 +35381,7 @@ if (action === 'getDashboardStats') {
         const sLuma = 0.299 * sR + 0.587 * sG + 0.114 * sB;
         const gA = guidedAlpha[i];
         let a = 0;
-        if (exteriorBg[i] === 1 && (gA < 0.85 || i >= w * Math.floor(h * 0.40))) {
+        if (exteriorBg[i] === 1 && gA < 0.55) {
           a = 0.0;
         } else if (gA >= 0.50 || distMap[i] >= 2) {
           a = 1.0;
@@ -35442,28 +35488,59 @@ if (action === 'getDashboardStats') {
       const bg = [bgR, bgG, bgB];
       const srcCtx = srcCanvas.getContext('2d');
       const srcPixels = srcCtx.getImageData(0, 0, w, h).data;
-      const { refR, refG, refB, isBackdropBlue, isBackdropGreen } = sampleBackdropColorFromMask(srcPixels, alphaArr, w, h);
-      const exteriorBg = computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB);
+      const { refR, refG, refB, isBackdropBlue, isBackdropGreen, isUniformBackdrop } = sampleBackdropColorFromMask(srcPixels, alphaArr, w, h);
+      // Dual-AI Fusion BEFORE flood-fill so MediaPipe protects black-on-black / white-on-white garments and head/hijab
       if (mpAlpha && mpAlpha.length === N) {
-        const bgLuma = 0.299 * refR + 0.587 * refG + 0.114 * refB;
         const torsoYStart = Math.floor(h * 0.40);
+        const headYStart = Math.floor(h * 0.08);
+        for (let y = headYStart; y < torsoYStart; y++) {
+          const row = y * w;
+          for (let x = 0; x < w; x++) {
+            const i = row + x;
+            if (mpAlpha[i] >= 0.72) {
+              alphaArr[i] = Math.max(alphaArr[i], mpAlpha[i] * 0.92);
+            }
+          }
+        }
         for (let y = torsoYStart; y < h; y++) {
           const row = y * w;
           for (let x = 0; x < w; x++) {
             const i = row + x;
-            if (exteriorBg[i] === 0) {
-              const j = i * 4;
-              const sR = srcPixels[j];
-              const sG = srcPixels[j + 1];
-              const sB = srcPixels[j + 2];
-              const luma = 0.299 * sR + 0.587 * sG + 0.114 * sB;
-              const distBg = Math.hypot(sR - refR, sG - refG, sB - refB);
-              if (distBg > 28 || Math.abs(luma - bgLuma) > 22) {
-                alphaArr[i] = Math.max(alphaArr[i], mpAlpha[i] * 0.92);
-              }
+            if (mpAlpha[i] >= 0.45) {
+              alphaArr[i] = Math.max(alphaArr[i], mpAlpha[i] * 0.95);
             }
           }
         }
+      }
+      let exteriorBg = computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB, alphaArr, isUniformBackdrop);
+      // Post-Matting Sanity Check: auto-recover eaten torso or abort broken cutout
+      const sanityY1 = Math.floor(h * 0.60);
+      const sanityY2 = Math.floor(h * 0.95);
+      const sanityX1 = Math.floor(w * 0.32);
+      const sanityX2 = Math.floor(w * 0.68);
+      let torsoFgCount = 0;
+      let torsoTotal = 0;
+      for (let y = sanityY1; y < sanityY2; y++) {
+        const row = y * w;
+        for (let x = sanityX1; x < sanityX2; x++) {
+          torsoTotal++;
+          if (alphaArr[row + x] >= 0.50) torsoFgCount++;
+        }
+      }
+      if (torsoTotal > 0 && (torsoFgCount / torsoTotal) < 0.45 && mpAlpha && mpAlpha.length === N) {
+        const recoverY = Math.floor(h * 0.48);
+        for (let i = recoverY * w; i < N; i++) {
+          alphaArr[i] = Math.max(alphaArr[i], mpAlpha[i]);
+        }
+        exteriorBg = computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB, alphaArr, isUniformBackdrop);
+      }
+      let fgCount = 0;
+      for (let i = 0; i < N; i++) {
+        if (alphaArr[i] >= 0.50) fgCount++;
+      }
+      const fgRatio = fgCount / N;
+      if (fgRatio < 0.10 || fgRatio > 0.96) {
+        return null;
       }
       const outCanvas = document.createElement('canvas');
       outCanvas.width = w;
@@ -35471,7 +35548,7 @@ if (action === 'getDashboardStats') {
       const outCtx = outCanvas.getContext('2d');
       const outImgData = outCtx.createImageData(w, h);
       const outPixels = outImgData.data;
-      applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels, exteriorBg);
+      applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels, exteriorBg, isUniformBackdrop);
       outCtx.putImageData(outImgData, 0, 0);
       return outCanvas;
     }
@@ -35538,9 +35615,17 @@ if (action === 'getDashboardStats') {
     }
     async function renderMediaPipeMatting(srcCanvas, targetBgColor, w = 600, h = 800) {
       const alphaArr = await getMediaPipeAlphaMask(srcCanvas, w, h);
+      const N = w * h;
+      let fgCount = 0;
+      for (let i = 0; i < N; i++) {
+        if (alphaArr[i] >= 0.50) fgCount++;
+      }
+      const fgRatio = fgCount / N;
+      if (fgRatio < 0.10 || fgRatio > 0.96) return null;
       const srcCtx = srcCanvas.getContext('2d');
       const srcPixels = srcCtx.getImageData(0, 0, w, h).data;
-      const { refR, refG, refB, isBackdropBlue, isBackdropGreen } = sampleBackdropColorFromMask(srcPixels, alphaArr, w, h);
+      const { refR, refG, refB, isBackdropBlue, isBackdropGreen, isUniformBackdrop } = sampleBackdropColorFromMask(srcPixels, alphaArr, w, h);
+      const exteriorBg = computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB, alphaArr, isUniformBackdrop);
       // Parse target background hex color (default #800000 Maroon)
       let bgR = 128, bgG = 0, bgB = 0;
       if (targetBgColor && typeof targetBgColor === 'string' && targetBgColor.startsWith('#')) {
@@ -35560,7 +35645,7 @@ if (action === 'getDashboardStats') {
       const outCtx = outCanvas.getContext('2d');
       const outImgData = outCtx.createImageData(w, h);
       const outPixels = outImgData.data;
-      applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels);
+      applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels, exteriorBg, isUniformBackdrop);
       outCtx.putImageData(outImgData, 0, 0);
       return outCanvas;
     }
@@ -35595,6 +35680,45 @@ if (action === 'getDashboardStats') {
               inCtx.drawImage(imgEl, 0, sy, imgW, cropH, 0, 0, 600, 800);
             } else {
               inCtx.drawImage(imgEl, 0, 0, imgW, imgH, 0, 0, 600, 800);
+            }
+            // Pre-Cutout Transparent PNG Fast-Path & Alpha Flattening
+            const inImgData = inCtx.getImageData(0, 0, 600, 800);
+            const inPix = inImgData.data;
+            let borderSamples = 0;
+            let borderTransparent = 0;
+            let anyAlpha = false;
+            for (let y = 0; y < 800; y += 4) {
+              for (let x = 0; x < 600; x += 4) {
+                const aVal = inPix[(y * 600 + x) * 4 + 3];
+                if (aVal < 255) anyAlpha = true;
+                if (y < 48 || x < 48 || x >= 552) {
+                  borderSamples++;
+                  if (aVal < 128) borderTransparent++;
+                }
+              }
+            }
+            if (borderSamples > 0 && (borderTransparent / borderSamples) > 0.15) {
+              const compCanvas = document.createElement('canvas');
+              compCanvas.width = 600;
+              compCanvas.height = 800;
+              const compCtx = compCanvas.getContext('2d');
+              compCtx.fillStyle = (targetHexColor && typeof targetHexColor === 'string' && targetHexColor.startsWith('#')) ? targetHexColor : '#800000';
+              compCtx.fillRect(0, 0, 600, 800);
+              compCtx.drawImage(inCanvas, 0, 0);
+              window._lastPortraitAiEngine = 'transparent-png';
+              resolve(compCanvas.toDataURL('image/jpeg', 0.92));
+              return;
+            }
+            if (anyAlpha) {
+              const flatCanvas = document.createElement('canvas');
+              flatCanvas.width = 600;
+              flatCanvas.height = 800;
+              const flatCtx = flatCanvas.getContext('2d');
+              flatCtx.fillStyle = '#FFFFFF';
+              flatCtx.fillRect(0, 0, 600, 800);
+              flatCtx.drawImage(inCanvas, 0, 0);
+              inCtx.clearRect(0, 0, 600, 800);
+              inCtx.drawImage(flatCanvas, 0, 0);
             }
             window._lastPortraitAiEngine = 'fallback';
             // 1. Primary Engine: MODNet Studio AI Portrait Matting (512x672 studio portrait alpha, fine hair & edge fidelity)
@@ -35672,6 +35796,8 @@ if (action === 'getDashboardStats') {
               aiStatusText.textContent = 'AI Studio (MODNet): ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย';
             } else if (engineUsed === 'mediapipe') {
               aiStatusText.textContent = 'AI Studio (MediaPipe): ปรับพื้นหลังเป็นสีแดงเลือดหมู (#800000) เรียบร้อย';
+            } else if (engineUsed === 'transparent-png') {
+              aiStatusText.textContent = 'AI Studio (Transparent PNG): ใส่พื้นหลังสีแดงเลือดหมู (#800000) เรียบร้อย';
             } else {
               aiStatusText.textContent = 'AI Studio: ไม่สามารถแยกพื้นหลังได้ชั่วคราว (ใช้รูปถ่ายต้นฉบับ — กดถ่ายหรืออัปโหลดใหม่ได้)';
             }
@@ -87971,7 +88097,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const btnRetake = document.getElementById('btnRetakeOnlinePhoto');
       const bgPanel = document.getElementById('panelPhotoBgOptions');
       _rawOriginalPhotoDataUri = '';
+      _pubPhotoProcessedDataUri = '';
+      _pubPhotoUseOriginal = false;
       pubStudentPhotoDataUri = '';
+      const btnOrig = document.getElementById('btnTogglePubPhotoOriginal');
+      if (btnOrig) btnOrig.style.display = 'none';
       if (img) {
         img.src = '';
         img.style.display = 'none';
@@ -87987,25 +88117,54 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     window.switchOnlineRegCameraFacing = switchOnlineRegCameraFacing;
     window.captureOnlineRegPhoto = captureOnlineRegPhoto;
     window.retakeOnlineRegPhoto = retakeOnlineRegPhoto;
+    let _pubPhotoProcessedDataUri = '';
+    let _pubPhotoUseOriginal = false;
+    function togglePublicPhotoOriginalMode() {
+      if (!_rawOriginalPhotoDataUri) return;
+      _pubPhotoUseOriginal = !_pubPhotoUseOriginal;
+      const targetUri = (_pubPhotoUseOriginal || !_pubPhotoProcessedDataUri) ? _rawOriginalPhotoDataUri : _pubPhotoProcessedDataUri;
+      pubStudentPhotoDataUri = targetUri;
+      const img = document.getElementById('imgPubPhotoPreview');
+      if (img) img.src = targetUri;
+      const realImg = document.getElementById('imgPubPhotoRealSystem');
+      if (realImg) realImg.src = targetUri;
+      const lblBtn = document.getElementById('lblBtnTogglePubPhotoOriginal');
+      if (lblBtn) lblBtn.textContent = _pubPhotoUseOriginal ? 'ใช้พื้นหลัง AI (#800000)' : 'ใช้รูปต้นฉบับ';
+      const succText = document.getElementById('lblPhotoAiSuccessText');
+      if (succText) {
+        succText.textContent = _pubPhotoUseOriginal
+          ? 'กำลังใช้รูปถ่ายต้นฉบับ (กดเพื่อสลับกลับเป็นพื้นหลังสีแดงเลือดหมูได้)'
+          : 'จัดภาพครึ่งตัวบนและปรับพื้นหลังสีแดงเลือดหมูทางการ (#800000) เรียบร้อย';
+      }
+      if (typeof savePublicRegisterDraft === 'function') savePublicRegisterDraft();
+    }
+    window.togglePublicPhotoOriginalMode = togglePublicPhotoOriginalMode;
     /**
      * Apply AI Maroon Background Color (#800000) for Public Admission
      */
     async function applyPhotoBackground(targetHexColor) {
       _currentPhotoBgColor = targetHexColor || MAROON_BG_COLOR;
       if (!_rawOriginalPhotoDataUri) return;
+      _pubPhotoUseOriginal = false;
+      _pubPhotoProcessedDataUri = '';
       const bgPanel = document.getElementById('panelPhotoBgOptions');
       const procEl = document.getElementById('lblPhotoAiProcessing');
       const succEl = document.getElementById('lblPhotoAiSuccess');
+      const succText = document.getElementById('lblPhotoAiSuccessText');
+      const btnOrig = document.getElementById('btnTogglePubPhotoOriginal');
+      const lblBtnOrig = document.getElementById('lblBtnTogglePubPhotoOriginal');
       if (bgPanel) bgPanel.style.display = 'block';
       if (procEl) procEl.style.display = 'block';
       if (succEl) succEl.style.display = 'none';
+      if (btnOrig) btnOrig.style.display = 'none';
       const safetyTimer = setTimeout(() => {
         if (procEl) procEl.style.display = 'none';
         if (succEl) succEl.style.display = 'flex';
-      }, 13500);
+      }, 21000);
       try {
         const processedUri = await processPortraitToMaroonDataUri(_rawOriginalPhotoDataUri, _currentPhotoBgColor);
         if (processedUri) {
+          _pubPhotoProcessedDataUri = processedUri;
           pubStudentPhotoDataUri = processedUri;
           const img = document.getElementById('imgPubPhotoPreview');
           if (img) img.src = pubStudentPhotoDataUri;
@@ -88013,10 +88172,23 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           const realBox = document.getElementById('boxPubPhotoRealSystemPreview');
           if (realImg) realImg.src = pubStudentPhotoDataUri;
           if (realBox) realBox.style.display = 'block';
+          const engineUsed = window._lastPortraitAiEngine || 'fallback';
+          if (succText) {
+            if (engineUsed === 'modnet' || engineUsed === 'mediapipe' || engineUsed === 'transparent-png') {
+              succText.textContent = 'จัดภาพครึ่งตัวบนและปรับพื้นหลังสีแดงเลือดหมูทางการ (#800000) เรียบร้อย';
+            } else {
+              succText.textContent = 'ไม่สามารถแยกพื้นหลังได้ชั่วคราว (ใช้รูปถ่ายต้นฉบับ — กดถ่ายหรืออัปโหลดใหม่ได้)';
+            }
+          }
+          if (btnOrig) {
+            btnOrig.style.display = (engineUsed !== 'fallback') ? 'inline-flex' : 'none';
+            if (lblBtnOrig) lblBtnOrig.textContent = 'ใช้รูปต้นฉบับ';
+          }
           if (typeof savePublicRegisterDraft === 'function') savePublicRegisterDraft();
         }
       } catch (err) {
         console.warn('[Public AI Photo] fallback:', err);
+        if (succText) succText.textContent = 'ใช้รูปถ่ายต้นฉบับ';
       } finally {
         clearTimeout(safetyTimer);
         if (procEl) procEl.style.display = 'none';
@@ -89928,13 +90100,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=268';
+      const swPath = basePath + 'sw.js?v=269';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (268):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (269):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
