@@ -12567,7 +12567,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '270';
+      var LATEST_VERSION = '271';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -24863,6 +24863,13 @@ body.printing-report #printReportContainer {
           transition: border-color 0.2s, box-shadow 0.2s;
           box-sizing: border-box;
         }
+        textarea.oca-reg-input {
+          height: auto !important;
+          min-height: 76px;
+          padding: 10px 14px;
+          line-height: 1.5;
+          resize: vertical;
+        }
         .oca-reg-input:focus {
           border-color: #059669;
           box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
@@ -24889,6 +24896,10 @@ body.printing-report #printReportContainer {
           .oca-reg-input {
             height: 46px !important;
             font-size: 15px !important;
+          }
+          textarea.oca-reg-input {
+            height: auto !important;
+            min-height: 76px !important;
           }
         }
         .oca-btn-back-step0:hover {
@@ -25484,7 +25495,7 @@ body.printing-report #printReportContainer {
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px; flex-wrap:wrap; gap:12px; padding-top:16px; border-top:1px solid #E5E7EB;">
                   <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                     <button type="button" id="btnPubRegBottomBackStep0" onclick="showPublicStep0()" style="background:#FFFFFF; color:#334155; border:1.5px solid #CBD5E1; border-radius:10px; padding:10px 16px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
-                      <i class="fa-solid fa-arrow-left"></i> ย้อนกลับไปเลือกประเภทผู้สมัคร
+                      <i class="fa-solid fa-arrow-left"></i> <span id="lblBtnPubRegBottomBackStep0">ย้อนกลับไปเลือกประเภทผู้สมัคร</span>
                     </button>
                     <button type="button" onclick="clearPublicRegisterForm()" style="background:#FFFFFF; color:#DC2626; border:1.5px solid #FCA5A5; border-radius:10px; padding:10px 18px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
                       <i class="fa-solid fa-rotate-left"></i> <span id="lblBtnResetStep1">ล้างข้อมูล</span>
@@ -25712,7 +25723,7 @@ body.printing-report #printReportContainer {
               ส่งข้อมูลการสมัครเรียนเรียบร้อยแล้ว
             </h2>
 
-            <div style="display:inline-flex; align-items:center; gap:6px; background:#FEF3C7; border:1px solid #F59E0B; color:#B45309; font-weight:700; padding:6px 14px; border-radius:999px; font-size:13px; margin:10px auto 16px;">
+            <div id="boxPubSuccessPaymentBadge" style="display:inline-flex; align-items:center; gap:6px; background:#FEF3C7; border:1px solid #F59E0B; color:#B45309; font-weight:700; padding:6px 14px; border-radius:999px; font-size:13px; margin:10px auto 16px;">
               ⏳ รอเจ้าหน้าที่ตรวจสอบการชำระเงิน (Pending Financial Verification)
             </div>
 
@@ -25737,7 +25748,7 @@ body.printing-report #printReportContainer {
               </div>
 
               <!-- Anti-fraud verification warning -->
-              <div style="background:#FFF1F2; border:1px solid #F43F5E; border-radius:8px; padding:10px 14px; margin-top:14px; font-size:12px; color:#BE123C; text-align:left; line-height:1.5;">
+              <div id="boxPubSuccessSlipWarn" style="background:#FFF1F2; border:1px solid #F43F5E; border-radius:8px; padding:10px 14px; margin-top:14px; font-size:12px; color:#BE123C; text-align:left; line-height:1.5;">
                 <strong>⚠️ คำเตือนความปลอดภัย:</strong> ข้อมูลการสมัครและยอดชำระเงินอยู่ระหว่างรอเจ้าหน้าที่ฝ่ายการเงินตรวจสอบความถูกต้องของสลิปโอนเงินกับระบบธนาคาร สลิปปลอม ตัดต่อ หรือทำซ้ำ จะถูกระงับสิทธิ์ทันทีและดำเนินคดีตามกฎหมาย
               </div>
             </div>
@@ -68102,11 +68113,22 @@ if (action === 'getDashboardStats') {
       // Clear photo data & preview
       pubStudentPhotoDataUri = '';
       _rawOriginalPhotoDataUri = '';
+      _pubPhotoProcessedDataUri = '';
+      _pubPhotoUseOriginal = false;
       window._pubCapturedPhotoBlob = null;
       const pPrev = document.getElementById('imgPubPhotoPreview');
+      const pPlaceholder = document.getElementById('icoPubPhotoPlaceholder');
+      const pBgPanel = document.getElementById('panelPhotoBgOptions');
+      const pBtnOrig = document.getElementById('btnTogglePubPhotoOriginal');
       const pBox = document.getElementById('boxPubPhotoResult');
-      const pFile = document.getElementById('filePubPhotoInput');
-      if (pPrev) pPrev.src = '';
+      const pFile = document.getElementById('filePubDirectPhoto');
+      if (pPrev) {
+        pPrev.src = '';
+        pPrev.style.display = 'none';
+      }
+      if (pPlaceholder) pPlaceholder.style.display = 'block';
+      if (pBgPanel) pBgPanel.style.display = 'none';
+      if (pBtnOrig) pBtnOrig.style.display = 'none';
       if (pBox) pBox.style.display = 'none';
       if (pFile) pFile.value = '';
       // Clear payment slip data & preview
@@ -69078,6 +69100,9 @@ function openPublicRegisterView() {
       }
       if (lbl) {
         const regFeeVal = typeof getEffectivePublicRegFee === 'function' ? getEffectivePublicRegFee() : 0;
+        const isRegExempt = (typeof isPubRegFeeExemptForContext === 'function')
+          ? isPubRegFeeExemptForContext(isReturning ? 'returning' : 'new')
+          : isReturning;
         const lang = (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
         const sidNum = (isReturning && window._pubExistingStudentId) ? toArabicDigits(window._pubExistingStudentId) : '';
         lbl.style.background = isReturning ? '#EFF6FF' : '#ECFDF5';
@@ -69086,21 +69111,27 @@ function openPublicRegisterView() {
         if (lang === 'zh') {
           const sidSuffix = sidNum ? ` | 原学号 ${sidNum}` : '';
           lbl.textContent = isReturning
-            ? `当前模式：老生续报（免收注册费 0 泰铢${sidSuffix}）`
+            ? (isRegExempt || regFeeVal <= 0
+              ? `当前模式：老生续报（免收注册费 0 泰铢${sidSuffix}）`
+              : `当前模式：老生续报（首次选课含注册费 ${regFeeVal.toLocaleString()} 泰铢${sidSuffix}）`)
             : (regFeeVal > 0
               ? `当前模式：新生（首次报名 — 含注册费 ${regFeeVal.toLocaleString()} 泰铢）`
               : '当前模式：新生（首次报名 — 免收注册费 0 泰铢）');
         } else if (lang === 'en') {
           const sidSuffix = sidNum ? ` | Existing ID ${sidNum}` : '';
           lbl.textContent = isReturning
-            ? `Mode: Course Renewal — Returning Student (0 THB reg. fee${sidSuffix})`
+            ? (isRegExempt || regFeeVal <= 0
+              ? `Mode: Course Renewal — Returning Student (0 THB reg. fee${sidSuffix})`
+              : `Mode: Returning Student — First Course (incl. ${regFeeVal.toLocaleString()} THB reg. fee${sidSuffix})`)
             : (regFeeVal > 0
               ? `Mode: New Student (First Enrollment — incl. ${regFeeVal.toLocaleString()} THB reg. fee)`
               : 'Mode: New Student (First Enrollment — 0 THB reg. fee)');
         } else {
           const sidSuffix = sidNum ? ` | รหัสเดิม ${sidNum}` : '';
           lbl.textContent = isReturning
-            ? `โหมด: ต่อคอร์ส — นักศึกษาเก่า (ยกเว้นค่าแรกเข้า 0 บาท${sidSuffix})`
+            ? (isRegExempt || regFeeVal <= 0
+              ? `โหมด: ต่อคอร์ส — นักศึกษาเก่า (ยกเว้นค่าแรกเข้า 0 บาท${sidSuffix})`
+              : `โหมด: นักศึกษาเก่า — เลือกคอร์สครั้งแรก (รวมค่าแรกเข้า ${regFeeVal.toLocaleString()} บาท${sidSuffix})`)
             : (regFeeVal > 0
               ? `โหมด: นักศึกษาใหม่ (สมัครเรียนครั้งแรก — รวมค่าแรกเข้า ${regFeeVal.toLocaleString()} บาท)`
               : 'โหมด: นักศึกษาใหม่ (สมัครเรียนครั้งแรก — ไม่มีค่าแรกเข้า 0 บาท)');
@@ -69491,6 +69522,22 @@ function openPublicRegisterView() {
       setT('lblKioskDupModalBody', d.dupModalBody);
       setT('btnKioskDupCancel', d.dupCancel);
       setT('btnKioskDupConfirm', d.dupConfirm);
+      const langK = langOverride || (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
+      setT('lblBtnPubSaveProfileOnly', langK === 'zh' ? '先保存个人资料（稍后选课）' : (langK === 'en' ? 'Save Profile First (Choose Course Later)' : 'บันทึกประวัติไว้ก่อน (เลือกคอร์สภายหลัง)'));
+      setT('lblBtnPubRegBottomBackStep0', langK === 'zh' ? '返回选择报名类型' : (langK === 'en' ? 'Back to Applicant Type' : 'ย้อนกลับไปเลือกประเภทผู้สมัคร'));
+      setT('lblBtnTogglePubPhotoOriginal', _pubPhotoUseOriginal
+        ? (langK === 'zh' ? '使用 AI 红底证件照 (#800000)' : (langK === 'en' ? 'Use AI Background (#800000)' : 'ใช้พื้นหลัง AI (#800000)'))
+        : (langK === 'zh' ? '使用原图' : (langK === 'en' ? 'Use Original Photo' : 'ใช้รูปต้นฉบับ')));
+      const scopeNoticeEl = document.getElementById('boxPubStep2ScopeNotice');
+      if (scopeNoticeEl) {
+        if (langK === 'zh') {
+          scopeNoticeEl.innerHTML = '<strong style="color:#92400E;"><i class="fa-solid fa-triangle-exclamation"></i> 重要提示：</strong> 此页面仅限 <strong>新生报名 / 老生续报</strong> — 如需办理 <strong>退课</strong> 或 <strong>调班转课</strong>，请直接联系教务老师。';
+        } else if (langK === 'en') {
+          scopeNoticeEl.innerHTML = '<strong style="color:#92400E;"><i class="fa-solid fa-triangle-exclamation"></i> Important Notice:</strong> This page is for <strong>New Enrollment / Course Renewal</strong> only — for <strong>Course Drop</strong> or <strong>Course / Group Transfer</strong>, please contact staff directly.';
+        } else {
+          scopeNoticeEl.innerHTML = '<strong style="color:#92400E;"><i class="fa-solid fa-triangle-exclamation"></i> หมายเหตุสำคัญ:</strong> หน้านี้สำหรับ <strong>สมัครใหม่ / ต่อคอร์ส</strong> เท่านั้น — หากต้องการ <strong>ดรอปเรียน (Drop)</strong> หรือ <strong>ย้ายคอร์ส / ย้ายกลุ่ม (Course / Group Transfer)</strong> กรุณาติดต่อเจ้าหน้าที่โดยตรง';
+        }
+      }
       const step2El = document.getElementById('pubKioskStep2Courses');
       const step2Visible = step2El && step2El.style.display !== 'none';
       if (step2Visible) {
@@ -69665,7 +69712,7 @@ function openPublicRegisterView() {
       });
       const studentStatus = String((studentObj && studentObj.status) || '').trim().toUpperCase();
       const isInactiveOrPendingStudent = studentStatus === 'PENDING_PAYMENT_VERIFICATION' || studentStatus === 'DELETED' || studentStatus === 'CANCELLED';
-      if (!isInactiveOrPendingStudent && studentObj && studentObj.current_course && studentObj.current_course !== '-' && studentObj.current_course !== 'รอจัดระดับหลักสูตร') {
+      if (!isInactiveOrPendingStudent && studentObj && studentObj.current_course && studentObj.current_course !== '-' && studentObj.current_course !== 'รอจัดระดับหลักสูตร' && studentObj.current_course !== 'รอเลือกคอร์ส') {
         const cur = String(studentObj.current_course).trim();
         const curCode = extractKioskCourseCode(cur);
         if (curCode && /^[A-Z]{1,3}\d{3,4}[A-Z]?$/.test(curCode)) {
@@ -72460,9 +72507,10 @@ function openPublicRegisterView() {
         const isRegExempt = isPubRegFeeExemptForContext(mode);
         const regFeeVal = isRegExempt ? 0 : (typeof getEffectivePublicRegFee === 'function' ? getEffectivePublicRegFee() : 0);
         if (mode === 'returning') {
+          const noPaidSuffix = lang === 'zh' ? ' (尚无首次缴费收据记录)' : (lang === 'en' ? ' (No prior paid receipt)' : ' (ยังไม่มีประวัติใบเสร็จแรกเข้า)');
           rateNote.textContent = isRegExempt
             ? `${d.returningBadge} • ${d.freeRegFee}`
-            : `${d.returningBadge} • ${d.newRegFeePrefix}${regFeeVal.toLocaleString()} (ยังไม่มีประวัติใบเสร็จแรกเข้า)`;
+            : `${d.returningBadge} • ${d.newRegFeePrefix}${regFeeVal.toLocaleString()}${noPaidSuffix}`;
         } else {
           rateNote.textContent = `${d.newRegFeePrefix}${regFeeVal.toLocaleString()}`;
         }
@@ -72677,6 +72725,38 @@ function openPublicRegisterView() {
       addCourseToPubKioskCart(course);
     }
     window.selectKioskCourse = selectKioskCourse;
+    function renderKioskStep3NonCourseSummary(summaryBox, extraBooks, extraExams, isBooksOnly, isExamOnly, d, lang) {
+      const extraTotal = extraBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
+      const examTotal = extraExams.reduce((s, ex) => s + (Math.max(0, Number(ex.price) || 0) * Math.max(1, Number(ex.qty) || 1)), 0);
+      const combinedNonCourseTotal = extraTotal + examTotal;
+      const extraQty = extraBooks.reduce((s, b) => s + Math.max(1, Number(b.qty) || 1), 0);
+      const examQty = extraExams.reduce((s, ex) => s + Math.max(1, Number(ex.qty) || 1), 0);
+      if (summaryBox) {
+        const bookListHtml = extraBooks.map(b => `<div style="font-size:12.5px; color:#334155;">• ${escapeHtml(b.title)} × ${b.qty} (฿${((Number(b.price) || 0) * (Number(b.qty) || 1)).toLocaleString()})</div>`).join('');
+        const examListHtml = extraExams.map(ex => `<div style="font-size:12.5px; color:#334155;">• ${escapeHtml((typeof formatExamDisplayLevel === 'function' ? formatExamDisplayLevel(ex) : (ex.level || ex.group || 'HSK')))} (${escapeHtml(ex.format || 'Paper')}) × ${ex.qty || 1} (฿${((Number(ex.price) || 0) * (Number(ex.qty) || 1)).toLocaleString()})</div>`).join('');
+        const headerTag = isExamOnly
+          ? (lang === 'zh' ? `汉语水平考试 (${examQty})` : (lang === 'en' ? `Exam Registration (${examQty})` : `สมัครสอบวัดระดับ (${examQty} รายการ)`))
+          : (isBooksOnly
+            ? `${escapeHtml(d.catTextbooks || 'ซื้อตำราเรียน')} (${extraQty} ${lang === 'zh' ? '本' : (lang === 'en' ? 'books' : 'เล่ม')})`
+            : (lang === 'zh' ? `教材 (${extraQty}) + 考试 (${examQty})` : (lang === 'en' ? `Textbooks (${extraQty}) + Exams (${examQty})` : `ตำราเรียน (${extraQty}) + สมัครสอบ (${examQty})`)));
+        summaryBox.innerHTML = `<div style="flex:1; min-width:220px;">
+          <div style="font-size:11.5px; color:#0369A1; font-weight:800;">${headerTag}</div>
+          <div style="font-size:15px; font-weight:800; color:#0F172A; margin-bottom:4px;">${escapeHtml(isExamOnly ? (lang === 'zh' ? '已选考试项目' : (lang === 'en' ? 'Selected Exams' : 'รายการสอบที่เลือก')) : (d.cartExtraBooksTag || 'รายการที่เลือก'))}</div>
+          ${bookListHtml}${examListHtml}
+        </div>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <button type="button" id="btnKioskStep3EditCart" onclick="goToKioskStep(2)" style="background:#FFFFFF; color:#065F46; border:1.5px solid #10B981; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap;">${escapeHtml(d.step3CartSummaryEdit || 'แก้ไข / เลือกเพิ่ม')}</button>
+          <div style="text-align:right;">
+            <div style="font-size:18px; font-weight:900; color:#047857;">฿${combinedNonCourseTotal.toLocaleString()}</div>
+            <div style="font-size:11.5px; color:#334155; font-weight:700;">${lang === 'zh' ? '不含注册费' : (lang === 'en' ? 'No Reg. Fee' : 'ไม่มีค่าแรกเข้า')}</div>
+          </div>
+        </div>`;
+      }
+      const btnNextStep3B = document.getElementById('btnKioskNextStep3');
+      if (btnNextStep3B) btnNextStep3B.disabled = false;
+      if (typeof syncPubDeliveryUI === 'function') syncPubDeliveryUI();
+      if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
+    }
     function renderKioskStep3ScheduleAndGroups() {
       const ctx = window._pubKioskContext || {};
       const cart = typeof getPubKioskCart === 'function' ? getPubKioskCart() : { courses: [], books: [] };
@@ -72685,7 +72765,10 @@ function openPublicRegisterView() {
         : (ctx.selectedCourse ? [{ ...ctx.selectedCourse, qty: Math.max(1, Number(ctx.selectedCourse.qty) || 1) }] : []);
       const course = cartCourses[0] || ctx.selectedCourse || null;
       const extraBooks = Array.isArray(cart.books) ? cart.books : [];
-      const isBooksOnly = cartCourses.length === 0 && extraBooks.length > 0;
+      const extraExams = Array.isArray(cart.exams) ? cart.exams : [];
+      const isBooksOnly = cartCourses.length === 0 && extraBooks.length > 0 && extraExams.length === 0;
+      const isExamOnly = cartCourses.length === 0 && extraBooks.length === 0 && extraExams.length > 0;
+      const isNonCourseOrder = cartCourses.length === 0 && (extraBooks.length > 0 || extraExams.length > 0);
       const summaryBox = document.getElementById('boxKioskStep3CourseSummary');
       const schedBox = document.getElementById('boxKioskScheduleCards');
       const groupBox = document.getElementById('boxKioskGroupCards');
@@ -72697,39 +72780,19 @@ function openPublicRegisterView() {
       const d = getKioskI18nDict();
       const lang = (typeof currentRegLanguage !== 'undefined' && currentRegLanguage) || window._currentSystemLang || 'th';
       const setVis = (el, show, disp = 'block') => { if (el) el.style.display = show ? disp : 'none'; };
-      setVis(schedTitle, !isBooksOnly, 'block');
-      setVis(schedBox, !isBooksOnly, 'grid');
-      setVis(groupTitle, !isBooksOnly, 'block');
-      setVis(groupBox, !isBooksOnly, 'grid');
-      setVis(lmTitle, !isBooksOnly, 'block');
-      setVis(lmBoxEl, !isBooksOnly, 'grid');
+      setVis(schedTitle, !isNonCourseOrder, 'block');
+      setVis(schedBox, !isNonCourseOrder, 'grid');
+      setVis(groupTitle, !isNonCourseOrder, 'block');
+      setVis(groupBox, !isNonCourseOrder, 'grid');
+      setVis(lmTitle, !isNonCourseOrder, 'block');
+      setVis(lmBoxEl, !isNonCourseOrder, 'grid');
       if (delHeading) {
-        delHeading.textContent = isBooksOnly
+        delHeading.textContent = isNonCourseOrder
           ? (d.step3DeliveryBooksOnlyTitle || 'วิธีรับตำราเรียน (Textbook Delivery Method)')
           : (d.step3DeliveryTitle || '4. เลือกวิธีรับตำราเรียนและเอกสาร (Textbook Delivery Method)');
       }
-      if (isBooksOnly) {
-        const extraTotal = extraBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
-        const extraQty = extraBooks.reduce((s, b) => s + Math.max(1, Number(b.qty) || 1), 0);
-        if (summaryBox) {
-          const listHtml = extraBooks.map(b => `<div style="font-size:12.5px; color:#334155;">• ${escapeHtml(b.title)} × ${b.qty} (฿${((Number(b.price) || 0) * (Number(b.qty) || 1)).toLocaleString()})</div>`).join('');
-          summaryBox.innerHTML = `<div style="flex:1; min-width:220px;">
-            <div style="font-size:11.5px; color:#0369A1; font-weight:800;">${escapeHtml(d.catTextbooks || 'ซื้อตำราเรียน')} (${extraQty} ${lang === 'zh' ? '本' : (lang === 'en' ? 'books' : 'เล่ม')})</div>
-            <div style="font-size:15px; font-weight:800; color:#0F172A; margin-bottom:4px;">${escapeHtml(d.cartExtraBooksTag || 'ตำราเรียนที่เลือก')}</div>
-            ${listHtml}
-          </div>
-          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-            <button type="button" id="btnKioskStep3EditCart" onclick="goToKioskStep(2)" style="background:#FFFFFF; color:#065F46; border:1.5px solid #10B981; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap;">${escapeHtml(d.step3CartSummaryEdit || 'แก้ไข / เลือกเพิ่ม')}</button>
-            <div style="text-align:right;">
-              <div style="font-size:18px; font-weight:900; color:#047857;">฿${extraTotal.toLocaleString()}</div>
-              <div style="font-size:11.5px; color:#334155; font-weight:700;">${lang === 'zh' ? '不含注册费' : (lang === 'en' ? 'No Reg. Fee' : 'ไม่มีค่าแรกเข้า')}</div>
-            </div>
-          </div>`;
-        }
-        const btnNextStep3B = document.getElementById('btnKioskNextStep3');
-        if (btnNextStep3B) btnNextStep3B.disabled = false;
-        if (typeof syncPubDeliveryUI === 'function') syncPubDeliveryUI();
-        if (typeof updateCourseFeeDisplay === 'function') updateCourseFeeDisplay();
+      if (isNonCourseOrder) {
+        renderKioskStep3NonCourseSummary(summaryBox, extraBooks, extraExams, isBooksOnly, isExamOnly, d, lang);
         return;
       }
       if (!course) return;
@@ -73222,7 +73285,8 @@ function openPublicRegisterView() {
       const selCourse = (document.getElementById('selPubCourse')?.value || (firstC && (firstC.name || firstC.code || firstC.id)) || '').trim();
       const isBooksOnlyOrder = !selCourse && extraCartBooks.length > 0 && extraCartExams.length === 0;
       const isExamsOnlyOrder = !selCourse && extraCartBooks.length === 0 && extraCartExams.length > 0;
-      return { selCourse, isBooksOnlyOrder, isExamsOnlyOrder, extraCartBooks, extraCartExams, cartCourse: firstC, cartCourses, totalCourseQty };
+      const isNonCourseOrder = !selCourse && (extraCartBooks.length > 0 || extraCartExams.length > 0);
+      return { selCourse, isBooksOnlyOrder, isExamsOnlyOrder, isNonCourseOrder, extraCartBooks, extraCartExams, cartCourse: firstC, cartCourses, totalCourseQty };
     }
     async function submitPublicRegister() {
       if (typeof getOnlineEnrollScheduleStatus === 'function') {
@@ -73269,7 +73333,7 @@ function openPublicRegisterView() {
       const district = (document.getElementById('selPubDistrict')?.value || document.getElementById('txtPubDistrict')?.value || '').trim();
       const province = (document.getElementById('selPubProvince')?.value || document.getElementById('txtPubProvince')?.value || '').trim();
       const postalCode = (document.getElementById('selPubPostalCode')?.value || document.getElementById('txtPubPostalCode')?.value || '').trim();
-      const { selCourse, isBooksOnlyOrder, isExamsOnlyOrder, extraCartBooks, extraCartExams, cartCourse: ctxCourse, cartCourses, totalCourseQty } = getPubRegCartInfo();
+      const { selCourse, isBooksOnlyOrder, isExamsOnlyOrder, isNonCourseOrder, extraCartBooks, extraCartExams, cartCourse: ctxCourse, cartCourses, totalCourseQty } = getPubRegCartInfo();
       const selSchedule = (document.getElementById('selPubSchedule')?.value || (window._pubKioskContext && window._pubKioskContext.selectedScheduleName) || '').trim();
       const userNotes = sanitizeInputText(document.getElementById('txtPubNotes')?.value || '');
       const companyName = (document.getElementById('txtPubCompanyName')?.value || document.getElementById('txtPubCorpName')?.value || '').trim();
@@ -73284,7 +73348,7 @@ function openPublicRegisterView() {
         document.getElementById('txtPubPhone')?.focus();
         return;
       }
-      if (!selCourse && !isBooksOnlyOrder && !isExamsOnlyOrder) {
+      if (!selCourse && !isBooksOnlyOrder && !isExamsOnlyOrder && !isNonCourseOrder) {
         window._lastPubSubmitTimestamp = 0;
         showModal(dict.valRequiredTitle || 'กรุณากรอกข้อมูลให้ครบถ้วน', dict.valCourse || 'กรุณาเลือกหลักสูตรที่ต้องการสมัคร', '⚠️');
         document.getElementById('selPubCourse')?.focus();
@@ -73304,7 +73368,7 @@ function openPublicRegisterView() {
       }
       const slipTransRef = slipMeta.slipTransRef;
       const slipHash256 = slipMeta.slipHash256;
-      if (!selSchedule && !isBooksOnlyOrder && !isExamsOnlyOrder) {
+      if (!selSchedule && !isBooksOnlyOrder && !isExamsOnlyOrder && !isNonCourseOrder) {
         window._lastPubSubmitTimestamp = 0;
         showModal(dict.valRequiredTitle || 'กรุณากรอกข้อมูลให้ครบถ้วน', dict.valSchedule || 'กรุณาเลือกรอบเวลาเรียนที่สะดวก', '⚠️');
         document.getElementById('selPubSchedule')?.focus();
@@ -73438,9 +73502,9 @@ function openPublicRegisterView() {
         allowExistingReuse: window._pubStudentMode === 'returning',
         isCourseRenewal: window._pubStudentMode === 'returning',
         existingStudentId: window._pubExistingStudentId || '',
-        course: isBooksOnlyOrder ? '' : selCourse,
-        schedule: isBooksOnlyOrder ? '' : selSchedule,
-        learningMode: isBooksOnlyOrder ? '-' : pubLearningMode,
+        course: (isBooksOnlyOrder || isExamsOnlyOrder || isNonCourseOrder) ? '' : selCourse,
+        schedule: (isBooksOnlyOrder || isExamsOnlyOrder || isNonCourseOrder) ? '' : selSchedule,
+        learningMode: (isBooksOnlyOrder || isExamsOnlyOrder || isNonCourseOrder) ? '-' : pubLearningMode,
         isBooksOnly: isBooksOnlyOrder,
         extraCourses: cartCourses,
         extraBooks: extraCartBooks,
@@ -73545,7 +73609,7 @@ function openPublicRegisterView() {
                   regDiscAmt += Number(regDisc.amount) * cQty;
                 }
               });
-              const isNonCourseOnly = isBooksOnlyOrder || isExamsOnlyOrder;
+              const isNonCourseOnly = isBooksOnlyOrder || isExamsOnlyOrder || isNonCourseOrder;
               const resolvedCourseQty = isNonCourseOnly ? 0 : Math.max(1, totalCourseQty || effectiveCoursesList.reduce((s, c) => s + Math.max(1, Number(c.qty) || 1), 0));
               const itemizedCourseLabel = (effectiveCoursesList.length > 1 || resolvedCourseQty > 1)
                 ? effectiveCoursesList.map(c => `${c.code || c.name || c.id}${Number(c.qty) > 1 ? ' x' + c.qty : ''}`).join(', ')
@@ -73728,6 +73792,10 @@ function openPublicRegisterView() {
               showToast('บันทึกข้อมูลเรียบร้อย', res.message || 'แนบรูปถ่ายและบันทึกประวัติการสมัครสำเร็จ', '✓');
             }
             if (boxForm) boxForm.style.display = 'none';
+            const badgePay = document.getElementById('boxPubSuccessPaymentBadge');
+            const warnSlip = document.getElementById('boxPubSuccessSlipWarn');
+            if (badgePay) badgePay.style.display = 'inline-flex';
+            if (warnSlip) warnSlip.style.display = 'block';
             if (boxSuccess) boxSuccess.style.display = 'block';
             window.scrollTo({ top: 0, behavior: 'smooth' });
             // Refresh student cache
@@ -73769,7 +73837,7 @@ function openPublicRegisterView() {
       const fullName = sanitizeInputText(document.getElementById('txtPubFullName')?.value || '');
       const nameEn = sanitizeInputText(document.getElementById('txtPubNameEn')?.value || '');
       const citizenRaw = (document.getElementById('txtPubCitizenId')?.value || '').trim();
-      const pubIdType = document.getElementById('selPubIdType')?.value || 'thai_id';
+      const pubIdType = document.getElementById('pubIdType')?.value || 'thai';
       const cleanCid = pubIdType === 'passport'
         ? citizenRaw.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 20)
         : citizenRaw.replace(/\D/g, '');
@@ -73800,16 +73868,46 @@ function openPublicRegisterView() {
         document.getElementById('txtPubPhone')?.focus();
         return;
       }
+      const emDigits = emergencyPhone.replace(/[-\s]/g, '');
+      if (!/^0\d{8,9}$/.test(emDigits)) {
+        showModal('เบอร์ติดต่อฉุกเฉินไม่ถูกต้อง', 'กรุณากรอกเบอร์ติดต่อฉุกเฉินขึ้นต้นด้วย 0 จำนวน 9-10 หลัก', '⚠️');
+        document.getElementById('txtPubEmergencyPhone')?.focus();
+        return;
+      }
+      if (!email || !email.includes('@')) {
+        showModal('อีเมลไม่ถูกต้อง', 'กรุณากรอกอีเมลที่ถูกต้องสำหรับรับข้อมูลและใบเสร็จ', '⚠️');
+        document.getElementById('txtPubEmail')?.focus();
+        return;
+      }
+      if (!lineId) {
+        showModal('กรุณากรอก LINE ID', 'กรุณาระบุ LINE ID สำหรับติดต่อประสานงาน', '⚠️');
+        document.getElementById('txtPubLineId')?.focus();
+        return;
+      }
       if (!addrLine || !province || !district || !subdistrict || !postalCode) {
         showModal('กรุณากรอกที่อยู่ให้ครบถ้วน', 'โปรดระบุที่อยู่ จังหวัด อำเภอ/เขต ตำบล/แขวง และรหัสไปรษณีย์', '⚠️');
         return;
+      }
+      const pdpaChk = document.getElementById('chkPubPdpaConsent');
+      let pdpaAccepted = !!(pdpaChk && pdpaChk.checked);
+      if (!pdpaAccepted) {
+        const pdpaPromptMsg = currentRegLanguage === 'zh'
+          ? '保存个人资料前，您是否同意东方文化书院依据《个人数据保护法》(PDPA) 收集与处理您的报名资料？'
+          : (currentRegLanguage === 'en'
+            ? 'Before saving your profile, do you consent to Oriental Culture Academy collecting and processing your personal data under PDPA?'
+            : 'ก่อนบันทึกประวัติ ข้าพเจ้ายินยอมให้โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (OCA) เก็บรวบรวมและใช้ข้อมูลส่วนบุคคลตามนโยบายคุ้มครองข้อมูลส่วนบุคคล (PDPA)');
+        pdpaAccepted = typeof window.showGlobalConfirmModal === 'function'
+          ? await new Promise((resolve) => window.showGlobalConfirmModal('ยืนยันความยินยอม PDPA / PDPA Consent', pdpaPromptMsg, () => resolve(true), () => resolve(false)))
+          : false;
+        if (!pdpaAccepted) return;
+        if (pdpaChk) pdpaChk.checked = true;
       }
       window._lastPubSubmitTimestamp = Date.now();
       const btn = document.getElementById('btnPubSaveProfileOnly');
       const origHtml = btn ? btn.innerHTML : '';
       if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกประวัติ...';
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${currentRegLanguage === 'zh' ? '正在保存资料...' : (currentRegLanguage === 'en' ? 'Saving profile...' : 'กำลังบันทึกประวัติ...')}`;
       }
       const activeYT = (typeof resolveCurrentAcademicTerm === 'function') ? resolveCurrentAcademicTerm() : { yearBE: 2569, term: 5 };
       const pdpaTag = ` [PDPA_CONSENT: ${new Date().toISOString()}]`;
@@ -73867,23 +73965,30 @@ function openPublicRegisterView() {
         }
         if (res && res.success) {
           const sid = res.studentId || '-';
-          if (pubStudentPhotoDataUri && typeof uploadStudentPhotoToStorage === 'function') {
-            try { await uploadStudentPhotoToStorage(pubStudentPhotoDataUri, 'online_' + sid); } catch (_) {}
-          }
           if (typeof stopOnlineRegCamera === 'function') stopOnlineRegCamera();
           const boxForm = document.getElementById('boxPublicRegisterFormBody');
           const boxSuccess = document.getElementById('boxPublicRegisterSuccessBody');
+          const badgePay = document.getElementById('boxPubSuccessPaymentBadge');
+          const warnSlip = document.getElementById('boxPubSuccessSlipWarn');
+          const lblSuccessHeading = document.getElementById('lblSuccessHeading');
+          const lblSuccessSub = document.getElementById('lblSuccessSub');
+          const lblSuccessNotice = document.getElementById('lblSuccessNotice');
           const lblSid = document.getElementById('lblPubSuccessStudentId');
           const lblName = document.getElementById('lblPubSuccessName');
           const lblPhone = document.getElementById('lblPubSuccessPhone');
-          const lblAddr = document.getElementById('lblPubSuccessAddress');
+          const lblAddr = document.getElementById('lblPubSuccessAddr');
           const lblCourse = document.getElementById('lblPubSuccessCourse');
           const lblSched = document.getElementById('lblPubSuccessSchedule');
+          if (badgePay) badgePay.style.display = 'none';
+          if (warnSlip) warnSlip.style.display = 'none';
+          if (lblSuccessHeading) lblSuccessHeading.textContent = currentRegLanguage === 'zh' ? '个人资料已保存' : (currentRegLanguage === 'en' ? 'Student Profile Saved' : 'บันทึกประวัตินักศึกษาเรียบร้อยแล้ว');
+          if (lblSuccessSub) lblSuccessSub.textContent = currentRegLanguage === 'zh' ? '请保存您的学号，日后可通过“老生续报”菜单直接选课并缴费。' : (currentRegLanguage === 'en' ? 'Please keep your Student ID. You can return anytime via "Returning Student" to select courses.' : 'กรุณาเก็บรหัสนักศึกษาของท่านไว้ เพื่อใช้เข้าสู่ระบบเมนู "นักศึกษาเก่า" สำหรับเลือกคอร์สเรียนและชำระเงินภายหลัง');
+          if (lblSuccessNotice) lblSuccessNotice.textContent = currentRegLanguage === 'zh' ? '首次选课缴费时系统将自动计算新生注册费（如有）。' : (currentRegLanguage === 'en' ? 'Standard registration fee will be included automatically when you select and pay for your first course.' : 'ระบบจะคำนวณค่าลงทะเบียนแรกเข้าให้อัตโนมัติเมื่อท่านกลับมาเลือกคอร์สเรียนและชำระเงินครั้งแรก');
           if (lblSid) lblSid.textContent = sid;
           if (lblName) lblName.textContent = formatStudentNameWithPrefix(prefix, fullName);
           if (lblPhone) lblPhone.textContent = phone;
           if (lblAddr) lblAddr.textContent = combinedAddress;
-          if (lblCourse) lblCourse.textContent = 'รอเลือกคอร์ส (กลับมาเลือกภายหลังผ่านเมนู "นักศึกษาเก่า" ได้ทันที)';
+          if (lblCourse) lblCourse.textContent = currentRegLanguage === 'zh' ? '待选课（可随时通过老生菜单选课）' : (currentRegLanguage === 'en' ? 'Course Deferred (Select later via Returning Student)' : 'รอเลือกคอร์ส (กลับมาเลือกภายหลังผ่านเมนู "นักศึกษาเก่า" ได้ทันที)');
           if (lblSched) lblSched.textContent = '-';
           try {
             sessionStorage.removeItem('oca_public_reg_draft');
@@ -88422,11 +88527,12 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       lblAmount.textContent = `฿${netFee.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       if (typeof syncPubDeliveryUI === 'function') syncPubDeliveryUI();
       if (lblName) {
+        const isBooksAndExamsOnly = !hasCourseFee && extraBooks.length > 0 && extraExams.length > 0;
         if (isExamsOnlyFee) {
           const ePrefix = lang === 'zh' ? '考试报名: ' : (lang === 'en' ? 'Exam Registration: ' : 'สมัครสอบวัดระดับ: ');
           lblName.textContent = `${ePrefix}${extraExams.map(ex => `${ex.level || ex.group || 'HSK'} ×${ex.qty || 1}`).join(', ')}`;
           lblName.dataset.courseSelected = 'true';
-        } else if (isBooksOnlyFee) {
+        } else if (isBooksOnlyFee || isBooksAndExamsOnly) {
           const bPrefix = lang === 'zh' ? '购买教材: ' : (lang === 'en' ? 'Textbooks: ' : 'ซื้อตำราเรียน: ');
           let noteText = `${bPrefix}${extraBooks.map(b => `${b.title} ×${b.qty}`).join(', ')}`;
           if (extraExamsTotal > 0) {
@@ -88475,10 +88581,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const lblTuition = lang === 'zh' ? '课程学费' : (lang === 'en' ? 'Tuition Fee' : 'ค่าเล่าเรียน');
         const lblDisc = lang === 'zh' ? '课程优惠折扣 (仅限课程)' : (lang === 'en' ? 'Course Discount (Tuition Only)' : (discInfo && discInfo.label ? discInfo.label + ' (เฉพาะค่าคอร์ส)' : 'ส่วนลด (เฉพาะค่าคอร์ส)'));
         const lblReg = lang === 'zh'
-          ? `新生注册费 (${isReturningPub ? '老生免收' : '新生'})`
+          ? `新生注册费 (${pubRegFee === 0 ? '老生免收' : '首次缴费'})`
           : (lang === 'en'
-            ? `Registration Fee (${isReturningPub ? 'Returning Student' : 'New Student'})`
-            : `ค่าลงทะเบียนแรกเข้า (${isReturningPub ? 'นักศึกษาเก่า' : 'นักศึกษาใหม่'})`);
+            ? `Registration Fee (${pubRegFee === 0 ? 'Exempt' : (isReturningPub ? 'First-Time Payment' : 'New Student')})`
+            : `ค่าลงทะเบียนแรกเข้า (${pubRegFee === 0 ? 'ยกเว้น' : (isReturningPub ? 'ชำระครั้งแรก' : 'นักศึกษาใหม่')})`);
         const lblExtraBooks = lang === 'zh' ? `加购教材 (${extraBooksQty} 本)` : (lang === 'en' ? `Extra Textbooks (${extraBooksQty} books)` : `ตำราเรียนซื้อเพิ่ม (${extraBooksQty} เล่ม)`);
         const lblShip = lang === 'zh'
           ? `教材领取方式 (${isShipping ? `邮寄 ${shipUnits}×฿${shipRate}` : '到校自取'})`
@@ -88844,6 +88950,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       if (m.shippingFee !== undefined) compact.sf = Number(m.shippingFee || 0);
       if (m.deliveryMethod) compact.dm = String(m.deliveryMethod).slice(0, 30);
       if (m.isBooksOnly) compact.bo = 1;
+      if (m.isExamOnly) compact.eo = 1;
+      if (m.examItemsTag) compact.et = String(m.examItemsTag).slice(0, 400);
       if (Array.isArray(m.extraCourses) && m.extraCourses.length > 0) {
         compact.ec = m.extraCourses.map(c => ({
           i: String(c.id || c.code || '').slice(0, 24),
@@ -88859,6 +88967,19 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           n: String(b.title || b.name || '').slice(0, 32),
           q: Math.max(1, Number(b.qty) || 1),
           p: Math.max(0, Number(b.price) || 0)
+        }));
+      }
+      if (Array.isArray(m.extraExams) && m.extraExams.length > 0) {
+        compact.ee = m.extraExams.map(ex => ({
+          i: String(ex.id || '').slice(0, 24),
+          lv: String(ex.level || ex.group || '').slice(0, 24),
+          fm: String(ex.format || 'Paper').slice(0, 12),
+          q: Math.max(1, Number(ex.qty) || 1),
+          p: Math.max(0, Number(ex.price) || 0),
+          ed: String(ex.examDate || '').slice(0, 20),
+          tm: String(ex.time || '').slice(0, 20),
+          rm: String(ex.room || '').slice(0, 20),
+          ac: String(ex.admitCardDate || '').slice(0, 20)
         }));
       }
       const raw = JSON.stringify(compact);
@@ -88941,6 +89062,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               if (extra.sf !== undefined) item.shippingFee = Number(extra.sf || 0);
               if (extra.dm) item.deliveryMethod = extra.dm;
               if (extra.bo) item.isBooksOnly = true;
+              if (extra.eo) item.isExamOnly = true;
+              if (extra.et) item.examItemsTag = extra.et;
               if (Array.isArray(extra.ec)) {
                 item.extraCourses = extra.ec.map(c => ({
                   id: c.i || c.c || '',
@@ -88957,6 +89080,20 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
                   title: b.n || b.i || '',
                   qty: Math.max(1, Number(b.q) || 1),
                   price: Math.max(0, Number(b.p) || 0)
+                }));
+              }
+              if (Array.isArray(extra.ee)) {
+                item.extraExams = extra.ee.map(ex => ({
+                  id: ex.i || '',
+                  level: ex.lv || '',
+                  group: ex.lv || '',
+                  format: ex.fm || 'Paper',
+                  qty: Math.max(1, Number(ex.q) || 1),
+                  price: Math.max(0, Number(ex.p) || 0),
+                  examDate: ex.ed || '',
+                  time: ex.tm || '',
+                  room: ex.rm || '',
+                  admitCardDate: ex.ac || ''
                 }));
               }
             }
@@ -89630,13 +89767,15 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const appExtraExams = Array.isArray(info.extraExams) ? info.extraExams : [];
       const appIsBooksOnly = Boolean(info.isBooksOnly || (!info.course && appExtraCourses.length === 0 && appExtraBooks.length > 0 && appExtraExams.length === 0));
       const appIsExamOnly = Boolean(info.isExamOnly || (!info.course && appExtraCourses.length === 0 && appExtraBooks.length === 0 && appExtraExams.length > 0));
+      const appIsBooksAndExamsOnly = Boolean(!info.course && appExtraCourses.length === 0 && appExtraBooks.length > 0 && appExtraExams.length > 0);
       const hasMultiCourses = appExtraCourses.length > 1 || appExtraCourses.some(c => Number(c.qty) > 1);
       const appShippingFee = Number(info.shippingFee || 0);
       const appDeliveryRaw = String(info.deliveryMethod || 'รับเอง');
       const appIsShip = !appIsExamOnly && (appDeliveryRaw === 'จัดส่งตามที่อยู่' || appDeliveryRaw.indexOf('จัดส่ง') !== -1 || appDeliveryRaw.indexOf('ส่ง') !== -1);
-      if (!hasMultiCourses && appExtraBooks.length === 0 && appExtraExams.length === 0 && !appIsBooksOnly && !appIsExamOnly && !(appShippingFee > 0) && !appIsShip) return rcPayload;
+      if (!hasMultiCourses && appExtraBooks.length === 0 && appExtraExams.length === 0 && !appIsBooksOnly && !appIsExamOnly && !appIsBooksAndExamsOnly && !(appShippingFee > 0) && !appIsShip) return rcPayload;
+      const appBooksTotal = appExtraBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
       const appExamsTotal = appExtraExams.reduce((s, ex) => s + (Math.max(0, Number(ex.price) || 0) * Math.max(1, Number(ex.qty) || 1)), 0);
-      const appOtherRegFee = Number(info.otherRegFee || 0) || (appExtraBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0) + appExamsTotal);
+      const appOtherRegFee = Number(info.otherRegFee || 0) || (appBooksTotal + appExamsTotal);
       const appDeliveryMethod = appIsShip ? 'ส่งไปตามที่อยู่' : 'รับเอง';
       const extraCoursesJsonTag = hasMultiCourses
         ? `[EXTRA_COURSES:${JSON.stringify(appExtraCourses.map(c => ({ id: c.id || c.code || '', code: c.code || c.id || '', name: c.name || c.code || '', qty: Number(c.qty) || 1, price: Number(c.price) || 0 })))}]`
@@ -89657,16 +89796,16 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const extraBooksItemSummary = appExtraBooks.length > 0
         ? appExtraBooks.map(b => `${b.title || b.name || b.id} x${b.qty || 1}`).join(', ')
         : '';
-      const combinedCourseName = appIsBooksOnly
-        ? (`ค่าตำราเรียน: ${extraBooksItemSummary}`)
+      const combinedCourseName = (appIsBooksOnly || appIsBooksAndExamsOnly)
+        ? (`ค่าตำราเรียน: ${extraBooksItemSummary}${appIsBooksAndExamsOnly ? ' + สมัครสอบวัดระดับ' : ''}`)
         : (extraBooksItemSummary ? `${extraCoursesItemSummary} + ตำราเพิ่ม: ${extraBooksItemSummary}` : extraCoursesItemSummary);
       const overrides = {
         deliveryMethod: appDeliveryMethod,
         shippingFee: appShippingFee,
-        otherRegFee: appIsBooksOnly ? 0 : appOtherRegFee,
+        otherRegFee: appIsBooksOnly ? 0 : (appIsBooksAndExamsOnly ? appExamsTotal : appOtherRegFee),
         ...(combinedEditNotes ? { editNotes: combinedEditNotes } : {})
       };
-      if (appIsBooksOnly) {
+      if (appIsBooksOnly || appIsBooksAndExamsOnly) {
         overrides.type = 'book';
         overrides.courseId = appExtraBooks.map(b => b.id || b.code || 'BK').join(',');
         overrides.itemCode = overrides.courseId;
@@ -89676,7 +89815,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         overrides.scheduleName = '-';
         overrides.materialType = 'หนังสือ';
         overrides.learningMode = '-';
-        overrides.baseAmount = appOtherRegFee;
+        overrides.baseAmount = appIsBooksAndExamsOnly ? appBooksTotal : appOtherRegFee;
         overrides.regFee = 0;
         overrides.discountNormal = 0;
       } else if (appIsExamOnly) {
@@ -90266,13 +90405,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=270';
+      const swPath = basePath + 'sw.js?v=271';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (270):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (271):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
