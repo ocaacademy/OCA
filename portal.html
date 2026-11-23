@@ -12567,7 +12567,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '273';
+      var LATEST_VERSION = '274';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -19203,6 +19203,15 @@ body.printing-report #printReportContainer {
                   </select>
                 </div>
 
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <label for="selCourseBreakdownCategory" style="font-size:12px; font-weight:700; color:var(--accent-emerald); white-space:nowrap;">หมวดคอร์ส:</label>
+                  <select id="selCourseBreakdownCategory" class="oca-input" style="height:32px; font-size:12.5px; padding:2px 10px; width:155px; font-weight:700; background-color:#ffffff; color:#0f172a;" onchange="renderCourseBreakdownTable()">
+                    <option value="ALL">ทุกหมวดคอร์ส</option>
+                    <option value="GENERAL">คอร์สเรียนทั่วไป</option>
+                    <option value="HSK">คอร์สติวสอบ HSK</option>
+                  </select>
+                </div>
+
                 <div style="position:relative; flex:1; min-width:200px;">
                   <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:rgba(52,211,153,0.7); font-size:12px; pointer-events:none;"></i>
                   <input type="text" id="inpCourseBreakdownSearch" class="oca-input" placeholder="ค้นหารหัสวิชา หรือชื่อวิชา..." oninput="filterCourseBreakdownTable()" style="height:32px; font-size:12px; padding-left:32px !important; width:100%;">
@@ -19245,6 +19254,24 @@ body.printing-report #printReportContainer {
                 </div>
               </div>
 
+              <!-- Revenue Breakdown Strip (Total vs General vs HSK Prep) -->
+              <div id="boxCourseBreakdownRevenueSummary" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-bottom:16px;">
+                <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(5,150,105,0.35); border-radius:10px; padding:12px 16px;">
+                  <div style="font-size:12px; color:var(--accent-emerald); font-weight:700;"><i class="fa-solid fa-sack-dollar" style="margin-right:5px;"></i>ยอดรายรับค่าเรียนรวม (บาท)</div>
+                  <div id="statCourseBreakdownTotalRevenue" style="font-size:21px; font-weight:800; color:var(--text-main); font-family:'JetBrains Mono', monospace; margin-top:3px;">฿0.00</div>
+                </div>
+                <div style="background:rgba(14,165,233,0.08); border:1px solid rgba(2,132,199,0.35); border-radius:10px; padding:12px 16px;">
+                  <div style="font-size:12px; color:var(--accent-sky, #0284C7); font-weight:700;"><i class="fa-solid fa-book-open" style="margin-right:5px;"></i>รายรับคอร์สเรียนทั่วไป</div>
+                  <div id="statCourseBreakdownGeneralRevenue" style="font-size:21px; font-weight:800; color:var(--text-main); font-family:'JetBrains Mono', monospace; margin-top:3px;">฿0.00</div>
+                  <div id="statCourseBreakdownGeneralCount" style="font-size:11px; color:var(--text-muted); margin-top:2px;">0 คน</div>
+                </div>
+                <div style="background:rgba(139,92,246,0.08); border:1px solid rgba(124,58,237,0.35); border-radius:10px; padding:12px 16px;">
+                  <div style="font-size:12px; color:var(--accent-purple); font-weight:700;"><i class="fa-solid fa-award" style="margin-right:5px;"></i>รายรับคอร์สติวสอบ HSK</div>
+                  <div id="statCourseBreakdownHskRevenue" style="font-size:21px; font-weight:800; color:var(--text-main); font-family:'JetBrains Mono', monospace; margin-top:3px;">฿0.00</div>
+                  <div id="statCourseBreakdownHskCount" style="font-size:11px; color:var(--text-muted); margin-top:2px;">0 คน</div>
+                </div>
+              </div>
+
               <!-- Scrollable Table Container -->
               <div id="boxCourseBreakdownTableWrap" class="oca-table-scroll-container" style="max-height:580px; overflow-y:auto; overflow-x:auto; border-radius:8px; border:1px solid rgba(52,211,153,0.25); background:var(--bg-subcard);">
                 <table class="oca-table oca-live-table" style="width:100%; border-collapse:collapse;" id="tableCourseBreakdown">
@@ -19254,12 +19281,13 @@ body.printing-report #printReportContainer {
                       <th style="width:130px; text-align:left; white-space:nowrap; padding:10px 14px;">รหัสวิชา</th>
                       <th style="text-align:left; min-width:260px; padding:10px 14px;">ชื่อรายวิชา</th>
                       <th style="width:140px; text-align:right; white-space:nowrap; padding:10px 16px;">จำนวน ( คน )</th>
+                      <th style="width:155px; text-align:right; white-space:nowrap; padding:10px 16px;">ยอดรายรับ (บาท)</th>
                       <th style="width:130px; text-align:right; white-space:nowrap; padding:10px 16px;">%</th>
                     </tr>
                   </thead>
 
                   <tbody id="tbodyCourseBreakdownReport">
-                    <tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-muted);">กรุณากด "ดึงข้อมูลใหม่" เพื่อโหลดรายงานสรุปการจำแนกนักศึกษาตามรายวิชา</td></tr>
+                    <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">กรุณากด "ดึงข้อมูลใหม่" เพื่อโหลดรายงานสรุปการจำแนกนักศึกษาตามรายวิชา</td></tr>
                   </tbody>
 
                   <tfoot id="tfootCourseBreakdownReport" style="background:var(--bg-table-header); font-weight:800; border-top:2px solid rgba(52,211,153,0.4);">
@@ -57388,14 +57416,43 @@ if (action === 'getDashboardStats') {
     window._courseBreakdownData = _courseBreakdownData;
     window._courseBreakdownFiltered = _courseBreakdownFiltered;
     window._courseBreakdownLoaded = _courseBreakdownLoaded;
+    function isHskPrepCourseEntry(code, name) {
+      const c = String(code || '').trim().toUpperCase();
+      const n = String(name || '').trim();
+      return /^H\d|^HSK/i.test(c) || /HSK|ติวสอบ|วัดระดับ/i.test(n);
+    }
+    window.isHskPrepCourseEntry = isHskPrepCourseEntry;
     function renderCourseBreakdownTable() {
-      const data = _courseBreakdownData;
+      const data = window._courseBreakdownData || _courseBreakdownData;
       if (!data) return;
       const tbody = document.getElementById('tbodyCourseBreakdownReport');
       const tfoot = document.getElementById('tfootCourseBreakdownReport');
       const dotFormat = document.getElementById('chkCourseBreakdownDotFormat')?.checked ?? true;
+      const catFilter = document.getElementById('selCourseBreakdownCategory')?.value || 'ALL';
       const q = (document.getElementById('inpCourseBreakdownSearch')?.value || '').trim().toLowerCase();
-      let list = data.courses || [];
+      const allCourses = data.courses || [];
+      let totalRev = 0, genRev = 0, genCount = 0, hskRev = 0, hskCount = 0;
+      allCourses.forEach(c => {
+        const rev = Number(c.revenue || 0);
+        const cnt = Number(c.count || 0);
+        const hsk = typeof c.isHsk === 'boolean' ? c.isHsk : isHskPrepCourseEntry(c.courseCode, c.courseName);
+        c.isHsk = hsk;
+        totalRev += rev;
+        if (hsk) { hskRev += rev; hskCount += cnt; }
+        else { genRev += rev; genCount += cnt; }
+      });
+      const setRevEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+      setRevEl('statCourseBreakdownTotalRevenue', `฿${totalRev.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      setRevEl('statCourseBreakdownGeneralRevenue', `฿${genRev.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      setRevEl('statCourseBreakdownGeneralCount', `${genCount.toLocaleString()} คน`);
+      setRevEl('statCourseBreakdownHskRevenue', `฿${hskRev.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      setRevEl('statCourseBreakdownHskCount', `${hskCount.toLocaleString()} คน`);
+      let list = allCourses;
+      if (catFilter === 'HSK') {
+        list = list.filter(c => c.isHsk);
+      } else if (catFilter === 'GENERAL') {
+        list = list.filter(c => !c.isHsk);
+      }
       if (q) {
         list = list.filter(c => c.courseCode.toLowerCase().includes(q) || (c.courseName && c.courseName.toLowerCase().includes(q)));
       }
@@ -57403,7 +57460,7 @@ if (action === 'getDashboardStats') {
       window._courseBreakdownFiltered = list;
       // Update KPI Cards
       const countEl = document.getElementById('statCourseBreakdownCourseCount');
-      if (countEl) countEl.textContent = (data.courses || []).length.toLocaleString();
+      if (countEl) countEl.textContent = list.length.toLocaleString();
       const termTotalEl = document.getElementById('statCourseBreakdownTermTotal');
       if (termTotalEl) termTotalEl.textContent = data.termTotal.toLocaleString();
       const termLabelEl = document.getElementById('statCourseBreakdownTermLabel');
@@ -57414,20 +57471,26 @@ if (action === 'getDashboardStats') {
       if (yrTotalEl) yrTotalEl.textContent = `จากทั้งปี ${data.yearTotal.toLocaleString()} คน`;
       const topCourseEl = document.getElementById('statCourseBreakdownTopCourse');
       const topCountEl = document.getElementById('statCourseBreakdownTopCount');
-      if (data.courses && data.courses.length > 0) {
-        const top = [...data.courses].sort((a, b) => b.count - a.count)[0];
+      if (list.length > 0) {
+        const top = [...list].sort((a, b) => b.count - a.count)[0];
         if (topCourseEl) topCourseEl.textContent = `${top.courseCode} (${top.courseName.split('-')[0].trim()})`;
-        if (topCountEl) topCountEl.textContent = `${top.count.toLocaleString()} คน (${((top.count / data.termTotal) * 100).toFixed(2)}%)`;
+        if (topCountEl) topCountEl.textContent = `${top.count.toLocaleString()} คน (${data.termTotal > 0 ? ((top.count / data.termTotal) * 100).toFixed(2) : '0.00'}%)`;
       } else {
         if (topCourseEl) topCourseEl.textContent = '-';
         if (topCountEl) topCountEl.textContent = '- คน';
       }
       if (!tbody) return;
       if (list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:25px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px;"></i> ไม่พบรายวิชาที่ตรงกับคำค้นหา</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:25px; color:var(--text-muted);"><i class="fa-solid fa-magnifying-glass" style="margin-right:6px;"></i> ไม่พบรายวิชาที่ตรงกับคำค้นหา</td></tr>';
+        if (tfoot) tfoot.innerHTML = '';
         return;
       }
+      let filteredCount = 0;
+      let filteredRev = 0;
       tbody.innerHTML = list.map(c => {
+        const revNum = Number(c.revenue || 0);
+        filteredCount += Number(c.count || 0);
+        filteredRev += revNum;
         const pctNum = data.termTotal > 0 ? (c.count / data.termTotal) * 100 : 0;
         let pctDisplay = '';
         if (dotFormat) {
@@ -57439,30 +57502,35 @@ if (action === 'getDashboardStats') {
         } else {
           pctDisplay = pctNum.toFixed(2) + ' %';
         }
+        const hskBadge = c.isHsk ? ' <span style="display:inline-block; background:rgba(139,92,246,0.16); color:var(--accent-purple); border:1px solid rgba(139,92,246,0.35); border-radius:999px; font-size:10px; font-weight:800; padding:0 6px; margin-left:4px;">HSK</span>' : '';
         return `
 
           <tr style="border-bottom:1px solid rgba(255,255,255,0.05); hover:background:rgba(255,255,255,0.02);">
             <td style="padding:10px 14px; text-align:center; color:var(--text-muted); font-size:12.5px;">${escapeHtml(data.termLabel)}</td>
             <td style="padding:10px 14px; font-weight:800; color:var(--accent-emerald); font-family:'JetBrains Mono', monospace; font-size:13px;">${escapeHtml(c.courseCode)}</td>
-            <td style="padding:10px 14px; color:var(--text-main); font-size:12.5px;">${escapeHtml(c.courseName)}</td>
+            <td style="padding:10px 14px; color:var(--text-main); font-size:12.5px;">${escapeHtml(c.courseName)}${hskBadge}</td>
             <td style="padding:10px 16px; text-align:right; font-weight:700; color:var(--text-main); font-size:13px; font-family:'JetBrains Mono', monospace;">${c.count.toLocaleString()}</td>
+            <td style="padding:10px 16px; text-align:right; font-weight:700; color:var(--accent-emerald); font-size:13px; font-family:'JetBrains Mono', monospace;">฿${revNum.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
             <td style="padding:10px 16px; text-align:right; font-weight:700; color:var(--color-gold); font-size:13px; font-family:'JetBrains Mono', monospace;">${pctDisplay}</td>
           </tr>
 
         `;
       }).join('');
       if (tfoot) {
+        const filteredPct = data.termTotal > 0 ? ((filteredCount / data.termTotal) * 100).toFixed(2) : '0.00';
+        const filterNote = catFilter === 'HSK' ? ' (เฉพาะติวสอบ HSK)' : (catFilter === 'GENERAL' ? ' (เฉพาะคอร์สทั่วไป)' : '');
         tfoot.innerHTML = `
 
           <tr>
-            <td colspan="3" style="padding:12px 14px; text-align:right; color:var(--text-main); font-size:13px;">รวมภายในเทอม ${data.termLabel}</td>
-            <td style="padding:12px 16px; text-align:right; color:#38bdf8; font-size:14px; font-family:'JetBrains Mono', monospace;">${data.termTotal.toLocaleString()}</td>
-            <td style="padding:12px 16px; text-align:right; color:#38bdf8; font-size:14px; font-family:'JetBrains Mono', monospace;">100.00 %</td>
+            <td colspan="3" style="padding:12px 14px; text-align:right; color:var(--text-main); font-size:13px;">รวมภายในเทอม ${data.termLabel}${filterNote}</td>
+            <td style="padding:12px 16px; text-align:right; color:#38bdf8; font-size:14px; font-family:'JetBrains Mono', monospace;">${filteredCount.toLocaleString()}</td>
+            <td style="padding:12px 16px; text-align:right; color:var(--accent-emerald); font-size:14px; font-family:'JetBrains Mono', monospace;">฿${filteredRev.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td style="padding:12px 16px; text-align:right; color:#38bdf8; font-size:14px; font-family:'JetBrains Mono', monospace;">${filteredPct} %</td>
           </tr>
 
           <tr style="border-top:1px dashed rgba(255,255,255,0.15);">
             <td colspan="3" style="padding:10px 14px; text-align:right; color:var(--color-gold); font-size:13px;">คิดเป็นเปอร์เซ็นต์ต่อปี / ${data.year}</td>
-            <td colspan="2" style="padding:10px 16px; text-align:right; color:var(--color-gold); font-size:14px; font-family:'JetBrains Mono', monospace;">${data.yearPercent} % (จากทั้งปี ${data.yearTotal.toLocaleString()} คน)</td>
+            <td colspan="3" style="padding:10px 16px; text-align:right; color:var(--color-gold); font-size:14px; font-family:'JetBrains Mono', monospace;">${data.yearPercent} % (จากทั้งปี ${data.yearTotal.toLocaleString()} คน • รายรับรวมทั้งเทอม ฿${totalRev.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</td>
           </tr>
 
         `;
@@ -57507,10 +57575,11 @@ if (action === 'getDashboardStats') {
               <table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-top:2px;">
                 <thead>
                   <tr style="border-bottom:1px solid #000;">
-                    <th style="width:22%; text-align:left; padding:3px 0; font-weight:bold;">เทอมการศึกษา</th>
-                    <th style="width:25%; text-align:left; padding:3px 0; font-weight:bold;">รหัสวิชา</th>
-                    <th style="width:33%; text-align:right; padding:3px 8px; font-weight:bold;">จำนวน ( คน )</th>
-                    <th style="width:20%; text-align:right; padding:3px 0; font-weight:bold;">%</th>
+                    <th style="width:18%; text-align:left; padding:3px 0; font-weight:bold;">เทอมการศึกษา</th>
+                    <th style="width:22%; text-align:left; padding:3px 0; font-weight:bold;">รหัสวิชา</th>
+                    <th style="width:20%; text-align:right; padding:3px 8px; font-weight:bold;">จำนวน ( คน )</th>
+                    <th style="width:24%; text-align:right; padding:3px 8px; font-weight:bold;">ยอดรายรับ (บาท)</th>
+                    <th style="width:16%; text-align:right; padding:3px 0; font-weight:bold;">%</th>
                   </tr>
                 </thead>
 
@@ -57518,6 +57587,7 @@ if (action === 'getDashboardStats') {
 
                   ${pageRows.map(c => {
                     const pctNum = data.termTotal > 0 ? (c.count / data.termTotal) * 100 : 0;
+                    const revNum = Number(c.revenue || 0);
                     let pctDisplay = '';
                     if (dotFormat) {
                       if (pctNum < 1 && pctNum > 0) {
@@ -57534,6 +57604,7 @@ if (action === 'getDashboardStats') {
                         <td style="padding:2px 0; font-family:'Sarabun', sans-serif;">${data.termLabel}</td>
                         <td style="padding:2px 0; font-family:'Courier New', monospace; font-weight:bold;">${c.courseCode}</td>
                         <td style="padding:2px 8px; text-align:right; font-family:'Courier New', monospace;">${c.count.toLocaleString()}</td>
+                        <td style="padding:2px 8px; text-align:right; font-family:'Courier New', monospace;">฿${revNum.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td style="padding:2px 0; text-align:right; font-family:'Courier New', monospace;">${pctDisplay}</td>
                       </tr>
 
@@ -57552,7 +57623,11 @@ if (action === 'getDashboardStats') {
                 <div style="border-top:1.5px solid #000; padding-top:5px; margin-top:8px; font-size:12px;">
                   <div style="display:flex; justify-content:space-between; font-weight:bold; padding:2px 0;">
                     <div>รวมภายในเทอม &nbsp;&nbsp;&nbsp;&nbsp; ${data.termLabel}</div>
-                    <div style="font-family:'Courier New', monospace; font-size:13px;">${data.termTotal.toLocaleString()}</div>
+                    <div style="font-family:'Courier New', monospace; font-size:13px;">${data.termTotal.toLocaleString()} คน &nbsp;|&nbsp; ฿${list.reduce((s, c) => s + Number(c.revenue || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; font-size:11px; padding:2px 0;">
+                    <div>แยกหมวด: คอร์สเรียนทั่วไป (${(data.generalCount || 0).toLocaleString()} คน) / คอร์สติวสอบ HSK (${(data.hskCount || 0).toLocaleString()} คน)</div>
+                    <div style="font-family:'Courier New', monospace;">฿${(data.generalRevenue || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} / ฿${(data.hskRevenue || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</div>
                   </div>
 
                   <div style="display:flex; justify-content:space-between; font-weight:bold; padding:2px 0;">
@@ -57663,7 +57738,7 @@ if (action === 'getDashboardStats') {
       const tbody = document.getElementById('tbodyCourseBreakdownReport');
       const tfoot = document.getElementById('tfootCourseBreakdownReport');
       if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--accent-emerald);"><i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> กำลังดึงข้อมูลและจำแนกนักศึกษาตามรายวิชา...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--accent-emerald);"><i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> กำลังดึงข้อมูลและจำแนกนักศึกษาตามรายวิชา...</td></tr>';
       }
       if (tfoot) tfoot.innerHTML = '';
       try {
@@ -57711,7 +57786,7 @@ if (action === 'getDashboardStats') {
         let offset = 0;
         const batchSize = 1000;
         while (offset < 20000) {
-          const fetchUrl = `${SUPABASE_URL}/rest/v1/receipts?select=receipt_no,item_code,item_name,student_id,claim_status,edit_notes&receipt_no=gte.${minR}&receipt_no=lt.${maxR}&receipt_type=eq.tuition${termEqParam}&offset=${offset}&limit=${batchSize}`;
+          const fetchUrl = `${SUPABASE_URL}/rest/v1/receipts?select=receipt_no,item_code,item_name,student_id,claim_status,edit_notes,base_amount,discount_normal,discount_other,grand_total&receipt_no=gte.${minR}&receipt_no=lt.${maxR}&receipt_type=eq.tuition${termEqParam}&offset=${offset}&limit=${batchSize}`;
           const resp = await fetch(fetchUrl, {
             headers: {
               'apikey': SUPABASE_ANON_KEY,
@@ -57738,21 +57813,35 @@ if (action === 'getDashboardStats') {
             courseMap[code] = {
               courseCode: code,
               courseName: name || code,
-              count: 0
+              count: 0,
+              revenue: 0,
+              isHsk: isHskPrepCourseEntry(code, name)
             };
           }
+          const baseA = Math.max(0, Number(r.base_amount || 0));
+          const discA = Math.max(0, Number(r.discount_normal || 0)) + Math.max(0, Number(r.discount_other || 0));
+          const netRev = baseA > 0 ? Math.max(0, baseA - discA) : Math.max(0, Number(r.grand_total || 0));
           courseMap[code].count++;
+          courseMap[code].revenue += netRev;
         });
         // 4. Fill Course Names from cachedCoursesList if available
         if (Array.isArray(cachedCoursesList)) {
           cachedCoursesList.forEach(c => {
             const cId = (c.id || c.code || '').trim().toUpperCase();
-            if (courseMap[cId] && (!courseMap[cId].courseName || courseMap[cId].courseName === cId)) {
-              courseMap[cId].courseName = c.name || cId;
+            if (courseMap[cId]) {
+              if (!courseMap[cId].courseName || courseMap[cId].courseName === cId) {
+                courseMap[cId].courseName = c.name || cId;
+              }
+              courseMap[cId].isHsk = isHskPrepCourseEntry(courseMap[cId].courseCode, courseMap[cId].courseName);
             }
           });
         }
         const sortedCourses = Object.values(courseMap).sort((a, b) => naturalCompareCode(a.courseCode, b.courseCode));
+        const totalRevenue = sortedCourses.reduce((s, c) => s + Number(c.revenue || 0), 0);
+        const generalRevenue = sortedCourses.filter(c => !c.isHsk).reduce((s, c) => s + Number(c.revenue || 0), 0);
+        const generalCount = sortedCourses.filter(c => !c.isHsk).reduce((s, c) => s + Number(c.count || 0), 0);
+        const hskRevenue = sortedCourses.filter(c => c.isHsk).reduce((s, c) => s + Number(c.revenue || 0), 0);
+        const hskCount = sortedCourses.filter(c => c.isHsk).reduce((s, c) => s + Number(c.count || 0), 0);
         const termTotal = allRows.length;
         if (!yearTotal || yearTotal < termTotal) yearTotal = termTotal;
         _courseBreakdownData = {
@@ -57762,14 +57851,19 @@ if (action === 'getDashboardStats') {
           courses: sortedCourses,
           termTotal: termTotal,
           yearTotal: yearTotal,
-          yearPercent: yearTotal > 0 ? ((termTotal / yearTotal) * 100).toFixed(2) : '100.00'
+          yearPercent: yearTotal > 0 ? ((termTotal / yearTotal) * 100).toFixed(2) : '100.00',
+          totalRevenue,
+          generalRevenue,
+          generalCount,
+          hskRevenue,
+          hskCount
         };
         window._courseBreakdownData = _courseBreakdownData;
         renderCourseBreakdownTable();
       } catch (err) {
         console.error('loadCourseBreakdownReport error:', err);
         if (tbody) {
-          tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:#ef4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> เกิดข้อผิดพลาดในการดึงข้อมูล: ${escapeHtml(err.message || err)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:#ef4444;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i> เกิดข้อผิดพลาดในการดึงข้อมูล: ${escapeHtml(err.message || err)}</td></tr>`;
         }
       }
     }
@@ -57791,13 +57885,20 @@ if (action === 'getDashboardStats') {
         return;
       }
       const list = _courseBreakdownFiltered || data.courses;
-      let csv = '\uFEFF"เทอมการศึกษา","รหัสวิชา","ชื่อรายวิชา","จำนวน ( คน )","%"\n';
+      let csv = '\uFEFF"เทอมการศึกษา","หมวดหมู่","รหัสวิชา","ชื่อรายวิชา","จำนวน ( คน )","ยอดรายรับ (บาท)","%"\n';
+      let sumCnt = 0, sumRev = 0;
       list.forEach(c => {
         const pct = data.termTotal > 0 ? ((c.count / data.termTotal) * 100).toFixed(2) : '0.00';
-        csv += `"${data.termLabel}","${c.courseCode}","${(c.courseName || '').replace(/"/g, '""')}","${c.count}","${pct}"\n`;
+        const rev = Number(c.revenue || 0);
+        sumCnt += Number(c.count || 0);
+        sumRev += rev;
+        const catTxt = c.isHsk ? 'คอร์สติวสอบ HSK' : 'คอร์สเรียนทั่วไป';
+        csv += `"${data.termLabel}","${catTxt}","${c.courseCode}","${(c.courseName || '').replace(/"/g, '""')}","${c.count}","${rev.toFixed(2)}","${pct}"\n`;
       });
-      csv += `"${data.termLabel}","ยอดรวมภายในเทอม","","${data.termTotal}","100.00"\n`;
-      csv += `"/ ${data.year}","คิดเป็นเปอร์เซ็นต์ต่อปี","","${data.termTotal} / ${data.yearTotal}","${data.yearPercent}"\n`;
+      csv += `"${data.termLabel}","","ยอดรวมตามตัวกรอง","","${sumCnt}","${sumRev.toFixed(2)}","${data.termTotal > 0 ? ((sumCnt / data.termTotal) * 100).toFixed(2) : '0.00'}"\n`;
+      csv += `"${data.termLabel}","","คอร์สเรียนทั่วไป","","${data.generalCount || 0}","${Number(data.generalRevenue || 0).toFixed(2)}",""\n`;
+      csv += `"${data.termLabel}","","คอร์สติวสอบ HSK","","${data.hskCount || 0}","${Number(data.hskRevenue || 0).toFixed(2)}",""\n`;
+      csv += `"/ ${data.year}","","คิดเป็นเปอร์เซ็นต์ต่อปี","","${data.termTotal} / ${data.yearTotal}","${Number(data.totalRevenue || 0).toFixed(2)}","${data.yearPercent}"\n`;
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -79406,7 +79507,16 @@ function openPublicRegisterView() {
         "ใช้รูปต้นฉบับ": "使用原图",
         "ใช้พื้นหลัง AI (#800000)": "使用智能红底",
         "ป้องกันสลิป & อีเมล": "防伪凭证与邮件",
-        "ตั้งค่ากลาง & สำรอง": "全局设置与备份"
+        "ตั้งค่ากลาง & สำรอง": "全局设置与备份",
+        "หมวดคอร์ส:": "课程类别：",
+        "ทุกหมวดคอร์ส": "全部课程类别",
+        "คอร์สเรียนทั่วไป": "常规汉语课程",
+        "คอร์สติวสอบ HSK": "HSK 考前辅导课程",
+        "ยอดรายรับค่าเรียนรวม (บาท)": "学费总收入（泰铢）",
+        "รายรับคอร์สเรียนทั่วไป": "常规课程收入",
+        "รายรับคอร์สติวสอบ HSK": "HSK 辅导课程收入",
+        "ยอดรายรับ (บาท)": "课程收入（泰铢）",
+        "0 คน": "0 人"
       },
       en: {
         "+ ซื้อตำราเรียนเพิ่มในใบเสร็จนี้": "+ Add Extra Textbooks to This Receipt",
@@ -81899,7 +82009,16 @@ function openPublicRegisterView() {
         "ใช้รูปต้นฉบับ": "Use Original Photo",
         "ใช้พื้นหลัง AI (#800000)": "Use AI Background (#800000)",
         "ป้องกันสลิป & อีเมล": "Slip Guard & Email",
-        "ตั้งค่ากลาง & สำรอง": "Global Config & Backup"
+        "ตั้งค่ากลาง & สำรอง": "Global Config & Backup",
+        "หมวดคอร์ส:": "Category:",
+        "ทุกหมวดคอร์ส": "All Categories",
+        "คอร์สเรียนทั่วไป": "General Courses",
+        "คอร์สติวสอบ HSK": "HSK Prep Courses",
+        "ยอดรายรับค่าเรียนรวม (บาท)": "Total Tuition Revenue (THB)",
+        "รายรับคอร์สเรียนทั่วไป": "General Courses Revenue",
+        "รายรับคอร์สติวสอบ HSK": "HSK Prep Revenue",
+        "ยอดรายรับ (บาท)": "Revenue (THB)",
+        "0 คน": "0 students"
       }
     };
     window.OCA_INNER_CONTENT_I18N = OCA_INNER_CONTENT_I18N;
@@ -90481,13 +90600,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=273';
+      const swPath = basePath + 'sw.js?v=274';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (273):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (274):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
