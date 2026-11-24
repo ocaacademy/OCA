@@ -22,13 +22,16 @@
 
   function renderCard(mountEl, posture) {
     if (!mountEl) return;
+    const netErr = String((posture && posture.networkError) || '').trim();
     const isProtected = Boolean(posture && posture.rlsStaffProtected);
     const isAppendOnly = Boolean(posture && posture.auditAppendOnly);
-    const allOk = isProtected && isAppendOnly;
+    const allOk = !netErr && isProtected && isAppendOnly;
     const badgeClass = allOk ? 'oca-mod-badge-ok' : 'oca-mod-badge-warn';
-    const badgeText = allOk
-      ? '<span class="oca-rls-dot" aria-hidden="true"></span><i class="fa-solid fa-circle-check"></i><span>RLS &amp; Append-Only Active</span>'
-      : '<span class="oca-rls-dot" aria-hidden="true"></span><i class="fa-solid fa-triangle-exclamation"></i><span>รอรัน SQL Hardening ใน Supabase</span>';
+    const badgeText = netErr
+      ? '<span class="oca-rls-dot" aria-hidden="true"></span><i class="fa-solid fa-wifi"></i><span>ไม่สามารถเชื่อมต่อเพื่อตรวจสอบ RLS ได้ (Network Error)</span>'
+      : (allOk
+        ? '<span class="oca-rls-dot" aria-hidden="true"></span><i class="fa-solid fa-circle-check"></i><span>RLS &amp; Append-Only Active</span>'
+        : '<span class="oca-rls-dot" aria-hidden="true"></span><i class="fa-solid fa-triangle-exclamation"></i><span>รอรัน SQL Hardening ใน Supabase</span>');
     const checkedLabel = formatCheckedTime(posture && posture.checkedAt);
 
     mountEl.innerHTML = `
@@ -58,8 +61,8 @@
             <div>
               <div class="oca-mod-status-label">ตาราง staff_users (RPC-Only)</div>
               <div class="oca-mod-status-val">
-                <i class="fa-solid ${isProtected ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i>
-                <span>${isProtected ? 'ปิดการเข้าถึงตรงจาก anon แล้ว' : 'ยังอ่านตรงได้ (แนะนำรัน SQL)'}</span>
+                <i class="fa-solid ${netErr ? 'fa-wifi' : (isProtected ? 'fa-circle-check' : 'fa-triangle-exclamation')}"></i>
+                <span>${netErr ? 'ไม่สามารถตรวจสอบได้ชั่วคราว (Network Error)' : (isProtected ? 'ปิดการเข้าถึงตรงจาก anon แล้ว' : 'ยังอ่านตรงได้ (แนะนำรัน SQL)')}</span>
               </div>
               <div class="oca-rls-tile-hint">อนุญาตเฉพาะฟังก์ชัน RPC ที่ผ่านการยืนยันตัวตน</div>
             </div>
@@ -72,8 +75,8 @@
             <div>
               <div class="oca-mod-status-label">ตาราง security_audit_logs</div>
               <div class="oca-mod-status-val">
-                <i class="fa-solid ${isAppendOnly ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i>
-                <span>${isAppendOnly ? 'Append-Only Trigger ทำงานอยู่' : 'ยังไม่มี Trigger ห้ามลบ/แก้ไข'}</span>
+                <i class="fa-solid ${netErr ? 'fa-wifi' : (isAppendOnly ? 'fa-circle-check' : 'fa-triangle-exclamation')}"></i>
+                <span>${netErr ? 'ไม่สามารถตรวจสอบได้ชั่วคราว (Network Error)' : (isAppendOnly ? 'Append-Only Trigger ทำงานอยู่' : 'ยังไม่มี Trigger ห้ามลบ/แก้ไข')}</span>
               </div>
               <div class="oca-rls-tile-hint">ป้องกันการแก้ไขหรือลบบันทึกกิจกรรมย้อนหลัง (PDPA)</div>
             </div>
@@ -142,6 +145,8 @@
         console.warn('[OcaRlsGuard] checkPosture RPC warning:', err);
         posture.networkError = String((err && err.message) || err || 'Network error');
       }
+    } else {
+      posture.networkError = 'Supabase client unavailable';
     }
 
     renderCard(mountEl, posture);
