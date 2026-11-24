@@ -12778,7 +12778,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '293';
+      var LATEST_VERSION = '294';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -14906,12 +14906,11 @@ body.printing-report #printReportContainer {
                     <tr>
                       <th style="text-align:left; padding:10px 12px;">รหัสนำหน้า (Prefix)</th>
                       <th style="text-align:left; padding:10px 12px;">หมวดหมู่คอร์ส</th>
-                      <th style="text-align:left; padding:10px 12px;">กลุ่มส่วนลดมาตรฐาน</th>
                       <th style="text-align:center; padding:10px 12px; width:120px;">จัดการ</th>
                     </tr>
                   </thead>
                   <tbody id="tbodyCoursePrefixRules">
-                    <tr><td colspan="4" style="text-align:center; padding:16px; color:var(--text-muted);">ยังไม่มีรหัสนำหน้าที่กำหนดเอง (ใช้กฎมาตรฐานของระบบ)</td></tr>
+                    <tr><td colspan="3" style="text-align:center; padding:16px; color:var(--text-muted);">ยังไม่มีรหัสนำหน้าที่กำหนดเอง (ใช้กฎมาตรฐานของระบบ)</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -14926,7 +14925,7 @@ body.printing-report #printReportContainer {
                     <label class="oca-label" for="inpCoursePrefixCode">รหัสนำหน้า (Prefix) *</label>
                     <input type="text" id="inpCoursePrefixCode" class="oca-input" maxlength="12" placeholder="เช่น K, B, M, P00, CE" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, '')">
                   </div>
-                  <div class="oca-input-group" style="margin-bottom:12px;">
+                  <div class="oca-input-group" style="margin-bottom:16px;">
                     <label class="oca-label" for="selCoursePrefixCategory">หมวดหมู่คอร์ส *</label>
                     <select id="selCoursePrefixCategory" class="oca-input">
                       <option value="คอร์สเด็ก">คอร์สเด็ก</option>
@@ -14937,16 +14936,6 @@ body.printing-report #printReportContainer {
                       <option value="ติวสอบวัดระดับ HSK">ติวสอบวัดระดับ HSK</option>
                       <option value="ศิลป์ (วาดภาพ / เขียนอักษร)">ศิลป์ (วาดภาพ / เขียนอักษร)</option>
                       <option value="ดนตรี (กู่เจิง / ขลุ่ยจีน / หยางฉิน / เอ้อหู)">ดนตรี (กู่เจิง / ขลุ่ยจีน / หยางฉิน / เอ้อหู)</option>
-                    </select>
-                  </div>
-                  <div class="oca-input-group" style="margin-bottom:16px;">
-                    <label class="oca-label" for="selCoursePrefixDiscGroup">กลุ่มส่วนลดมาตรฐาน *</label>
-                    <select id="selCoursePrefixDiscGroup" class="oca-input">
-                      <option value="adult5">ผู้ใหญ่ 5 ชม./สัปดาห์</option>
-                      <option value="adult3">ผู้ใหญ่ 3 ชม./สัปดาห์</option>
-                      <option value="kids">คอร์สเด็ก</option>
-                      <option value="art">คอร์สศิลปะ</option>
-                      <option value="music">คอร์สดนตรี (0 บาท)</option>
                     </select>
                   </div>
                   <div style="display:flex; justify-content:flex-end; gap:8px;">
@@ -42472,7 +42461,7 @@ if (action === 'getDashboardStats') {
       }
       const pfxKidsRule = (typeof resolveCoursePrefixRule === 'function') ? resolveCoursePrefixRule(c) : null;
       if (pfxKidsRule) {
-        return pfxKidsRule.discGroup === 'kids' || pfxKidsRule.category === 'คอร์สเด็ก';
+        return pfxKidsRule.category === 'คอร์สเด็ก';
       }
       const lvl = detectCourseLevel(c);
       if (lvl === 'คอร์สเด็ก') return true;
@@ -42512,13 +42501,13 @@ if (action === 'getDashboardStats') {
       const isPinyin = /พิ[ณน][อิือ]น|PINYIN|\bP000[12]\b/i.test(rawText);
       const prefixRule = (typeof resolveCoursePrefixRule === 'function') ? resolveCoursePrefixRule(cObj || courseOrCode) : null;
       const isMusic = prefixRule
-        ? (prefixRule.discGroup === 'music')
+        ? /ดนตรี/.test(prefixRule.category || '')
         : (!isPinyin && /กู่เจิง|ขลุ่ย|หยางฉิน|เอ้อหู|เออร์หู|พิณจีน|พิณกู่เจิง|ดนตรี|GUZHENG|ERHU/i.test(rawText));
       const isArt = prefixRule
-        ? (prefixRule.discGroup === 'art')
+        ? /ศิลป์/.test(prefixRule.category || '')
         : /วาดภาพ|จิตรกรรม|เขียนอักษร|พู่กัน|CALLIGRAPHY|PAINTING|ศิลป์/i.test(rawText);
       let isKids = prefixRule
-        ? (prefixRule.discGroup === 'kids')
+        ? (prefixRule.category === 'คอร์สเด็ก')
         : isKidsCourse(cObj || courseOrCode);
       if (!prefixRule) {
         if (cObj && (cObj.target_audience === 'adult' || cObj.targetAudience === 'adult')) {
@@ -42528,7 +42517,6 @@ if (action === 'getDashboardStats') {
         }
       }
       const is3HrAdult = !isMusic && !isArt && !isKids && (
-        (prefixRule && prefixRule.discGroup === 'adult3') ||
         canonSched === 'SCH-08' ||
         /SCH-08|3\s*(?:ชม|ชั่วโมง|hrs?)/i.test(String(scheduleId || '') + ' ' + rawText)
       );
@@ -46357,25 +46345,16 @@ if (action === 'getDashboardStats') {
       window._ocaCoursePrefixRulesMap = map;
       const entries = Object.values(map).filter(Boolean).sort((a, b) => (b.prefix || '').length - (a.prefix || '').length || String(a.prefix).localeCompare(String(b.prefix)));
       if (entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:16px; color:var(--text-muted);">ยังไม่มีรหัสนำหน้าที่กำหนดเอง (ใช้กฎมาตรฐานของระบบ)</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:16px; color:var(--text-muted);">ยังไม่มีรหัสนำหน้าที่กำหนดเอง (ใช้กฎมาตรฐานของระบบ)</td></tr>';
         return;
       }
-      const discLabels = {
-        adult5: 'ผู้ใหญ่ 5 ชม./สัปดาห์',
-        adult3: 'ผู้ใหญ่ 3 ชม./สัปดาห์',
-        kids: 'คอร์สเด็ก',
-        art: 'คอร์สศิลปะ',
-        music: 'คอร์สดนตรี (0 บาท)'
-      };
       tbody.innerHTML = entries.map(r => {
         const pfx = escapeHtml(r.prefix || '');
         const cat = escapeHtml(r.category || '');
-        const dLbl = escapeHtml(discLabels[r.discGroup] || r.discGroup || '');
         return (
           '<tr>' +
           '  <td style="padding:10px 12px;"><span class="oca-mono-code-badge" style="font-weight:700;">' + pfx + '</span></td>' +
           '  <td style="padding:10px 12px; font-weight:600; color:var(--text-main);">' + cat + '</td>' +
-          '  <td style="padding:10px 12px; color:var(--text-muted);">' + dLbl + '</td>' +
           '  <td style="padding:10px 12px; text-align:center; white-space:nowrap;">' +
           '    <button type="button" class="oca-btn-action-edit" onclick="openCoursePrefixRuleModal(\'' + pfx + '\')" title="แก้ไข"><i class="fa-solid fa-pen-to-square"></i></button> ' +
           '    <button type="button" class="oca-btn-action-del" onclick="deleteCoursePrefixRule(\'' + pfx + '\')" title="ลบ"><i class="fa-solid fa-trash-can"></i></button>' +
@@ -46390,7 +46369,6 @@ if (action === 'getDashboardStats') {
       const inpOrig = document.getElementById('inpCoursePrefixOrigKey');
       const inpCode = document.getElementById('inpCoursePrefixCode');
       const selCat = document.getElementById('selCoursePrefixCategory');
-      const selDisc = document.getElementById('selCoursePrefixDiscGroup');
       const title = document.getElementById('titleCoursePrefixModal');
       if (!modal) return;
       const pfx = String(editPrefix || '').trim().toUpperCase();
@@ -46399,13 +46377,11 @@ if (action === 'getDashboardStats') {
         if (inpOrig) inpOrig.value = pfx;
         if (inpCode) inpCode.value = pfx;
         if (selCat) selCat.value = item.category || 'คอร์สขั้นต้น';
-        if (selDisc) selDisc.value = item.discGroup || 'adult5';
         if (title) title.textContent = 'แก้ไขรหัสนำหน้าคอร์ส';
       } else {
         if (inpOrig) inpOrig.value = '';
         if (inpCode) inpCode.value = '';
         if (selCat) selCat.value = 'คอร์สเด็ก';
-        if (selDisc) selDisc.value = 'kids';
         if (title) title.textContent = 'เพิ่มรหัสนำหน้าคอร์ส';
       }
       modal.style.display = 'flex';
@@ -46420,7 +46396,6 @@ if (action === 'getDashboardStats') {
       const origKey = (document.getElementById('inpCoursePrefixOrigKey')?.value || '').trim().toUpperCase();
       const prefix = (document.getElementById('inpCoursePrefixCode')?.value || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
       const category = (document.getElementById('selCoursePrefixCategory')?.value || '').trim();
-      const discGroup = (document.getElementById('selCoursePrefixDiscGroup')?.value || 'adult5').trim();
       if (!prefix || !/^[A-Z0-9-]{1,12}$/.test(prefix)) {
         if (typeof toast === 'function') toast('รหัสไม่ถูกต้อง', 'กรุณาระบุรหัสนำหน้าเป็น A-Z หรือตัวเลข 1–12 ตัวอักษร', 'warning');
         return;
@@ -46433,7 +46408,7 @@ if (action === 'getDashboardStats') {
       const dbKey = `course_prefix_rule_${prefix}`;
       const rowPayload = {
         key: dbKey,
-        name: `${category}|${discGroup}`.slice(0, 90),
+        name: category.slice(0, 90),
         mode: 'always',
         amount: 0,
         start_date: null,
@@ -46453,7 +46428,7 @@ if (action === 'getDashboardStats') {
         }
         window._ocaCoursePrefixRulesMap = window._ocaCoursePrefixRulesMap || {};
         if (origKey && origKey !== prefix) delete window._ocaCoursePrefixRulesMap[origKey];
-        window._ocaCoursePrefixRulesMap[prefix] = { prefix, category, discGroup };
+        window._ocaCoursePrefixRulesMap[prefix] = { prefix, category };
         try { localStorage.setItem('oca_course_prefix_rules_v1', JSON.stringify(window._ocaCoursePrefixRulesMap)); } catch (_) {}
         closeCoursePrefixRuleModal();
         renderCoursePrefixRulesTable();
@@ -72566,7 +72541,7 @@ function openPublicRegisterView() {
       const raw = `${category || ''} ${codeUpper} ${(course && course.name) || ''}`.toUpperCase();
       const isAdult3HrCeOeSvg = /^(CE|OE)/i.test(codeUpper) && /3\s*(?:ชม|ชั่วโมง|hrs?)/i.test(raw) && !/KIDS|เด็ก|เยาวชน/.test(raw);
       const pfxKioskRule = (typeof resolveCoursePrefixRule === 'function') ? resolveCoursePrefixRule(course || codeUpper) : null;
-      if ((pfxKioskRule && (pfxKioskRule.discGroup === 'kids' || pfxKioskRule.category === 'คอร์สเด็ก')) || (!pfxKioskRule && !isAdult3HrCeOeSvg && /KIDS|เด็ก|เยาวชน|CE|OE|\bE\d/.test(raw))) {
+      if ((pfxKioskRule && pfxKioskRule.category === 'คอร์สเด็ก') || (!pfxKioskRule && !isAdult3HrCeOeSvg && /KIDS|เด็ก|เยาวชน|CE|OE|\bE\d/.test(raw))) {
         // Kids: Panda + Red Lantern + Chinese Storybook
         return {
           bg: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
@@ -72940,7 +72915,7 @@ function openPublicRegisterView() {
       const raw = `${category || ''} ${codeUpper} ${(course && course.name) || ''}`.toUpperCase();
       const isAdult3HrCeOeSvg = /^(CE|OE)/i.test(codeUpper) && /3\s*(?:ชม|ชั่วโมง|hrs?)/i.test(raw) && !/KIDS|เด็ก|เยาวชน/.test(raw);
       const pfxKioskRule = (typeof resolveCoursePrefixRule === 'function') ? resolveCoursePrefixRule(course || codeUpper) : null;
-      if ((pfxKioskRule && (pfxKioskRule.discGroup === 'kids' || pfxKioskRule.category === 'คอร์สเด็ก')) || (!pfxKioskRule && !isAdult3HrCeOeSvg && /KIDS|เด็ก|เยาวชน|CE|OE|\bE\d/.test(raw))) {
+      if ((pfxKioskRule && pfxKioskRule.category === 'คอร์สเด็ก') || (!pfxKioskRule && !isAdult3HrCeOeSvg && /KIDS|เด็ก|เยาวชน|CE|OE|\bE\d/.test(raw))) {
         let kidsSub = 'KIDS MANDARIN';
         const eMatch = codeUpper.match(/^E([1-4])00(\d)$/);
         const ceMatch = codeUpper.match(/^[CO]E[12]0(\d)$/);
@@ -92561,7 +92536,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=293';
+      const swPath = basePath + 'sw.js?v=294';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92598,7 +92573,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (293):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (294):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
