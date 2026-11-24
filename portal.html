@@ -12597,7 +12597,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '277';
+      var LATEST_VERSION = '278';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -58902,8 +58902,20 @@ if (action === 'getDashboardStats') {
           return;
         }
         const defCols = 'student_id, prefix, full_name, current_course, current_schedule, year_be, term, status, notes';
-        const qDropped = (a, b, yr) => _supabase.from('students').select(defCols).eq('status', 'DROPPED').or(`and(student_id.gte.${a},student_id.lt.${b}),year_be.eq.${yr}`);
-        const qTransfer = (a, b, yr) => _supabase.from('students').select(defCols).in('status', ['TRANSFERRED', 'ย้ายเทอม', 'ย้ายกลุ่ม']).or(`and(student_id.gte.${a},student_id.lt.${b}),year_be.eq.${yr}`);
+        const qDropped = (a, b, yr) => {
+          const safeYr = Number(yr);
+          const q = _supabase.from('students').select(defCols).eq('status', 'DROPPED');
+          return (Number.isFinite(safeYr) && safeYr > 2500)
+            ? q.or(`and(student_id.gte.${a},student_id.lt.${b}),year_be.eq.${safeYr}`)
+            : q.gte('student_id', a).lt('student_id', b);
+        };
+        const qTransfer = (a, b, yr) => {
+          const safeYr = Number(yr);
+          const q = _supabase.from('students').select(defCols).in('status', ['TRANSFERRED', 'ย้ายเทอม', 'ย้ายกลุ่ม']);
+          return (Number.isFinite(safeYr) && safeYr > 2500)
+            ? q.or(`and(student_id.gte.${a},student_id.lt.${b}),year_be.eq.${safeYr}`)
+            : q.gte('student_id', a).lt('student_id', b);
+        };
         const activeYT = (typeof getResolvedActiveYearTerm === 'function') ? getResolvedActiveYearTerm() : { yearBE: String(new Date().getFullYear() + 543) };
         const maxYrNum = Math.max(2568, Number(activeYT.yearBE) || (new Date().getFullYear() + 543));
         const targetYears = (yrFilter !== 'ALL' && /^\d{4}$/.test(yrFilter))
@@ -58915,8 +58927,8 @@ if (action === 'getDashboardStats') {
           const nextYrPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
           const minId = yrPrefix + '00000';
           const maxId = nextYrPrefix + '00000';
-          const runDropped = () => fetchAllPaginatedSupabaseRows(() => qDropped(minId, maxId), 1000, 10000);
-          const runTransferred = () => fetchAllPaginatedSupabaseRows(() => qTransfer(minId, maxId), 1000, 10000);
+          const runDropped = () => fetchAllPaginatedSupabaseRows(() => qDropped(minId, maxId, yrNum), 1000, 10000);
+          const runTransferred = () => fetchAllPaginatedSupabaseRows(() => qTransfer(minId, maxId, yrNum), 1000, 10000);
           const droppedYr = (typeof window.withSupabaseRetry === 'function')
             ? await window.withSupabaseRetry(runDropped, { retries: 2, baseDelayMs: 400, label: `loadDeferralReport:dropped:${yrNum}` })
             : await runDropped();
@@ -90972,13 +90984,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=277';
+      const swPath = basePath + 'sw.js?v=278';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (277):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (278):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
