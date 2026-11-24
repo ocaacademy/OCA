@@ -12409,8 +12409,19 @@ body.printing-report #printReportContainer {
       background-color: #FFFFFF !important;
       color: #000000 !important;
     }
-    html[data-theme="dark"] *, html[data-theme="dark"] *::before, html[data-theme="dark"] *::after {
+    html[data-theme="dark"] *:not(.oca-course-roster-sheet th):not(.oca-print-keep-light):not([data-print-light]),
+    html[data-theme="dark"] *:not(.oca-course-roster-sheet th):not(.oca-print-keep-light):not([data-print-light])::before,
+    html[data-theme="dark"] *:not(.oca-course-roster-sheet th):not(.oca-print-keep-light):not([data-print-light])::after {
       color: #000000 !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
+      animation: none !important;
+      transition: none !important;
+    }
+    html[data-theme="dark"] .oca-course-roster-sheet th,
+    html[data-theme="dark"] .oca-print-keep-light,
+    html[data-theme="dark"] [data-print-light] {
+      color: #FFFFFF !important;
       box-shadow: none !important;
       text-shadow: none !important;
       animation: none !important;
@@ -12755,7 +12766,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '316';
+      var LATEST_VERSION = '317';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -20956,7 +20967,7 @@ body.printing-report #printReportContainer {
             </div>
           </div>
         </div>
-        <div id="modalVerifySecurityPin" class="oca-custom-modal-backdrop oca-formal-modal" style="display:none; padding:20px; z-index:10050;">
+        <div id="modalVerifySecurityPin" class="oca-custom-modal-backdrop oca-formal-modal" style="display:none; padding:20px; z-index:100050;">
           <div class="oca-custom-modal-box" style="max-width:420px; width:100%; border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1px solid rgba(239,68,68,0.55); background:#01241d; color:var(--text-main);">
             <div style="padding:16px 20px; border-bottom:1px solid rgba(239,68,68,0.3); display:flex; justify-content:space-between; align-items:center; background:rgba(239,68,68,0.14);">
               <div style="display:flex; align-items:center; gap:8px;">
@@ -27077,6 +27088,18 @@ body.printing-report #printReportContainer {
           })
           .on('broadcast', { event: 'staff_user_deleted' }, (payload) => {
             console.log('[Realtime Broadcast] Staff user deleted:', payload);
+            const data = (payload && payload.payload) ? payload.payload : payload;
+            const deletedUsername = String((data && data.username) || '').toLowerCase().trim();
+            const curU = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+            if (deletedUsername && curU && String(curU.username || '').toLowerCase().trim() === deletedUsername) {
+              if (typeof showToast === 'function') {
+                showToast('บัญชีถูกลบออกจากระบบ', 'ผู้ดูแลระบบได้ลบบัญชีของคุณ ระบบกำลังออกจากระบบทันที', '🔒');
+              }
+              setTimeout(() => {
+                if (typeof logoutStaff === 'function') logoutStaff(true);
+              }, 300);
+              return;
+            }
             if (typeof loadUsersList === 'function') loadUsersList(true, true);
             if (typeof populateClassroomInstructors === 'function') populateClassroomInstructors();
             if (typeof populateGlobalLecturerAndRoomDatalists === 'function') populateGlobalLecturerAndRoomDatalists();
@@ -29137,7 +29160,7 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
           } catch(e) {}
         }
         if (!isBrevoSent) {
-          if (window.OcaEmailAdmin && typeof window.OcaEmailAdmin.enqueueFailedEmail === 'function') {
+          if (!params._skipAutoEnqueue && !params.isRetry && window.OcaEmailAdmin && typeof window.OcaEmailAdmin.enqueueFailedEmail === 'function') {
             await window.OcaEmailAdmin.enqueueFailedEmail({
               kind: 'payment_confirmation',
               receiptNo: rcptNo,
@@ -32020,7 +32043,8 @@ if (action === 'getDashboardStats') {
             };
           }
           // Check Delivery vs Onsite
-          const isDelivery = rcpt.delivery_method === 'ส่งไปตามที่อยู่' || rcpt.delivery_method === 'ส่งตำรา';
+          const deliveryMethodNorm = String(rcpt.delivery_method || '').trim();
+          const isDelivery = deliveryMethodNorm === 'ส่งไปตามที่อยู่' || deliveryMethodNorm === 'ส่งตำรา' || deliveryMethodNorm === 'จัดส่งตามที่อยู่' || deliveryMethodNorm.includes('จัดส่ง');
           if (isDelivery) {
             return {
               success: false,
@@ -32131,30 +32155,43 @@ if (action === 'getDashboardStats') {
                   .in('key', targetKeys);
                 if (!tbFetchErr && Array.isArray(tbStockRows) && tbStockRows.length > 0) {
                   const nowIso = new Date().toISOString();
-                  const updates = [];
-                  tbStockRows.forEach(row => {
+                  for (const row of tbStockRows) {
                     const cleanId = row.key.replace(/^tb:/, '');
                     const matchedQty = parsedExtraBooks
                       .filter(b => String(b.id || b.code || '').replace(/^tb:/, '') === cleanId)
                       .reduce((s, b) => s + Math.max(1, Number(b.qty) || 1), 0);
-                    if (matchedQty > 0) {
-                      const modeParts = String(row.mode || '0').split('|');
+                    if (matchedQty <= 0) continue;
+                    let attemptsLeft = 2;
+                    let currentRow = row;
+                    while (attemptsLeft > 0) {
+                      attemptsLeft--;
+                      const rawMode = String(currentRow.mode || '0');
+                      const modeParts = rawMode.split('|');
                       const curStock = parseInt(modeParts[0], 10) || 0;
                       const linkedCourse = modeParts.length > 1 ? modeParts.slice(1).join('|').trim() : '';
                       const nextStock = Math.max(0, curStock - matchedQty);
                       const nextMode = (linkedCourse ? `${nextStock}|${linkedCourse}` : String(nextStock)).slice(0, 90);
-                      updates.push({
-                        key: row.key,
-                        name: String(row.name || cleanId).slice(0, 90),
-                        amount: Number(row.amount || 0),
-                        mode: nextMode,
-                        updated_at: nowIso
-                      });
+                      const { data: casUpdated, error: tbUpdErr } = await _supabase
+                        .from('fee_settings')
+                        .update({ mode: nextMode, updated_at: nowIso })
+                        .eq('key', currentRow.key)
+                        .eq('mode', rawMode)
+                        .select('key');
+                      if (tbUpdErr) {
+                        console.warn('[verifyAndClaimTextbook] tb:* stock deduction warning:', tbUpdErr);
+                        break;
+                      }
+                      if (Array.isArray(casUpdated) && casUpdated.length > 0) break;
+                      if (attemptsLeft > 0) {
+                        const { data: freshRow, error: freshErr } = await _supabase
+                          .from('fee_settings')
+                          .select('key, mode')
+                          .eq('key', currentRow.key)
+                          .maybeSingle();
+                        if (freshErr || !freshRow) break;
+                        currentRow = freshRow;
+                      }
                     }
-                  });
-                  if (updates.length > 0) {
-                    const { error: tbUpdErr } = await _supabase.from('fee_settings').upsert(updates, { onConflict: 'key' });
-                    if (tbUpdErr) console.warn('[verifyAndClaimTextbook] tb:* stock deduction warning:', tbUpdErr);
                   }
                 }
               }
@@ -32843,7 +32880,8 @@ if (action === 'getDashboardStats') {
           return { success: true };
         }
         if (action === 'saveStaffAvatar') {
-          const uK = (params.username || params.key || '').replace(/^staff_avatar:/, '').toLowerCase().trim();
+          const rawAvKey = (params.username || params.key || '').replace(/^staff_avatar:/, '').toLowerCase().trim();
+          const uK = (typeof getSafeStaffAvatarKey === 'function') ? getSafeStaffAvatarKey(rawAvKey) : rawAvKey;
           const avVal = params.avatarData || params.mode || params.name || '';
           if (avVal === 'DELETED' || !avVal) {
             const { error: delAvErr } = await _supabase.from('fee_settings').delete().eq('key', 'staff_avatar:' + uK);
@@ -32871,7 +32909,8 @@ if (action === 'getDashboardStats') {
         }
         if (action === 'saveFeeSettings') {
           if (params.key && typeof params.key === 'string' && params.key.startsWith('staff_avatar:')) {
-            const uK = params.key.replace('staff_avatar:', '').toLowerCase().trim();
+            const rawAvFeeKey = params.key.replace('staff_avatar:', '').toLowerCase().trim();
+            const uK = (typeof getSafeStaffAvatarKey === 'function') ? getSafeStaffAvatarKey(rawAvFeeKey) : rawAvFeeKey;
             const avVal = params.mode || params.name || params.avatarData || '';
             if (avVal === 'DELETED' || !avVal) {
               const { error: delAvFeeErr } = await _supabase.from('fee_settings').delete().eq('key', 'staff_avatar:' + uK);
@@ -33633,6 +33672,7 @@ if (action === 'getDashboardStats') {
                 localStorage.setItem('oca_user_perms_' + uname.toLowerCase(), JSON.stringify(uperms));
               } catch (_) {}
               updateData.permissions = JSON.stringify(uperms);
+              rpcUserData.permissions = updateData.permissions;
             }
             const cleanUsername = uname.toLowerCase().trim();
             const assignedScheduleVal = String(uObj.assignedSchedule || uObj.assigned_schedule || params.assignedSchedule || params.assigned_schedule || 'ALL').trim().slice(0, 90) || 'ALL';
@@ -33731,13 +33771,27 @@ if (action === 'getDashboardStats') {
               return { success: false, message: `ไม่อนุญาตให้ลบบัญชีเจ้าหน้าที่หลักของระบบ (${uname})` };
             }
             const cleanDelUser = uname.toLowerCase().trim();
+            const safeDelAvatarKey = (typeof getSafeStaffAvatarKey === 'function') ? getSafeStaffAvatarKey(cleanDelUser) : cleanDelUser;
             const cleanupTeacherSched = async () => {
               const { error: delTsErr } = await _supabase.from('fee_settings').delete().eq('key', 'teacher_sched_' + cleanDelUser);
               if (delTsErr) throw delTsErr;
+              const extraKeysToPurge = Array.from(new Set([
+                'session:' + cleanDelUser,
+                'staff_avatar:' + safeDelAvatarKey,
+                'staff_avatar:' + cleanDelUser
+              ]));
+              const { error: delExtraErr } = await _supabase.from('fee_settings').delete().in('key', extraKeysToPurge);
+              if (delExtraErr) console.warn('[deleteUser] cleanup extra fee_settings warning:', delExtraErr);
               if (window._ocaTeacherScheduleMap) delete window._ocaTeacherScheduleMap[cleanDelUser];
+              if (typeof _ocaStaffAvatars !== 'undefined' && _ocaStaffAvatars) {
+                delete _ocaStaffAvatars[cleanDelUser];
+                delete _ocaStaffAvatars[safeDelAvatarKey];
+              }
               try {
                 localStorage.removeItem('oca_teacher_sched_' + cleanDelUser);
                 if (uname !== cleanDelUser) localStorage.removeItem('oca_teacher_sched_' + uname);
+                localStorage.removeItem('oca_staff_avatar_' + cleanDelUser);
+                localStorage.removeItem('oca_staff_avatar_' + safeDelAvatarKey);
               } catch (_) {}
             };
             const logUserDeletedAudit = async (modeLabel) => {
@@ -35521,6 +35575,11 @@ if (action === 'getDashboardStats') {
         };
         img.src = e.target.result;
       };
+      reader.onerror = function() {
+        if (typeof showModal === 'function') {
+          showModal('อ่านไฟล์รูปภาพไม่สำเร็จ', 'ไม่สามารถเปิดอ่านไฟล์รูปภาพที่เลือกได้ กรุณาลองเลือกไฟล์ใหม่หรือใช้ไฟล์ JPG/PNG อื่น', '⚠️');
+        }
+      };
       reader.readAsDataURL(file);
     }
     /**
@@ -35551,6 +35610,11 @@ if (action === 'getDashboardStats') {
       };
       reader.onerror = function() {
         if (overlay) overlay.style.display = 'none';
+      };
+      reader.onerror = function() {
+        if (typeof showModal === 'function') {
+          showModal('อ่านไฟล์รูปภาพไม่สำเร็จ', 'ไม่สามารถเปิดอ่านไฟล์รูปภาพที่เลือกได้ กรุณาลองเลือกไฟล์ใหม่หรือใช้ไฟล์ JPG/PNG อื่น', '⚠️');
+        }
       };
       reader.readAsDataURL(file);
       input.value = '';
@@ -36149,38 +36213,41 @@ if (action === 'getDashboardStats') {
         }
       }
       const tensor = new ort.Tensor('float32', tensorData, [1, 3, MODNET_IN_H, MODNET_IN_W]);
-      const [results, mpAlpha] = await Promise.all([
-        session.run({ input: tensor }),
-        mpPromise
-      ]);
-      const rawMatte = results[Object.keys(results)[0]].data;
-      // Bilinear upscale matte from 512x672 back to target dimensions (e.g. 600x800)
+      let results = null;
+      let mpAlpha = null;
       const mSmallCanvas = document.createElement('canvas');
-      mSmallCanvas.width = MODNET_IN_W;
-      mSmallCanvas.height = MODNET_IN_H;
-      const mSmallCtx = mSmallCanvas.getContext('2d');
-      const mSmallImg = mSmallCtx.createImageData(MODNET_IN_W, MODNET_IN_H);
-      for (let i = 0; i < P; i++) {
-        const v = Math.round(Math.min(1, Math.max(0, rawMatte[i])) * 255);
-        mSmallImg.data[i * 4] = v;
-        mSmallImg.data[i * 4 + 1] = v;
-        mSmallImg.data[i * 4 + 2] = v;
-        mSmallImg.data[i * 4 + 3] = 255;
-      }
-      mSmallCtx.putImageData(mSmallImg, 0, 0);
       const mTargetCanvas = document.createElement('canvas');
-      mTargetCanvas.width = w;
-      mTargetCanvas.height = h;
-      const mTargetCtx = mTargetCanvas.getContext('2d');
-      mTargetCtx.imageSmoothingEnabled = true;
-      mTargetCtx.imageSmoothingQuality = 'high';
-      mTargetCtx.drawImage(mSmallCanvas, 0, 0, w, h);
-      const alphaPixels = mTargetCtx.getImageData(0, 0, w, h).data;
-      const N = w * h;
-      const alphaArr = new Float32Array(N);
-      for (let i = 0; i < N; i++) {
-        alphaArr[i] = alphaPixels[i * 4] / 255;
-      }
+      try {
+        [results, mpAlpha] = await Promise.all([
+          session.run({ input: tensor }),
+          mpPromise
+        ]);
+        const rawMatte = results[Object.keys(results)[0]].data;
+        // Bilinear upscale matte from 512x672 back to target dimensions (e.g. 600x800)
+        mSmallCanvas.width = MODNET_IN_W;
+        mSmallCanvas.height = MODNET_IN_H;
+        const mSmallCtx = mSmallCanvas.getContext('2d');
+        const mSmallImg = mSmallCtx.createImageData(MODNET_IN_W, MODNET_IN_H);
+        for (let i = 0; i < P; i++) {
+          const v = Math.round(Math.min(1, Math.max(0, rawMatte[i])) * 255);
+          mSmallImg.data[i * 4] = v;
+          mSmallImg.data[i * 4 + 1] = v;
+          mSmallImg.data[i * 4 + 2] = v;
+          mSmallImg.data[i * 4 + 3] = 255;
+        }
+        mSmallCtx.putImageData(mSmallImg, 0, 0);
+        mTargetCanvas.width = w;
+        mTargetCanvas.height = h;
+        const mTargetCtx = mTargetCanvas.getContext('2d');
+        mTargetCtx.imageSmoothingEnabled = true;
+        mTargetCtx.imageSmoothingQuality = 'high';
+        mTargetCtx.drawImage(mSmallCanvas, 0, 0, w, h);
+        const alphaPixels = mTargetCtx.getImageData(0, 0, w, h).data;
+        const N = w * h;
+        const alphaArr = new Float32Array(N);
+        for (let i = 0; i < N; i++) {
+          alphaArr[i] = alphaPixels[i * 4] / 255;
+        }
       // Parse target background hex color (default #800000 maroon)
       let bgR = 128, bgG = 0, bgB = 0;
       if (targetBgColor && typeof targetBgColor === 'string' && targetBgColor.startsWith('#')) {
@@ -36259,6 +36326,13 @@ if (action === 'getDashboardStats') {
       applyStudioEdgeRefinementAndComposite(srcPixels, alphaArr, w, h, refR, refG, refB, isBackdropBlue, isBackdropGreen, bg, outPixels, exteriorBg, isUniformBackdrop);
       outCtx.putImageData(outImgData, 0, 0);
       return outCanvas;
+      } finally {
+        try { if (tensor && typeof tensor.dispose === 'function') tensor.dispose(); } catch (_) {}
+        try { tCanvas.width = 0; tCanvas.height = 0; } catch (_) {}
+        try { mSmallCanvas.width = 0; mSmallCanvas.height = 0; } catch (_) {}
+        try { mTargetCanvas.width = 0; mTargetCanvas.height = 0; } catch (_) {}
+        try { if (aiCanvas && aiCanvas !== srcCanvas) { aiCanvas.width = 0; aiCanvas.height = 0; } } catch (_) {}
+      }
     }
     window.renderModnetMatting = renderModnetMatting;
     // =========================================================================
@@ -36280,46 +36354,59 @@ if (action === 'getDashboardStats') {
             outputCategoryMask: false,
             outputConfidenceMasks: true
           });
-        })();
+        })().catch(err => {
+          _mediaPipeSegmenterPromise = null;
+          throw err;
+        });
       }
       return _mediaPipeSegmenterPromise;
     }
     async function getMediaPipeAlphaMask(srcCanvas, w = 600, h = 800, preparedAiCanvas = null) {
       const segmenter = await getMediaPipeSegmenter();
       const aiCanvas = preparedAiCanvas || normalizeCanvasForAiMatting(srcCanvas);
-      const result = segmenter.segment(aiCanvas);
-      const confMask = result.confidenceMasks[0];
-      const mw = confMask.width;
-      const mh = confMask.height;
+      let result = null;
+      let confMask = null;
       const maskCanvas = document.createElement('canvas');
-      maskCanvas.width = mw;
-      maskCanvas.height = mh;
-      const mCtx = maskCanvas.getContext('2d');
-      const mImg = mCtx.createImageData(mw, mh);
-      const confData = confMask.getAsFloat32Array();
-      for (let i = 0; i < confData.length; i++) {
-        const v = Math.round(Math.min(1, Math.max(0, confData[i])) * 255);
-        mImg.data[i * 4] = v;
-        mImg.data[i * 4 + 1] = v;
-        mImg.data[i * 4 + 2] = v;
-        mImg.data[i * 4 + 3] = 255;
-      }
-      mCtx.putImageData(mImg, 0, 0);
-      // High-quality upscale to target dimensions
       const upCanvas = document.createElement('canvas');
-      upCanvas.width = w;
-      upCanvas.height = h;
-      const upCtx = upCanvas.getContext('2d');
-      upCtx.imageSmoothingEnabled = true;
-      upCtx.imageSmoothingQuality = 'high';
-      upCtx.drawImage(maskCanvas, 0, 0, w, h);
-      const alphaPixels = upCtx.getImageData(0, 0, w, h).data;
-      const N = w * h;
-      const alphaArr = new Float32Array(N);
-      for (let i = 0; i < N; i++) {
-        alphaArr[i] = alphaPixels[i * 4] / 255;
+      try {
+        result = segmenter.segment(aiCanvas);
+        confMask = result.confidenceMasks[0];
+        const mw = confMask.width;
+        const mh = confMask.height;
+        maskCanvas.width = mw;
+        maskCanvas.height = mh;
+        const mCtx = maskCanvas.getContext('2d');
+        const mImg = mCtx.createImageData(mw, mh);
+        const confData = confMask.getAsFloat32Array();
+        for (let i = 0; i < confData.length; i++) {
+          const v = Math.round(Math.min(1, Math.max(0, confData[i])) * 255);
+          mImg.data[i * 4] = v;
+          mImg.data[i * 4 + 1] = v;
+          mImg.data[i * 4 + 2] = v;
+          mImg.data[i * 4 + 3] = 255;
+        }
+        mCtx.putImageData(mImg, 0, 0);
+        // High-quality upscale to target dimensions
+        upCanvas.width = w;
+        upCanvas.height = h;
+        const upCtx = upCanvas.getContext('2d');
+        upCtx.imageSmoothingEnabled = true;
+        upCtx.imageSmoothingQuality = 'high';
+        upCtx.drawImage(maskCanvas, 0, 0, w, h);
+        const alphaPixels = upCtx.getImageData(0, 0, w, h).data;
+        const N = w * h;
+        const alphaArr = new Float32Array(N);
+        for (let i = 0; i < N; i++) {
+          alphaArr[i] = alphaPixels[i * 4] / 255;
+        }
+        return alphaArr;
+      } finally {
+        try { if (confMask && typeof confMask.close === 'function') confMask.close(); } catch (_) {}
+        try { if (result && typeof result.close === 'function') result.close(); } catch (_) {}
+        try { maskCanvas.width = 0; maskCanvas.height = 0; } catch (_) {}
+        try { upCanvas.width = 0; upCanvas.height = 0; } catch (_) {}
+        try { if (!preparedAiCanvas && aiCanvas && aiCanvas !== srcCanvas) { aiCanvas.width = 0; aiCanvas.height = 0; } } catch (_) {}
       }
-      return alphaArr;
     }
     async function renderMediaPipeMatting(srcCanvas, targetBgColor, w = 600, h = 800) {
       const alphaArr = await getMediaPipeAlphaMask(srcCanvas, w, h);
@@ -38458,6 +38545,11 @@ if (action === 'getDashboardStats') {
           }
         }
       };
+      reader.onerror = function() {
+        if (typeof showModal === 'function') {
+          showModal('อ่านไฟล์รูปภาพไม่สำเร็จ', 'ไม่สามารถเปิดอ่านไฟล์รูปภาพที่เลือกได้ กรุณาลองเลือกไฟล์ใหม่หรือใช้ไฟล์ JPG/PNG อื่น', '⚠️');
+        }
+      };
       reader.readAsDataURL(file);
     }
     window.handleEnrollSlipUpload = handleEnrollSlipUpload;
@@ -40499,6 +40591,11 @@ if (action === 'getDashboardStats') {
         };
         img.src = evt.target.result;
       };
+      reader.onerror = function() {
+        if (typeof showModal === 'function') {
+          showModal('อ่านไฟล์รูปภาพไม่สำเร็จ', 'ไม่สามารถเปิดอ่านไฟล์รูปภาพที่เลือกได้ กรุณาลองเลือกไฟล์ใหม่หรือใช้ไฟล์ JPG/PNG อื่น', '⚠️');
+        }
+      };
       reader.readAsDataURL(file);
     }
     function updateEditPhotoPreview(dataUri) {
@@ -40913,7 +41010,10 @@ if (action === 'getDashboardStats') {
       const note = (document.getElementById('inpShiftClosingNote')?.value || '').trim();
       const variance = physicalCash - st.cashTotal;
       const shiftKey = `shift_close_${st.yyyymmdd}`;
-      const summaryName = `Cash:${st.cashTotal}|QR:${st.transferTotal}|CC:${st.creditCardTotal || 0}|Net:${st.netRevenue}|Var:${variance}`.slice(0, 90);
+      const varSuffix = `|Var:${variance}`;
+      const summaryPrefix = `Cash:${st.cashTotal}|QR:${st.transferTotal}|CC:${st.creditCardTotal || 0}|Net:${st.netRevenue}`;
+      const maxPrefixLen = Math.max(0, 90 - varSuffix.length);
+      const summaryName = (summaryPrefix.slice(0, maxPrefixLen) + varSuffix).slice(0, 90);
       if (btn) btn.disabled = true;
       try {
         if (typeof _supabase === 'undefined' || !_supabase) throw new Error('ไม่พบการเชื่อมต่อฐานข้อมูล');
@@ -41269,6 +41369,16 @@ if (action === 'getDashboardStats') {
           if (e.key === 'Escape') cleanup(false);
         };
         const handleVerify = async () => {
+          const nowLock = Date.now();
+          const lockUntil = Number(window._ocaPinLockoutUntil || 0);
+          if (lockUntil > nowLock) {
+            const remSec = Math.ceil((lockUntil - nowLock) / 1000);
+            if (errEl) {
+              errEl.textContent = `กรอกรหัส PIN ผิดเกินกำหนด กรุณารออีก ${remSec} วินาที`;
+              errEl.style.display = 'block';
+            }
+            return;
+          }
           const pin = (inpEl.value || '').trim();
           if (!pin) {
             if (errEl) {
@@ -41282,11 +41392,20 @@ if (action === 'getDashboardStats') {
           try {
             const res = await callGasApi('verifySecurityPin', { pin }, 'POST');
             if (res && res.success) {
+              window._ocaPinFailCount = 0;
+              window._ocaPinLockoutUntil = 0;
               cleanup(true);
               return;
             }
+            window._ocaPinFailCount = Number(window._ocaPinFailCount || 0) + 1;
+            if (window._ocaPinFailCount >= 5) {
+              window._ocaPinLockoutUntil = Date.now() + 60000;
+              window._ocaPinFailCount = 0;
+            }
             if (errEl) {
-              errEl.textContent = (res && res.message) || 'รหัส PIN ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
+              errEl.textContent = window._ocaPinLockoutUntil > Date.now()
+                ? 'กรอกรหัส PIN ผิดครบ 5 ครั้ง ระบบระงับการตรวจสอบชั่วคราว 60 วินาที'
+                : ((res && res.message) || 'รหัส PIN ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
               errEl.style.display = 'block';
             }
             try {
@@ -41340,6 +41459,13 @@ if (action === 'getDashboardStats') {
       if (p1 !== p2) {
         showModal('รหัส PIN ไม่ตรงกัน', 'กรุณากรอกรหัส PIN ใหม่และยืนยันให้ตรงกัน', '⚠️');
         return;
+      }
+      if (typeof window.requireSecurityPinVerification === 'function') {
+        const curVerified = await window.requireSecurityPinVerification(
+          'ยืนยันรหัส PIN ปัจจุบัน',
+          'กรุณากรอกรหัส PIN ความปลอดภัยเดิมก่อนบันทึกรหัส PIN ใหม่'
+        );
+        if (!curVerified) return;
       }
       if (btn) btn.disabled = true;
       try {
@@ -51133,6 +51259,11 @@ if (action === 'getDashboardStats') {
           }
         }
       };
+      reader.onerror = function() {
+        if (typeof showModal === 'function') {
+          showModal('อ่านไฟล์รูปภาพไม่สำเร็จ', 'ไม่สามารถเปิดอ่านไฟล์รูปภาพที่เลือกได้ กรุณาลองเลือกไฟล์ใหม่หรือใช้ไฟล์ JPG/PNG อื่น', '⚠️');
+        }
+      };
       reader.readAsDataURL(file);
     }
     function onMifareUidChanged(val) {
@@ -51356,15 +51487,20 @@ if (action === 'getDashboardStats') {
       } catch (_) {}
       // Trigger print after micro-delay
       setTimeout(() => {
-        window.print();
+        let fallbackTimer = null;
         const cleanup = () => {
+          if (fallbackTimer) {
+            clearTimeout(fallbackTimer);
+            fallbackTimer = null;
+          }
           document.body.classList.remove('printing-cr80-card');
           if (printContainer) printContainer.innerHTML = '';
           if (pageStyleEl && pageStyleEl.parentNode) pageStyleEl.parentNode.removeChild(pageStyleEl);
           window.removeEventListener('afterprint', cleanup);
         };
-        window.addEventListener('afterprint', cleanup);
-        setTimeout(cleanup, 1200);
+        window.addEventListener('afterprint', cleanup, { once: true });
+        fallbackTimer = setTimeout(cleanup, 15000);
+        window.print();
       }, 150);
     }
     function escapeHtml(str) {
@@ -54690,10 +54826,18 @@ if (action === 'getDashboardStats') {
         }
       }
       document.body.classList.add('printing-receipt');
-      window.print();
-      setTimeout(() => {
+      let rcptFallbackTimer = null;
+      const cleanupReceiptPrint = () => {
+        if (rcptFallbackTimer) {
+          clearTimeout(rcptFallbackTimer);
+          rcptFallbackTimer = null;
+        }
         document.body.classList.remove('printing-receipt');
-      }, 1200);
+        window.removeEventListener('afterprint', cleanupReceiptPrint);
+      };
+      window.addEventListener('afterprint', cleanupReceiptPrint, { once: true });
+      rcptFallbackTimer = setTimeout(cleanupReceiptPrint, 15000);
+      window.print();
     }
     function resetReceiptForm() {
       window._frozenReceiptPreview = false;
@@ -57510,6 +57654,11 @@ if (action === 'getDashboardStats') {
         };
         img.src = e.target.result;
       };
+      reader.onerror = function() {
+        if (typeof showModal === 'function') {
+          showModal('อ่านไฟล์รูปภาพไม่สำเร็จ', 'ไม่สามารถเปิดอ่านไฟล์รูปภาพที่เลือกได้ กรุณาลองเลือกไฟล์ใหม่หรือใช้ไฟล์ JPG/PNG อื่น', '⚠️');
+        }
+      };
       reader.readAsDataURL(file);
       event.target.value = '';
     }
@@ -57830,7 +57979,7 @@ if (action === 'getDashboardStats') {
     function handleScannedQrToken(rawToken, opts = {}) {
       const isConfirmCommit = Boolean(opts && opts.confirmCommit);
       const now = Date.now();
-      if (!isConfirmCommit && (tbScanInFlight || (rawToken === tbLastScannedToken && now - tbLastScanTime < 2500))) {
+      if (tbScanInFlight || (!isConfirmCommit && rawToken === tbLastScannedToken && now - tbLastScanTime < 2500)) {
         return;
       }
       tbLastScannedToken = rawToken;
@@ -64976,6 +65125,17 @@ if (action === 'getDashboardStats') {
       const u = String(user.username || '').toLowerCase().trim();
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
+          // 0. ตรวจสอบสถานะบัญชีพนักงานจาก DB เพื่อบังคับออกจากระบบทันทีหากถูกลบหรือระงับใช้งาน
+          const { data: staffStatusRow, error: staffStatusErr } = await _supabase
+            .from('staff_users')
+            .select('username, is_active')
+            .ilike('username', u)
+            .maybeSingle();
+          if (!staffStatusErr && (!staffStatusRow || staffStatusRow.is_active === false)) {
+            console.warn('[Session Security] User deleted or suspended in DB:', u);
+            if (typeof logoutStaff === 'function') logoutStaff(true);
+            return;
+          }
           const { data, error } = await _supabase
             .from('fee_settings')
             .select('name, mode, updated_at')
@@ -64986,15 +65146,22 @@ if (action === 'getDashboardStats') {
                                 (user && user.sessionId) || '';
             const myDeviceId = (typeof getOrCreateDeviceId === 'function') ? getOrCreateDeviceId() : '';
             const cloudDeviceId = String(data.mode || '').trim();
-            // 1. เครื่องเดียวกัน (Self-Device) -> ซิงค์ Session ID แล้วทำงานต่อตามปกติ
+            const cloudUpdatedAt = data.updated_at ? new Date(data.updated_at).getTime() : 0;
+            const now = Date.now();
+            // 1. เครื่องเดียวกัน (Self-Device) -> ซิงค์ Session ID และส่ง Heartbeat เมื่อเกิน 90 วินาที
             if (cloudDeviceId && myDeviceId && cloudDeviceId === myDeviceId) {
+              const activeSid = data.name || mySessionId;
               if (data.name && data.name !== mySessionId) {
                 sessionStorage.setItem('oca_active_session_id', data.name);
               }
+              if (!cloudUpdatedAt || (now - cloudUpdatedAt > 90000)) {
+                const { error: hbErr } = await _supabase
+                  .from('fee_settings')
+                  .upsert([{ key: 'session:' + u, name: String(activeSid || '').slice(0, 90), mode: myDeviceId, amount: 0, updated_at: new Date().toISOString() }], { onConflict: 'key' });
+                if (hbErr) console.warn('[Session Heartbeat Error]:', hbErr.message);
+              }
               return;
             }
-            const cloudUpdatedAt = data.updated_at ? new Date(data.updated_at).getTime() : 0;
-            const now = Date.now();
             // 2. ถ้าข้อมูลใน Cloud เก่ากว่า 5 นาที (300,000 ms) ถือว่าเป็นเซสชันที่ปิดไปแล้วในอดีต (Inactive/Dead Session)
             // ให้เครื่องปัจจุบันครอบครองเซสชันทันที ไม่เตะออก
             if (!cloudUpdatedAt || (now - cloudUpdatedAt > 300000)) {
@@ -65163,7 +65330,34 @@ if (action === 'getDashboardStats') {
      * นำสิทธิ์ของผู้ใช้มาปรับปรุงการแสดงผลเมนูบน Sidebar และ Topbar
      */
     function applyUserPermissions(user) {
-      if (!user) return;
+      if (!user) {
+        const defaultSvg = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+        const nameEl = document.getElementById('topbarUserName');
+        const roleEl = document.getElementById('topbarUserRole');
+        const sNameEl = document.getElementById('sidebarUserName');
+        const sRoleEl = document.getElementById('sidebarUserRole');
+        const topbarAvatarEl = document.getElementById('topbarUserAvatar');
+        const sidebarAvatarEl = document.getElementById('sidebarUserAvatar');
+        if (nameEl) nameEl.textContent = 'ผู้ใช้งาน';
+        if (roleEl) roleEl.textContent = 'Staff';
+        if (sNameEl) sNameEl.textContent = 'ผู้ใช้งาน';
+        if (sRoleEl) sRoleEl.textContent = 'Staff';
+        if (topbarAvatarEl) topbarAvatarEl.innerHTML = defaultSvg;
+        if (sidebarAvatarEl) sidebarAvatarEl.innerHTML = defaultSvg;
+        isReportSecurityUnlocked = false;
+        const resetMenuIds = ['btnNavDash', 'btnNavEnroll', 'btnNavSearch', 'btnNavCourses', 'btnNavTeacher', 'btnNavCard', 'btnNavReceipts', 'btnNavFinancial', 'btnNavTextbooks', 'btnNavShipping', 'btnNavReport', 'btnNavSettings'];
+        resetMenuIds.forEach(btnId => {
+          const btn = document.getElementById(btnId);
+          if (btn) {
+            btn.style.display = 'none';
+            const parentLi = btn.closest('li');
+            if (parentLi && !parentLi.classList.contains('oca-sidebar-group')) {
+              parentLi.style.display = 'none';
+            }
+          }
+        });
+        return;
+      }
       // ปรับปรุง Topbar แสดงชื่อและบทบาท
       const nameEl = document.getElementById('topbarUserName');
       const roleEl = document.getElementById('topbarUserRole');
@@ -65655,7 +65849,7 @@ if (action === 'getDashboardStats') {
         rememberDevice,
         sessionId: newSessionId
       }, 'POST')
-      .then(res => {
+      .then(async res => {
         if (btnSubmit) {
           btnSubmit.disabled = false;
           btnSubmit.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ (Sign In)';
@@ -65664,27 +65858,28 @@ if (action === 'getDashboardStats') {
           // Security Layer 1: Reset lockout counter on success
           localStorage.removeItem('oca_login_attempts');
           localStorage.removeItem('oca_login_lockout_until');
-          // Generate unique session identifier for 1-Device Enforcer
-        const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-        const nowTs = String(Date.now());
-        sessionStorage.setItem('oca_active_session_id', newSessionId);
-        sessionStorage.setItem('oca_session_start_time', nowTs);
-        sessionStorage.setItem('oca_entered_dashboard', 'true');
-        sessionStorage.setItem('oca_session_alive', '1');
-        localStorage.removeItem('oca_active_session_id');
-        localStorage.removeItem('oca_session_start_time');
+          // Reuse single unique session identifier for 1-Device Enforcer
+          const activeSessionId = res.user.sessionId || newSessionId;
+          res.user.sessionId = activeSessionId;
+          const nowTs = String(Date.now());
+          sessionStorage.setItem('oca_active_session_id', activeSessionId);
+          sessionStorage.setItem('oca_session_start_time', nowTs);
+          sessionStorage.setItem('oca_entered_dashboard', 'true');
+          sessionStorage.setItem('oca_session_alive', '1');
+          localStorage.removeItem('oca_active_session_id');
+          localStorage.removeItem('oca_session_start_time');
           if (usernameInput) usernameInput.value = '';
-        if (passwordInput) passwordInput.value = '';
-        saveCurrentUser(res.user);
-        applyUserPermissions(res.user);
-        _lastCoursesManagerLoadedAt = 0;
-        if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
-        if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus('silent');
-        setTimeout(() => { if (typeof initStaffAvatarsCloud === 'function') initStaffAvatarsCloud(); }, 180);
-        setTimeout(() => { if (typeof hydrateTeacherSchedulesFromSupabase === 'function') hydrateTeacherSchedulesFromSupabase(); }, 340);
+          if (passwordInput) passwordInput.value = '';
+          saveCurrentUser(res.user);
+          applyUserPermissions(res.user);
+          _lastCoursesManagerLoadedAt = 0;
+          if (typeof loadCoursesManager === 'function') loadCoursesManager(false, true);
+          if (typeof loadAllStudentsStatus === 'function') loadAllStudentsStatus('silent');
+          setTimeout(() => { if (typeof initStaffAvatarsCloud === 'function') initStaffAvatarsCloud(); }, 180);
+          setTimeout(() => { if (typeof hydrateTeacherSchedulesFromSupabase === 'function') hydrateTeacherSchedulesFromSupabase(); }, 340);
           // Authoritative Cloud Single-Session Registration & Broadcast Kick
           if (typeof registerStaffActiveSession === 'function') {
-            registerStaffActiveSession(res.user.username, newSessionId, deviceId);
+            await registerStaffActiveSession(res.user.username, activeSessionId, deviceId);
           }
           // ซ่อนหน้า Split Login และปลดล็อกแอปพลิเคชัน
           teardownLoginAnalyticsChannel();
@@ -67099,7 +67294,7 @@ if (action === 'getDashboardStats') {
             showToast('บัญชีถูกระงับการใช้งาน', 'ผู้ดูแลระบบได้ระงับบัญชีของคุณ ระบบจะออกจากระบบทันที', '🔒');
           }
           setTimeout(() => {
-            if (typeof logoutStaff === 'function') logoutStaff();
+            if (typeof logoutStaff === 'function') logoutStaff(true);
           }, 800);
           return;
         }
@@ -67212,6 +67407,11 @@ if (action === 'getDashboardStats') {
           }
         };
         img.src = e.target.result;
+      };
+      reader.onerror = function() {
+        if (typeof showModal === 'function') {
+          showModal('อ่านไฟล์รูปภาพไม่สำเร็จ', 'ไม่สามารถเปิดอ่านไฟล์รูปภาพที่เลือกได้ กรุณาลองเลือกไฟล์ใหม่หรือใช้ไฟล์ JPG/PNG อื่น', '⚠️');
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -67493,15 +67693,21 @@ if (action === 'getDashboardStats') {
             }
             // บันทึกรูปโปรไฟล์ลง fee_settings และ localStorage
             const avVal = document.getElementById('inpModalUserAvatarData')?.value;
-            const uK = username.toLowerCase().trim();
-            let finalAvatarUrl = (_ocaStaffAvatars && _ocaStaffAvatars[uK]) || localStorage.getItem('oca_staff_avatar_' + uK) || '';
+            const uK = (typeof getSafeStaffAvatarKey === 'function') ? getSafeStaffAvatarKey(username) : username.toLowerCase().trim();
+            const rawUK = username.toLowerCase().trim();
+            let finalAvatarUrl = (_ocaStaffAvatars && (_ocaStaffAvatars[uK] || _ocaStaffAvatars[rawUK])) || localStorage.getItem('oca_staff_avatar_' + uK) || localStorage.getItem('oca_staff_avatar_' + rawUK) || '';
             if (avVal === 'DELETED') {
               finalAvatarUrl = '';
-              try { localStorage.removeItem('oca_staff_avatar_' + uK); } catch(_) {}
-              if (typeof _ocaStaffAvatars !== 'undefined') delete _ocaStaffAvatars[uK];
+              try {
+                localStorage.removeItem('oca_staff_avatar_' + uK);
+                localStorage.removeItem('oca_staff_avatar_' + rawUK);
+              } catch(_) {}
+              if (typeof _ocaStaffAvatars !== 'undefined') {
+                delete _ocaStaffAvatars[uK];
+                delete _ocaStaffAvatars[rawUK];
+              }
               if (typeof callGasApi === 'function') {
-                callGasApi('saveStaffAvatar', { username: uK, avatarData: 'DELETED' }, 'POST').catch(() => {});
-                callGasApi('saveFeeSettings', { key: 'staff_avatar:' + uK, mode: '', value: 0 }, 'POST').catch(() => {});
+                callGasApi('saveStaffAvatar', { username: uK, avatarData: 'DELETED' }, 'POST').catch(err => console.warn('saveStaffAvatar delete warn:', err));
               }
               if (typeof _ocaRealtimeChannel !== 'undefined' && _ocaRealtimeChannel && typeof _ocaRealtimeChannel.send === 'function') {
                 try {
@@ -67524,9 +67730,8 @@ if (action === 'getDashboardStats') {
                 finalAvatarUrl = avVal;
               }
               if (typeof _ocaStaffAvatars !== 'undefined') _ocaStaffAvatars[uK] = finalAvatarUrl;
-              if (typeof callGasApi === 'function') {
-                callGasApi('saveStaffAvatar', { username: uK, avatarData: finalAvatarUrl }, 'POST').catch(() => {});
-                callGasApi('saveFeeSettings', { key: 'staff_avatar:' + uK, mode: finalAvatarUrl.slice(0, 90), value: 0 }, 'POST').catch(() => {});
+              if (typeof callGasApi === 'function' && finalAvatarUrl && finalAvatarUrl.startsWith('avatars/')) {
+                callGasApi('saveStaffAvatar', { username: uK, avatarData: finalAvatarUrl }, 'POST').catch(err => console.warn('saveStaffAvatar save warn:', err));
               }
               if (typeof _ocaRealtimeChannel !== 'undefined' && _ocaRealtimeChannel && typeof _ocaRealtimeChannel.send === 'function') {
                 try {
@@ -68807,6 +69012,9 @@ if (action === 'getDashboardStats') {
             item._retryCount = (item._retryCount || 0) + 1;
             if (item._retryCount >= 5) {
               console.warn('[OfflineSync] Dropping poison-pill outbox item after 5 attempts:', item.id, res);
+              if (typeof showToast === 'function') {
+                showToast('ซิงก์รายการออฟไลน์ไม่สำเร็จ (เกิน 5 ครั้ง)', `รายการ ${item.action || item.id} ถูกนำออกจากคิว กรุณาตรวจสอบข้อมูล`, '⚠️', 6000);
+              }
               await OcaOfflineDB.deleteOutbox(item.id);
             } else {
               await OcaOfflineDB.updateOutboxItem(item);
@@ -68820,6 +69028,9 @@ if (action === 'getDashboardStats') {
           item._retryCount = (item._retryCount || 0) + 1;
           if (item._retryCount >= 5) {
             console.warn('[OfflineSync] Dropping permanent-fail outbox item after 5 attempts:', item.id);
+            if (typeof showToast === 'function') {
+              showToast('ซิงก์รายการออฟไลน์ไม่สำเร็จ (เกิน 5 ครั้ง)', `รายการ ${item.action || item.id} ถูกนำออกจากคิว กรุณาตรวจสอบข้อมูล`, '⚠️', 6000);
+            }
             await OcaOfflineDB.deleteOutbox(item.id);
           } else {
             await OcaOfflineDB.updateOutboxItem(item);
@@ -70693,6 +70904,25 @@ if (action === 'getDashboardStats') {
       btn.style.display = (!isStep0Visible && isFormVisible && isStep1Visible && isNewMode) ? 'inline-flex' : 'none';
     }
     window.syncTopClearRegisterBtnVisibility = syncTopClearRegisterBtnVisibility;
+    function validatePubRegStep1Phones(ph, emPh) {
+      const phDigits = String(ph || '').replace(/[-\s()+]/g, '');
+      const idType = document.getElementById('pubIdType')?.value || 'thai';
+      const isPhValid = (idType === 'passport') ? /^\d{8,15}$/.test(phDigits) : /^0\d{8,9}$/.test(phDigits);
+      if (!isPhValid) {
+        if (typeof showToast === 'function') {
+          showToast('เบอร์โทรศัพท์ไม่ถูกต้อง', idType === 'passport' ? 'กรุณากรอกเบอร์โทรศัพท์ 8-15 หลัก (ตัวเลข)' : 'กรุณากรอกเบอร์โทรศัพท์ขึ้นต้นด้วย 0 จำนวน 9-10 หลัก (เช่น 0812345678)', 'warning');
+        }
+        document.getElementById('txtPubPhone')?.focus();
+        return false;
+      }
+      const emDigits = String(emPh || '').replace(/[-\s()+]/g, '');
+      if (!emDigits || emDigits.length < (idType === 'passport' ? 8 : 9)) {
+        if (typeof showToast === 'function') showToast('กรุณากรอกเบอร์ติดต่อฉุกเฉิน', 'โปรดระบุเบอร์ติดต่อฉุกเฉินให้ครบถ้วน', 'warning');
+        document.getElementById('txtPubEmergencyPhone')?.focus();
+        return false;
+      }
+      return true;
+    }
     async function goToPubRegStep(step) {
       if (step >= 2 && _currentPubRegStep === 1) {
         const fn = (document.getElementById('txtPubFullName')?.value || '').trim();
@@ -70716,17 +70946,7 @@ if (action === 'getDashboardStats') {
           document.getElementById('txtPubCitizenId')?.focus();
           return;
         }
-        const phDigits = ph.replace(/[-\s]/g, '');
-        if (!/^0\d{8,9}$/.test(phDigits)) {
-          if (typeof showToast === 'function') showToast('เบอร์โทรศัพท์ไม่ถูกต้อง', 'กรุณากรอกเบอร์โทรศัพท์ขึ้นต้นด้วย 0 จำนวน 9-10 หลัก (เช่น 0812345678)', 'warning');
-          document.getElementById('txtPubPhone')?.focus();
-          return;
-        }
-        if (!emPh || emPh.length < 9) {
-          if (typeof showToast === 'function') showToast('กรุณากรอกเบอร์ติดต่อฉุกเฉิน', 'โปรดระบุเบอร์ติดต่อฉุกเฉิน (9-10 หลัก)', 'warning');
-          document.getElementById('txtPubEmergencyPhone')?.focus();
-          return;
-        }
+        if (!validatePubRegStep1Phones(ph, emPh)) return;
         if (!mail || !mail.includes('@')) {
           if (typeof showToast === 'function') showToast('กรุณากรอกอีเมล', 'โปรดระบุอีเมลที่ถูกต้องสำหรับรับเอกสารยืนยัน', 'warning');
           document.getElementById('txtPubEmail')?.focus();
@@ -72732,8 +72952,8 @@ function openPublicRegisterView() {
               if (cErr) console.warn('[searchKioskReturningStudent] citizen_id query error:', cErr);
               else matches = filterValidRows(cData);
             }
-            // 3. Fast indexed lookup by 9-10 digit Phone Number
-            if (!isCardScan && matches.length === 0 && cleanDigits.length >= 9 && cleanDigits.length <= 10) {
+            // 3. Fast indexed lookup by 8-15 digit Phone Number
+            if (!isCardScan && matches.length === 0 && cleanDigits.length >= 8 && cleanDigits.length <= 15) {
               const { data: pData, error: pErr } = await _supabase
                 .from('students')
                 .select('*')
@@ -72777,12 +72997,12 @@ function openPublicRegisterView() {
               if (uErr) console.warn('[searchKioskReturningStudent] card_uid query error:', uErr);
               else matches = filterValidRows(uData);
             }
-            // 6. Fast indexed lookup by Passport / alphanumeric Citizen ID
+            // 6. Fast indexed lookup by Passport / alphanumeric Citizen ID (case-insensitive)
             if (matches.length === 0 && cleanAlpha.length >= 4 && /^[0-9A-Za-z]{4,32}$/.test(cleanAlpha)) {
               const { data: cData, error: cErr } = await _supabase
                 .from('students')
                 .select('*')
-                .eq('citizen_id', cleanAlpha)
+                .in('citizen_id', [cleanAlpha.toUpperCase(), cleanAlpha.toLowerCase()])
                 .limit(5);
               if (cErr) console.warn('[searchKioskReturningStudent] passport/citizen_id query error:', cErr);
               else matches = filterValidRows(cData);
@@ -73078,7 +73298,17 @@ function openPublicRegisterView() {
       setV('selPubPrefix', student.prefix || 'นาย');
       setV('txtPubFullName', student.full_name || student.fullName || '');
       setV('txtPubNameEn', student.full_name_en || student.fullNameEn || '');
-      setV('txtPubCitizenId', student.citizen_id || student.citizenId || '');
+      const rawCidReturn = String(student.citizen_id || student.citizenId || '').trim();
+      const pubIdTypeEl = document.getElementById('pubIdType');
+      if (pubIdTypeEl && rawCidReturn) {
+        const isThaiCitizen13 = /^\d{13}$/.test(rawCidReturn.replace(/[-\s]/g, ''));
+        const nextIdType = isThaiCitizen13 ? 'thai' : 'passport';
+        if (pubIdTypeEl.value !== nextIdType) {
+          pubIdTypeEl.value = nextIdType;
+          if (typeof onPubIdTypeChanged === 'function') onPubIdTypeChanged();
+        }
+      }
+      setV('txtPubCitizenId', rawCidReturn);
       setV('txtPubDob', student.dob || '');
       setV('selPubGender', student.gender || 'ไม่ระบุ');
       setV('txtPubPhone', student.phone_number || student.phone || '');
@@ -75861,12 +76091,18 @@ function openPublicRegisterView() {
       return { selCourse, isBooksOnlyOrder, isExamsOnlyOrder, isNonCourseOrder, extraCartBooks, extraCartExams, cartCourse: firstC, cartCourses, totalCourseQty };
     }
     function validatePubCorpTaxInputs(companyName, companyTaxId, companyAddress) {
-      if (!document.getElementById('chkPubNeedCorpTax')?.checked) return true;
+      const hasAnyCorpField = Boolean(
+        String(companyName || '').trim() ||
+        String(companyTaxId || '').trim() ||
+        String(companyAddress || '').trim()
+      );
+      const isCorpChecked = Boolean(document.getElementById('chkPubNeedCorpTax')?.checked);
+      if (!isCorpChecked && !hasAnyCorpField) return true;
       const corpTaxDigits = String(companyTaxId || '').replace(/\D/g, '');
-      if (!companyName || !companyAddress || corpTaxDigits.length !== 13) {
+      if (!String(companyName || '').trim() || !String(companyAddress || '').trim() || corpTaxDigits.length !== 13) {
         window._lastPubSubmitTimestamp = 0;
         showModal('ข้อมูลนิติบุคคลไม่ครบถ้วน', 'กรุณากรอกชื่อบริษัท/นิติบุคคล ที่อยู่ และเลขประจำตัวผู้เสียภาษี 13 หลักให้ครบถ้วน', '⚠️');
-        document.getElementById('txtPubCorpName')?.focus();
+        (document.getElementById('txtPubCorpName') || document.getElementById('txtPubCompanyName'))?.focus();
         return false;
       }
       return true;
@@ -75974,12 +76210,14 @@ function openPublicRegisterView() {
         showModal('กรุณากรอกข้อมูล / Required', dict.valCitizen, '⚠️');
         return;
       }
-      if (!phone || phone.length < 9) {
+      const minPhLen = (pubIdTypeVal === 'passport') ? 8 : 9;
+      if (!phoneDigits || phoneDigits.length < minPhLen) {
         window._lastPubSubmitTimestamp = 0;
         showModal('กรุณากรอกข้อมูล / Required', dict.valPhone, '⚠️');
         return;
       }
-      if (!emergencyPhone || emergencyPhone.length < 9) {
+      const emPhoneDigits = emergencyPhone.replace(/[-\s()+]/g, '');
+      if (!emPhoneDigits || emPhoneDigits.length < minPhLen) {
         window._lastPubSubmitTimestamp = 0;
         showModal('กรุณากรอกข้อมูล / Required', dict.valEmergencyPhone, '⚠️');
         return;
@@ -87994,8 +88232,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     if (window.OcaOfflineQueue && typeof window.OcaOfflineQueue.registerExecutor === 'function') {
       window.OcaOfflineQueue.registerExecutor('TEACHER_ATTENDANCE', async (payload) => {
         if (typeof logTeacherActivity !== 'function') return false;
-        await logTeacherActivity('TEACHER_ATTENDANCE_SAVED', payload.summary || 'เช็คชื่อชั้นเรียน (ซิงก์ออฟไลน์)', payload);
-        return true;
+        const ok = await logTeacherActivity('TEACHER_ATTENDANCE_SAVED', payload.summary || 'เช็คชื่อชั้นเรียน (ซิงก์ออฟไลน์)', payload);
+        return ok === true;
       });
     }
     async function revokeTeacherFingerprint(username) {
@@ -88518,7 +88756,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
      */
     async function logTeacherActivity(action, details, extraData = {}) {
       const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : {};
-      if (!user || !user.username) return; // Prevent phantom logs when no user logged in
+      if (!user || !user.username) return false; // Prevent phantom logs when no user logged in
       const uname = user.username;
       const fname = user.fullName || user.username || uname;
       const role = user.role || 'Staff';
@@ -88560,11 +88798,18 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             status: 'SUCCESS',
             device_info: devInfo,
             records: 1
-          }]); if (wErr) console.warn('[Supabase write failed] security_audit_logs:', wErr.message); }
+          }]);
+          if (wErr) {
+            console.warn('[Supabase write failed] security_audit_logs:', wErr.message);
+            return false;
+          } }
+          return true;
         } catch (err) {
           console.warn('[logTeacherActivity] Supabase error:', err);
+          return false;
         }
       }
+      return false;
     }
     window.logTeacherActivity = logTeacherActivity;
     /**
@@ -91146,6 +91391,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         // Auto-standardize background directly to Maroon (#800000)
         applyPhotoBackground(MAROON_BG_COLOR);
       };
+      reader.onerror = function() {
+        if (typeof showModal === 'function') {
+          showModal('อ่านไฟล์รูปภาพไม่สำเร็จ', 'ไม่สามารถเปิดอ่านไฟล์รูปภาพที่เลือกได้ กรุณาลองเลือกไฟล์ใหม่หรือใช้ไฟล์ JPG/PNG อื่น', '⚠️');
+        }
+      };
       reader.readAsDataURL(file);
       input.value = '';
     }
@@ -91735,6 +91985,11 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           showToast('ตรวจสอบสลิปผ่านแล้ว', 'ตรวจพบ QR Code ธนาคาร (Ref: ' + String(qrMeta.transRef || '').slice(0, 16) + '...)', '✓', 2500);
         }
         if (typeof savePublicRegisterDraft === 'function') savePublicRegisterDraft();
+      };
+      reader.onerror = function() {
+        if (typeof showModal === 'function') {
+          showModal('อ่านไฟล์รูปภาพไม่สำเร็จ', 'ไม่สามารถเปิดอ่านไฟล์รูปภาพที่เลือกได้ กรุณาลองเลือกไฟล์ใหม่หรือใช้ไฟล์ JPG/PNG อื่น', '⚠️');
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -93443,7 +93698,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=316';
+      const swPath = basePath + 'sw.js?v=317';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -93480,7 +93735,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (316):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (317):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
