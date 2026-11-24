@@ -6,6 +6,7 @@
   'use strict';
 
   const REQUIRED_TABLES = ['courses', 'fee_settings', 'receipts', 'schedules', 'security_audit_logs', 'staff_users', 'students'];
+  const OPTIONAL_TABLES = ['app_settings'];
 
   function renderBackupOpsCard() {
     const mountEl = document.getElementById('ocaScheduledBackupMount');
@@ -73,24 +74,42 @@
         ? parsed.data
         : ((parsed && parsed.tables && typeof parsed.tables === 'object' && !Array.isArray(parsed.tables)) ? parsed.tables : parsed);
       const missing = [];
+      const invalidShape = [];
       const counts = {};
+      const hasValidRows = (arr) => arr.every(r => r !== null && typeof r === 'object' && !Array.isArray(r));
       for (const tbl of REQUIRED_TABLES) {
         if (!tablesObj || !Array.isArray(tablesObj[tbl])) {
           missing.push(tbl);
+        } else if (!hasValidRows(tablesObj[tbl])) {
+          invalidShape.push(tbl);
+          counts[tbl] = tablesObj[tbl].length;
         } else {
           counts[tbl] = tablesObj[tbl].length;
+        }
+      }
+      for (const optTbl of OPTIONAL_TABLES) {
+        if (tablesObj && tablesObj[optTbl] !== undefined) {
+          if (!Array.isArray(tablesObj[optTbl]) || !hasValidRows(tablesObj[optTbl])) {
+            invalidShape.push(optTbl);
+          } else {
+            counts[optTbl] = tablesObj[optTbl].length;
+          }
         }
       }
       const schedCount = counts.schedules || 0;
       const staffCount = counts.staff_users || 0;
       const coreOk = schedCount >= 8 && staffCount >= 4;
-      const passed = missing.length === 0 && coreOk;
-      const summaryRows = REQUIRED_TABLES.map(t =>
-        `<li><code>${t}</code>: ${counts[t] !== undefined ? counts[t].toLocaleString('en-US') + ' แถว' : '<span style="color:#EF4444;">ไม่พบตาราง</span>'}</li>`
-      ).join('');
+      const passed = missing.length === 0 && invalidShape.length === 0 && coreOk;
+      const summaryRows = REQUIRED_TABLES.concat(OPTIONAL_TABLES.filter(t => counts[t] !== undefined || invalidShape.includes(t))).map(t => {
+        if (invalidShape.includes(t)) {
+          return `<li><code>${t}</code>: <span style="color:#EF4444;">โครงสร้างแถวไม่ถูกต้อง (พบข้อมูลที่ไม่ใช่ Object)</span></li>`;
+        }
+        return `<li><code>${t}</code>: ${counts[t] !== undefined ? counts[t].toLocaleString('en-US') + ' แถว' : '<span style="color:#EF4444;">ไม่พบตาราง</span>'}</li>`;
+      }).join('');
       return {
         passed,
         missing,
+        invalidShape,
         counts,
         html: `
           <div style="font-weight:800; margin-bottom:6px; color:${passed ? '#059669' : '#D97706'};">
