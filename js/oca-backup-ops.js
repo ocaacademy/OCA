@@ -69,7 +69,9 @@
   function validateBackupJsonText(rawText, fileName = 'backup.json') {
     try {
       const parsed = JSON.parse(rawText);
-      const tablesObj = (parsed && parsed.tables && typeof parsed.tables === 'object') ? parsed.tables : parsed;
+      const tablesObj = (parsed && parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data))
+        ? parsed.data
+        : ((parsed && parsed.tables && typeof parsed.tables === 'object' && !Array.isArray(parsed.tables)) ? parsed.tables : parsed);
       const missing = [];
       const counts = {};
       for (const tbl of REQUIRED_TABLES) {
