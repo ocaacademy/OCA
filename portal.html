@@ -12597,7 +12597,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '279';
+      var LATEST_VERSION = '280';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -13790,7 +13790,7 @@ body.printing-report #printReportContainer {
                   <!-- Year & Term -->
                   <div class="oca-input-group">
                     <label class="oca-label" for="selYear">ปีการศึกษา (พ.ศ.) *</label>
-                    <select id="selYear" class="oca-input" onchange="this.dataset.userModified='true'; calcNextStudentId(); if (typeof onEnrollScheduleChanged === 'function') onEnrollScheduleChanged();" required>
+                    <select id="selYear" class="oca-input" onchange="this.dataset.userModified='true'; calcNextStudentId(); if (typeof onEnrollScheduleChanged === 'function') onEnrollScheduleChanged(); if (typeof populateEnrollGroupInstructorOptions === 'function') populateEnrollGroupInstructorOptions();" required>
                   <option value="2571">2571</option>
                   <option value="2570">2570</option>
                   <option value="2569">2569</option>
@@ -13832,7 +13832,7 @@ body.printing-report #printReportContainer {
 
                   <div class="oca-input-group">
                     <label class="oca-label" for="selTerm">ภาคเรียน *</label>
-                    <select id="selTerm" class="oca-input" onchange="this.dataset.userModified='true'; calcNextStudentId(); if (typeof onEnrollScheduleChanged === 'function') onEnrollScheduleChanged();" required>
+                    <select id="selTerm" class="oca-input" onchange="this.dataset.userModified='true'; calcNextStudentId(); if (typeof onEnrollScheduleChanged === 'function') onEnrollScheduleChanged(); if (typeof populateEnrollGroupInstructorOptions === 'function') populateEnrollGroupInstructorOptions();" required>
                       <option value="1">ภาคเรียนที่ 1</option>
                       <option value="2">ภาคเรียนที่ 2</option>
                       <option value="3">ภาคเรียนที่ 3</option>
@@ -13854,7 +13854,7 @@ body.printing-report #printReportContainer {
                   <!-- 2. คำนำหน้า -->
                   <div class="oca-input-group">
                     <label class="oca-label" for="prefix">2. คำนำหน้า *</label>
-                    <select id="prefix" class="oca-input" required>
+                    <select id="prefix" class="oca-input" onchange="if (typeof syncEnrollGenderFromPrefix === 'function') syncEnrollGenderFromPrefix(this.value);" required>
                       <option value="">-- เลือกคำนำหน้า --</option>
                       <option value="นาย">นาย (Mr.)</option>
                       <option value="นาง">นาง (Mrs.)</option>
@@ -13896,6 +13896,15 @@ body.printing-report #printReportContainer {
                   <div class="oca-input-group">
                     <label class="oca-label" for="enrollAge">อายุ (ปี - คำนวณอัตโนมัติ)</label>
                     <input type="text" id="enrollAge" class="oca-input" readonly style="background:var(--bg-input-readonly); cursor:not-allowed;">
+                  </div>
+
+                  <div class="oca-input-group">
+                    <label class="oca-label" for="selEnrollGender" id="lblEnrollGender">เพศ (Gender)</label>
+                    <select id="selEnrollGender" class="oca-input" onchange="this.dataset.userEdited='1';">
+                      <option value="ไม่ระบุ">-- ระบุเพศ (Select) --</option>
+                      <option value="ชาย">ชาย (Male)</option>
+                      <option value="หญิง">หญิง (Female)</option>
+                    </select>
                   </div>
 
                   <div class="oca-input-group">
@@ -14046,6 +14055,12 @@ body.printing-report #printReportContainer {
                     </select>
                   </div>
 
+                  <!-- หมายเหตุประวัตินักศึกษา (ไม่ซ้ำกับหน้าใบเสร็จ) -->
+                  <div class="oca-input-group full">
+                    <label class="oca-label" for="txtEnrollNotes" id="lblEnrollNotes">หมายเหตุประวัตินักศึกษา <span style="font-size:11.5px; font-weight:400; color:var(--text-muted);">(ไม่บังคับ — เช่น ขอเรียนห้องเดียวกับเพื่อน / ข้อมูลผู้ปกครอง)</span></label>
+                    <textarea id="txtEnrollNotes" class="oca-input" rows="2" maxlength="300" placeholder="ระบุหมายเหตุเพิ่มเติมเกี่ยวกับตัวผู้เรียน (ถ้ามี)..." style="resize:vertical; min-height:54px;"></textarea>
+                  </div>
+
                   <!-- Dynamic Course & Schedule Selection Card -->
               <div class="oca-input-group full" style="margin-top: 10px;">
                 <div style="background:var(--bg-subcard); border:1.5px solid rgba(215,166,0,0.35); border-radius:12px; padding:16px 18px; margin-bottom:8px;">
@@ -14075,6 +14090,13 @@ body.printing-report #printReportContainer {
                         <option value="Online">1. ONLINE (เรียนออนไลน์)</option>
                         <option value="Onsite" selected>2. ONSITE (เรียนที่สถาบัน)</option>
                         <option value="Hybrid">3. HYBRID (ผสมผสาน)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label for="selEnrollGroupInstructor" id="lblEnrollGroupInstructor" class="oca-label" style="font-size:12.5px; margin-bottom:4px;">4. กลุ่มเรียนและอาจารย์ผู้สอน <span style="font-size:11px; font-weight:400; color:var(--text-muted);">(ไม่บังคับ — ส่งต่อไปหน้าใบเสร็จอัตโนมัติ)</span></label>
+                      <select id="selEnrollGroupInstructor" class="oca-input">
+                        <option value="">-- เลือกที่หน้าใบเสร็จ / ให้สถาบันจัดกลุ่ม --</option>
                       </select>
                     </div>
                   </div>
@@ -16492,6 +16514,37 @@ body.printing-report #printReportContainer {
                       </button>
                     </div>
                   </div>
+                </div>
+
+                <!-- Smart Course Renewal Guidance Panel (Returning Students) -->
+                <div id="boxRcptRenewalGuide" style="display:none; margin-top:10px; padding:12px 14px; border-radius:10px; background:var(--bg-subcard); border:1.5px solid rgba(16,185,129,0.45);">
+                  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
+                    <div style="display:flex; align-items:center; gap:7px; font-size:13px; font-weight:700; color:var(--text-main);">
+                      <i class="fa-solid fa-route" style="color:#10b981;"></i>
+                      <span id="lblRcptRenewalTitle">นำทางการต่อคอร์สเรียนอัตโนมัติ (Course Renewal Guide)</span>
+                    </div>
+                    <span id="badgeRcptRenewalTerm" style="font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:6px; background:rgba(16,185,129,0.14); color:#047857; border:1px solid rgba(16,185,129,0.35);">-</span>
+                  </div>
+                  <div id="lblRcptRenewalLastSummary" style="font-size:12px; color:var(--text-muted); line-height:1.5; margin-bottom:8px;">-</div>
+                  <div id="boxRcptRenewalDupTermWarn" style="display:none; margin-bottom:8px; padding:8px 10px; border-radius:8px; background:#FEF3C7; border:1px solid #D97706; color:#78350F; font-size:12px; font-weight:600; align-items:center; gap:8px;">
+                    <i class="fa-solid fa-triangle-exclamation" style="color:#B45309;"></i>
+                    <span id="lblRcptRenewalDupTermText">-</span>
+                  </div>
+                  <div id="boxRcptRenewalNextRow" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding-top:8px; border-top:1px dashed rgba(148,163,184,0.35);">
+                    <div style="display:flex; flex-direction:column; gap:3px; min-width:220px;">
+                      <div id="lblRcptRenewalNextCourse" style="font-size:13px; font-weight:700; color:var(--text-main);">-</div>
+                      <div id="lblRcptRenewalNextMeta" style="font-size:11.5px; color:var(--text-muted);">-</div>
+                    </div>
+                    <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
+                      <button type="button" id="btnRcptApplyNextCourse" style="padding:6px 12px; font-size:12.5px; font-weight:700; border-radius:8px; background:#047857; color:#FFFFFF; border:1px solid #065F46; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                        <i class="fa-solid fa-arrow-right"></i> <span id="lblBtnRcptApplyNext">ต่อคอร์สแนะนำ</span>
+                      </button>
+                      <button type="button" id="btnRcptApplyRetakeCourse" class="oca-type-toggle-btn" style="padding:6px 10px; font-size:12px; border-radius:8px; display:inline-flex; align-items:center; gap:5px;">
+                        <i class="fa-solid fa-rotate-right"></i> <span id="lblBtnRcptApplyRetake">เรียนซ้ำคอร์สเดิม</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div id="boxRcptRenewalAltChips" style="display:none; margin-top:8px; padding-top:6px; border-top:1px dashed rgba(148,163,184,0.25); align-items:center; flex-wrap:wrap; gap:6px;"></div>
                 </div>
 
                 <!-- Complete History Panel (Drawer: Collapsible) -->
@@ -36059,8 +36112,72 @@ if (action === 'getDashboardStats') {
         }
       }
       updateEnrollCourseFeeDisplay();
+      if (typeof populateEnrollGroupInstructorOptions === 'function') {
+        populateEnrollGroupInstructorOptions();
+      }
     }
     window.onEnrollScheduleChanged = onEnrollScheduleChanged;
+    function populateEnrollGroupInstructorOptions(preserveVal) {
+      const selGroup = document.getElementById('selEnrollGroupInstructor');
+      const selCourse = document.getElementById('selEnrollCourse');
+      const selSchedule = document.getElementById('selEnrollSchedule');
+      if (!selGroup) return;
+      const currentVal = (preserveVal !== undefined && preserveVal !== null && preserveVal !== '') ? String(preserveVal) : (selGroup.value || '');
+      const safeEscape = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      let html = '<option value="">-- เลือกที่หน้าใบเสร็จ / ให้สถาบันจัดกลุ่ม --</option>';
+      const rawCourseVal = selCourse ? selCourse.value : '';
+      const selCourseOpt = selCourse && selCourse.selectedIndex >= 0 ? selCourse.options[selCourse.selectedIndex] : null;
+      const rawCourseId = (selCourseOpt && selCourseOpt.dataset && selCourseOpt.dataset.courseId) || rawCourseVal;
+      let courseCode = '';
+      if (rawCourseVal || rawCourseId) {
+        const cMatch = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList))
+          ? cachedCoursesList.find(c => c.id === rawCourseId || c.code === rawCourseId || c.name === rawCourseVal || c.code === rawCourseVal)
+          : null;
+        courseCode = (cMatch && (cMatch.code || cMatch.id)) || rawCourseId || rawCourseVal;
+      }
+      const rawSchedVal = selSchedule ? selSchedule.value : '';
+      const selSchedOpt = selSchedule && selSchedule.selectedIndex >= 0 ? selSchedule.options[selSchedule.selectedIndex] : null;
+      let schedId = (selSchedOpt && selSchedOpt.dataset && selSchedOpt.dataset.scheduleId) || '';
+      if (!schedId && rawSchedVal) {
+        const sMatch = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList) ? cachedSchedulesList.find(s => s.id === rawSchedVal || s.name === rawSchedVal) : null) ||
+                       (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' && Array.isArray(OFFICIAL_DEFAULT_SCHEDULES) ? OFFICIAL_DEFAULT_SCHEDULES.find(s => s.id === rawSchedVal || s.name === rawSchedVal) : null);
+        if (sMatch) schedId = sMatch.id;
+      }
+      if (courseCode && schedId && typeof getCourseGroupInstructorList === 'function') {
+        const termVal = document.getElementById('selTerm')?.value || 5;
+        const yearVal = document.getElementById('selYear')?.value || 2569;
+        const groups = getCourseGroupInstructorList(courseCode, schedId, termVal, yearVal) || [];
+        groups.forEach(g => {
+          if (!g) return;
+          const section = String(g.section || 'A').trim();
+          const lecturerName = String(g.lecturerName || '').trim();
+          const room = String(g.room || '').trim();
+          const valStr = JSON.stringify({ section, lecturerName, room });
+          const lecturerPart = lecturerName ? ` — อ.${lecturerName}` : '';
+          const roomPart = room ? ` (ห้อง ${room})` : '';
+          const label = `กลุ่ม ${section}${lecturerPart}${roomPart}`;
+          html += `<option value="${safeEscape(valStr)}">${safeEscape(label)}</option>`;
+        });
+      }
+      selGroup.innerHTML = html;
+      if (currentVal) {
+        for (let i = 0; i < selGroup.options.length; i++) {
+          if (selGroup.options[i].value === currentVal) {
+            selGroup.value = currentVal;
+            break;
+          }
+        }
+      }
+    }
+    window.populateEnrollGroupInstructorOptions = populateEnrollGroupInstructorOptions;
+    function syncEnrollGenderFromPrefix(prefixVal) {
+      const selGender = document.getElementById('selEnrollGender');
+      if (!selGender || selGender.dataset.userEdited === '1') return;
+      const p = String(prefixVal || '').trim();
+      if (p === 'นาย' || p === 'ด.ช.') selGender.value = 'ชาย';
+      else if (p === 'นาง' || p === 'นางสาว' || p === 'ด.ญ.') selGender.value = 'หญิง';
+    }
+    window.syncEnrollGenderFromPrefix = syncEnrollGenderFromPrefix;
     /**
      * Fetch all rows from a PostgREST query using .range() pagination to avoid the 1,000-row cap.
      */
@@ -37182,6 +37299,32 @@ if (action === 'getDashboardStats') {
       }
       addrParts.push(addrZipcode);
       const compiledAddress = addrParts.join(' ');
+      let selectedEnrollGroupObj = { section: '', lecturerName: '', room: '' };
+      try {
+        const rawEnrollGroup = document.getElementById('selEnrollGroupInstructor')?.value || '';
+        if (rawEnrollGroup) {
+          const parsedGrp = JSON.parse(rawEnrollGroup);
+          if (parsedGrp && typeof parsedGrp === 'object') {
+            selectedEnrollGroupObj = {
+              section: String(parsedGrp.section || '').trim(),
+              lecturerName: String(parsedGrp.lecturerName || '').trim(),
+              room: String(parsedGrp.room || '').trim()
+            };
+          }
+        }
+      } catch (_) {}
+      const enrollGenderVal = String(document.getElementById('selEnrollGender')?.value || '').trim();
+      const enrollCustomNotes = String(document.getElementById('txtEnrollNotes')?.value || '').replace(/\r?\n/g, ' ').trim();
+      const enrollNoteParts = [`[รูปแบบ: ${learningMode}]`];
+      if (selectedEnrollGroupObj.section || selectedEnrollGroupObj.lecturerName) {
+        const grpLabelParts = [];
+        if (selectedEnrollGroupObj.section) grpLabelParts.push(selectedEnrollGroupObj.section);
+        if (selectedEnrollGroupObj.lecturerName) grpLabelParts.push(`อ.${selectedEnrollGroupObj.lecturerName}`);
+        if (selectedEnrollGroupObj.room) grpLabelParts.push(`ห้อง ${selectedEnrollGroupObj.room}`);
+        enrollNoteParts.push(`[กลุ่ม: ${grpLabelParts.join(' | ')}]`);
+      }
+      if (enrollCustomNotes) enrollNoteParts.push(enrollCustomNotes);
+      const baseEnrollNotesStr = enrollNoteParts.join(' ');
       const formData = {
         yearBE: yearBE,
         term: term,
@@ -37197,6 +37340,9 @@ if (action === 'getDashboardStats') {
         course: course,
         schedule: schedule,
         learningMode: learningMode,
+        groupSection: selectedEnrollGroupObj.section,
+        instructorName: selectedEnrollGroupObj.lecturerName,
+        room: selectedEnrollGroupObj.room,
         isCorporate: isCorporate,
         companyName: companyName,
         companyBranch: companyBranch,
@@ -37211,7 +37357,8 @@ if (action === 'getDashboardStats') {
         allowExistingReuse: !!(window._enrollAutoDetectedStudent || window._enrollStudentMode === 'returning'),
         isCourseRenewal: !!(window._enrollAutoDetectedStudent || window._enrollStudentMode === 'returning'),
         regFee: (window._enrollAutoDetectedStudent || window._enrollStudentMode === 'returning') ? 0 : undefined,
-        notes: (typeof encodeExtProfileToNotes === 'function') ? encodeExtProfileToNotes(`[รูปแบบ: ${learningMode}]`, {
+        notes: (typeof encodeExtProfileToNotes === 'function') ? encodeExtProfileToNotes(baseEnrollNotesStr, {
+          gender: (enrollGenderVal && enrollGenderVal !== 'ไม่ระบุ') ? enrollGenderVal : '',
           ethnicity: document.getElementById('enrollEthnicity')?.value || '',
           nationality: document.getElementById('enrollNationality')?.value || '',
           birth_date: document.getElementById('enrollBirthDate')?.value || '',
@@ -37220,7 +37367,7 @@ if (action === 'getDashboardStats') {
           emergency_name: document.getElementById('enrollEmergencyName')?.value || '',
           emergency_relation: document.getElementById('enrollEmergencyRelation')?.value || '',
           emergency_phone: emergencyPhone || ''
-        }) : `[รูปแบบ: ${learningMode}]`,
+        }) : baseEnrollNotesStr,
         forceDuplicate: isDuplicateDismissed && window._enrollStudentMode === 'returning'
       };
       const btn = document.getElementById('btnSubmitForm');
@@ -37302,10 +37449,10 @@ if (action === 'getDashboardStats') {
                     { const { error: wErr } = await _supabase.from('students')
                       .update({ status: 'PENDING_PAYMENT_VERIFICATION' })
                       .eq('student_id', savedStudentId); if (wErr) throw wErr; }
-                    let enrollGrp = '';
-                    let enrollTeacher = '';
-                    let enrollRoom = '';
-                    if (typeof getCourseGroupInstructorList === 'function') {
+                    let enrollGrp = selectedEnrollGroupObj.section || '';
+                    let enrollTeacher = selectedEnrollGroupObj.lecturerName || '';
+                    let enrollRoom = selectedEnrollGroupObj.room || '';
+                    if (!enrollGrp && !enrollTeacher && typeof getCourseGroupInstructorList === 'function') {
                       try {
                         const grpList = getCourseGroupInstructorList(course, schedule, term, yearBE);
                         if (Array.isArray(grpList) && grpList.length > 0) {
@@ -37445,6 +37592,9 @@ if (action === 'getDashboardStats') {
               course: course,
               schedule: schedule,
               learningMode: learningMode,
+              groupSection: selectedEnrollGroupObj.section || '',
+              instructorName: selectedEnrollGroupObj.lecturerName || '',
+              room: selectedEnrollGroupObj.room || '',
               courseFee: calculatedCourseFee,
               regFee: wasExistingReuse ? 0 : undefined,
               isExistingReuse: wasExistingReuse,
@@ -37458,6 +37608,9 @@ if (action === 'getDashboardStats') {
             clearEnrollSlipUpload();
             const enrollFormEl = document.getElementById('enrollForm');
             if (enrollFormEl) enrollFormEl.reset();
+            const selEnrollGenderEl = document.getElementById('selEnrollGender');
+            if (selEnrollGenderEl) delete selEnrollGenderEl.dataset.userEdited;
+            if (typeof populateEnrollGroupInstructorOptions === 'function') populateEnrollGroupInstructorOptions('');
             if (typeof resetEnrollAutoDetectMode === 'function') resetEnrollAutoDetectMode();
             if (typeof initAcademicYearSelect === 'function') initAcademicYearSelect();
             resetEnrollCameraAndPhotoState();
@@ -41748,7 +41901,7 @@ if (action === 'getDashboardStats') {
       const cleanNotes = String(notes || '').replace(/\s*\|?\s*\[EXT_PROFILE:\{[\s\S]*?\}\]/g, '').trim();
       if (!extObj || typeof extObj !== 'object') return cleanNotes;
       const filtered = {};
-      ['ethnicity', 'nationality', 'birth_date', 'age', 'passport_no', 'emergency_name', 'emergency_relation', 'emergency_phone'].forEach(k => {
+      ['gender', 'ethnicity', 'nationality', 'birth_date', 'age', 'passport_no', 'emergency_name', 'emergency_relation', 'emergency_phone'].forEach(k => {
         const v = extObj[k];
         if (v !== undefined && v !== null && String(v).trim() !== '') {
           filtered[k] = String(v).trim();
@@ -48335,6 +48488,9 @@ if (action === 'getDashboardStats') {
       if (selSchedule.value && selSchedule.selectedOptions[0] && selSchedule.selectedOptions[0].disabled) {
         selSchedule.value = '';
       }
+      if (typeof populateEnrollGroupInstructorOptions === 'function') {
+        populateEnrollGroupInstructorOptions();
+      }
     }
     window.onEnrollCourseChangedFilterSchedules = onEnrollCourseChangedFilterSchedules;
     function onPublicCourseChangedFilterSchedules() {
@@ -50719,6 +50875,30 @@ if (action === 'getDashboardStats') {
               }
             }
           }
+          if (enrollHandover && (enrollHandover.groupSection || enrollHandover.instructorName || enrollHandover.room)) {
+            const selRcptGrp = document.getElementById('selRcptGroup');
+            const inpRcptGrp = document.getElementById('txtRcptGroup');
+            const inpRcptTeacher = document.getElementById('txtRcptTeacher');
+            const inpRcptRoom = document.getElementById('txtRcptRoom');
+            let matchedOpt = false;
+            if (selRcptGrp && selRcptGrp.options && selRcptGrp.options.length > 0) {
+              for (const opt of selRcptGrp.options) {
+                const secMatch = !enrollHandover.groupSection || (opt.dataset?.section || opt.value) === enrollHandover.groupSection;
+                const lecMatch = !enrollHandover.instructorName || (opt.dataset?.teacher || '').includes(enrollHandover.instructorName);
+                if (secMatch && lecMatch) {
+                  selRcptGrp.value = opt.value;
+                  if (typeof onReceiptGroupSelected === 'function') onReceiptGroupSelected();
+                  matchedOpt = true;
+                  break;
+                }
+              }
+            }
+            if (!matchedOpt) {
+              if (inpRcptGrp && enrollHandover.groupSection) inpRcptGrp.value = enrollHandover.groupSection;
+              if (inpRcptTeacher && enrollHandover.instructorName) inpRcptTeacher.value = enrollHandover.instructorName;
+              if (inpRcptRoom && enrollHandover.room) inpRcptRoom.value = enrollHandover.room;
+            }
+          }
           if (enrollHandover && enrollHandover.courseFee !== undefined && enrollHandover.courseFee !== null) {
             const inpBase = document.getElementById('inpRcptBaseFee');
             if (inpBase) inpBase.value = enrollHandover.courseFee;
@@ -50784,6 +50964,9 @@ if (action === 'getDashboardStats') {
           if (typeof applyReceiptPreset === 'function') {
             applyReceiptPreset(isBrandNewStudent ? 'new' : 'renewal');
           }
+          if (typeof renderReceiptCourseRenewalGuide === 'function') {
+            renderReceiptCourseRenewalGuide(student, activeInfo, isBrandNewStudent);
+          }
           fetchNextReceiptNumber();
           updateReceiptOpenDateByTerm();
           updateReceiptLivePreview();
@@ -50799,6 +50982,250 @@ if (action === 'getDashboardStats') {
     /**
      * ดำเนินการต่อคอร์สเรียนให้นักศึกษาคนนี้
      */
+    function computeReceiptCourseRenewalGuide(student, activeInfo) {
+      if (!student || !student.profile) return null;
+      const courses = (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) ? cachedCoursesList : [];
+      const activeCourses = courses.filter(c => c && c.is_active !== false);
+      const history = Array.isArray(student.receiptHistory) ? student.receiptHistory : [];
+      const validTuition = history.filter(r => {
+        if (!r) return false;
+        const st = String(r.status || r.claimStatus || r.claim_status || '').toUpperCase();
+        if (st === 'VOIDED' || st === 'CANCELLED' || st.includes('ยกเลิก')) return false;
+        const itemStr = String(r.itemName || r.item_name || '');
+        const rType = String(r.receiptType || r.receipt_type || '').toLowerCase();
+        if (rType === 'book' || rType === 'textbook') return false;
+        if (/ค่าตำรา|ค่าหนังสือ|ซื้อหนังสือ/.test(itemStr) && !/ค่าเล่าเรียน|คอร์ส|หลักสูตร/.test(itemStr)) return false;
+        return Boolean(itemStr.trim());
+      });
+      const findCourseByRaw = (rawStr) => {
+        const s = String(rawStr || '').trim();
+        if (!s || s === '-' || s === 'หลักสูตรทั่วไป' || s === 'รอเลือกคอร์ส' || s === 'รอจัดระดับหลักสูตร') return null;
+        const tokMatch = s.match(/\b([A-Za-z]{1,4}\d{2,4}[A-Za-z]?)\b/);
+        const tok = tokMatch ? tokMatch[1].toUpperCase() : '';
+        return courses.find(c =>
+          c && (
+            String(c.code || '').toUpperCase() === s.toUpperCase() ||
+            String(c.id || '').toUpperCase() === s.toUpperCase() ||
+            (tok && (String(c.code || '').toUpperCase() === tok || String(c.id || '').toUpperCase() === tok)) ||
+            String(c.name || '').trim() === s
+          )
+        ) || (tok ? { id: tok, code: tok, name: s } : null);
+      };
+      const latestRec = validTuition.length > 0 ? validTuition[0] : null;
+      const lastRawCourse = (latestRec && (latestRec.courseCode || latestRec.course_code || latestRec.itemName || latestRec.item_name)) ||
+        student.profile.latestCourse || student.profile.course || '';
+      const lastCourseObj = findCourseByRaw(lastRawCourse);
+      if (!lastCourseObj) return null;
+      const lastCode = String(lastCourseObj.code || lastCourseObj.id || '').trim().toUpperCase();
+      const lastCourseName = String(lastCourseObj.name || lastRawCourse || lastCode).trim();
+      const lastYearBE = (latestRec && (latestRec.yearBe || latestRec.year_be)) || student.profile.latestYearBE || '';
+      const rawLastTerm = (latestRec && latestRec.term) || student.profile.latestTerm || '';
+      const lastTerm = (typeof cleanTermNumber === 'function') ? cleanTermNumber(rawLastTerm) : rawLastTerm;
+      const prevSchedule = String((latestRec && latestRec.schedule) || student.profile.currentSchedule || student.profile.schedule || '').trim();
+      const noteLmMatch = String(student.profile.notes || '').match(/\[รูปแบบ:\s*([^\]]+)\]/i);
+      const prevLearningMode = String((latestRec && (latestRec.learningMode || latestRec.learning_mode)) || student.profile.learningMode || (noteLmMatch && noteLmMatch[1]) || 'Onsite').trim();
+      const actYr = String((activeInfo && activeInfo.yearBE) || 2569);
+      const actTm = String((activeInfo && activeInfo.term) || 5);
+      const paidCurrentTerm = validTuition.filter(r => {
+        const ry = String(r.yearBe || r.year_be || '').trim();
+        const rt = String((typeof cleanTermNumber === 'function') ? cleanTermNumber(r.term, r.receiptNo || r.receipt_no) : (r.term || '')).trim();
+        return ry === actYr && rt === actTm;
+      });
+      const sortedPool = (activeCourses.length > 0 ? activeCourses : courses).slice().sort((a, b) => {
+        const ca = String(a.code || a.id || '');
+        const cb = String(b.code || b.id || '');
+        return (typeof naturalCompareCode === 'function') ? naturalCompareCode(ca, cb) : ca.localeCompare(cb, undefined, { numeric: true });
+      });
+      const crossTierMap = { C1005: 'C2001', C2010: 'C3001', C3010: 'C3101' };
+      let nextCourseObj = null;
+      if (crossTierMap[lastCode]) {
+        nextCourseObj = sortedPool.find(c => String(c.code || c.id || '').toUpperCase() === crossTierMap[lastCode]) || null;
+      }
+      if (!nextCourseObj) {
+        const m = lastCode.match(/^([A-Z]+)(\d+)([A-Z]*)$/);
+        if (m) {
+          const pfx = m[1];
+          const numStr = m[2];
+          const nextNumStr = String(parseInt(numStr, 10) + 1).padStart(numStr.length, '0');
+          const expectedNext = pfx + nextNumStr + m[3];
+          nextCourseObj = sortedPool.find(c => String(c.code || c.id || '').toUpperCase() === expectedNext) || null;
+          if (!nextCourseObj) {
+            const sameTrack = sortedPool.filter(c => String(c.code || c.id || '').toUpperCase().startsWith(pfx));
+            const idx = sameTrack.findIndex(c => String(c.code || c.id || '').toUpperCase() === lastCode);
+            if (idx >= 0 && idx + 1 < sameTrack.length) nextCourseObj = sameTrack[idx + 1];
+          }
+        }
+      }
+      if (!nextCourseObj) {
+        const idxAll = sortedPool.findIndex(c => String(c.code || c.id || '').toUpperCase() === lastCode);
+        if (idxAll >= 0 && idxAll + 1 < sortedPool.length) nextCourseObj = sortedPool[idxAll + 1];
+      }
+      const altCourses = [];
+      if (nextCourseObj) {
+        const nextCodeUp = String(nextCourseObj.code || nextCourseObj.id || '').toUpperCase();
+        const idxNext = sortedPool.findIndex(c => String(c.code || c.id || '').toUpperCase() === nextCodeUp);
+        if (idxNext >= 0) {
+          for (let k = idxNext + 1; k < sortedPool.length && altCourses.length < 3; k++) {
+            const cand = sortedPool[k];
+            const cCode = String(cand.code || cand.id || '').toUpperCase();
+            if (cCode && cCode[0] === lastCode[0]) altCourses.push(cand);
+          }
+        }
+      }
+      let nextGroups = [];
+      if (nextCourseObj && prevSchedule && typeof getCourseGroupInstructorList === 'function') {
+        try {
+          const sMatch = (typeof cachedSchedulesList !== 'undefined' && Array.isArray(cachedSchedulesList))
+            ? cachedSchedulesList.find(s => s && (s.id === prevSchedule || s.name === prevSchedule))
+            : null;
+          const schedId = (sMatch && sMatch.id) || prevSchedule;
+          nextGroups = getCourseGroupInstructorList(nextCourseObj.code || nextCourseObj.id, schedId, actTm, actYr) || [];
+        } catch (_) {}
+      }
+      return {
+        lastCode,
+        lastCourseName,
+        lastYearBE,
+        lastTerm,
+        prevSchedule,
+        prevLearningMode,
+        paidCurrentTerm,
+        nextCourse: nextCourseObj,
+        altCourses,
+        nextGroups
+      };
+    }
+    window.computeReceiptCourseRenewalGuide = computeReceiptCourseRenewalGuide;
+
+    function renderReceiptCourseRenewalGuide(student, activeInfo, isBrandNewStudent) {
+      const box = document.getElementById('boxRcptRenewalGuide');
+      if (!box) return;
+      if (isBrandNewStudent) {
+        box.style.display = 'none';
+        return;
+      }
+      const guide = computeReceiptCourseRenewalGuide(student, activeInfo);
+      if (!guide) {
+        box.style.display = 'none';
+        return;
+      }
+      box.style.display = 'block';
+      const elTermBadge = document.getElementById('badgeRcptRenewalTerm');
+      if (elTermBadge && activeInfo) {
+        elTermBadge.textContent = 'เทอมเป้าหมาย ' + toArabicDigits(activeInfo.yearBE) + '/' + toArabicDigits(activeInfo.term);
+      }
+      const elSummary = document.getElementById('lblRcptRenewalLastSummary');
+      if (elSummary) {
+        const yt = (guide.lastYearBE && guide.lastTerm) ? (` (${toArabicDigits(guide.lastYearBE)}/${toArabicDigits(guide.lastTerm)})`) : '';
+        const schedPart = guide.prevSchedule ? (` · รอบ: ${guide.prevSchedule}`) : '';
+        const modePart = guide.prevLearningMode ? (` · ${guide.prevLearningMode}`) : '';
+        elSummary.innerHTML = 'คอร์สล่าสุด: <strong style="color:var(--text-main);">' + escapeHtml(guide.lastCode) + ' — ' + escapeHtml(guide.lastCourseName) + '</strong>' + escapeHtml(yt + schedPart + modePart);
+      }
+      const boxDup = document.getElementById('boxRcptRenewalDupTermWarn');
+      const lblDup = document.getElementById('lblRcptRenewalDupTermText');
+      if (boxDup && lblDup) {
+        if (guide.paidCurrentTerm && guide.paidCurrentTerm.length > 0) {
+          const paidNames = guide.paidCurrentTerm.map(r => String(r.itemName || r.item_name || r.receiptNo || '-')).slice(0, 2).join(', ');
+          lblDup.textContent = 'นักศึกษาชำระค่าเรียนในเทอมปัจจุบันแล้ว (' + paidNames + ') — โปรดตรวจสอบก่อนออกใบเสร็จซ้ำ';
+          boxDup.style.display = 'flex';
+        } else {
+          boxDup.style.display = 'none';
+        }
+      }
+      const lblNext = document.getElementById('lblRcptRenewalNextCourse');
+      const lblMeta = document.getElementById('lblRcptRenewalNextMeta');
+      const btnNext = document.getElementById('btnRcptApplyNextCourse');
+      const lblBtnNext = document.getElementById('lblBtnRcptApplyNext');
+      const btnRetake = document.getElementById('btnRcptApplyRetakeCourse');
+      const lblBtnRetake = document.getElementById('lblBtnRcptApplyRetake');
+      if (guide.nextCourse) {
+        const nCode = String(guide.nextCourse.code || guide.nextCourse.id || '').trim();
+        const nName = String(guide.nextCourse.name || '').trim();
+        if (lblNext) lblNext.textContent = 'คอร์สถัดไปที่แนะนำ: ' + nCode + (nName ? (' — ' + nName) : '');
+        if (lblMeta) {
+          if (guide.nextGroups && guide.nextGroups.length > 0) {
+            const g0 = guide.nextGroups[0];
+            lblMeta.textContent = 'เปิดสอนในรอบเดิม · กลุ่ม ' + (g0.section || 'A') + (g0.lecturerName ? (' (อ.' + g0.lecturerName + ')') : '') + (g0.room ? (' ห้อง ' + g0.room) : '');
+          } else {
+            lblMeta.textContent = guide.prevSchedule ? ('คงรอบเวลาเดิม (' + guide.prevSchedule + ') หรือเปลี่ยนรอบได้ตามต้องการ') : 'กรุณาเลือกรอบเวลาเรียนด้านล่าง';
+          }
+        }
+        if (btnNext) {
+          btnNext.style.display = 'inline-flex';
+          btnNext.onclick = () => applyReceiptRenewalCourse(nCode, guide.prevSchedule, guide.prevLearningMode, false);
+        }
+        if (lblBtnNext) lblBtnNext.textContent = 'ต่อคอร์สแนะนำ (' + nCode + ')';
+      } else {
+        if (lblNext) lblNext.textContent = 'ไม่พบคอร์สระดับถัดไปอัตโนมัติ (กรุณาเลือกหลักสูตรด้วยตนเอง)';
+        if (lblMeta) lblMeta.textContent = 'สามารถเลือกเรียนซ้ำคอร์สเดิมหรือเลือกคอร์สใหม่ด้านล่าง';
+        if (btnNext) btnNext.style.display = 'none';
+      }
+      if (btnRetake) {
+        btnRetake.onclick = () => applyReceiptRenewalCourse(guide.lastCode, guide.prevSchedule, guide.prevLearningMode, true);
+      }
+      if (lblBtnRetake) lblBtnRetake.textContent = 'เรียนซ้ำคอร์สเดิม (' + guide.lastCode + ')';
+      const altBox = document.getElementById('boxRcptRenewalAltChips');
+      if (altBox) {
+        if (guide.altCourses && guide.altCourses.length > 0) {
+          altBox.style.display = 'flex';
+          let chipsHtml = '<span style="font-size:11.5px; color:var(--text-muted); font-weight:600;">ทางเลือกข้ามระดับ:</span>';
+          guide.altCourses.forEach(c => {
+            const cCode = String(c.code || c.id || '').trim();
+            chipsHtml += '<button type="button" class="oca-type-toggle-btn" style="padding:3px 9px; font-size:11.5px; border-radius:6px;" onclick="applyReceiptRenewalCourse(\'' + escapeHtml(cCode) + '\', \'' + escapeHtml(guide.prevSchedule) + '\', \'' + escapeHtml(guide.prevLearningMode) + '\', false)">' + escapeHtml(cCode) + '</button>';
+          });
+          altBox.innerHTML = chipsHtml;
+        } else {
+          altBox.style.display = 'none';
+          altBox.innerHTML = '';
+        }
+      }
+    }
+    window.renderReceiptCourseRenewalGuide = renderReceiptCourseRenewalGuide;
+
+    function applyReceiptRenewalCourse(courseCode, preferredSchedule, preferredLearningMode, isRetake) {
+      if (typeof setReceiptType === 'function') setReceiptType('tuition');
+      if (typeof applyReceiptPreset === 'function') applyReceiptPreset('renewal');
+      const selCourse = document.getElementById('selRcptCourse');
+      if (selCourse && courseCode) {
+        const targetUp = String(courseCode).trim().toUpperCase();
+        for (const opt of selCourse.options) {
+          const valUp = String(opt.value || '').trim().toUpperCase();
+          const txtUp = String(opt.text || '').toUpperCase();
+          if (valUp === targetUp || txtUp.includes(targetUp)) {
+            selCourse.value = opt.value;
+            selCourse.dispatchEvent(new Event('change'));
+            break;
+          }
+        }
+      }
+      const selSched = document.getElementById('selRcptSchedule');
+      if (selSched && preferredSchedule) {
+        for (const opt of selSched.options) {
+          if (!opt.disabled && (opt.value === preferredSchedule || opt.text.includes(preferredSchedule) || preferredSchedule.includes(opt.value))) {
+            selSched.value = opt.value;
+            selSched.dispatchEvent(new Event('change'));
+            break;
+          }
+        }
+      }
+      const selLm = document.getElementById('selRcptLearningMode');
+      if (selLm && preferredLearningMode) {
+        if (/^onsite$/i.test(preferredLearningMode)) selLm.value = 'Onsite';
+        else if (/^hybrid$/i.test(preferredLearningMode)) selLm.value = 'Hybrid';
+        else if (/^online$/i.test(preferredLearningMode)) selLm.value = 'Online';
+      }
+      const selGrp = document.getElementById('selRcptGroup');
+      if (selGrp && selGrp.options && selGrp.options.length > 0 && typeof onReceiptGroupSelected === 'function') {
+        onReceiptGroupSelected();
+      }
+      if (typeof calcReceiptTotals === 'function') calcReceiptTotals();
+      if (typeof updateReceiptLivePreview === 'function') updateReceiptLivePreview();
+      if (typeof showToast === 'function') {
+        showToast(isRetake ? 'เลือกเรียนซ้ำคอร์สเดิมแล้ว' : 'เลือกคอร์สต่ออัตโนมัติแล้ว', courseCode + ' (ฟรีค่าแรกเข้า)', '✓');
+      }
+    }
+    window.applyReceiptRenewalCourse = applyReceiptRenewalCourse;
+
     function prepareStudentCourseRenewal() {
       setReceiptType('tuition');
       const selCourse = document.getElementById('selRcptCourse');
@@ -50821,6 +51248,8 @@ if (action === 'getDashboardStats') {
       if (dropdown) dropdown.style.display = 'none';
       const boxBadge = document.getElementById('boxSelectedStudentBadge');
       if (boxBadge) boxBadge.style.display = 'none';
+      const boxRenewalGuide = document.getElementById('boxRcptRenewalGuide');
+      if (boxRenewalGuide) boxRenewalGuide.style.display = 'none';
       const boxHistory = document.getElementById('boxSelectedStudentHistory');
       if (boxHistory) boxHistory.style.display = 'none';
       const boxBuyerManual = document.getElementById('boxBuyerManualInputs');
@@ -79924,9 +80353,35 @@ function openPublicRegisterView() {
         "รายรับคอร์สเรียนทั่วไป": "常规课程收入",
         "รายรับคอร์สติวสอบ HSK": "HSK 辅导课程收入",
         "ยอดรายรับ (บาท)": "课程收入（泰铢）",
-        "0 คน": "0 人"
+        "0 คน": "0 人",
+        "เพศ (Gender)": "性别",
+        "-- ระบุเพศ (Select) --": "-- 请选择性别 --",
+        "ชาย (Male)": "男",
+        "หญิง (Female)": "女",
+        "หมายเหตุประวัตินักศึกษา": "学员档案备注",
+        "(ไม่บังคับ — เช่น ขอเรียนห้องเดียวกับเพื่อน / ข้อมูลผู้ปกครอง)": "（选填 — 如申请同班或家长联系备注）",
+        "ระบุหมายเหตุเพิ่มเติมเกี่ยวกับตัวผู้เรียน (ถ้ามี)...": "填写学员补充备注（如有）...",
+        "4. กลุ่มเรียนและอาจารย์ผู้สอน": "4. 班级分组与授课教师",
+        "(ไม่บังคับ — ส่งต่อไปหน้าใบเสร็จอัตโนมัติ)": "（选填 — 将自动同步至收据页面）",
+        "-- เลือกที่หน้าใบเสร็จ / ให้สถาบันจัดกลุ่ม --": "-- 在收据页选择 / 由学院分配 --",
+        "นำทางการต่อคอร์สเรียนอัตโนมัติ (Course Renewal Guide)": "智能续课引导",
+        "ต่อคอร์สแนะนำ": "续报推荐课程",
+        "เรียนซ้ำคอร์สเดิม": "重修原课程"
       },
       en: {
+        "เพศ (Gender)": "Gender",
+        "-- ระบุเพศ (Select) --": "-- Select Gender --",
+        "ชาย (Male)": "Male",
+        "หญิง (Female)": "Female",
+        "หมายเหตุประวัตินักศึกษา": "Student Profile Notes",
+        "(ไม่บังคับ — เช่น ขอเรียนห้องเดียวกับเพื่อน / ข้อมูลผู้ปกครอง)": "(Optional — e.g. study with friend / guardian info)",
+        "ระบุหมายเหตุเพิ่มเติมเกี่ยวกับตัวผู้เรียน (ถ้ามี)...": "Enter additional student profile notes (if any)...",
+        "4. กลุ่มเรียนและอาจารย์ผู้สอน": "4. Class Group & Instructor",
+        "(ไม่บังคับ — ส่งต่อไปหน้าใบเสร็จอัตโนมัติ)": "(Optional — auto-synced to receipt tab)",
+        "-- เลือกที่หน้าใบเสร็จ / ให้สถาบันจัดกลุ่ม --": "-- Select at Receipt Tab / Academy Assigned --",
+        "นำทางการต่อคอร์สเรียนอัตโนมัติ (Course Renewal Guide)": "Course Renewal Guide",
+        "ต่อคอร์สแนะนำ": "Apply Recommended Course",
+        "เรียนซ้ำคอร์สเดิม": "Retake Previous Course",
         "ล้างคำค้นหาตำราเรียน": "Clear textbook search",
         "ปิดหน้าต่างยกเลิกใบเสร็จ": "Close void receipt modal",
         "ปิดหน้าต่างปิดยอดแคชเชียร์": "Close daily shift closing modal",
@@ -91048,13 +91503,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=279';
+      const swPath = basePath + 'sw.js?v=280';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (279):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (280):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
