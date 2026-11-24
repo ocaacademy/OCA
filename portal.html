@@ -12755,7 +12755,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '312';
+      var LATEST_VERSION = '313';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -15476,6 +15476,7 @@ body.printing-report #printReportContainer {
                   <select id="cfgMode_tuitionFee" class="oca-input" onchange="onFeeModeChange('tuitionFee')">
                     <option value="always">✓ ใช้ตลอดไป (ไม่มีวันหมดอายุ)</option>
                     <option value="period">⏱ ตั้งช่วงเวลา (กำหนดวันที่เริ่มต้น - สิ้นสุด)</option>
+                    <option value="disabled">ปิดใช้งาน</option>
                   </select>
 
                   <div style="font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.4;">
@@ -15513,6 +15514,7 @@ body.printing-report #printReportContainer {
                   <select id="cfgMode_regFee" class="oca-input" onchange="onFeeModeChange('regFee')">
                     <option value="always">✓ ใช้ตลอดไป (ไม่มีวันหมดอายุ)</option>
                     <option value="period">⏱ ตั้งช่วงเวลา (กำหนดวันที่เริ่มต้น - สิ้นสุด)</option>
+                    <option value="disabled">ปิดใช้งาน</option>
                   </select>
 
                   <div style="font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.4;">
@@ -15550,6 +15552,7 @@ body.printing-report #printReportContainer {
                   <select id="cfgMode_otherRegFee" class="oca-input" onchange="onFeeModeChange('otherRegFee')">
                     <option value="always">✓ ใช้ตลอดไป (ไม่มีวันหมดอายุ)</option>
                     <option value="period">⏱ ตั้งช่วงเวลา (กำหนดวันที่เริ่มต้น - สิ้นสุด)</option>
+                    <option value="disabled">ปิดใช้งาน</option>
                   </select>
 
                   <div style="font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.4;">
@@ -15587,6 +15590,7 @@ body.printing-report #printReportContainer {
                   <select id="cfgMode_discountOther" class="oca-input" onchange="onFeeModeChange('discountOther')">
                     <option value="always">✓ ใช้ตลอดไป (ไม่มีวันหมดอายุ)</option>
                     <option value="period">⏱ ตั้งช่วงเวลา (กำหนดวันที่เริ่มต้น - สิ้นสุด)</option>
+                    <option value="disabled">ปิดใช้งาน</option>
                   </select>
 
                   <div style="font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.4;">
@@ -15624,6 +15628,7 @@ body.printing-report #printReportContainer {
                   <select id="cfgMode_shippingFee" class="oca-input" onchange="onFeeModeChange('shippingFee')">
                     <option value="always">✓ ใช้ตลอดไป (ไม่มีวันหมดอายุ)</option>
                     <option value="period">⏱ ตั้งช่วงเวลา (กำหนดวันที่เริ่มต้น - สิ้นสุด)</option>
+                    <option value="disabled">ปิดใช้งาน</option>
                   </select>
 
                   <div style="font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.4;">
@@ -15682,6 +15687,7 @@ body.printing-report #printReportContainer {
                       <select id="cfgMode_discountNormal" class="oca-input" onchange="onFeeModeChange('discountNormal')">
                         <option value="always">✓ ใช้ตลอดไป (ไม่มีวันหมดอายุ)</option>
                         <option value="period">⏱ ตั้งช่วงเวลา (กำหนดวันที่เริ่มต้น - สิ้นสุด)</option>
+                        <option value="disabled">ปิดใช้งาน</option>
                       </select>
 
                       <div style="font-size:11.5px; color:var(--text-muted); margin-top:3px; line-height:1.4;">
@@ -29371,6 +29377,9 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
           const fullFeeSettings = {
             ...feeObj,
             regFee: feeObj.regFee ? Number(feeObj.regFee.amount ?? 0) : 300,
+            cardFee: feeObj.cardFee ? Number(feeObj.cardFee.amount ?? 0) : 0,
+            transferFee: feeObj.transferFee ? Number(feeObj.transferFee.amount ?? 0) : 0,
+            shippingFee: feeObj.shippingFee ? Number(feeObj.shippingFee.amount ?? 0) : 100,
             discountKids: feeObj.discountKids ? feeObj.discountKids.amount : 200,
             discountNormal: feeObj.discountNormal ? feeObj.discountNormal.amount : 240,
             items: feeObj
@@ -32353,6 +32362,20 @@ if (action === 'getDashboardStats') {
             const derivedShipStatus = (hasTrack || String(r.claim_status || '').toUpperCase() === 'CLAIMED')
               ? 'SHIPPED'
               : (editNotesStr.includes('พิมพ์ใบปะหน้าแล้ว') ? 'PRINTED' : 'PENDING_PRINT');
+            const rawItemName = String(r.item_name || 'ตำราเรียน').trim();
+            let resolvedItemCode = String(r.item_code || '').trim();
+            if (!resolvedItemCode) {
+              const codeMatch = rawItemName.match(/\b([A-Z]{1,3}\d{3,4}[A-Z]?)\b/i) ||
+                String((st && st.current_course) || '').match(/\b([A-Z]{1,3}\d{3,4}[A-Z]?)\b/i);
+              if (codeMatch) resolvedItemCode = codeMatch[1].toUpperCase();
+            }
+            if (!resolvedItemCode && typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList)) {
+              const mCourse = cachedCoursesList.find(c =>
+                (c.name && (rawItemName.includes(c.name) || c.name.includes(rawItemName))) ||
+                (st && st.current_course && c.name && st.current_course.includes(c.name))
+              );
+              if (mCourse && (mCourse.code || mCourse.id)) resolvedItemCode = String(mCourse.code || mCourse.id).trim();
+            }
             return {
               orderId: String(r.receipt_no || r.id || ''),
               receiptNo: String(r.receipt_no || ''),
@@ -32362,7 +32385,8 @@ if (action === 'getDashboardStats') {
               phone: resolvedPhone,
               address: resolvedAddress,
               deliveryAddress: resolvedAddress,
-              itemName: String(r.item_name || 'ตำราเรียน'),
+              itemCode: resolvedItemCode,
+              itemName: rawItemName,
               materialType: String(r.material_type || 'หนังสือและสมุด'),
               shippingFee: Math.max(0, Number(r.shipping_fee || 0)),
               status: derivedShipStatus,
@@ -32919,9 +32943,13 @@ if (action === 'getDashboardStats') {
               else if (params.lateRegPenaltyKids !== undefined) amt = Number(params.lateRegPenaltyKids);
               else amt = 0;
             }
-            const m = (it.mode === 'period' || it.mode === 'dateRange') ? 'period' : (it.mode === 'disabled' ? 'disabled' : 'always');
-            const sDate = (m === 'period' && it.startDate) ? String(it.startDate).split('T')[0] : null;
-            const eDate = (m === 'period' && it.endDate) ? String(it.endDate).split('T')[0] : null;
+            let rawModeVal = it.mode;
+            if (k === 'discountKids' && !rawModeVal && items.discountNormal) rawModeVal = items.discountNormal.mode;
+            const m = (rawModeVal === 'period' || rawModeVal === 'dateRange') ? 'period' : (it.mode === 'disabled' ? 'disabled' : (rawModeVal === 'disabled' ? 'disabled' : 'always'));
+            const rawStartVal = (k === 'discountKids' && !it.startDate && items.discountNormal) ? items.discountNormal.startDate : it.startDate;
+            const rawEndVal = (k === 'discountKids' && !it.endDate && items.discountNormal) ? items.discountNormal.endDate : it.endDate;
+            const sDate = (m === 'period' && rawStartVal) ? String(rawStartVal).split('T')[0] : null;
+            const eDate = (m === 'period' && rawEndVal) ? String(rawEndVal).split('T')[0] : null;
             updates.push({
               key: k,
               name: feeNames[k] || k,
@@ -33014,6 +33042,9 @@ if (action === 'getDashboardStats') {
           const fullFeeSettings = {
             ...feeObj,
             regFee: feeObj.regFee ? Number(feeObj.regFee.amount ?? 0) : 300,
+            cardFee: feeObj.cardFee ? Number(feeObj.cardFee.amount ?? 0) : 0,
+            transferFee: feeObj.transferFee ? Number(feeObj.transferFee.amount ?? 0) : 0,
+            shippingFee: feeObj.shippingFee ? Number(feeObj.shippingFee.amount ?? 0) : 100,
             discountKids: feeObj.discountKids ? feeObj.discountKids.amount : 200,
             discountNormal: feeObj.discountNormal ? feeObj.discountNormal.amount : 240,
             items: feeObj
@@ -37946,6 +37977,10 @@ if (action === 'getDashboardStats') {
                       course: course,
                       schedule: schedule,
                       learningMode: learningMode,
+                      baseFee: baseEnrollCourseFee,
+                      discountAmount: enrollDiscAmt,
+                      regFee: enrollRegFeeAmt,
+                      latePenaltyTotal: enrollLatePenAmt,
                       expectedFee: calculatedCourseFee,
                       slipUrl: uploadedSlipUrl,
                       slipRef: sRef,
@@ -38581,6 +38616,10 @@ if (action === 'getDashboardStats') {
         // ส่วนลดปกติ: ไม่คิด
         const chkDisc = document.getElementById('chkRcptApplyDiscountNormal');
         if (chkDisc && chkDisc.checked) { chkDisc.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('discountNormal'); }
+        const chkOtherTr = document.getElementById('chkRcptApplyOtherRegFee');
+        if (chkOtherTr && chkOtherTr.checked) { chkOtherTr.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('otherRegFee'); }
+        const chkDiscOtherTr = document.getElementById('chkRcptApplyDiscountOther');
+        if (chkDiscOtherTr && chkDiscOtherTr.checked) { chkDiscOtherTr.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('discountOther'); }
         // กำหนดค่าธรรมเนียมย้ายคอร์สแบบ Dynamic จากการตั้งค่าระบบส่วนกลาง
         const tItem = (globalFeePresets.items && globalFeePresets.items.transferFee) || {
           amount: globalFeePresets.transferFee !== undefined ? globalFeePresets.transferFee : 100,
@@ -42359,12 +42398,13 @@ if (action === 'getDashboardStats') {
           color: 'red'
         };
       }
-      const endLabel = end ? `ถึง ${formatThaiShortDate(end)}` : 'มีผลบังคับใช้';
+      const endLabel = end ? `ถึง ${formatThaiShortDate(end)}` : (start ? `เริ่มตั้งแต่ ${formatThaiShortDate(start)}` : 'มีผลบังคับใช้');
+      const badgePeriodTxt = end ? `ถึง ${formatThaiShortDate(end)}` : (start ? `เริ่มตั้งแต่ ${formatThaiShortDate(start)}` : 'มีผลบังคับใช้');
       return {
         active: true,
         mode: 'period',
         label: `<i class="fa-solid fa-circle" style="color:#10b981; font-size:12px; margin-right:4px;"></i> กำลังใช้งาน (${endLabel})`,
-        badgeText: `<i class="fa-solid fa-bolt" style="margin-right:3px;"></i> ถึง ${formatThaiShortDate(end)}`,
+        badgeText: `<i class="fa-solid fa-bolt" style="margin-right:3px;"></i> ${badgePeriodTxt}`,
         color: 'green'
       };
     }
@@ -42610,7 +42650,7 @@ if (action === 'getDashboardStats') {
         baseAmount = Math.max(0, Number(adultVal));
         categoryLabel = 'ส่วนลดปกติ (ผู้ใหญ่ 5 ชม./สัปดาห์)';
       }
-      if (targetItem && targetItem !== normItem && targetItem.mode === 'disabled') {
+      if ((normItem && normItem.mode === 'disabled') || (targetItem && targetItem !== normItem && targetItem.mode === 'disabled')) {
         return {
           amount: 0,
           baseAmount: 0,
@@ -42668,7 +42708,7 @@ if (action === 'getDashboardStats') {
         if (pref === 'none') {
           return { active: false, amount: 0, kidsAmount: kidsAmt, adultAmount: adultAmt, mode: mode, label: '' };
         }
-        isKidsTarget = (pref === 'kids') || (!pref && typeof isKidsCourse === 'function' && isKidsCourse(courseObj));
+        isKidsTarget = (pref === 'kids') || ((pref !== 'adult' && pref !== 'none') && typeof isKidsCourse === 'function' && isKidsCourse(courseObj));
       }
       // Check custom late penalty rules (late_penalty_rule_*) matching audience & active date window
       const customRules = (window._ocaLatePenaltyRulesMap && typeof window._ocaLatePenaltyRulesMap === 'object') ? Object.values(window._ocaLatePenaltyRulesMap) : [];
@@ -42678,7 +42718,8 @@ if (action === 'getDashboardStats') {
         const rAud = String(rule.audience || 'all').toLowerCase();
         if (rAud !== 'all' && rAud !== targetAud) continue;
         const rSt = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(rule) : { active: true };
-        const rAmt = Math.max(0, Number(rule.amount || 0));
+        const rawRuleAmt = isKidsTarget ? (rule.kidsAmount ?? rule.amount ?? 0) : (rule.adultAmount ?? rule.amount ?? 0);
+        const rAmt = Math.max(0, Number(rawRuleAmt || 0));
         if (rSt && rSt.active && rAmt > 0) {
           return {
             active: true,
@@ -42962,7 +43003,7 @@ if (action === 'getDashboardStats') {
             amount = defaultAmounts[k];
           }
           const rawMode = typeof raw.mode === 'string' ? raw.mode : 'always';
-          mode = (rawMode === 'period' || rawMode === 'dateRange') ? 'period' : 'always';
+          mode = (rawMode === 'period' || rawMode === 'dateRange') ? 'period' : (rawMode === 'disabled' ? 'disabled' : 'always');
           const rawStart = raw.startDate || raw.start_date || '';
           const rawEnd = raw.endDate || raw.end_date || '';
           startDate = typeof rawStart === 'string' ? rawStart.split('T')[0] : '';
@@ -43317,22 +43358,29 @@ if (action === 'getDashboardStats') {
         };
       }
     }
+    function validateGeneralFeeDateRanges(keys) {
+      for (const k of keys) {
+        const prevItemCfg = (globalFeePresets && globalFeePresets.items && globalFeePresets.items[k]) || {};
+        const modeEl = document.getElementById(`cfgMode_${k}`);
+        const startEl = document.getElementById(`cfgStart_${k}`);
+        const endEl = document.getElementById(`cfgEnd_${k}`);
+        const mode = modeEl ? (modeEl.value || 'always') : (prevItemCfg.mode || 'always');
+        const start = startEl ? (startEl.value || '') : (prevItemCfg.startDate || '');
+        const end = endEl ? (endEl.value || '') : (prevItemCfg.endDate || '');
+        if (mode === 'period' && start && end && end < start) {
+          showModal('ข้อผิดพลาดในการตั้งช่วงเวลา', 'วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น กรุณาตรวจสอบช่วงเวลาที่ระบุ', '⚠️');
+          return false;
+        }
+      }
+      return true;
+    }
     let isSavingFeeSettings = false;
     async function saveGeneralFeeSettings() {
       if (isSavingFeeSettings) return;
       const btn = document.querySelector('button[onclick="saveGeneralFeeSettings()"]');
       const origBtnHtml = btn ? btn.innerHTML : '';
-      // Validate date ranges before proceeding
       const keys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'shippingFee', 'discountNormal', 'discountOther', 'lateRegPenalty'];
-      for (const k of keys) {
-        const mode = document.getElementById(`cfgMode_${k}`)?.value || 'always';
-        const start = document.getElementById(`cfgStart_${k}`)?.value || '';
-        const end = document.getElementById(`cfgEnd_${k}`)?.value || '';
-        if (mode === 'period' && start && end && end < start) {
-          showModal('ข้อผิดพลาดในการตั้งช่วงเวลา', 'วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น กรุณาตรวจสอบช่วงเวลาที่ระบุ', '⚠️');
-          return;
-        }
-      }
+      if (!validateGeneralFeeDateRanges(keys)) return;
       const pinOk = await window.requireSecurityPinVerification('ยืนยันการบันทึกค่าธรรมเนียมกลาง', 'บันทึกอัตราค่าธรรมเนียมและส่วนลดส่วนกลาง');
       if (!pinOk) return;
       isSavingFeeSettings = true;
@@ -43373,9 +43421,13 @@ if (action === 'getDashboardStats') {
               ? Number(valStr)
               : (k === 'regFee' ? Number(fallbackAmt ?? 300) : 0))
           : fallbackAmt;
-        const mode = document.getElementById(`cfgMode_${k}`)?.value || 'always';
-        const start = document.getElementById(`cfgStart_${k}`)?.value || '';
-        const end = document.getElementById(`cfgEnd_${k}`)?.value || '';
+        const prevItemCfg = (globalFeePresets && globalFeePresets.items && globalFeePresets.items[k]) || {};
+        const modeEl = document.getElementById(`cfgMode_${k}`);
+        const startEl = document.getElementById(`cfgStart_${k}`);
+        const endEl = document.getElementById(`cfgEnd_${k}`);
+        const mode = modeEl ? (modeEl.value || 'always') : (prevItemCfg.mode || 'always');
+        const start = startEl ? (startEl.value || '') : (prevItemCfg.startDate || '');
+        const end = endEl ? (endEl.value || '') : (prevItemCfg.endDate || '');
         items[k] = {
           amount: amt,
           mode: mode,
@@ -53492,16 +53544,27 @@ if (action === 'getDashboardStats') {
           if (inp) inp.value = 0;
           return { active: false, amount: 0 };
         }
-        if (key === 'otherRegFee' && typeof resolveLateRegPenalty === 'function') {
-          const selCCalc = document.getElementById('selRcptCourse');
-          const cIdCalc = selCCalc ? selCCalc.value : '';
-          const cObjCalc = (Array.isArray(receiptCoursesList) ? receiptCoursesList.find(c => c.id === cIdCalc || c.code === cIdCalc) : null) ||
-                           (window.cachedCoursesList && Array.isArray(window.cachedCoursesList) ? window.cachedCoursesList.find(c => c.id === cIdCalc || c.code === cIdCalc) : null);
-          const lpCalc = resolveLateRegPenalty(cObjCalc);
-          if (lpCalc && lpCalc.active && lpCalc.amount > 0) {
-            if (inp) inp.value = lpCalc.amount;
-            return { active: true, amount: lpCalc.amount };
+        if (key === 'otherRegFee') {
+          const itemOther = (globalFeePresets && globalFeePresets.items && globalFeePresets.items[key]) || {};
+          const stOther = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(itemOther) : { active: true };
+          let baseOtherAmt = stOther.active ? ((typeof itemOther.amount === 'number') ? itemOther.amount : (Number(itemOther.amount) || Number(globalFeePresets && globalFeePresets[key]) || 0)) : 0;
+          if (isNaN(baseOtherAmt) || baseOtherAmt < 0) baseOtherAmt = 0;
+          let latePenAmt = 0;
+          if (typeof resolveLateRegPenalty === 'function') {
+            const selCCalc = document.getElementById('selRcptCourse');
+            const cIdCalc = selCCalc ? selCCalc.value : '';
+            const cObjCalc = (Array.isArray(receiptCoursesList) ? receiptCoursesList.find(c => c.id === cIdCalc || c.code === cIdCalc) : null) ||
+                             (window.cachedCoursesList && Array.isArray(window.cachedCoursesList) ? window.cachedCoursesList.find(c => c.id === cIdCalc || c.code === cIdCalc) : null);
+            const lpCalc = resolveLateRegPenalty(cObjCalc);
+            if (lpCalc && lpCalc.active && lpCalc.amount > 0) latePenAmt = lpCalc.amount;
           }
+          const combinedOther = baseOtherAmt + latePenAmt;
+          if (combinedOther > 0) {
+            if (inp) inp.value = combinedOther;
+            return { active: true, amount: combinedOther };
+          }
+          if (inp) inp.value = 0;
+          return { active: false, amount: 0 };
         }
         const item = (globalFeePresets && globalFeePresets.items && globalFeePresets.items[key]) || {};
         const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(item) : { active: true };
@@ -53560,7 +53623,9 @@ if (action === 'getDashboardStats') {
         const chkNorm = document.getElementById('chkRcptApplyDiscountNormal');
         normalDiscount = (chkNorm && chkNorm.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountNormal')?.value) || 0) : 0;
         const chkOther = document.getElementById('chkRcptApplyDiscountOther');
-        otherDiscount = (chkOther && chkOther.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || Number(document.getElementById('inpRcptDiscount')?.value) || 0) : 0;
+        const discOtherItem = (globalFeePresets && globalFeePresets.items && globalFeePresets.items.discountOther) || {};
+        const discOtherSt = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(discOtherItem) : { active: true };
+        otherDiscount = (chkOther && chkOther.checked && discOtherSt.active) ? Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || Number(document.getElementById('inpRcptDiscount')?.value) || 0) : 0;
         // Course discount applies ONLY to tuition baseAmount; extra textbooks are billed at full catalog price
         grandTotal = Math.max(0, baseAmount - normalDiscount - otherDiscount) + regFee + cardFee + otherRegFee + transferFee + shippingFee;
         const tuitionBadge = document.getElementById('badgeAmount_tuitionFee');
@@ -53578,7 +53643,9 @@ if (action === 'getDashboardStats') {
         const chkNorm = document.getElementById('chkRcptApplyDiscountNormal');
         normalDiscount = (chkNorm && chkNorm.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountNormal')?.value) || 0) : 0;
         const chkOther = document.getElementById('chkRcptApplyDiscountOther');
-        otherDiscount = (chkOther && chkOther.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || Number(document.getElementById('inpRcptDiscount')?.value) || 0) : 0;
+        const discOtherItem = (globalFeePresets && globalFeePresets.items && globalFeePresets.items.discountOther) || {};
+        const discOtherSt = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(discOtherItem) : { active: true };
+        otherDiscount = (chkOther && chkOther.checked && discOtherSt.active) ? Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || Number(document.getElementById('inpRcptDiscount')?.value) || 0) : 0;
         grandTotal = Math.max(0, baseAmount - normalDiscount - otherDiscount);
       } else {
         let bookOnlyQty = 0;
@@ -53597,7 +53664,9 @@ if (action === 'getDashboardStats') {
         const chkNorm = document.getElementById('chkRcptApplyDiscountNormal');
         normalDiscount = (chkNorm && chkNorm.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountNormal')?.value) || 0) : 0;
         const chkOther = document.getElementById('chkRcptApplyDiscountOther');
-        otherDiscount = (chkOther && chkOther.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || Number(document.getElementById('inpRcptDiscount')?.value) || 0) : 0;
+        const discOtherItem = (globalFeePresets && globalFeePresets.items && globalFeePresets.items.discountOther) || {};
+        const discOtherSt = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(discOtherItem) : { active: true };
+        otherDiscount = (chkOther && chkOther.checked && discOtherSt.active) ? Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || Number(document.getElementById('inpRcptDiscount')?.value) || 0) : 0;
         grandTotal = Math.max(0, baseAmount - normalDiscount - otherDiscount) + shippingFee;
       }
       // Student Overpayment Credit Redemption Deduction (v217)
@@ -54150,8 +54219,12 @@ if (action === 'getDashboardStats') {
       let shippingFee = 0;
       const chkNorm = document.getElementById('chkRcptApplyDiscountNormal');
       const chkOther = document.getElementById('chkRcptApplyDiscountOther');
+      const discNormStSave = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus((globalFeePresets && globalFeePresets.items && globalFeePresets.items.discountNormal) || {}) : { active: true };
+      const discOtherStSave = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus((globalFeePresets && globalFeePresets.items && globalFeePresets.items.discountOther) || {}) : { active: true };
       let normalDiscount = (chkNorm && chkNorm.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountNormal')?.value) || 0) : 0;
+      if (!discNormStSave.active) normalDiscount = 0;
       let otherDiscount = (chkOther && chkOther.checked) ? Math.max(0, Number(document.getElementById('inpRcptDiscountOther')?.value) || Number(document.getElementById('inpRcptDiscount')?.value) || 0) : 0;
+      if (!discOtherStSave.active) otherDiscount = 0;
       const rcptCartSave = Array.isArray(window._rcptBookCart) ? window._rcptBookCart : [];
       const extraBooksTotalSave = rcptCartSave.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
       const extraBooksQtySave = rcptCartSave.reduce((s, b) => s + Math.max(1, Number(b.qty) || 1), 0);
@@ -54188,12 +54261,19 @@ if (action === 'getDashboardStats') {
         const getActiveFeeVal = (key, chkId, inpId) => {
           const chk = document.getElementById(chkId);
           if (!chk || !chk.checked) return 0;
-          if (key === 'otherRegFee' && typeof resolveLateRegPenalty === 'function') {
-            const cIdSave = selC ? selC.value : '';
-            const cObjSave = (Array.isArray(receiptCoursesList) ? receiptCoursesList.find(c => c.id === cIdSave || c.code === cIdSave) : null) ||
-                             (window.cachedCoursesList && Array.isArray(window.cachedCoursesList) ? window.cachedCoursesList.find(c => c.id === cIdSave || c.code === cIdSave) : null);
-            const lpSave = resolveLateRegPenalty(cObjSave);
-            if (lpSave && lpSave.active && lpSave.amount > 0) return lpSave.amount;
+          if (key === 'otherRegFee') {
+            const itemO = (globalFeePresets && globalFeePresets.items && globalFeePresets.items[key]) || {};
+            const stO = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(itemO) : { active: true };
+            const baseO = stO.active ? Math.max(0, Number((typeof itemO.amount === 'number') ? itemO.amount : (itemO.amount ?? (globalFeePresets && globalFeePresets[key]) ?? 0)) || 0) : 0;
+            let lateO = 0;
+            if (typeof resolveLateRegPenalty === 'function') {
+              const cIdSave = selC ? selC.value : '';
+              const cObjSave = (Array.isArray(receiptCoursesList) ? receiptCoursesList.find(c => c.id === cIdSave || c.code === cIdSave) : null) ||
+                               (window.cachedCoursesList && Array.isArray(window.cachedCoursesList) ? window.cachedCoursesList.find(c => c.id === cIdSave || c.code === cIdSave) : null);
+              const lpSave = resolveLateRegPenalty(cObjSave);
+              if (lpSave && lpSave.active && lpSave.amount > 0) lateO = lpSave.amount;
+            }
+            return baseO + lateO;
           }
           const item = (globalFeePresets && globalFeePresets.items && globalFeePresets.items[key]) || {};
           const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(item) : { active: true };
@@ -59687,9 +59767,12 @@ if (action === 'getDashboardStats') {
       const crMatch = notes.match(/\[CREDIT_REDEEMED:\s*฿?([\d,]+(?:\.\d+)?)\]/i);
       const redeemedCredit = crMatch ? (Number(crMatch[1].replace(/,/g, '')) || 0) : 0;
       const isTuitionType = !rType || rType === 'tuition';
+      const isBookType = (rType === 'book' || rType === 'course_book' || rType === 'textbook');
       const calcNet = isTuitionType && !isOtherFeeType
         ? Math.max(0, Math.max(0, tuition - dc) + books + exams + other - redeemedCredit)
-        : Math.max(0, tuition + books + exams + other - dc - redeemedCredit);
+        : (isBookType
+          ? Math.max(0, Math.max(0, books - dc) + exams + other - redeemedCredit)
+          : Math.max(0, tuition + books + exams + other - dc - redeemedCredit));
       const grandTotal = (rawGt >= 0 && (Math.abs(rawGt - calcNet) <= 1 || redeemedCredit > 0)) ? rawGt : calcNet;
       return { tuition, books, exams, other, discount: dc, grandTotal };
     }
@@ -63963,30 +64046,35 @@ if (action === 'getDashboardStats') {
           : `<span style="font-size:12px; color:#ef4444; background:rgba(239,68,68,0.1); padding:2px 6px; border-radius:4px;"><i class="fa-solid fa-triangle-exclamation"></i> ไม่มีเบอร์</span>`;
         html += `
 
-          <tr>
-            <td style="text-align:center; white-space:nowrap;">
+          <tr style="border-bottom:1px solid rgba(148,163,184,0.16);">
+            <td style="text-align:center; white-space:nowrap; padding:14px 12px; vertical-align:middle;">
               <input type="checkbox" class="chk-ship-item" value="${escapeHtml(item.orderId)}" ${isSelected ? 'checked' : ''} onchange="onShippingItemCheckboxChange('${escapeHtml(item.orderId)}', this.checked)">
             </td>
 
-            <td style="text-align:center; color:var(--text-muted); font-size:12px; white-space:nowrap;">${toArabicDigits(idx + 1)}</td>
-            <td style="min-width:140px; white-space:nowrap;">
+            <td style="text-align:center; color:var(--text-muted); font-size:12px; white-space:nowrap; padding:14px 12px; vertical-align:middle;">${toArabicDigits(idx + 1)}</td>
+            <td style="min-width:145px; white-space:nowrap; padding:14px 12px; vertical-align:middle; line-height:1.5;">
               <div style="font-weight:700; color:var(--text-main); font-size:13px;">${toArabicDigits(item.receiptNo || item.orderId)}</div>
-              <div style="font-size:12px; color:var(--text-muted);">${toArabicDigits(formatThaiDateTime(item.createdAt))}</div>
+              <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">${toArabicDigits(formatThaiDateTime(item.createdAt))}</div>
             </td>
 
-            <td style="min-width:105px; white-space:nowrap;"><code style="font-size:12px; color:var(--color-gold);">${toArabicDigits(item.studentId || '-')}</code></td>
-            <td style="min-width:160px;">
+            <td style="min-width:105px; white-space:nowrap; padding:14px 12px; vertical-align:middle;"><code style="font-size:12.5px; font-weight:700; color:var(--color-gold);">${toArabicDigits(item.studentId || '-')}</code></td>
+            <td style="min-width:165px; padding:14px 12px; vertical-align:middle; line-height:1.5;">
               <div style="font-weight:700; color:var(--text-main);">${escapeHtml(item.fullName || '-')}</div>
             </td>
 
-            <td style="min-width:120px; white-space:nowrap;">${phoneDisplay}</td>
-            <td style="min-width:200px; max-width:280px; word-break:break-word;">${addrDisplay}</td>
-            <td style="min-width:160px;">
-              <div style="font-size:12px; font-weight:600; color:var(--text-main);">${escapeHtml(item.itemName || 'ตำราเรียน')}</div>
-              <div style="font-size:12px; color:var(--color-gold);">${escapeHtml(item.materialType || 'หนังสือและสมุด')}</div>
+            <td style="min-width:125px; white-space:nowrap; padding:14px 12px; vertical-align:middle;">${phoneDisplay}</td>
+            <td style="min-width:220px; max-width:300px; word-break:break-word; padding:14px 12px; vertical-align:middle; line-height:1.55;">${addrDisplay}</td>
+            <td style="min-width:150px; padding:14px 12px; vertical-align:middle; line-height:1.5;">
+              ${(() => {
+                const rawNm = String(item.itemName || 'ตำราเรียน').trim();
+                const fallbackMatch = rawNm.match(/\b([A-Z]{1,3}\d{3,4}[A-Z]?)\b/i);
+                const codeTxt = String(item.itemCode || (fallbackMatch ? fallbackMatch[1].toUpperCase() : '') || rawNm).trim();
+                return `<div title="${escapeHtml(rawNm)}"><span style="display:inline-block; padding:2px 9px; border-radius:6px; font-family:monospace; font-size:12.5px; font-weight:800; background:rgba(56,189,248,0.12); color:#0284C7; border:1px solid rgba(56,189,248,0.35);">${escapeHtml(codeTxt)}</span></div>`;
+              })()}
+              <div style="font-size:11.5px; color:var(--color-gold); margin-top:5px;">${escapeHtml(item.materialType || 'หนังสือและสมุด')}</div>
             </td>
 
-            <td style="min-width:145px; white-space:nowrap;">
+            <td style="min-width:150px; white-space:nowrap; padding:14px 12px; vertical-align:middle;">
 
               ${statusBadge}
 
@@ -64002,7 +64090,7 @@ if (action === 'getDashboardStats') {
 
             </td>
 
-            <td style="text-align:center; min-width:135px; white-space:nowrap;">
+            <td style="text-align:center; min-width:135px; white-space:nowrap; padding:14px 12px; vertical-align:middle;">
               <div style="display:inline-flex; gap:6px;">
                 <button class="oca-type-toggle-btn oca-btn-print" style="padding:4px 8px; font-size:12px;" title="พิมพ์ใบปะหน้าเฉพาะรายการนี้" onclick="printSingleShippingLabel('${escapeHtml(item.orderId)}')">
                   <i class="fa-solid fa-print"></i> พิมพ์
@@ -70946,9 +71034,11 @@ function openPublicRegisterView() {
       const item = (presets.items && presets.items.regFee) || (typeof presets.regFee === 'object' && presets.regFee !== null ? presets.regFee : null);
       if (item) {
         const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(item) : { active: true };
-        if (st.active && item.amount !== undefined && item.amount !== null && item.amount !== '' && !isNaN(Number(item.amount)) && Number(item.amount) > 0) {
+        if (!st.active) return 0;
+        if (item.amount !== undefined && item.amount !== null && item.amount !== '' && !isNaN(Number(item.amount)) && Number(item.amount) > 0) {
           return Number(item.amount);
         }
+        return 0;
       } else if (presets.regFee !== undefined && presets.regFee !== null && typeof presets.regFee !== 'object' && !isNaN(Number(presets.regFee)) && Number(presets.regFee) > 0) {
         return Number(presets.regFee);
       }
@@ -71085,7 +71175,7 @@ function openPublicRegisterView() {
         const { data: gRows, error: gErr } = await _supabase
           .from('fee_settings')
           .select('key, name, amount, mode, start_date, end_date')
-          .or('key.in.(active_academic_term,regFee,discountNormal,discountKids,discountOther,shippingFee,disc_rule_adult5,disc_rule_adult3,disc_rule_kids,disc_rule_art,disc_rule_music),key.like.term_open_date_%,key.like.term_close_date_%,key.like.round_open_date_%,key.like.exam_cfg:%,key.like.exam_meta:%,key.like.kiosk_cat_lock:%,key.like.custom_fee_%');
+          .or('key.in.(active_academic_term,regFee,discountNormal,discountKids,discountOther,shippingFee,lateRegPenalty,lateRegPenaltyKids,disc_rule_adult5,disc_rule_adult3,disc_rule_kids,disc_rule_art,disc_rule_music),key.like.term_open_date_%,key.like.term_close_date_%,key.like.round_open_date_%,key.like.exam_cfg:%,key.like.exam_meta:%,key.like.kiosk_cat_lock:%,key.like.custom_fee_%,key.like.late_penalty_rule_%,key.like.course_late_penalty_%');
         if (gErr || !Array.isArray(gRows)) return;
         if (typeof globalFeePresets !== 'object' || !globalFeePresets) globalFeePresets = { items: {} };
         if (!globalFeePresets.items) globalFeePresets.items = {};
@@ -71119,6 +71209,27 @@ function openPublicRegisterView() {
             const rKey = r.key.replace('round_open_date_', '');
             if (!window._ocaRoundOpenDatesMap) window._ocaRoundOpenDatesMap = {};
             window._ocaRoundOpenDatesMap[rKey] = r.name || '';
+          } else if (r.key && r.key.startsWith('late_penalty_rule_')) {
+            try {
+              const parsedLP = JSON.parse(r.name || '{}');
+              window._ocaLatePenaltyRulesMap = window._ocaLatePenaltyRulesMap || {};
+              window._ocaLatePenaltyRulesMap[r.key] = {
+                key: r.key,
+                label: parsedLP.label || r.key,
+                kidsAmount: Number(parsedLP.kidsAmount ?? amt ?? 0),
+                adultAmount: Number(parsedLP.adultAmount ?? amt ?? 0),
+                audience: parsedLP.audience || 'all',
+                mode: r.mode || parsedLP.mode || 'always',
+                startDate: r.start_date || parsedLP.startDate || '',
+                endDate: r.end_date || parsedLP.endDate || ''
+              };
+            } catch (_) {}
+          } else if (r.key && r.key.startsWith('course_late_penalty_')) {
+            const cKey = r.key.replace('course_late_penalty_', '').trim();
+            if (cKey) {
+              window._feeMatrixPenaltySaved = window._feeMatrixPenaltySaved || {};
+              window._feeMatrixPenaltySaved[cKey] = String(r.name || 'none').trim();
+            }
           } else if (r.key && r.key.startsWith('custom_fee_')) {
             const cfObj = {
               key: r.key,
@@ -71147,6 +71258,9 @@ function openPublicRegisterView() {
           if (globalFeePresets.discountKids !== undefined) {
             globalFeePresets.items.discountNormal.kidsAmount = globalFeePresets.discountKids;
           }
+        }
+        if (globalFeePresets.items.lateRegPenalty && globalFeePresets.lateRegPenaltyKids !== undefined) {
+          globalFeePresets.items.lateRegPenalty.kidsAmount = globalFeePresets.lateRegPenaltyKids;
         }
         try { localStorage.setItem('oca_general_fee_settings', JSON.stringify(globalFeePresets)); } catch (_) {}
         syncPublicRegFeeLabels();
@@ -74026,6 +74140,10 @@ function openPublicRegisterView() {
       if (totals.pubRegFee > 0) {
         summaryLines.push(`<div class="oca-cart-sum-reg" style="display:flex; justify-content:space-between; font-size:12px; color:#92400E;"><span>${escapeHtml(lblReg)}</span><strong>+฿${totals.pubRegFee.toLocaleString()}</strong></div>`);
       }
+      if (totals.totalLatePenalty > 0) {
+        const lblLateCart = lang === 'zh' ? '逾期注册罚款' : (lang === 'en' ? 'Late Registration Penalty' : 'ค่าปรับลงทะเบียนเกินกำหนด');
+        summaryLines.push(`<div class="oca-cart-sum-late" style="display:flex; justify-content:space-between; font-size:12px; color:#B45309;"><span>${escapeHtml(lblLateCart)}</span><strong>+฿${totals.totalLatePenalty.toLocaleString()}</strong></div>`);
+      }
       if (totals.totalCourseDisc > 0) {
         summaryLines.push(`<div class="oca-cart-sum-disc" style="display:flex; justify-content:space-between; font-size:12px; color:#047857;"><span>${escapeHtml(lblDisc)}</span><strong>-฿${totals.totalCourseDisc.toLocaleString()}</strong></div>`);
       }
@@ -74889,7 +75007,12 @@ function openPublicRegisterView() {
         const imgUrl = (typeof getKioskCourseImageUrl === 'function') ? getKioskCourseImageUrl(cat, c) : '';
         const regTag = pricing.isReturning
           ? `<span style="display:inline-flex; align-items:center; background:#DCFCE7; color:#166534; font-size:11px; font-weight:800; padding:3px 10px; border-radius:999px; border:1px solid #BBF7D0; white-space:nowrap;">${escapeHtml(d.freeRegFee || 'ฟรีค่าแรกเข้า')}</span>`
-          : `<span style="display:inline-flex; align-items:center; background:#FEF3C7; color:#92400E; font-size:11px; font-weight:800; padding:3px 10px; border-radius:999px; border:1px solid #FDE68A; white-space:nowrap;">${escapeHtml((d.newRegFeePrefix || '+ ค่าแรกเข้า ฿') + pricing.regFee.toLocaleString())}</span>`;
+          : (pricing.regFee > 0
+            ? `<span style="display:inline-flex; align-items:center; background:#FEF3C7; color:#92400E; font-size:11px; font-weight:800; padding:3px 10px; border-radius:999px; border:1px solid #FDE68A; white-space:nowrap;">${escapeHtml((d.newRegFeePrefix || '+ ค่าแรกเข้า ฿') + pricing.regFee.toLocaleString())}</span>`
+            : '');
+        const latePenTag = (pricing.latePenalty > 0)
+          ? `<span style="display:inline-flex; align-items:center; background:#FEF3C7; color:#B45309; font-size:11px; font-weight:800; padding:3px 10px; border-radius:999px; border:1px solid #F59E0B; white-space:nowrap;">${escapeHtml((lang === 'zh' ? '+ 逾期罚款 ฿' : (lang === 'en' ? '+ Late Fee ฿' : '+ ค่าปรับเกินกำหนด ฿')) + pricing.latePenalty.toLocaleString())}</span>`
+          : '';
         const hasDiscount = pricing.discountAmount > 0 && pricing.basePrice > pricing.netTuition;
         const priceRowHtml = hasDiscount
           ? `<div class="oca-kiosk-price-group" style="display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap;">
@@ -74940,6 +75063,7 @@ function openPublicRegisterView() {
             <div class="oca-kiosk-card-footer oca-kiosk-price-action-row" style="border-top:1px solid #F1F5F9; padding-top:10px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
               <div class="oca-kiosk-desktop-action" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                 ${regTag}
+                ${latePenTag}
                 ${cCartQty > 0 ? `<div class="oca-kiosk-course-stepper" onclick="event.stopPropagation();" style="display:inline-flex; align-items:center; gap:5px; background:#ECFDF5; border:1.5px solid #047857; border-radius:8px; padding:2px 6px;">
                   <button type="button" onclick="event.stopPropagation(); updatePubKioskCartCourseQty('${safeCourseKey}', -1);" aria-label="ลดจำนวนคอร์ส" style="width:22px; height:22px; border-radius:5px; border:1px solid #047857; background:#FFFFFF; color:#047857; font-weight:900; cursor:pointer; line-height:1;">-</button>
                   <span style="min-width:16px; text-align:center; font-size:12.5px; font-weight:900; color:#0F172A;">${cCartQty}</span>
@@ -91199,6 +91323,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const totals = calculatePubKioskCartTotals(cartFee, window._pubKioskContext, fallbackCourses);
       const fee = totals.totalCourseTuition;
       const discAmt = totals.totalCourseDisc;
+      const totalLatePenalty = totals.totalLatePenalty || 0;
       const totalCourseQty = totals.totalCourseQty;
       const lastDiscInfo = totals.lastDiscInfo;
       const resolvedCourseItems = totals.resolvedCourseItems;
@@ -91283,7 +91408,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const courseRowsHtml = hasCourseFee
           ? resolvedCourseItems.map(ci => `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>${escapeHtml(lblTuition)} (${escapeHtml(ci.label)}${ci.qty > 1 ? ' × ' + ci.qty : ''})</span><strong>฿${ci.linePrice.toLocaleString()}</strong></div>`).join('') +
             (discAmt > 0 ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#047857;"><span>${escapeHtml(lblDisc)}</span><strong>-฿${discAmt.toLocaleString()}</strong></div>` : '') +
-            `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:${pubRegFee > 0 ? '#92400E' : '#1E40AF'};"><span>${escapeHtml(lblReg)}</span><strong>฿${pubRegFee.toLocaleString()}</strong></div>`
+            `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:${pubRegFee > 0 ? '#92400E' : '#1E40AF'};"><span>${escapeHtml(lblReg)}</span><strong>฿${pubRegFee.toLocaleString()}</strong></div>` +
+            ((typeof totalLatePenalty !== 'undefined' && totalLatePenalty > 0) ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#B45309;"><span>${escapeHtml(lang === 'zh' ? '逾期注册罚款' : (lang === 'en' ? 'Late Registration Penalty' : 'ค่าปรับลงทะเบียนเกินกำหนด'))}</span><strong>+฿${totalLatePenalty.toLocaleString()}</strong></div>` : '')
           : '';
         const booksRowHtml = extraBooksTotal > 0
           ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#0369A1;"><span>${escapeHtml(lblExtraBooks)}</span><strong>+฿${extraBooksTotal.toLocaleString()}</strong></div>` +
@@ -91634,6 +91760,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       if (m.room) compact.rm = String(m.room).slice(0, 20);
       if (m.learningMode) compact.lm = String(m.learningMode).slice(0, 16);
       if (m.otherRegFee !== undefined) compact.ob = Number(m.otherRegFee || 0);
+      if (m.latePenaltyTotal !== undefined) compact.lp = Number(m.latePenaltyTotal || 0);
       if (m.shippingFee !== undefined) compact.sf = Number(m.shippingFee || 0);
       if (m.deliveryMethod) compact.dm = String(m.deliveryMethod).slice(0, 30);
       if (m.isBooksOnly) compact.bo = 1;
@@ -91772,6 +91899,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               if (extra.rm) item.room = extra.rm;
               if (extra.lm) item.learningMode = extra.lm;
               if (extra.ob !== undefined) item.otherRegFee = Number(extra.ob || 0);
+              if (extra.lp !== undefined) item.latePenaltyTotal = Number(extra.lp || 0);
               if (extra.sf !== undefined) item.shippingFee = Number(extra.sf || 0);
               if (extra.dm) item.deliveryMethod = extra.dm;
               if (extra.bo) item.isBooksOnly = true;
@@ -92488,7 +92616,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       if (!hasMultiCourses && appExtraBooks.length === 0 && appExtraExams.length === 0 && !appIsBooksOnly && !appIsExamOnly && !appIsBooksAndExamsOnly && !(appShippingFee > 0) && !appIsShip) return rcPayload;
       const appBooksTotal = appExtraBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
       const appExamsTotal = appExtraExams.reduce((s, ex) => s + (Math.max(0, Number(ex.price) || 0) * Math.max(1, Number(ex.qty) || 1)), 0);
-      const appOtherRegFee = Number(info.otherRegFee || 0) || (appBooksTotal + appExamsTotal);
+      const appOtherRegFee = Math.max(Number(rcPayload.otherRegFee || 0), Number(info.otherRegFee || 0)) || (Number(rcPayload.otherRegFee || 0) + appBooksTotal + appExamsTotal);
       const appDeliveryMethod = appIsShip ? 'ส่งไปตามที่อยู่' : 'รับเอง';
       const extraCoursesJsonTag = hasMultiCourses
         ? `[EXTRA_COURSES:${JSON.stringify(appExtraCourses.map(c => ({ id: c.id || c.code || '', code: c.code || c.id || '', name: c.name || c.code || '', qty: Number(c.qty) || 1, price: Number(c.price) || 0 })))}]`
@@ -93179,7 +93307,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=312';
+      const swPath = basePath + 'sw.js?v=313';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -93216,7 +93344,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (312):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (313):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
