@@ -12755,7 +12755,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '311';
+      var LATEST_VERSION = '312';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -33563,7 +33563,9 @@ if (action === 'getDashboardStats') {
               is_active: ustatus === 'Active',
               updated_at: new Date().toISOString()
             };
+            const rpcUserData = { ...updateData };
             if (upass) {
+              rpcUserData.password_hash = upass;
               if (window.crypto && window.crypto.subtle) {
                 const pwBytes = new window.TextEncoder().encode(upass);
                 const pwHashBuf = await window.crypto.subtle.digest('SHA-256', pwBytes);
@@ -33621,7 +33623,7 @@ if (action === 'getDashboardStats') {
             let rpcSucceeded = false;
             let rpcReturnPayload = null;
             try {
-              const { data: rpcRes, error: rpcErr } = await _supabase.rpc('save_staff_user', { p_user: updateData });
+              const { data: rpcRes, error: rpcErr } = await _supabase.rpc('save_staff_user', { p_user: rpcUserData });
               if (!rpcErr && rpcRes && rpcRes.success) {
                 rpcSucceeded = true;
                 rpcReturnPayload = rpcRes;
@@ -43289,6 +43291,18 @@ if (action === 'getDashboardStats') {
       }
     }
     window.deleteCustomGeneralFeeItem = deleteCustomGeneralFeeItem;
+    async function clearStaleCourseDiscountsOnGlobalSave() {
+      if (Array.isArray(cachedCoursesList)) {
+        cachedCoursesList.forEach(c => { if (c) delete c.custom_discount_normal; });
+      }
+      try { localStorage.removeItem('oca_course_custom_discounts_map'); } catch (_) {}
+      try {
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          const { error: delErr } = await _supabase.from('fee_settings').delete().like('key', 'course_disc_%');
+          if (delErr) console.warn('[clearStaleCourseDiscountsOnGlobalSave]', delErr.message);
+        }
+      } catch (_) {}
+    }
     function syncLatePenaltyKidsForSave(items) {
       const inpSaveLatePenKids = document.getElementById('cfgGeneralLateRegPenaltyKids');
       const latePenKidsStr = inpSaveLatePenKids ? inpSaveLatePenKids.value.trim() : '';
@@ -44006,6 +44020,9 @@ if (action === 'getDashboardStats') {
     let isSavingFeeCourseMatrix = false;
     async function saveFeeCourseDiscountMatrix(silent = false) {
       if (isSavingFeeCourseMatrix) return;
+      if (silent && typeof clearStaleCourseDiscountsOnGlobalSave === 'function') {
+        await clearStaleCourseDiscountsOnGlobalSave();
+      }
       const btn = document.getElementById('btnSaveFeeCourseDiscountMatrix');
       const origHtml = btn ? btn.innerHTML : '';
       const courses = Array.isArray(cachedCoursesList) ? cachedCoursesList : [];
@@ -93162,7 +93179,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=311';
+      const swPath = basePath + 'sw.js?v=312';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -93199,7 +93216,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (311):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (312):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
