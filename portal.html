@@ -12755,7 +12755,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '313';
+      var LATEST_VERSION = '314';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -39356,8 +39356,8 @@ if (action === 'getDashboardStats') {
         '    <div style="font-family:monospace; font-size:11.5px; color:var(--text-main);"><i class="fa-solid fa-phone" style="font-size:10px; color:var(--color-gold); margin-right:3px;"></i>' + toArabicDigits(formatPhoneMasked(phone, false)) + '</div>' +
         '    <div style="font-size:11px; color:var(--text-muted);"><i class="fa-brands fa-line" style="font-size:10.5px; color:#22c55e; margin-right:3px;"></i>' + escapeHtml(lineId) + '</div>' +
         '  </td>' +
-        '  <td style="padding:10px 8px; min-width:210px; max-width:260px;">' +
-        '    <div style="font-weight:600; color:var(--color-gold); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(course) + '">' + escapeHtml(course) + '</div>' +
+        '  <td style="padding:10px 8px; min-width:170px; max-width:240px;">' +
+        '    <div>' + renderCourseCodeBadgeHtml(course, s.courseCode || s.item_code || '') + '</div>' +
         '    <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">' +
         '      <span style="font-size:10.5px; color:var(--text-muted); line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(schedule) + '">' + escapeHtml(schedule) + '</span>' +
         window.renderLearningModeBadgeHtml(window.extractLearningModeFromStudent(s)) +
@@ -39635,7 +39635,9 @@ if (action === 'getDashboardStats') {
       if (elClassroomSub) {
         const cName = s.course || s.current_course || s.itemName || '-';
         const sTime = s.schedule || s.current_schedule || '-';
-        elClassroomSub.textContent = 'คอร์ส: ' + cName + ' | รอบเวลา: ' + sTime;
+        const cCode = resolveCourseCodeFromText(cName, s.courseCode || s.item_code || '');
+        elClassroomSub.textContent = 'คอร์ส: ' + (cCode || cName) + ' | รอบเวลา: ' + sTime;
+        elClassroomSub.title = cName;
       }
       if (elId) elId.textContent = toArabicDigits(s.studentId || '-');
       if (elName) elName.textContent = formatStudentNameWithPrefix(s.prefix, s.fullName || s.rawName || '-');
@@ -39655,7 +39657,9 @@ if (action === 'getDashboardStats') {
       }
       const rawDetailCourse = s.course || '';
       const hasCourse = Boolean(rawDetailCourse && rawDetailCourse !== '-' && rawDetailCourse !== 'หลักสูตรทั่วไป');
-      if (elCourse) elCourse.textContent = hasCourse ? rawDetailCourse : 'ยังไม่ได้ลงทะเบียนคอร์ส (รอเลือกคอร์ส)';
+      if (elCourse) {
+        elCourse.innerHTML = hasCourse ? renderCourseCodeBadgeHtml(rawDetailCourse, s.courseCode || s.item_code || '') : 'ยังไม่ได้ลงทะเบียนคอร์ส (รอเลือกคอร์ส)';
+      }
       if (elYear) elYear.textContent = toArabicDigits(s.yearBE || '-');
       const cTerm = cleanTermNumber(s.term);
       if (elTerm) elTerm.textContent = cTerm ? ('เทอม ' + toArabicDigits(cTerm)) : '-';
@@ -39857,7 +39861,7 @@ if (action === 'getDashboardStats') {
       if (lblCit) lblCit.textContent = student.citizenId ? toArabicDigits(student.citizenId) : '-';
       const curCourse = student.course || student.current_course || 'ยังไม่ระบุคอร์ส';
       const curSch = student.schedule || student.current_schedule || 'ยังไม่ระบุรอบเวลา';
-      if (lblOldCourse) lblOldCourse.textContent = curCourse;
+      if (lblOldCourse) lblOldCourse.innerHTML = renderCourseCodeBadgeHtml(curCourse, student.courseCode || student.item_code || '');
       if (lblOldSch) lblOldSch.textContent = curSch;
       const curYear = student.yearBE || (new Date().getFullYear() + 543);
       const curTerm = student.term || 1;
@@ -42200,8 +42204,8 @@ if (action === 'getDashboardStats') {
                 listEl.innerHTML = entries.map(([cName, count]) => {
                   const pct = Math.round((count / maxCount) * 100);
                   return '<div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-soft); border-radius:8px; padding:10px 14px;">' +
-                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">' +
-                      '<span style="font-size:12.5px; font-weight:600; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;">' + escapeHtml(cName) + '</span>' +
+                    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; gap:8px;">' +
+                      renderCourseCodeBadgeHtml(cName, '') +
                       '<span style="font-size:13px; font-weight:700; color:var(--color-gold);">' + toArabicDigits(count) + ' <small style="font-weight:400; color:var(--text-muted);">คน</small></span>' +
                     '</div>' +
                     '<div style="width:100%; height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">' +
@@ -50658,7 +50662,7 @@ if (action === 'getDashboardStats') {
 
               <div>
                 <div style="font-size:13px; font-weight:700; color:var(--text-main);">${escapeHtml(st.fullName || st.rawName || '-')}</div>
-                <div style="font-size:11px; color:var(--color-gold-light);">รหัส: <strong>${escapeHtml(toArabicDigits(st.studentId || '-'))}</strong> | คอร์ส: ${escapeHtml(st.course || '-')}</div>
+                <div style="font-size:11px; color:var(--color-gold-light); display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:2px;"><span>รหัส: <strong>${escapeHtml(toArabicDigits(st.studentId || '-'))}</strong></span><span>| คอร์ส:</span>${renderCourseCodeBadgeHtml(st.course || '-', st.courseCode || '')}</div>
               </div>
             </div>
 
@@ -55715,7 +55719,7 @@ if (action === 'getDashboardStats') {
             (citId && citId !== '-' ? ('<span><i class="fa-solid fa-address-card" style="color:var(--text-muted); margin-right:3px;"></i>' + toArabicDigits(formatCitizenIdMasked(citId, true)) + '</span>') : '') +
           '</div>' +
         '</td>' +
-        '<td style="min-width:200px;">' + escapeHtml(row.itemName) + (row.learningMode && row.learningMode !== '-' ? '<div style="margin-top:2px;">' + window.renderLearningModeBadgeHtml(row.learningMode) + '</div>' : '') + (isDelivery ? '<div style="font-size:12px; color:var(--accent-sky);">[จัดส่งพัสดุ]</div>' : '') + '</td>' +
+        '<td style="min-width:160px;">' + renderCourseCodeBadgeHtml(row.itemName, row.itemCode) + (row.learningMode && row.learningMode !== '-' ? '<div style="margin-top:4px;">' + window.renderLearningModeBadgeHtml(row.learningMode) + '</div>' : '') + (isDelivery ? '<div style="font-size:12px; color:var(--accent-sky); margin-top:2px;">[จัดส่งพัสดุ]</div>' : '') + '</td>' +
         '<td style="font-weight:700; color:var(--text-main); text-align:right; font-family:monospace; white-space:nowrap; padding-right:18px !important;">฿' + toArabicDigits(Number(row.grandTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })) + '</td>' +
         '<td style="white-space:nowrap;">' + emailBadge + '</td>' +
         '<td style="white-space:nowrap; text-align:center;">' + statusBadge + '</td>' +
@@ -56448,7 +56452,9 @@ if (action === 'getDashboardStats') {
         }
       }
       if (lblSub && item) {
-        lblSub.textContent = `ผู้ชำระ: ${item.buyerName || item.buyer_name || '-'} | หลักสูตร: ${item.itemName || item.item_name || '-'}`;
+        const rawItemNm = item.itemName || item.item_name || '-';
+        const rCode = resolveCourseCodeFromText(rawItemNm, item.itemCode || item.item_code || '');
+        lblSub.innerHTML = `ผู้ชำระ: ${escapeHtml(item.buyerName || item.buyer_name || '-')} | หลักสูตร: ${rCode ? renderCourseCodeBadgeHtml(rawItemNm, rCode) : escapeHtml(rawItemNm)}`;
       }
       // 2. Fetch Slip row from fee_settings (with pending_slip_url & storage fallback)
       let slipRow = window._receiptSlipsMap ? window._receiptSlipsMap.get(String(receiptNo)) : null;
@@ -58564,7 +58570,7 @@ if (action === 'getDashboardStats') {
       const stName = escapeHtml(st.fullName || st.rawName || '-');
       const citizenDisplay = st.citizenId ? toArabicDigits(formatCitizenIdMasked(st.citizenId, true)) : '<span style="color:var(--text-muted);">-</span>';
       const citizen = st.citizenId ? ('<span class="pdpa-cid" data-cid="' + escapeHtml(st.citizenId) + '" style="font-family:monospace; font-size:12.5px; color:var(--text-main); font-weight:600; letter-spacing:0.5px;">' + citizenDisplay + '</span>') : '<span style="color:var(--text-muted);">-</span>';
-      const courseName = escapeHtml(st.course || 'ไม่ระบุคอร์ส');
+      const courseName = renderCourseCodeBadgeHtml(st.course || 'ไม่ระบุคอร์ส', st.courseCode || st.item_code || '');
       const schedule = st.schedule ? ('<div style="font-size:12px; color:#38BDF8; font-weight:600; margin-top:3px;"><i class="fa-regular fa-clock" style="margin-right:4px;"></i>' + escapeHtml(st.schedule) + '</div>') : '';
       const metaBits = [];
       if (st.classGroup) metaBits.push('กลุ่ม ' + escapeHtml(st.classGroup));
@@ -60192,7 +60198,7 @@ if (action === 'getDashboardStats') {
                     <span style="color:#D97706; font-family:monospace;">[${sid}]</span> ${name}
                   </div>
                   <div style="font-size:11.5px; color:var(--text-muted); display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:2px;">
-                    <span>📚 ${course}</span>
+                    <span>📚 ${renderCourseCodeBadgeHtml(course, item.courseCode || '')}</span>
                     ${item.learningMode ? (() => {
                       const lmU = String(item.learningMode).toUpperCase();
                       const lmBadge = lmU === 'ONLINE' ? '🌐 ONLINE' : (lmU === 'HYBRID' ? '🔄 HYBRID' : '🏫 ONSITE');
@@ -60267,8 +60273,8 @@ if (action === 'getDashboardStats') {
                   <div style="font-size:12.5px; font-weight:700; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                     ${buyer}
                   </div>
-                  <div style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">
-                    ${course}
+                  <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">
+                    ${renderCourseCodeBadgeHtml(course, rc.item_code || rc.itemCode || '')}
                   </div>
                   <div style="margin-top:8px;">
                     <button type="button" onclick="openReceiptDetailViewer('${rcNo}')" style="background:rgba(215,166,0,0.15); border:1px solid rgba(215,166,0,0.4); color:var(--color-gold); border-radius:6px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; font-family:monospace;">
@@ -60891,7 +60897,7 @@ if (action === 'getDashboardStats') {
             <td style="text-align:center;">${toArabicDigits(idx + 1)}</td>
             <td style="font-family:monospace; font-weight:700; color:var(--text-main);">${toArabicDigits(s.student_id || '-')}</td>
             <td>${escapeHtml(formatStudentNameWithPrefix(s.prefix, s.full_name || '-'))}</td>
-            <td>${escapeHtml(s.current_course || '-')}</td>
+            <td>${renderCourseCodeBadgeHtml(s.current_course || '-', s.course_code || '')}</td>
             <td style="white-space:nowrap;">${toArabicDigits(s.year_be || '-')}/${toArabicDigits(cleanTermNumber(s.term) || '-')}</td>
             <td>${stBadge}</td>
             <td style="font-size:12px; color:var(--text-muted);">${escapeHtml(cleanN || '-')}</td>
@@ -64008,6 +64014,36 @@ if (action === 'getDashboardStats') {
       if (elPrinted) elPrinted.textContent = toArabicDigits(printed);
       if (elShipped) elShipped.textContent = toArabicDigits(shipped);
     }
+    function resolveCourseCodeFromText(rawText, fallbackCode) {
+      const fb = String(fallbackCode || '').trim().toUpperCase();
+      if (/^[A-Z]{1,3}\d{3,4}[A-Z]?$/.test(fb)) return fb;
+      const raw = String(rawText || '').trim();
+      if (!raw || raw === '-' || raw.indexOf('ยังไม่ลงทะเบียน') !== -1 || raw.indexOf('ไม่ระบุ') !== -1) return '';
+      const m = raw.match(/\b([A-Z]{1,3}\d{3,4}[A-Z]?)\b/i);
+      if (m && m[1]) return m[1].toUpperCase();
+      if (typeof cachedCoursesList !== 'undefined' && Array.isArray(cachedCoursesList) && cachedCoursesList.length > 0) {
+        const cleanRaw = raw.replace(/^\[[^\]]+\]\s*/, '').replace(/\s*\(฿[\s\S]*$/, '').trim();
+        const found = cachedCoursesList.find(c => {
+          const nm = String(c && c.name || '').trim();
+          const cd = String(c && c.code || '').trim();
+          return (cd && (cd.toUpperCase() === raw.toUpperCase() || raw.includes(cd))) ||
+                 (nm && (cleanRaw === nm || cleanRaw.includes(nm) || nm.includes(cleanRaw)));
+        });
+        if (found && found.code) return String(found.code).trim().toUpperCase();
+      }
+      return '';
+    }
+    window.resolveCourseCodeFromText = resolveCourseCodeFromText;
+    function renderCourseCodeBadgeHtml(rawText, fallbackCode, opts) {
+      const o = opts || {};
+      const fullTxt = String(rawText || fallbackCode || o.emptyText || '-').trim() || '-';
+      const code = resolveCourseCodeFromText(rawText, fallbackCode);
+      if (!code) {
+        return `<span title="${escapeHtml(fullTxt)}" style="${o.fallbackStyle || 'font-weight:600; color:var(--text-main);'}">${escapeHtml(fullTxt)}</span>`;
+      }
+      return `<span class="oca-course-code-pill" title="${escapeHtml(fullTxt)}" style="display:inline-flex; align-items:center; padding:2px 8px; border-radius:6px; background:#E0F2FE; color:#0369A1; border:1px solid #7DD3FC; font-family:'JetBrains Mono','Consolas',monospace; font-weight:800; font-size:12px; letter-spacing:0.02em; white-space:nowrap; ${o.extraStyle || ''}">${escapeHtml(code)}</span>`;
+    }
+    window.renderCourseCodeBadgeHtml = renderCourseCodeBadgeHtml;
     /**
      * แสดงผลตารางรายการจัดส่ง
      * @param {Array<Object>} items
@@ -64065,12 +64101,7 @@ if (action === 'getDashboardStats') {
             <td style="min-width:125px; white-space:nowrap; padding:14px 12px; vertical-align:middle;">${phoneDisplay}</td>
             <td style="min-width:220px; max-width:300px; word-break:break-word; padding:14px 12px; vertical-align:middle; line-height:1.55;">${addrDisplay}</td>
             <td style="min-width:150px; padding:14px 12px; vertical-align:middle; line-height:1.5;">
-              ${(() => {
-                const rawNm = String(item.itemName || 'ตำราเรียน').trim();
-                const fallbackMatch = rawNm.match(/\b([A-Z]{1,3}\d{3,4}[A-Z]?)\b/i);
-                const codeTxt = String(item.itemCode || (fallbackMatch ? fallbackMatch[1].toUpperCase() : '') || rawNm).trim();
-                return `<div title="${escapeHtml(rawNm)}"><span style="display:inline-block; padding:2px 9px; border-radius:6px; font-family:monospace; font-size:12.5px; font-weight:800; background:rgba(56,189,248,0.12); color:#0284C7; border:1px solid rgba(56,189,248,0.35);">${escapeHtml(codeTxt)}</span></div>`;
-              })()}
+              <div>${renderCourseCodeBadgeHtml(item.itemName || 'ตำราเรียน', item.itemCode)}</div>
               <div style="font-size:11.5px; color:var(--color-gold); margin-top:5px;">${escapeHtml(item.materialType || 'หนังสือและสมุด')}</div>
             </td>
 
@@ -87631,7 +87662,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           const fw = isActive ? '800' : '700';
           return `<button type="button" class="oca-tp-att-btn" onclick="setStudentAttendanceStatus(${idx}, '${code}')" style="min-height:42px; min-width:58px; padding:6px 14px; font-size:12.5px; font-weight:${fw}; border-radius:8px; border:1.5px solid ${border}; background:${bg}; color:${fg} !important; box-shadow:${shadow}; cursor:pointer; transition:all 0.15s ease; display:inline-flex; align-items:center; justify-content:center; gap:5px; touch-action:manipulation; user-select:none;"><i class="fa-solid ${icon}" style="font-size:11px;"></i><span>${label}</span></button>`;
         };
-        const courseSub = s.current_course ? `<span style="font-size:11px; color:var(--text-muted); margin-left:6px;">• ${escapeHtml(s.current_course)}</span>` : '';
+        const courseSub = s.current_course ? `<span style="margin-left:6px;">${renderCourseCodeBadgeHtml(s.current_course, s.course_code || '')}</span>` : '';
         return `<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
 
           <td style="padding:10px 14px 10px 28px; vertical-align:middle;">${photoHtml}</td>
@@ -92107,7 +92138,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         const name = item.fullName || '-';
         const phone = item.phone || '-';
         const lineId = item.lineId || '';
-        const course = escapeHtml(formatPendingSlipItemLabel(item));
+        const courseRaw = formatPendingSlipItemLabel(item);
+        const course = renderCourseCodeBadgeHtml(courseRaw, item.courseCode || '');
         const schedule = item.schedule || '-';
         const expectedFee = Number(item.expectedFee || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 });
         const slipAmount = item.slipAmount ? Number(item.slipAmount).toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '-';
@@ -92406,7 +92438,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
               </div>
               <div style="border-top:1px solid var(--border-soft); padding-top:10px; font-size:12.5px; line-height:1.65;">
                 <div><span style="color:var(--text-muted);">รหัส / ชื่อนักศึกษา:</span> <strong style="color:var(--text-main);">[${safeSid}] ${safeName}</strong></div>
-                <div><span style="color:var(--text-muted);">หลักสูตร:</span> <strong style="color:var(--text-main);">${safeCourse}</strong></div>
+                <div><span style="color:var(--text-muted);">หลักสูตร:</span> ${renderCourseCodeBadgeHtml(formatPendingSlipItemLabel(info), info.courseCode || '')}</div>
                 <div><span style="color:var(--text-muted);">รอบเวลาเรียน:</span> <span style="color:var(--text-main);">${safeSched}</span></div>
                 <div><span style="color:var(--text-muted);">Ref สลิป:</span> <span style="font-family:monospace; color:var(--text-main);">${safeRef}</span></div>
               </div>
@@ -93307,7 +93339,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=313';
+      const swPath = basePath + 'sw.js?v=314';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -93344,7 +93376,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (313):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (314):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
