@@ -24,7 +24,11 @@
   function writeQueue(items) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.isArray(items) ? items : []));
-    } catch (_) {}
+      return true;
+    } catch (err) {
+      console.warn('[OcaOfflineQueue] writeQueue failed (storage quota/disabled):', err);
+      return false;
+    }
   }
 
   function registerExecutor(type, fn) {
@@ -65,6 +69,8 @@
     if (!pill && document.body) {
       pill = document.createElement('div');
       pill.id = 'ocaOfflineQueuePill';
+      pill.setAttribute('role', 'status');
+      pill.setAttribute('aria-live', 'polite');
       pill.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i><span id="ocaOfflineQueueText"></span><button type="button" id="btnOcaOfflineQueueFlush">ซิงก์ตอนนี้</button>';
       document.body.appendChild(pill);
       const btn = document.getElementById('btnOcaOfflineQueueFlush');
@@ -114,28 +120,32 @@
     let failed = 0;
     try {
       const queue = readQueue();
-      const remaining = [];
+      const succeededIds = new Set();
+      let remainingSnapshotCount = 0;
       for (const item of queue) {
         const fn = executors[item.type];
         if (typeof fn !== 'function') {
-          remaining.push(item);
+          remainingSnapshotCount++;
           continue;
         }
         try {
           const ok = await fn(item.payload, item);
           if (ok !== false) {
             synced++;
+            if (item && item.id) succeededIds.add(item.id);
           } else {
             failed++;
-            remaining.push(item);
+            remainingSnapshotCount++;
           }
         } catch (err) {
           console.warn('[OcaOfflineQueue] item flush failed:', item.type, err);
           failed++;
-          remaining.push(item);
+          remainingSnapshotCount++;
         }
       }
-      writeQueue(remaining);
+      const latestQueue = readQueue();
+      const mergedRemaining = latestQueue.filter(q => !(q && q.id && succeededIds.has(q.id)));
+      writeQueue(mergedRemaining);
       if (typeof global.syncOfflineQueue === 'function') {
         try {
           await global.syncOfflineQueue(isManual);
@@ -144,7 +154,7 @@
       if (synced > 0 && typeof global.showToast === 'function') {
         global.showToast('ซิงก์ข้อมูลออฟไลน์สำเร็จ', `ส่งข้อมูลค้างซิงก์ขึ้นฐานข้อมูลแล้ว ${synced} รายการ`, '☁️');
       }
-      return { success: failed === 0, synced, failed, remaining: remaining.length };
+      return { success: failed === 0, synced, failed, remaining: mergedRemaining.length, remainingSnapshot: remainingSnapshotCount };
     } finally {
       _flushing = false;
       renderBadge();
