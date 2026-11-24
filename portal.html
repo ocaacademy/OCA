@@ -12762,7 +12762,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '290';
+      var LATEST_VERSION = '291';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -15169,7 +15169,7 @@ body.printing-report #printReportContainer {
             <div id="boxPerRoundOpenDates" style="margin-top:16px; padding-top:14px; border-top:1px dashed rgba(56,189,248,0.25);">
               <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
                 <span style="font-size:12.5px; font-weight:700; color:var(--accent-sky);"><i class="fa-solid fa-clock-rotate-left" style="margin-right:6px; color:#38bdf8;"></i>กำหนดวันเปิดเรียนรายรอบ (SCH-01 – SCH-08) สำหรับดึงอัตโนมัติในใบเสร็จ</span>
-                <div style="display:flex; align-items:center; gap:8px;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                   <select id="selRoundOpenDateTerm" onchange="renderRoundOpenDatesInputs()" class="oca-input" style="height:28px; font-size:12px; padding:2px 8px; width:auto; color-scheme:light; background:#ffffff; color:#0f172a; font-weight:700;">
                     <option value="1">ภาคเรียนที่ 1</option>
                     <option value="2">ภาคเรียนที่ 2</option>
@@ -15177,6 +15177,9 @@ body.printing-report #printReportContainer {
                     <option value="4">ภาคเรียนที่ 4</option>
                     <option value="5" selected>ภาคเรียนที่ 5</option>
                   </select>
+                  <button type="button" id="btnAddCustomRoundOpenDate" class="oca-btn-cancel-custom" onclick="openCustomRoundOpenDateModal()" style="padding:4px 10px; font-size:11.5px; border-color:rgba(16,185,129,0.45); color:var(--accent-emerald); background:rgba(16,185,129,0.12); font-weight:700;">
+                    <i class="fa-solid fa-plus" style="margin-right:4px;"></i> เพิ่มวันเปิดเรียน
+                  </button>
                   <button type="button" class="oca-btn-gold-submit" onclick="saveRoundOpenDatesFromUI()" style="padding:4px 12px; font-size:11.5px; background:linear-gradient(135deg, #0284c7 0%, #0369a1 100%); border-color:#38bdf8; color:#FFFFFF;">
                     <i class="fa-solid fa-floppy-disk" style="margin-right:4px;"></i> บันทึกวันเปิดรายรอบ
                   </button>
@@ -15185,6 +15188,27 @@ body.printing-report #printReportContainer {
               <div id="gridRoundOpenDates" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:8px;"></div>
               <div class="oca-staff-note" style="margin-top:10px;">
                 <i class="fa-solid fa-circle-info" style="margin-right:4px;"></i><strong>หมายเหตุ:</strong> วันที่ในตารางนี้จะถูกดึงไปพิมพ์ในช่อง 'วันเปิดเรียน' บนใบเสร็จรับเงินโดยอัตโนมัติ (แยกตามเทอม 1–5) หากเปิดเทอมใหม่แล้วไม่มากำหนด ใบเสร็จจะแสดงวันที่เดิมหรือเว้นว่าง
+              </div>
+              <div id="modalCustomRoundOpenDate" class="oca-modal-overlay" style="display:none; z-index:9999;">
+                <div class="oca-modal-box" style="max-width:440px; width:92%; padding:20px; border-radius:14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                    <h3 id="titleCustomRoundOpenModal" style="margin:0; font-size:15.5px; font-weight:700; color:var(--text-main);">เพิ่มวันเปิดเรียนใหม่</h3>
+                    <button type="button" onclick="closeCustomRoundOpenDateModal()" style="background:none; border:none; color:var(--text-muted); font-size:18px; cursor:pointer;" aria-label="ปิดหน้าต่าง">&times;</button>
+                  </div>
+                  <input type="hidden" id="inpCustomRoundOpenKey" value="">
+                  <div class="oca-input-group" style="margin-bottom:12px;">
+                    <label class="oca-label" for="inpCustomRoundOpenLabel">ชื่อรอบ / ป้ายกำกับ *</label>
+                    <input type="text" id="inpCustomRoundOpenLabel" class="oca-input" maxlength="55" placeholder="เช่น รอบพิเศษเสาร์-อาทิตย์ หรือ คอร์สปิดเทอม">
+                  </div>
+                  <div class="oca-input-group" style="margin-bottom:16px;">
+                    <label class="oca-label" for="inpCustomRoundOpenDate">วันเปิดเรียน *</label>
+                    <input type="date" id="inpCustomRoundOpenDate" class="oca-input" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}">
+                  </div>
+                  <div style="display:flex; justify-content:flex-end; gap:8px;">
+                    <button type="button" class="oca-btn-cancel-custom" onclick="closeCustomRoundOpenDateModal()" style="padding:7px 14px; font-size:12.5px;">ยกเลิก</button>
+                    <button type="button" class="oca-btn-gold-submit" onclick="saveCustomRoundOpenDateFromModal()" style="padding:7px 16px; font-size:12.5px;">บันทึกวันเปิดเรียน</button>
+                  </div>
+                </div>
               </div>
             </div>
             </div>
@@ -15199,6 +15223,9 @@ body.printing-report #printReportContainer {
                   <span style="width:7px; height:7px; border-radius:50%; background:#10b981;"></span> กำลังเปิดรับสมัคร
                 </span>
 
+                <button type="button" class="oca-btn-cancel-custom" style="padding:5px 12px; font-size:12px;" onclick="clearOnlineEnrollScheduleDates()" title="ล้างวัน-เวลาเปิด-ปิดที่ตั้งไว้">
+                  <i class="fa-solid fa-eraser" style="margin-right:4px;"></i> ล้างช่วงเวลา
+                </button>
                 <button type="button" class="oca-btn-gold-submit" style="padding:6px 16px; font-size:12.5px;" onclick="saveOnlineEnrollScheduleFromUI()">
                   <i class="fa-solid fa-floppy-disk" style="margin-right:4px;"></i> บันทึกกำหนดการ
                 </button>
@@ -15633,7 +15660,7 @@ body.printing-report #printReportContainer {
                   <span id="badgeFeeStatus_discountNormal" style="font-size:12px; padding:2px 8px; border-radius:12px; font-weight:500;"><i class="fa-solid fa-infinity" style="margin-right:3px;"></i> ใช้ตลอดไป</span>
                 </div>
                 <div class="oca-staff-note" id="noteFeeDiscountNormalLatePenalty">
-                  <i class="fa-solid fa-circle-info" style="margin-right:4px;"></i><strong>หมายเหตุ:</strong> ใช้กำหนดกลุ่มส่วนลดของแต่ละคอร์ส (เด็ก/ผู้ใหญ่) โดย<strong>ค่าปรับลงทะเบียนเกินกำหนด</strong>จะอ้างอิงเท่ากับอัตราส่วนลดปกติของคอร์สนั้นๆ และหากตั้งแบบ <strong>ช่วงเวลา (Period)</strong> ส่วนลด/ค่าปรับจะลดลงเป็น <strong>฿0</strong> โดยอัตโนมัติหลังพ้นวันที่สิ้นสุด (<code>endDate</code>) — อย่าลืมกดปุ่มบันทึกของตารางนี้แยกต่างหากเมื่อแก้ไขเสร็จ
+                  <i class="fa-solid fa-circle-info" style="margin-right:4px;"></i><strong>หมายเหตุ:</strong> ส่วนลดปกติ (แยกเด็ก / ผู้ใหญ่) ใช้กำหนดส่วนลดอัตโนมัติของแต่ละคอร์ส ส่วน <strong>ค่าปรับลงทะเบียนเกินกำหนด</strong> สามารถกำหนดยอดและช่วงวันเริ่มต้น–สิ้นสุดได้เองในกล่องค่าปรับด้านล่างอย่างอิสระ — อย่าลืมกดปุ่มบันทึกเมื่อแก้ไขเสร็จ
                 </div>
 
                 <!-- Zone 1: Master Rate Inputs -->
@@ -15683,6 +15710,46 @@ body.printing-report #printReportContainer {
                     <div>
                       <label class="oca-label" style="font-size:12px;" for="cfgEnd_discountNormal">ถึงวันที่</label>
                       <input type="date" id="cfgEnd_discountNormal" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('discountNormal')">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Zone 1B: Manual Late Registration Penalty Box -->
+                <div id="boxLateRegPenaltyConfig" style="background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:12px 14px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                    <span style="font-size:12.5px; font-weight:700; color:#D97706; display:flex; align-items:center; gap:6px;">
+                      <i class="fa-solid fa-clock-rotate-left"></i> ค่าปรับลงทะเบียนเกินกำหนด (กำหนดเอง)
+                    </span>
+                    <span id="badgeFeeStatus_lateRegPenalty" style="font-size:12px; padding:2px 8px; border-radius:12px; font-weight:500;">ปิดใช้งาน</span>
+                  </div>
+                  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                    <div class="oca-input-group">
+                      <label class="oca-label" for="cfgGeneralLateRegPenalty">ยอดค่าปรับลงทะเบียนเกินกำหนด (฿)</label>
+                      <input type="number" id="cfgGeneralLateRegPenalty" class="oca-input" value="0" min="0" placeholder="เช่น 100 หรือ 200" style="color:#D97706; font-weight:700;" oninput="updateFeeSettingStatusPreview('lateRegPenalty')">
+                      <span style="font-size:11px; color:var(--text-muted); margin-top:2px;">ดึงเข้าใบเสร็จอัตโนมัติเมื่ออยู่ในช่วงเวลาที่กำหนด</span>
+                    </div>
+                    <div class="oca-input-group">
+                      <label class="oca-label" for="cfgMode_lateRegPenalty"><i class="fa-solid fa-calendar-days" style="color:#D97706; margin-right:4px;"></i>เงื่อนไขการคิดค่าปรับ</label>
+                      <select id="cfgMode_lateRegPenalty" class="oca-input" onchange="onFeeModeChange('lateRegPenalty')">
+                        <option value="disabled" selected>ปิดใช้งาน (ไม่คิดค่าปรับ)</option>
+                        <option value="period">⏱ ตั้งช่วงเวลา (กำหนดวันที่เริ่มต้น - สิ้นสุด)</option>
+                        <option value="always">✓ ใช้ตลอดไป (คิดค่าปรับทุกใบเสร็จ)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div id="boxDateRange_lateRegPenalty" style="display:none; grid-template-columns:1fr 1fr auto; gap:8px; align-items:end; width:100%; min-width:0; box-sizing:border-box; overflow:hidden; background:var(--bg-subcard); padding:8px; border-radius:6px; border:1px dashed rgba(245,158,11,0.3); margin-top:8px;">
+                    <div>
+                      <label class="oca-label" style="font-size:12px;" for="cfgStart_lateRegPenalty">เริ่มปรับตั้งแต่วันที่</label>
+                      <input type="date" id="cfgStart_lateRegPenalty" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('lateRegPenalty')">
+                    </div>
+                    <div>
+                      <label class="oca-label" style="font-size:12px;" for="cfgEnd_lateRegPenalty">ถึงวันที่</label>
+                      <input type="date" id="cfgEnd_lateRegPenalty" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('lateRegPenalty')">
+                    </div>
+                    <div>
+                      <button type="button" class="oca-btn-cancel-custom" onclick="clearLateRegPenaltyDates()" style="height:34px; padding:0 10px; font-size:11.5px; white-space:nowrap;">
+                        <i class="fa-solid fa-eraser" style="margin-right:4px;"></i>ล้างช่วงเวลา
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -16862,6 +16929,7 @@ body.printing-report #printReportContainer {
                       </label>
 
                       <input type="text" id="txtRcptOpenDate" class="oca-input" placeholder="เช่น 1 พ.ย. 2569" oninput="updateReceiptLivePreview(); checkReceiptOpenDateWarning()" style="height:34px; font-size:12.5px; padding:4px 8px; text-align:left !important;">
+                      <div id="boxRcptCustomOpenDateChips" style="display:none; flex-wrap:wrap; gap:5px; margin-top:5px;"></div>
                       <div id="lblRcptOpenDateWarn" role="alert" style="display:none; margin-top:4px; padding:4px 8px; border-radius:6px; background:#FEF3C7; color:#0f172a; border:1px solid #F59E0B; font-size:11.5px; font-weight:600;"></div>
                     </div>
 
@@ -27501,6 +27569,25 @@ body.printing-report #printReportContainer {
         if (typeof onReceiptScheduleChanged === 'function') onReceiptScheduleChanged();
         return true;
       }
+      if (fk.startsWith('round_open_custom_')) {
+        const cKey = fk.replace('round_open_custom_', '');
+        if (!window._ocaCustomRoundOpenDatesMap) window._ocaCustomRoundOpenDatesMap = {};
+        if (isDeleteEv || !activeFeeRow || !activeFeeRow.name) {
+          delete window._ocaCustomRoundOpenDatesMap[cKey];
+        } else {
+          const parts = String(activeFeeRow.name).split('|');
+          window._ocaCustomRoundOpenDatesMap[cKey] = {
+            key: cKey,
+            label: (parts[0] || '').trim(),
+            thaiDate: (parts[1] || '').trim(),
+            isoDate: activeFeeRow.start_date || ''
+          };
+        }
+        try { localStorage.setItem('oca_custom_round_open_dates_v1', JSON.stringify(window._ocaCustomRoundOpenDatesMap)); } catch (_) {}
+        if (typeof renderRoundOpenDatesInputs === 'function') renderRoundOpenDatesInputs();
+        if (typeof renderReceiptCustomOpenDateChips === 'function') renderReceiptCustomOpenDateChips();
+        return true;
+      }
       if (fk.startsWith('cfg_cat_icon_')) {
         const catKey = fk.replace('cfg_cat_icon_', '');
         if (catKey && typeof courseCategoryIconsMap === 'object' && courseCategoryIconsMap) {
@@ -29137,7 +29224,8 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
             transferFee: 'ค่าย้ายคอร์สเรียน',
             shippingFee: 'ค่าจัดส่งตำราเรียน',
             discountNormal: 'ส่วนลดโปรโมชันปกติ',
-            discountOther: 'ส่วนลดอื่นๆ'
+            discountOther: 'ส่วนลดอื่นๆ',
+            lateRegPenalty: 'ค่าปรับลงทะเบียนเกินกำหนด'
           };
           const staffAvatars = {};
           if (fees) {
@@ -29176,6 +29264,17 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
               if (f.key && f.key.startsWith('round_open_date_') && f.name) {
                 window._ocaRoundOpenDatesMap = window._ocaRoundOpenDatesMap || {};
                 window._ocaRoundOpenDatesMap[f.key.replace('round_open_date_', '')] = f.name;
+              }
+              if (f.key && f.key.startsWith('round_open_custom_') && f.name) {
+                window._ocaCustomRoundOpenDatesMap = window._ocaCustomRoundOpenDatesMap || {};
+                const cKey = f.key.replace('round_open_custom_', '');
+                const parts = String(f.name).split('|');
+                window._ocaCustomRoundOpenDatesMap[cKey] = {
+                  key: cKey,
+                  label: (parts[0] || '').trim(),
+                  thaiDate: (parts[1] || '').trim(),
+                  isoDate: f.start_date || ''
+                };
               }
               if (f.key === 'cfg_geofence' && f.name) {
                 const parts = String(f.name).split(',');
@@ -32692,7 +32791,7 @@ if (action === 'getDashboardStats') {
             }
             return { success: true };
           }
-          const feeKeys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'shippingFee', 'discountNormal', 'discountKids', 'discountOther', 'disc_rule_adult5', 'disc_rule_adult3', 'disc_rule_kids', 'disc_rule_art', 'disc_rule_music'];
+          const feeKeys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'shippingFee', 'discountNormal', 'discountKids', 'discountOther', 'lateRegPenalty', 'disc_rule_adult5', 'disc_rule_adult3', 'disc_rule_kids', 'disc_rule_art', 'disc_rule_music'];
           const feeNames = {
             tuitionFee: 'ค่าเล่าเรียนทั่วไป',
             regFee: 'ค่าลงทะเบียนแรกเข้า',
@@ -32703,6 +32802,7 @@ if (action === 'getDashboardStats') {
             discountNormal: 'ส่วนลดโปรโมชันปกติ',
             discountKids: 'ส่วนลดปกติคอร์สเด็ก (Kids)',
             discountOther: 'ส่วนลดอื่นๆ',
+            lateRegPenalty: 'ค่าปรับลงทะเบียนเกินกำหนด',
             disc_rule_adult5: 'กฎส่วนลดผู้ใหญ่ 5 ชม./สัปดาห์',
             disc_rule_adult3: 'กฎส่วนลดผู้ใหญ่ 3 ชม./สัปดาห์',
             disc_rule_kids: 'กฎส่วนลดคอร์สเด็ก',
@@ -32793,6 +32893,17 @@ if (action === 'getDashboardStats') {
               if (f.key && f.key.startsWith('round_open_date_') && f.name) {
                 window._ocaRoundOpenDatesMap = window._ocaRoundOpenDatesMap || {};
                 window._ocaRoundOpenDatesMap[f.key.replace('round_open_date_', '')] = f.name;
+              }
+              if (f.key && f.key.startsWith('round_open_custom_') && f.name) {
+                window._ocaCustomRoundOpenDatesMap = window._ocaCustomRoundOpenDatesMap || {};
+                const cKey = f.key.replace('round_open_custom_', '');
+                const parts = String(f.name).split('|');
+                window._ocaCustomRoundOpenDatesMap[cKey] = {
+                  key: cKey,
+                  label: (parts[0] || '').trim(),
+                  thaiDate: (parts[1] || '').trim(),
+                  isoDate: f.start_date || ''
+                };
               }
             });
           }
@@ -38209,9 +38320,16 @@ if (action === 'getDashboardStats') {
         // อัตราค่าลงทะเบียนตามการตั้งค่าปัจจุบัน
         const chkReg = document.getElementById('chkRcptApplyRegFee');
         if (chkReg) { chkReg.checked = true; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('regFee'); }
-        // ค่าลงทะเบียนอื่นๆ (ไม่นำเข้าอัตโนมัติ)
+        // ค่าลงทะเบียนอื่นๆ (หรือค่าปรับลงทะเบียนเกินกำหนดหากเปิดใช้งานอยู่)
         const chkOther = document.getElementById('chkRcptApplyOtherRegFee');
-        if (chkOther && chkOther.checked) { chkOther.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('otherRegFee'); }
+        const lpNew = (typeof resolveLateRegPenalty === 'function') ? resolveLateRegPenalty() : null;
+        if (lpNew && lpNew.active && lpNew.amount > 0) {
+          if (chkOther) { chkOther.checked = true; document.getElementById('tileRcptOtherRegFee')?.classList.add('active'); }
+          const inpOtherNew = document.getElementById('inpRcptOtherRegFee');
+          if (inpOtherNew) inpOtherNew.value = lpNew.amount;
+        } else {
+          if (chkOther && chkOther.checked) { chkOther.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('otherRegFee'); }
+        }
         // ไม่คิดค่าบัตรนักศึกษา
         const chkCard = document.getElementById('chkRcptApplyCardFee');
         if (chkCard) { chkCard.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('cardFee'); }
@@ -38263,9 +38381,16 @@ if (action === 'getDashboardStats') {
         // ต่อคอร์ส: ไม่คิดค่าสมัคร
         const chkReg = document.getElementById('chkRcptApplyRegFee');
         if (chkReg && chkReg.checked) { chkReg.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('regFee'); }
-        // ค่าลงทะเบียนอื่นๆ
+        // ค่าลงทะเบียนอื่นๆ (หรือค่าปรับลงทะเบียนเกินกำหนดหากเปิดใช้งานอยู่)
         const chkOther = document.getElementById('chkRcptApplyOtherRegFee');
-        if (chkOther && chkOther.checked) { chkOther.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('otherRegFee'); }
+        const lpRenew = (typeof resolveLateRegPenalty === 'function') ? resolveLateRegPenalty() : null;
+        if (lpRenew && lpRenew.active && lpRenew.amount > 0) {
+          if (chkOther) { chkOther.checked = true; document.getElementById('tileRcptOtherRegFee')?.classList.add('active'); }
+          const inpOtherRenew = document.getElementById('inpRcptOtherRegFee');
+          if (inpOtherRenew) inpOtherRenew.value = lpRenew.amount;
+        } else {
+          if (chkOther && chkOther.checked) { chkOther.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('otherRegFee'); }
+        }
         // ต่อคอร์ส: ไม่คิดค่าบัตร
         const chkCard = document.getElementById('chkRcptApplyCardFee');
         if (chkCard && chkCard.checked) { chkCard.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('cardFee'); }
@@ -42001,6 +42126,15 @@ if (action === 'getDashboardStats') {
     function getFeeItemStatus(item) {
       if (!item) return { active: false, label: 'ไม่ได้ตั้งค่า', color: 'gray', badgeText: '' };
       const mode = item.mode || 'always';
+      if (mode === 'disabled') {
+        return {
+          active: false,
+          mode: 'disabled',
+          label: '<i class="fa-solid fa-ban" style="color:#475569; font-size:12px; margin-right:4px;"></i> ปิดใช้งาน',
+          badgeText: 'ปิดใช้งาน',
+          color: 'gray'
+        };
+      }
       if (mode === 'always') {
         return {
           active: true,
@@ -42092,7 +42226,8 @@ if (action === 'getDashboardStats') {
       }
       const upperCode = code.toUpperCase();
       const upperName = name.toUpperCase();
-      if (/^(CE|OE|E\d|E-)/i.test(upperCode) || upperCode.startsWith('E') || /เด็ก|เยาวชน|KIDS|YOUTH/i.test(upperName)) {
+      const isAdult3HrCeOe = /^(CE|OE)/i.test(upperCode) && /3\s*(?:ชม|ชั่วโมง|hrs?)/i.test(upperName) && !/เด็ก|เยาวชน|KIDS|YOUTH/i.test(upperName);
+      if (!isAdult3HrCeOe && (/^(CE|OE|E\d|E-)/i.test(upperCode) || upperCode.startsWith('E') || /เด็ก|เยาวชน|KIDS|YOUTH/i.test(upperName))) {
         return 'คอร์สเด็ก';
       }
       if (/^(C1|O1)/i.test(upperCode) || /ขั้นต้น|BEGINNER|ระดับต้น/i.test(upperName)) {
@@ -42309,7 +42444,7 @@ if (action === 'getDashboardStats') {
         : ((targetItem && targetItem.mode === 'always') ? true : Boolean(st && st.active));
       if (isNaN(baseAmount) || baseAmount < 0) baseAmount = 0;
       const effectiveAmount = isActive ? baseAmount : 0;
-      const expiredNotice = isExpired ? 'เลยกำหนดรับส่วนลด (ค่าปรับเท่ากับส่วนลด: 0 บาท)' : '';
+      const expiredNotice = isExpired ? 'เลยกำหนดรับส่วนลดปกติ (ส่วนลด: 0 บาท)' : '';
       return {
         amount: effectiveAmount,
         baseAmount: baseAmount,
@@ -42324,6 +42459,40 @@ if (action === 'getDashboardStats') {
       };
     }
     window.resolveCourseDiscount = resolveCourseDiscount;
+    function resolveLateRegPenalty() {
+      const items = (typeof globalFeePresets === 'object' && globalFeePresets && globalFeePresets.items) || {};
+      const item = items.lateRegPenalty || (typeof globalFeePresets === 'object' && globalFeePresets ? globalFeePresets.lateRegPenalty : null);
+      if (!item || typeof item !== 'object') {
+        return { active: false, amount: 0, mode: 'disabled', label: '' };
+      }
+      const mode = item.mode || 'disabled';
+      const amt = Math.max(0, Number(item.amount || 0));
+      if (mode === 'disabled' || isNaN(amt) || amt <= 0) {
+        return { active: false, amount: 0, mode: mode, label: '' };
+      }
+      if (mode === 'always') {
+        return { active: true, amount: amt, mode: 'always', label: 'ค่าปรับลงทะเบียนเกินกำหนด' };
+      }
+      const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(item) : { active: false };
+      return {
+        active: Boolean(st && st.active),
+        amount: Boolean(st && st.active) ? amt : 0,
+        mode: 'period',
+        startDate: item.startDate || '',
+        endDate: item.endDate || '',
+        label: Boolean(st && st.active) ? 'ค่าปรับลงทะเบียนเกินกำหนด' : ''
+      };
+    }
+    window.resolveLateRegPenalty = resolveLateRegPenalty;
+    function clearLateRegPenaltyDates() {
+      const inpS = document.getElementById('cfgStart_lateRegPenalty');
+      const inpE = document.getElementById('cfgEnd_lateRegPenalty');
+      if (inpS) inpS.value = '';
+      if (inpE) inpE.value = '';
+      updateFeeSettingStatusPreview('lateRegPenalty');
+      if (typeof toast === 'function') toast('ล้างช่วงเวลาเรียบร้อย', 'ล้างวันที่เริ่ม-สิ้นสุดค่าปรับแล้ว กดบันทึกเพื่อยืนยัน', 'info');
+    }
+    window.clearLateRegPenaltyDates = clearLateRegPenaltyDates;
     function getSelectedScheduleId(selectId) {
       const sel = document.getElementById(selectId);
       if (!sel) return '';
@@ -42383,6 +42552,13 @@ if (action === 'getDashboardStats') {
         let rawAmount = Number(item.amount);
         if (isNaN(rawAmount) || rawAmount < 0) {
           rawAmount = defaultFallback[k];
+        }
+        if (k === 'otherRegFee') {
+          const lp = (typeof resolveLateRegPenalty === 'function') ? resolveLateRegPenalty() : null;
+          if (lp && lp.active && lp.amount > 0 && rawAmount === 0) {
+            rawAmount = lp.amount;
+            item = { amount: lp.amount, mode: lp.mode || 'always', startDate: lp.startDate || '', endDate: lp.endDate || '' };
+          }
         }
         let normCourseDisc = null;
         if (k === 'discountNormal') {
@@ -42500,7 +42676,7 @@ if (action === 'getDashboardStats') {
     function populateGeneralFeeInputs(fees) {
       if (!fees || typeof fees !== 'object') return;
       const rawItems = fees.items || {};
-      const keys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'shippingFee', 'discountNormal', 'discountOther'];
+      const keys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'shippingFee', 'discountNormal', 'discountOther', 'lateRegPenalty'];
       const inputMap = {
         tuitionFee: 'cfgGeneralTuitionFee',
         regFee: 'cfgGeneralRegFee',
@@ -42509,7 +42685,8 @@ if (action === 'getDashboardStats') {
         transferFee: 'cfgGeneralTransferFee',
         shippingFee: 'cfgGeneralShippingFee',
         discountNormal: 'cfgGeneralDiscountNormal',
-        discountOther: 'cfgGeneralDiscountOther'
+        discountOther: 'cfgGeneralDiscountOther',
+        lateRegPenalty: 'cfgGeneralLateRegPenalty'
       };
       const defaultAmounts = {
         tuitionFee: 0,
@@ -42519,13 +42696,14 @@ if (action === 'getDashboardStats') {
         transferFee: 0,
         shippingFee: 100,
         discountNormal: 0,
-        discountOther: 0
+        discountOther: 0,
+        lateRegPenalty: 0
       };
       const normalizedItems = {};
       keys.forEach(k => {
         let raw = rawItems[k] !== undefined ? rawItems[k] : fees[k];
         let amount = defaultAmounts[k];
-        let mode = 'always';
+        let mode = (k === 'lateRegPenalty') ? 'disabled' : 'always';
         let startDate = '';
         let endDate = '';
         if (typeof raw === 'object' && raw !== null) {
@@ -42880,7 +43058,7 @@ if (action === 'getDashboardStats') {
       const btn = document.querySelector('button[onclick="saveGeneralFeeSettings()"]');
       const origBtnHtml = btn ? btn.innerHTML : '';
       // Validate date ranges before proceeding
-      const keys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'shippingFee', 'discountNormal', 'discountOther'];
+      const keys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'shippingFee', 'discountNormal', 'discountOther', 'lateRegPenalty'];
       for (const k of keys) {
         const mode = document.getElementById(`cfgMode_${k}`)?.value || 'always';
         const start = document.getElementById(`cfgStart_${k}`)?.value || '';
@@ -42905,7 +43083,8 @@ if (action === 'getDashboardStats') {
         transferFee: 'cfgGeneralTransferFee',
         shippingFee: 'cfgGeneralShippingFee',
         discountNormal: 'cfgGeneralDiscountNormal',
-        discountOther: 'cfgGeneralDiscountOther'
+        discountOther: 'cfgGeneralDiscountOther',
+        lateRegPenalty: 'cfgGeneralLateRegPenalty'
       };
       const defaultAmounts = {
         tuitionFee: 0,
@@ -42915,7 +43094,8 @@ if (action === 'getDashboardStats') {
         transferFee: 0,
         shippingFee: 100,
         discountNormal: 0,
-        discountOther: 0
+        discountOther: 0,
+        lateRegPenalty: 0
       };
       const items = {};
       keys.forEach(k => {
@@ -45099,6 +45279,7 @@ if (action === 'getDashboardStats') {
         }
       }
       checkReceiptOpenDateWarning();
+      if (typeof renderReceiptCustomOpenDateChips === 'function') renderReceiptCustomOpenDateChips();
     }
     function renderRoundOpenDatesInputs() {
       const grid = document.getElementById('gridRoundOpenDates');
@@ -45109,23 +45290,190 @@ if (action === 'getDashboardStats') {
         try { return JSON.parse(localStorage.getItem('oca_round_open_dates_v1') || '{}'); } catch (_) { return {}; }
       })();
       window._ocaRoundOpenDatesMap = map;
+      const customMap = window._ocaCustomRoundOpenDatesMap || (() => {
+        try { return JSON.parse(localStorage.getItem('oca_custom_round_open_dates_v1') || '{}'); } catch (_) { return {}; }
+      })();
+      window._ocaCustomRoundOpenDatesMap = customMap;
       const scheds = (Array.isArray(cachedSchedulesList) && cachedSchedulesList.length > 0)
         ? cachedSchedulesList.slice(0, 8)
         : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES.slice(0, 8) : []);
-      grid.innerHTML = scheds.map(s => {
+      const schCards = scheds.map(s => {
         const key = `${year}_${term}_${s.id}`;
         const thaiVal = map[key] || '';
         const isoVal = (thaiVal && typeof parseThaiDateToIso === 'function') ? parseThaiDateToIso(thaiVal) : '';
         return (
           '<div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between;">' +
-          '  <div style="font-size:12px; font-weight:700; color:var(--accent-sky); margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(s.name || s.id) + '">' + escapeHtml(s.id) + ': ' + escapeHtml(s.name || '') + '</div>' +
+          '  <div style="display:flex; justify-content:space-between; align-items:center; gap:4px; margin-bottom:6px;">' +
+          '    <div style="font-size:12px; font-weight:700; color:var(--accent-sky); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(s.name || s.id) + '">' + escapeHtml(s.id) + ': ' + escapeHtml(s.name || '') + '</div>' +
+          (thaiVal ? '<button type="button" onclick="clearRoundOpenDateItem(\'' + escapeHtml(s.id) + '\')" title="ล้างวันที่" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:11.5px; padding:2px 4px; flex-shrink:0;"><i class="fa-solid fa-eraser"></i></button>' : '') +
+          '  </div>' +
           '  <input type="date" id="cfgRoundOpenDate_' + escapeHtml(s.id) + '" data-sch-id="' + escapeHtml(s.id) + '" value="' + escapeHtml(isoVal) + '" class="oca-input cfg-round-open-input" style="font-size:12px; height:34px; padding:4px 10px; text-align:left; width:100%; box-sizing:border-box;">' +
           '  <div style="font-size:11px; color:var(--color-gold); margin-top:4px; font-variant-numeric:tabular-nums; text-align:left;">' + (thaiVal ? escapeHtml(thaiVal) : '<span style="color:var(--text-muted);">ใช้วันเปิดเทอมกลาง</span>') + '</div>' +
           '</div>'
         );
-      }).join('');
+      });
+      const prefix = `${year}_${term}_`;
+      const customCards = Object.values(customMap)
+        .filter(item => item && String(item.key || '').startsWith(prefix))
+        .map(item => {
+          const safeKey = escapeHtml(item.key);
+          const isoVal = item.isoDate || ((item.thaiDate && typeof parseThaiDateToIso === 'function') ? parseThaiDateToIso(item.thaiDate) : '');
+          return (
+            '<div class="oca-custom-round-open-card" style="background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.28); border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between;">' +
+            '  <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px;">' +
+            '    <div style="font-size:12px; font-weight:700; color:var(--accent-emerald); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(item.label) + '"><i class="fa-solid fa-calendar-plus" style="margin-right:4px;"></i>' + escapeHtml(item.label) + '</div>' +
+            '    <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">' +
+            '      <button type="button" onclick="openCustomRoundOpenDateModal(\'' + safeKey + '\')" title="แก้ไข" style="background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:#0284c7; border-radius:5px; cursor:pointer; font-size:11px; padding:2px 6px;"><i class="fa-solid fa-pen"></i></button>' +
+            '      <button type="button" onclick="deleteCustomRoundOpenDate(\'' + safeKey + '\')" title="ลบ" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#dc2626; border-radius:5px; cursor:pointer; font-size:11px; padding:2px 6px;"><i class="fa-solid fa-trash-can"></i></button>' +
+            '    </div>' +
+            '  </div>' +
+            '  <div style="font-size:13px; font-weight:700; color:var(--text-main);">' + escapeHtml(item.thaiDate || isoVal) + '</div>' +
+            '  <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">กำหนดเอง (คลิกเลือกในใบเสร็จได้)</div>' +
+            '</div>'
+          );
+        });
+      grid.innerHTML = schCards.concat(customCards).join('');
     }
     window.renderRoundOpenDatesInputs = renderRoundOpenDatesInputs;
+    async function clearRoundOpenDateItem(schId) {
+      if (!schId) return;
+      const inp = document.getElementById('cfgRoundOpenDate_' + schId);
+      if (inp) inp.value = '';
+      await saveRoundOpenDatesFromUI();
+    }
+    window.clearRoundOpenDateItem = clearRoundOpenDateItem;
+    function openCustomRoundOpenDateModal(editKey) {
+      const modal = document.getElementById('modalCustomRoundOpenDate');
+      const inpKey = document.getElementById('inpCustomRoundOpenKey');
+      const inpLabel = document.getElementById('inpCustomRoundOpenLabel');
+      const inpDate = document.getElementById('inpCustomRoundOpenDate');
+      const title = document.getElementById('titleCustomRoundOpenModal');
+      if (!modal) return;
+      if (editKey && window._ocaCustomRoundOpenDatesMap && window._ocaCustomRoundOpenDatesMap[editKey]) {
+        const item = window._ocaCustomRoundOpenDatesMap[editKey];
+        if (inpKey) inpKey.value = editKey;
+        if (inpLabel) inpLabel.value = item.label || '';
+        if (inpDate) inpDate.value = item.isoDate || ((item.thaiDate && typeof parseThaiDateToIso === 'function') ? parseThaiDateToIso(item.thaiDate) : '');
+        if (title) title.textContent = 'แก้ไขวันเปิดเรียน';
+      } else {
+        if (inpKey) inpKey.value = '';
+        if (inpLabel) inpLabel.value = '';
+        if (inpDate) inpDate.value = '';
+        if (title) title.textContent = 'เพิ่มวันเปิดเรียนใหม่';
+      }
+      modal.style.display = 'flex';
+    }
+    window.openCustomRoundOpenDateModal = openCustomRoundOpenDateModal;
+    function closeCustomRoundOpenDateModal() {
+      const modal = document.getElementById('modalCustomRoundOpenDate');
+      if (modal) modal.style.display = 'none';
+    }
+    window.closeCustomRoundOpenDateModal = closeCustomRoundOpenDateModal;
+    async function saveCustomRoundOpenDateFromModal() {
+      const year = (document.getElementById('selTermDatesYear')?.value || getResolvedActiveYearTerm().yearBE).trim();
+      const term = (document.getElementById('selRoundOpenDateTerm')?.value || getResolvedActiveYearTerm().term).trim();
+      const existingKey = (document.getElementById('inpCustomRoundOpenKey')?.value || '').trim();
+      const label = (document.getElementById('inpCustomRoundOpenLabel')?.value || '').trim();
+      const isoVal = (document.getElementById('inpCustomRoundOpenDate')?.value || '').trim();
+      if (!label || !isoVal) {
+        if (typeof toast === 'function') toast('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อรอบและวันเปิดเรียน', 'warning');
+        return;
+      }
+      const thaiDate = (typeof formatIsoToThaiDate === 'function') ? formatIsoToThaiDate(isoVal) : isoVal;
+      const fullKey = existingKey || `${year}_${term}_${Date.now()}`;
+      const rowPayload = {
+        key: `round_open_custom_${fullKey}`,
+        name: `${label.replace(/\|/g, ' ')}|${thaiDate}`.slice(0, 90),
+        mode: 'always',
+        amount: 0,
+        start_date: isoVal,
+        end_date: null,
+        updated_at: new Date().toISOString()
+      };
+      try {
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          const { error } = await _supabase.from('fee_settings').upsert([rowPayload], { onConflict: 'key' });
+          if (error) throw error;
+          if (typeof broadcastOcaDataSync === 'function') broadcastOcaDataSync('fee_settings', 'UPDATE', rowPayload);
+        }
+        window._ocaCustomRoundOpenDatesMap = window._ocaCustomRoundOpenDatesMap || {};
+        window._ocaCustomRoundOpenDatesMap[fullKey] = { key: fullKey, label: label.replace(/\|/g, ' '), thaiDate: thaiDate, isoDate: isoVal };
+        try { localStorage.setItem('oca_custom_round_open_dates_v1', JSON.stringify(window._ocaCustomRoundOpenDatesMap)); } catch (_) {}
+        closeCustomRoundOpenDateModal();
+        renderRoundOpenDatesInputs();
+        if (typeof renderReceiptCustomOpenDateChips === 'function') renderReceiptCustomOpenDateChips();
+        if (typeof toast === 'function') toast('บันทึกสำเร็จ', `บันทึกวันเปิดเรียน "${label}" แล้ว`, '✓');
+      } catch (err) {
+        console.error('[CustomRoundOpenDate] Save error:', err);
+        if (typeof showModal === 'function') showModal('ข้อผิดพลาด', 'ไม่สามารถบันทึกวันเปิดเรียนได้: ' + (err.message || ''), '❌');
+      }
+    }
+    window.saveCustomRoundOpenDateFromModal = saveCustomRoundOpenDateFromModal;
+    async function deleteCustomRoundOpenDate(fullKey) {
+      if (!fullKey) return;
+      const item = (window._ocaCustomRoundOpenDatesMap && window._ocaCustomRoundOpenDatesMap[fullKey]) || {};
+      const ok = (typeof showConfirmModal === 'function')
+        ? await showConfirmModal('ยืนยันการลบวันเปิดเรียน', `ต้องการลบวันเปิดเรียน "${item.label || fullKey}" ใช่หรือไม่?`)
+        : true;
+      if (!ok) return;
+      try {
+        const dbKey = `round_open_custom_${fullKey}`;
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          const { error } = await _supabase.from('fee_settings').delete().eq('key', dbKey);
+          if (error) throw error;
+          if (typeof broadcastOcaDataSync === 'function') broadcastOcaDataSync('fee_settings', 'DELETE', { key: dbKey });
+        }
+        if (window._ocaCustomRoundOpenDatesMap) delete window._ocaCustomRoundOpenDatesMap[fullKey];
+        try { localStorage.setItem('oca_custom_round_open_dates_v1', JSON.stringify(window._ocaCustomRoundOpenDatesMap || {})); } catch (_) {}
+        renderRoundOpenDatesInputs();
+        if (typeof renderReceiptCustomOpenDateChips === 'function') renderReceiptCustomOpenDateChips();
+        if (typeof toast === 'function') toast('ลบสำเร็จ', 'ลบวันเปิดเรียนที่กำหนดเองเรียบร้อยแล้ว', '✓');
+      } catch (err) {
+        console.error('[CustomRoundOpenDate] Delete error:', err);
+        if (typeof showModal === 'function') showModal('ข้อผิดพลาด', 'ไม่สามารถลบวันเปิดเรียนได้: ' + (err.message || ''), '❌');
+      }
+    }
+    window.deleteCustomRoundOpenDate = deleteCustomRoundOpenDate;
+    function renderReceiptCustomOpenDateChips() {
+      const box = document.getElementById('boxRcptCustomOpenDateChips');
+      if (!box) return;
+      const year = (document.getElementById('selRcptYear')?.value || getResolvedActiveYearTerm().yearBE).trim();
+      const term = (document.getElementById('selRcptTerm')?.value || getResolvedActiveYearTerm().term).trim();
+      const prefix = `${year}_${term}_`;
+      const customMap = window._ocaCustomRoundOpenDatesMap || (() => {
+        try { return JSON.parse(localStorage.getItem('oca_custom_round_open_dates_v1') || '{}'); } catch (_) { return {}; }
+      })();
+      const items = Object.values(customMap).filter(item => item && String(item.key || '').startsWith(prefix) && item.thaiDate);
+      if (items.length === 0) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+      }
+      box.style.display = 'flex';
+      box.innerHTML = items.map(item =>
+        '<button type="button" onclick="applyCustomReceiptOpenDate(\'' + escapeHtml(item.thaiDate) + '\')" style="font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid rgba(16,185,129,0.45); background:rgba(16,185,129,0.12); color:#047857; font-weight:700; cursor:pointer; white-space:nowrap;">' +
+        escapeHtml(item.label) + ': ' + escapeHtml(item.thaiDate) +
+        '</button>'
+      ).join('');
+    }
+    window.renderReceiptCustomOpenDateChips = renderReceiptCustomOpenDateChips;
+    function applyCustomReceiptOpenDate(thaiDate) {
+      const inpOpen = document.getElementById('txtRcptOpenDate');
+      if (!inpOpen || !thaiDate) return;
+      inpOpen.value = thaiDate;
+      if (typeof updateReceiptLivePreview === 'function') updateReceiptLivePreview();
+      if (typeof checkReceiptOpenDateWarning === 'function') checkReceiptOpenDateWarning();
+    }
+    window.applyCustomReceiptOpenDate = applyCustomReceiptOpenDate;
+    function clearOnlineEnrollScheduleDates() {
+      const inpOpen = document.getElementById('cfgEnrollOpenDatetime');
+      const inpClose = document.getElementById('cfgEnrollCloseDatetime');
+      if (inpOpen) inpOpen.value = '';
+      if (inpClose) inpClose.value = '';
+      if (typeof updateOnlineEnrollStatusPreview === 'function') updateOnlineEnrollStatusPreview();
+      if (typeof toast === 'function') toast('ล้างช่วงเวลาแล้ว', 'ล้างวัน-เวลาเปิด-ปิดรับสมัครออนไลน์แล้ว กด "บันทึกกำหนดการ" เพื่อยืนยัน', 'info');
+    }
+    window.clearOnlineEnrollScheduleDates = clearOnlineEnrollScheduleDates;
     async function saveRoundOpenDatesFromUI() {
       const year = (document.getElementById('selTermDatesYear')?.value || getResolvedActiveYearTerm().yearBE).trim();
       const term = (document.getElementById('selRoundOpenDateTerm')?.value || getResolvedActiveYearTerm().term).trim();
@@ -71898,7 +72246,8 @@ function openPublicRegisterView() {
     function getKioskCourseSvgIllustration(category, course) {
       const codeUpper = String((course && (course.code || course.id)) || '').trim().toUpperCase();
       const raw = `${category || ''} ${codeUpper} ${(course && course.name) || ''}`.toUpperCase();
-      if (/KIDS|เด็ก|เยาวชน|CE|OE|\bE\d/.test(raw)) {
+      const isAdult3HrCeOeSvg = /^(CE|OE)/i.test(codeUpper) && /3\s*(?:ชม|ชั่วโมง|hrs?)/i.test(raw) && !/KIDS|เด็ก|เยาวชน/.test(raw);
+      if (!isAdult3HrCeOeSvg && /KIDS|เด็ก|เยาวชน|CE|OE|\bE\d/.test(raw)) {
         // Kids: Panda + Red Lantern + Chinese Storybook
         return {
           bg: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
@@ -72270,7 +72619,8 @@ function openPublicRegisterView() {
       const pickBadge = (thL, zhL, enL) => (lang === 'zh' ? zhL : (lang === 'en' ? enL : thL));
       const codeUpper = String(codeStr || (course && (course.code || course.id)) || '').trim().toUpperCase();
       const raw = `${category || ''} ${codeUpper} ${(course && course.name) || ''}`.toUpperCase();
-      if (/KIDS|เด็ก|เยาวชน|CE|OE|\bE\d/.test(raw)) {
+      const isAdult3HrCeOeSvg = /^(CE|OE)/i.test(codeUpper) && /3\s*(?:ชม|ชั่วโมง|hrs?)/i.test(raw) && !/KIDS|เด็ก|เยาวชน/.test(raw);
+      if (!isAdult3HrCeOeSvg && /KIDS|เด็ก|เยาวชน|CE|OE|\bE\d/.test(raw)) {
         let kidsSub = 'KIDS MANDARIN';
         const eMatch = codeUpper.match(/^E([1-4])00(\d)$/);
         const ceMatch = codeUpper.match(/^[CO]E[12]0(\d)$/);
@@ -79510,6 +79860,26 @@ function openPublicRegisterView() {
         "อนุมัติสลิปยอดต่าง (SLIP VARIANCE)": "批准差额转账凭证",
         "ปฏิเสธสลิป (SLIP REJECTED)": "拒绝转账凭证",
         "ยกเลิกใบเสร็จ (VOID RECEIPT)": "作废收据",
+        "เพิ่มวันเปิดเรียน": "添加开课日期",
+        "เพิ่มวันเปิดเรียนใหม่": "添加新开课日期",
+        "ชื่อรอบ / ป้ายกำกับ *": "班次名称 / 标签 *",
+        "เช่น รอบพิเศษเสาร์-อาทิตย์ หรือ คอร์สปิดเทอม": "例如：周末特别班 或 假期班",
+        "วันเปิดเรียน *": "开课日期 *",
+        "บันทึกวันเปิดเรียน": "保存开课日期",
+        "ล้างวัน-เวลาเปิด-ปิดที่ตั้งไว้": "清除已设置的开放时间",
+        "ล้างช่วงเวลา": "清除时间段",
+        "ส่วนลดปกติ (แยกเด็ก / ผู้ใหญ่) ใช้กำหนดส่วนลดอัตโนมัติของแต่ละคอร์ส ส่วน": "常规折扣（区分少儿 / 成人）用于设定每门课程的自动折扣，而",
+        "สามารถกำหนดยอดและช่วงวันเริ่มต้น–สิ้นสุดได้เองในกล่องค่าปรับด้านล่างอย่างอิสระ — อย่าลืมกดปุ่มบันทึกเมื่อแก้ไขเสร็จ": "可在下方罚款设置框中自由设定金额及起止日期——修改完成后请记得点击保存按钮",
+        "ค่าปรับลงทะเบียนเกินกำหนด (กำหนดเอง)": "逾期报名罚款（自定义）",
+        "ปิดใช้งาน": "已停用",
+        "ยอดค่าปรับลงทะเบียนเกินกำหนด (฿)": "逾期报名罚款金额（泰铢）",
+        "เช่น 100 หรือ 200": "例如 100 或 200",
+        "ดึงเข้าใบเสร็จอัตโนมัติเมื่ออยู่ในช่วงเวลาที่กำหนด": "在设定时间段内自动带入收据",
+        "เงื่อนไขการคิดค่าปรับ": "罚款适用条件",
+        "ปิดใช้งาน (ไม่คิดค่าปรับ)": "停用（不收罚款）",
+        "✓ ใช้ตลอดไป (คิดค่าปรับทุกใบเสร็จ)": "✓ 长期生效（每张收据均收取）",
+        "เริ่มปรับตั้งแต่วันที่": "开始罚款日期",
+        "ปิดหน้าต่าง": "关闭窗口",
         "ใช้กำหนดกลุ่มส่วนลดของแต่ละคอร์ส (เด็ก/ผู้ใหญ่) โดย": "用于设定每门课程的折扣组别（儿童/成人），",
         "ค่าปรับลงทะเบียนเกินกำหนด": "逾期报名罚款",
         "จะอ้างอิงเท่ากับอัตราส่วนลดปกติของคอร์สนั้นๆ และหากตั้งแบบ": "将等同于该课程的正常折扣金额；若设置为",
@@ -82163,6 +82533,26 @@ function openPublicRegisterView() {
         "ระบุเหตุผลการยกเลิกใบเสร็จ เช่น พิมพ์ชื่อผู้ชำระเงินผิด, เปลี่ยนคอร์สเรียน...": "Enter reason for voiding, e.g. wrong payer name, course change...",
         "กรุณาระบุเหตุผลการยกเลิกใบเสร็จก่อนยืนยัน": "Please enter a reason before confirming",
         "ยกเลิก": "Cancel",
+        "เพิ่มวันเปิดเรียน": "Add Opening Date",
+        "เพิ่มวันเปิดเรียนใหม่": "Add New Opening Date",
+        "ชื่อรอบ / ป้ายกำกับ *": "Round Name / Label *",
+        "เช่น รอบพิเศษเสาร์-อาทิตย์ หรือ คอร์สปิดเทอม": "e.g. Weekend Special or Holiday Intensive",
+        "วันเปิดเรียน *": "Opening Date *",
+        "บันทึกวันเปิดเรียน": "Save Opening Date",
+        "ล้างวัน-เวลาเปิด-ปิดที่ตั้งไว้": "Clear configured open/close schedule",
+        "ล้างช่วงเวลา": "Clear Dates",
+        "ส่วนลดปกติ (แยกเด็ก / ผู้ใหญ่) ใช้กำหนดส่วนลดอัตโนมัติของแต่ละคอร์ส ส่วน": "Standard Discounts (Kids / Adults) configure automatic course discounts, while",
+        "สามารถกำหนดยอดและช่วงวันเริ่มต้น–สิ้นสุดได้เองในกล่องค่าปรับด้านล่างอย่างอิสระ — อย่าลืมกดปุ่มบันทึกเมื่อแก้ไขเสร็จ": "can be configured independently with custom amount and start/end dates below — remember to click Save when finished",
+        "ค่าปรับลงทะเบียนเกินกำหนด (กำหนดเอง)": "Late Registration Penalty (Custom)",
+        "ปิดใช้งาน": "Disabled",
+        "ยอดค่าปรับลงทะเบียนเกินกำหนด (฿)": "Late Registration Penalty Amount (THB)",
+        "เช่น 100 หรือ 200": "e.g. 100 or 200",
+        "ดึงเข้าใบเสร็จอัตโนมัติเมื่ออยู่ในช่วงเวลาที่กำหนด": "Automatically applied to receipts within the active date range",
+        "เงื่อนไขการคิดค่าปรับ": "Penalty Condition",
+        "ปิดใช้งาน (ไม่คิดค่าปรับ)": "Disabled (No Penalty)",
+        "✓ ใช้ตลอดไป (คิดค่าปรับทุกใบเสร็จ)": "✓ Always Active (Apply to all receipts)",
+        "เริ่มปรับตั้งแต่วันที่": "Penalty Start Date",
+        "ปิดหน้าต่าง": "Close Modal",
         "ประจำวันที่ -": "Date: -",
         "0 ฉบับ (฿0.00)": "0 receipt(s) (฿0.00)",
         "฿0.00 (ตรงยอด)": "฿0.00 (Balanced)",
@@ -91790,7 +92180,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=290';
+      const swPath = basePath + 'sw.js?v=291';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -91827,7 +92217,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (290):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (291):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
