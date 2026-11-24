@@ -114,7 +114,7 @@
   async function getFailedEmailQueue() {
     try {
       if (global.OcaAppConfig && typeof global.OcaAppConfig.get === 'function') {
-        const list = await global.OcaAppConfig.get('failed_email_queue', []);
+        const list = await global.OcaAppConfig.get('failed_email_queue', [], true);
         return Array.isArray(list) ? list : [];
       }
     } catch (err) {
@@ -296,10 +296,15 @@
         retries: nextRetries
       });
     } else if (item.receiptNo && typeof global.callGasApi === 'function') {
-      res = await global.callGasApi('sendReceiptEmail', {
-        receiptNo: item.receiptNo,
-        email: item.toEmail
-      }, 'POST');
+      try {
+        res = await global.callGasApi('sendReceiptEmail', {
+          receiptNo: item.receiptNo,
+          email: item.toEmail,
+          _skipAutoEnqueue: true
+        }, 'POST');
+      } catch (err) {
+        res = { success: false, error: (err && err.message) || String(err || 'Network error') };
+      }
       if (!res || !res.success) {
         await enqueueFailedEmail({
           ...item,
@@ -863,6 +868,8 @@
   };
 
   global.handleRetryAllFailedEmails = async function () {
+    if (_emailActionBusy) return;
+    _emailActionBusy = true;
     const btn = document.getElementById('btnRetryAllFailedEmails');
     if (btn) { btn.disabled = true; btn.textContent = 'กำลังส่งซ้ำ...'; }
     try {
@@ -872,6 +879,7 @@
       }
       await renderFailedEmailQueueTable();
     } finally {
+      _emailActionBusy = false;
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> ส่งใหม่ทั้งหมด'; }
     }
   };
