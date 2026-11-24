@@ -76,14 +76,6 @@
         actual
       };
     }
-    // Some ITMX Mini-QR payloads use tag 91 (checksum) rather than tag 63
-    const crcIdx = raw.lastIndexOf('6304');
-    if (crcIdx >= 0 && crcIdx + 8 === raw.length) {
-      const dataPart = raw.slice(0, crcIdx + 4);
-      const actual = raw.slice(crcIdx + 4).toUpperCase();
-      const expected = computeEmvCoCrc16(dataPart);
-      return { hasCrcTag: true, valid: expected === actual, expected, actual };
-    }
     return { hasCrcTag: false, valid: false, expected: '', actual: '' };
   }
 
@@ -95,8 +87,13 @@
     const ref = String(transRef || '').trim();
     const mFull = ref.match(/(20[2-3]\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])/);
     if (mFull) {
-      const dt = new Date(Number(mFull[1]), Number(mFull[2]) - 1, Number(mFull[3]));
-      if (!isNaN(dt.getTime())) return dt;
+      const y = Number(mFull[1]);
+      const m = Number(mFull[2]);
+      const d = Number(mFull[3]);
+      const dt = new Date(y, m - 1, d);
+      if (!isNaN(dt.getTime()) && dt.getFullYear() === y && dt.getMonth() === (m - 1) && dt.getDate() === d) {
+        return dt;
+      }
     }
     return null;
   }
