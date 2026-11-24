@@ -12766,7 +12766,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '317';
+      var LATEST_VERSION = '318';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -26549,6 +26549,43 @@ body.printing-report #printReportContainer {
     } catch (_) {
       window._supabase = _supabase;
     }
+    const OCA_CONSTANTS = Object.freeze({
+      DELIVERY_METHODS: Object.freeze({
+        PICKUP: 'รับที่สถาบัน',
+        SHIPPING: 'จัดส่งตามที่อยู่',
+        LEGACY_SHIPPING: Object.freeze(['จัดส่งตามที่อยู่', 'ส่งไปตามที่อยู่', 'ส่งตำรา'])
+      }),
+      CLAIM_STATUS: Object.freeze({
+        UNCLAIMED: 'UNCLAIMED',
+        CLAIMED: 'CLAIMED',
+        PENDING_SHIPPING: 'PENDING_SHIPPING',
+        SHIPPED: 'SHIPPED',
+        VOIDED: 'VOIDED',
+        NO_BOOK_CLAIM: 'NO_BOOK_CLAIM',
+        NOT_REQUIRED: 'NOT_REQUIRED'
+      }),
+      FEE_KEY_PREFIXES: Object.freeze({
+        SESSION: 'session:',
+        STAFF_AVATAR: 'staff_avatar:',
+        TEXTBOOK_STOCK: 'tb:',
+        STUDENT_CREDIT: 'student_credit_',
+        TEACHER_SCHED: 'teacher_sched_',
+        SHIFT_CLOSE: 'shift_close_',
+        COURSE_AUDIENCE: 'course_audience_',
+        PENDING_SLIP: 'pending_slip_'
+      })
+    });
+    window.OCA_CONSTANTS = OCA_CONSTANTS;
+    function isShippingDeliveryMethod(val) {
+      const norm = String(val || '').trim();
+      if (!norm) return false;
+      return OCA_CONSTANTS.DELIVERY_METHODS.LEGACY_SHIPPING.includes(norm) || norm.includes('จัดส่ง') || /shipping/i.test(norm);
+    }
+    window.isShippingDeliveryMethod = isShippingDeliveryMethod;
+    function makeFeeSettingKey(prefix, rawId) {
+      return String(prefix || '') + String(rawId || '').trim();
+    }
+    window.makeFeeSettingKey = makeFeeSettingKey;
     // Staff Avatar Photo Manager (Cloud & Local Sync)
     let _ocaStaffAvatars = {};
     window._ocaStaffAvatars = _ocaStaffAvatars;
@@ -28759,7 +28796,7 @@ body.printing-report #printReportContainer {
               <td style="padding:6px 10px; text-align:right; color:#dc2626; border-bottom:1px solid #e2e8f0; font-family:monospace; font-weight:700;">-${discountFormatted}</td>
             </tr>`;
         }
-        const isShip = (deliveryMethod === 'ส่งตำรา' || deliveryMethod === 'ส่งไปตามที่อยู่' || (deliveryMethod && deliveryMethod.indexOf('ส่ง') !== -1));
+        const isShip = isShippingDeliveryMethod(deliveryMethod) || (Boolean(deliveryMethod) && deliveryMethod.indexOf('ส่ง') !== -1);
         // หมายเหตุ: กำหนดวันเปิดเรียน (ตรงกับระบบ 100%)
         let remarksBoxHtml = '';
         const hasGroup = !!(classGroup && classGroup !== '-');
@@ -30062,7 +30099,7 @@ if (action === 'getDashboardStats') {
                 }
                 const dm = String(r.delivery_method || '').trim();
                 if (dm.includes('รับเอง') || dm === 'Pickup') pickupCount++;
-                else if (/ส่งตำรา|ส่งไปตามที่อยู่|จัดส่ง|shipping/i.test(dm)) shippingCount++;
+                else if (isShippingDeliveryMethod(dm) || dm.includes('ส่ง')) shippingCount++;
                 if (cs === 'CLAIMED' || cs.includes('รับแล้ว')) claimedCount++;
                 else if (cs === 'PENDING' || cs.includes('รอรับ')) pendingCount++;
                 totalRevenue += (Number(r.grand_total) || 0);
@@ -32044,7 +32081,7 @@ if (action === 'getDashboardStats') {
           }
           // Check Delivery vs Onsite
           const deliveryMethodNorm = String(rcpt.delivery_method || '').trim();
-          const isDelivery = deliveryMethodNorm === 'ส่งไปตามที่อยู่' || deliveryMethodNorm === 'ส่งตำรา' || deliveryMethodNorm === 'จัดส่งตามที่อยู่' || deliveryMethodNorm.includes('จัดส่ง');
+          const isDelivery = isShippingDeliveryMethod(deliveryMethodNorm) || deliveryMethodNorm === 'จัดส่งตามที่อยู่';
           if (isDelivery) {
             return {
               success: false,
@@ -32303,7 +32340,7 @@ if (action === 'getDashboardStats') {
             if (!r || r.receipt_type === 'CARD_FEE') return false;
             if (isReceiptVoided(r)) return false;
             const dm = String(r.delivery_method || '').trim();
-            return dm === 'ส่งตำรา' || dm === 'จัดส่งตามที่อยู่' || dm === 'ส่งไปตามที่อยู่' || dm.includes('ส่ง');
+            return isShippingDeliveryMethod(dm) || dm.includes('ส่ง');
           });
           const toArabic = (typeof toArabicDigits === 'function')
             ? toArabicDigits
@@ -93698,7 +93735,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=317';
+      const swPath = basePath + 'sw.js?v=318';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -93735,7 +93772,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (317):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (318):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
