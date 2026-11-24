@@ -12755,7 +12755,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '308';
+      var LATEST_VERSION = '309';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -29317,7 +29317,7 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
                 }
               }
               if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('teacher_sched_') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1' && f.key !== 'classroom_master_list' && !f.key.startsWith('cl_room_') && !f.key.startsWith('cfg_geofence') && !f.key.startsWith('sched_chunk_') && !f.key.startsWith('cg_chunk_') && !f.key.startsWith('round_open_date_') && !f.key.startsWith('crm_note_') && !f.key.startsWith('crm_contact_')) {
-                const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
+                const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : (f.mode === 'disabled' ? 'disabled' : 'always');
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
                 const amt = typeof f.amount === 'number' ? f.amount : (Number(f.amount) || 0);
@@ -32884,7 +32884,7 @@ if (action === 'getDashboardStats') {
             }
             return { success: true };
           }
-          const feeKeys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'shippingFee', 'discountNormal', 'discountKids', 'discountOther', 'lateRegPenalty', 'disc_rule_adult5', 'disc_rule_adult3', 'disc_rule_kids', 'disc_rule_art', 'disc_rule_music'];
+          const feeKeys = ['tuitionFee', 'regFee', 'cardFee', 'otherRegFee', 'transferFee', 'shippingFee', 'discountNormal', 'discountKids', 'discountOther', 'lateRegPenalty', 'lateRegPenaltyKids', 'disc_rule_adult5', 'disc_rule_adult3', 'disc_rule_kids', 'disc_rule_art', 'disc_rule_music'];
           const feeNames = {
             tuitionFee: 'ค่าเล่าเรียนทั่วไป',
             regFee: 'ค่าลงทะเบียนแรกเข้า',
@@ -32896,6 +32896,7 @@ if (action === 'getDashboardStats') {
             discountKids: 'ส่วนลดปกติคอร์สเด็ก (Kids)',
             discountOther: 'ส่วนลดอื่นๆ',
             lateRegPenalty: 'ค่าปรับลงทะเบียนเกินกำหนด',
+            lateRegPenaltyKids: 'ค่าปรับลงทะเบียนเกินกำหนด (คอร์สเด็ก)',
             disc_rule_adult5: 'กฎส่วนลดผู้ใหญ่ 5 ชม./สัปดาห์',
             disc_rule_adult3: 'กฎส่วนลดผู้ใหญ่ 3 ชม./สัปดาห์',
             disc_rule_kids: 'กฎส่วนลดคอร์สเด็ก',
@@ -32912,7 +32913,13 @@ if (action === 'getDashboardStats') {
               else if (items.discountNormal && items.discountNormal.kidsAmount !== undefined) amt = Number(items.discountNormal.kidsAmount);
               else amt = 200;
             }
-            const m = (it.mode === 'period' || it.mode === 'dateRange') ? 'period' : 'always';
+            if (k === 'lateRegPenaltyKids' && (isNaN(amt) || it.amount === undefined)) {
+              if (items.lateRegPenaltyKids && items.lateRegPenaltyKids.amount !== undefined) amt = Number(items.lateRegPenaltyKids.amount);
+              else if (items.lateRegPenalty && items.lateRegPenalty.kidsAmount !== undefined) amt = Number(items.lateRegPenalty.kidsAmount);
+              else if (params.lateRegPenaltyKids !== undefined) amt = Number(params.lateRegPenaltyKids);
+              else amt = 0;
+            }
+            const m = (it.mode === 'period' || it.mode === 'dateRange') ? 'period' : (it.mode === 'disabled' ? 'disabled' : 'always');
             const sDate = (m === 'period' && it.startDate) ? String(it.startDate).split('T')[0] : null;
             const eDate = (m === 'period' && it.endDate) ? String(it.endDate).split('T')[0] : null;
             updates.push({
@@ -32965,7 +32972,7 @@ if (action === 'getDashboardStats') {
           if (fees) {
             fees.forEach(f => {
               if (f.key && !f.key.startsWith('staff_avatar:') && !f.key.startsWith('teacher_sched_') && !f.key.startsWith('tb:') && !f.key.startsWith('term_open_date_') && !f.key.startsWith('term_close_date_') && f.key !== 'term_dates_by_year' && !f.key.startsWith('ra:') && !f.key.startsWith('roster_assign:') && f.key !== 'online_enroll_schedule' && f.key !== 'card_printer_calibration_json' && f.key !== 'cfg_cashier_payee' && f.key !== 'schedule_courses_map' && f.key !== 'schedule_courses_by_term_map' && f.key !== 'course_group_instructor_by_term_v1' && f.key !== 'classroom_master_list' && !f.key.startsWith('cl_room_') && !f.key.startsWith('cfg_geofence') && !f.key.startsWith('sched_chunk_') && !f.key.startsWith('cg_chunk_') && !f.key.startsWith('round_open_date_') && !f.key.startsWith('crm_note_') && !f.key.startsWith('crm_contact_')) {
-                const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : 'always';
+                const normMode = (f.mode === 'period' || f.mode === 'dateRange') ? 'period' : (f.mode === 'disabled' ? 'disabled' : 'always');
                 const sDate = f.start_date ? String(f.start_date).split('T')[0] : '';
                 const eDate = f.end_date ? String(f.end_date).split('T')[0] : '';
                 const amt = typeof f.amount === 'number' ? f.amount : (Number(f.amount) || 0);
@@ -41258,8 +41265,17 @@ if (action === 'getDashboardStats') {
       try {
         const res = await callGasApi('updateSecurityPin', { newPin: p1 });
         if (res && res.success) {
+          const inpP1 = document.getElementById('inpNewSecurityPin');
+          const inpP2 = document.getElementById('inpConfirmSecurityPin');
+          if (inpP1) inpP1.value = '';
+          if (inpP2) inpP2.value = '';
           closeChangeSecurityPinModal();
           showToast('เปลี่ยนรหัส PIN สำเร็จ', res.message || 'บันทึกรหัส PIN ใหม่เรียบร้อยแล้ว', '✓');
+          if (typeof showActivitySuccessPopup === 'function') {
+            showActivitySuccessPopup('เปลี่ยนรหัส PIN สำเร็จ', res.message || 'บันทึกรหัส PIN ความปลอดภัยใหม่เรียบร้อยแล้ว', '✅');
+          } else if (typeof showModal === 'function') {
+            showModal('เปลี่ยนรหัส PIN สำเร็จ', res.message || 'บันทึกรหัส PIN ความปลอดภัยใหม่เรียบร้อยแล้ว', '✅');
+          }
         } else {
           showModal('เปลี่ยนรหัส PIN ไม่สำเร็จ', (res && res.message) || 'เกิดข้อผิดพลาด', '❌');
         }
@@ -43649,10 +43665,6 @@ if (action === 'getDashboardStats') {
       if (!cell) return;
       const chkKids = document.getElementById(`chkFeeAudience_kids_${cId}`);
       const chkAdult = document.getElementById(`chkFeeAudience_adult_${cId}`);
-      const course = Array.isArray(cachedCoursesList) ? cachedCoursesList.find(c => (c.id === cId || c.code === cId)) : null;
-      const customDisc = (course && course.custom_discount_normal !== undefined && course.custom_discount_normal !== null && course.custom_discount_normal !== '')
-        ? Number(course.custom_discount_normal)
-        : null;
       const inpKids = document.getElementById('cfgGeneralDiscountKids');
       const inpAdult = document.getElementById('cfgGeneralDiscountNormal');
       const kidsRate = (inpKids && !isNaN(Number(inpKids.value)) && Number(inpKids.value) >= 0) ? Number(inpKids.value) : 100;
@@ -43661,8 +43673,6 @@ if (action === 'getDashboardStats') {
       const timeTag = `<div style="font-size:10px; color:var(--text-muted); font-weight:500;">${discTime.reason}</div>`;
       if (!discTime.active) {
         cell.innerHTML = `<span style="color:var(--text-muted); font-size:11.5px;">฿0</span>${timeTag}`;
-      } else if (customDisc !== null) {
-        cell.innerHTML = `<span style="color:var(--accent-gold); font-weight:700;">฿${toArabicDigits(customDisc.toLocaleString('en-US'))}</span> <span style="font-size:10.5px; color:var(--text-muted);">(กำหนดเอง)</span>${timeTag}`;
       } else if (chkKids && chkKids.checked) {
         cell.innerHTML = `<span style="color:var(--accent-emerald); font-weight:700;">฿${toArabicDigits(kidsRate.toLocaleString('en-US'))}</span>${timeTag}`;
       } else if (chkAdult && chkAdult.checked) {
@@ -93167,7 +93177,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=308';
+      const swPath = basePath + 'sw.js?v=309';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -93204,7 +93214,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (308):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (309):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
