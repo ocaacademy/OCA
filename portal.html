@@ -10752,6 +10752,16 @@ body.printing-report #printReportContainer {
     background: #071812 !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
   }
+  @media (display-mode: standalone) {
+    #oca-app-root .oca-topbar {
+      padding-top: env(safe-area-inset-top, 0px) !important;
+      height: calc(56px + env(safe-area-inset-top, 0px)) !important;
+    }
+  }
+  html.oca-standalone #oca-app-root .oca-topbar {
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    height: calc(56px + env(safe-area-inset-top, 0px)) !important;
+  }
   @media (max-width: 768px) {
     #viewLoginSplit {
       padding: 12px 8px !important;
@@ -12752,7 +12762,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '289';
+      var LATEST_VERSION = '290';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -43237,7 +43247,7 @@ if (action === 'getDashboardStats') {
       courses.forEach(c => {
         const cId = c.id || c.code;
         const code = ((c.code || c.id || '') + '').trim().toUpperCase();
-        const isKidsPrefix = code.startsWith('CE') || code.startsWith('OE') || /^E\d|^E-|^E\b/i.test(code) || code.startsWith('E');
+        const isKidsPrefix = (typeof isKidsCourse === 'function') ? isKidsCourse(c) : (/^E\d|^E-|^E\b/i.test(code) || code.startsWith('E'));
         const aud = isKidsPrefix ? 'kids' : 'adult';
         window._feeMatrixDraft[cId] = aud;
         const chkKids = document.getElementById(`chkFeeAudience_kids_${cId}`);
@@ -45429,7 +45439,7 @@ if (action === 'getDashboardStats') {
       const code = (c.code || c.id || '').toUpperCase();
       const name = (c.name || '').toUpperCase();
       if (category === 'คอร์สเด็ก') {
-        return lvl === 'คอร์สเด็ก' || /^(CE|OE|E\d|E-)/i.test(code) || code.startsWith('E') || /เด็ก|เยาวชน|KIDS/i.test(name) || (typeof isKidsCourse === 'function' && isKidsCourse(c));
+        return (typeof isKidsCourse === 'function') ? isKidsCourse(c) : (lvl === 'คอร์สเด็ก' || /เด็ก|เยาวชน|KIDS/i.test(name));
       }
       if (category === 'คอร์สขั้นต้น') {
         return lvl === 'คอร์สขั้นต้น' || /^(C1|O1)/i.test(code) || /ขั้นต้น|BEGINNER|ระดับต้น/i.test(name);
@@ -91780,7 +91790,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=289';
+      const swPath = basePath + 'sw.js?v=290';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -91790,16 +91800,34 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         if (!hadSwController || ocaSwRefreshing) return;
         try {
           if (sessionStorage.getItem('oca_sw_auto_reloaded_ver') === swVer) return;
-          sessionStorage.setItem('oca_sw_auto_reloaded_ver', swVer);
         } catch (e) {}
-        ocaSwRefreshing = true;
-        if (typeof toast === 'function') {
-          toast('อัปเดตเวอร์ชันใหม่', 'กำลังโหลดเวอร์ชันล่าสุดอัตโนมัติ...', 'info');
+        const isUserBusyInForm = () => Boolean(document.querySelector('.oca-modal-overlay.show, .oca-modal-overlay[style*="flex"], .oca-modal-overlay[style*="block"], #modalCourse[style*="flex"], #modalEditStudent[style*="flex"]')) || (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName));
+        const triggerSafeReload = () => {
+          if (ocaSwRefreshing) return;
+          ocaSwRefreshing = true;
+          try { sessionStorage.setItem('oca_sw_auto_reloaded_ver', swVer); } catch (e) {}
+          if (typeof toast === 'function') {
+            toast('อัปเดตเวอร์ชันใหม่', 'กำลังโหลดเวอร์ชันล่าสุดอัตโนมัติ...', 'info');
+          }
+          setTimeout(() => { window.location.reload(); }, 900);
+        };
+        if (!isUserBusyInForm()) {
+          triggerSafeReload();
+        } else if (!window._ocaPendingSwReload) {
+          window._ocaPendingSwReload = true;
+          if (typeof toast === 'function') {
+            toast('มีเวอร์ชันใหม่พร้อมใช้งาน', 'ระบบจะอัปเดตอัตโนมัติหลังบันทึกหรือปิดหน้าต่าง', 'info');
+          }
+          const waitTimer = setInterval(() => {
+            if (!isUserBusyInForm()) {
+              clearInterval(waitTimer);
+              triggerSafeReload();
+            }
+          }, 2500);
         }
-        setTimeout(() => { window.location.reload(); }, 900);
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (289):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (290):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
@@ -91820,6 +91848,27 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     }); // staff_permissions_sync_storage_listener
     // Active event listeners to clear rogue browser password autofill 'admin' from student search inputs
     document.addEventListener('DOMContentLoaded', () => {
+      try {
+        const shortcutTab = new URLSearchParams(window.location.search).get('tab');
+        const allowedShortcutTabs = ['teacher', 'receipts', 'search', 'enroll', 'dashboard'];
+        if (shortcutTab && allowedShortcutTabs.includes(shortcutTab)) {
+          let attempts = 0;
+          const shortcutTimer = setInterval(() => {
+            attempts++;
+            const user = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : null;
+            if (user && typeof switchNav === 'function') {
+              clearInterval(shortcutTimer);
+              switchNav(shortcutTab);
+              try {
+                const cleanUrl = window.location.pathname + window.location.hash;
+                window.history.replaceState({}, document.title, cleanUrl);
+              } catch (_) {}
+            } else if (attempts >= 30) {
+              clearInterval(shortcutTimer);
+            }
+          }, 400);
+        }
+      } catch (_) {}
       const ids = ['inpSearchQuery', 'inpStudentReportSearch', 'inpRcptStudentSearch', 'inpShippingSearch', 'inpAttTrackSearchQuery', 'inpCardStudentSearch'];
       ids.forEach((id) => {
         const el = document.getElementById(id);
