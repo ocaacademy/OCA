@@ -8,8 +8,52 @@
   'use strict';
 
   const STORAGE_KEY = 'oca_offline_sync_queue_v261';
+  const DEAD_LETTER_KEY = 'oca_offline_sync_dead_v261';
+  const LOCK_KEY = 'oca_offline_sync_lock_v261';
+  const MAX_RETRIES = 5;
+  const LOCK_TTL_MS = 30000;
+  const TAB_ID = `tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const executors = {};
   let _flushing = false;
+
+  function acquireFlushLock() {
+    try {
+      const now = Date.now();
+      const raw = localStorage.getItem(LOCK_KEY);
+      if (raw) {
+        const lock = JSON.parse(raw);
+        if (lock && lock.tabId !== TAB_ID && Number(lock.expiresAt) > now) {
+          return false;
+        }
+      }
+      localStorage.setItem(LOCK_KEY, JSON.stringify({ tabId: TAB_ID, expiresAt: now + LOCK_TTL_MS }));
+      const verify = JSON.parse(localStorage.getItem(LOCK_KEY) || '{}');
+      return verify.tabId === TAB_ID;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function releaseFlushLock() {
+    try {
+      const raw = localStorage.getItem(LOCK_KEY);
+      if (!raw) return;
+      const lock = JSON.parse(raw);
+      if (!lock || lock.tabId === TAB_ID) {
+        localStorage.removeItem(LOCK_KEY);
+      }
+    } catch (_) {}
+  }
+
+  function appendDeadLetter(item, reason) {
+    try {
+      const raw = localStorage.getItem(DEAD_LETTER_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      const arr = Array.isArray(list) ? list : [];
+      arr.push({ ...item, failedAt: new Date().toISOString(), reason: String(reason || 'max_retries') });
+      localStorage.setItem(DEAD_LETTER_KEY, JSON.stringify(arr.slice(-100)));
+    } catch (_) {}
+  }
 
   function readQueue() {
     try {
@@ -115,12 +159,18 @@
       renderBadge();
       return { skipped: true, reason: 'offline' };
     }
+    if (!acquireFlushLock()) {
+      return { skipped: true, reason: 'locked_by_other_tab' };
+    }
     _flushing = true;
     let synced = 0;
     let failed = 0;
+    let dropped = 0;
     try {
       const queue = readQueue();
       const succeededIds = new Set();
+      const retryUpdates = {};
+      const deadIds = new Set();
       let remainingSnapshotCount = 0;
       for (const item of queue) {
         const fn = executors[item.type];
@@ -134,18 +184,39 @@
             synced++;
             if (item && item.id) succeededIds.add(item.id);
           } else {
-            failed++;
-            remainingSnapshotCount++;
+            const nextRetry = (Number(item.retries) || 0) + 1;
+            if (nextRetry >= MAX_RETRIES) {
+              dropped++;
+              if (item && item.id) deadIds.add(item.id);
+              appendDeadLetter({ ...item, retries: nextRetry }, 'executor_returned_false');
+            } else {
+              failed++;
+              remainingSnapshotCount++;
+              if (item && item.id) retryUpdates[item.id] = nextRetry;
+            }
           }
         } catch (err) {
           console.warn('[OcaOfflineQueue] item flush failed:', item.type, err);
-          failed++;
-          remainingSnapshotCount++;
+          const nextRetry = (Number(item.retries) || 0) + 1;
+          if (nextRetry >= MAX_RETRIES) {
+            dropped++;
+            if (item && item.id) deadIds.add(item.id);
+            appendDeadLetter({ ...item, retries: nextRetry }, err && err.message ? err.message : 'exception');
+          } else {
+            failed++;
+            remainingSnapshotCount++;
+            if (item && item.id) retryUpdates[item.id] = nextRetry;
+          }
         }
       }
       const latestQueue = readQueue();
-      const mergedRemaining = latestQueue.filter(q => !(q && q.id && succeededIds.has(q.id)));
+      const mergedRemaining = latestQueue
+        .filter(q => !(q && q.id && (succeededIds.has(q.id) || deadIds.has(q.id))))
+        .map(q => (q && q.id && retryUpdates[q.id] !== undefined) ? { ...q, retries: retryUpdates[q.id] } : q);
       writeQueue(mergedRemaining);
+      if (dropped > 0 && typeof global.showToast === 'function') {
+        global.showToast('รายการซิงก์ไม่สำเร็จ', `ย้าย ${dropped} รายการที่ซิงก์ไม่สำเร็จเกิน ${MAX_RETRIES} ครั้งไปยังรายการรอตรวจสอบ`, '⚠️');
+      }
       if (typeof global.syncOfflineQueue === 'function') {
         try {
           await global.syncOfflineQueue(isManual);
@@ -154,9 +225,10 @@
       if (synced > 0 && typeof global.showToast === 'function') {
         global.showToast('ซิงก์ข้อมูลออฟไลน์สำเร็จ', `ส่งข้อมูลค้างซิงก์ขึ้นฐานข้อมูลแล้ว ${synced} รายการ`, '☁️');
       }
-      return { success: failed === 0, synced, failed, remaining: mergedRemaining.length, remainingSnapshot: remainingSnapshotCount };
+      return { success: failed === 0 && dropped === 0, synced, failed, dropped, remaining: mergedRemaining.length, remainingSnapshot: remainingSnapshotCount };
     } finally {
       _flushing = false;
+      releaseFlushLock();
       renderBadge();
     }
   }
