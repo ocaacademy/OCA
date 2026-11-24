@@ -12778,7 +12778,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '296';
+      var LATEST_VERSION = '297';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -15010,9 +15010,6 @@ body.printing-report #printReportContainer {
               </div>
 
               <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                <button type="button" id="btnAddOrEditTermDate" class="oca-btn-gold-submit" style="padding:5px 12px; font-size:12px; background:linear-gradient(135deg, #10b981 0%, #059669 100%); border-color:#34d399; color:#FFFFFF;" onclick="addOrEditTermDateEntry()">
-                  <i class="fa-solid fa-plus" style="margin-right:4px;"></i> เพิ่ม/แก้ไข
-                </button>
                 <button type="button" id="btnResetTermDate" class="oca-btn-danger" style="padding:5px 12px; font-size:12px;" onclick="resetOrDeleteTermDateEntry()">
                   <i class="fa-solid fa-trash-can" style="margin-right:4px;"></i> ลบ/รีเซ็ต
                 </button>
@@ -15194,8 +15191,8 @@ body.printing-report #printReportContainer {
                     <option value="4">ภาคเรียนที่ 4</option>
                     <option value="5" selected>ภาคเรียนที่ 5</option>
                   </select>
-                  <button type="button" id="btnAddCustomRoundOpenDate" class="oca-btn-cancel-custom" onclick="openCustomRoundOpenDateModal()" style="padding:4px 10px; font-size:11.5px; border-color:rgba(16,185,129,0.45); color:var(--accent-emerald); background:rgba(16,185,129,0.12); font-weight:700;">
-                    <i class="fa-solid fa-plus" style="margin-right:4px;"></i> เพิ่มวันเปิดเรียน
+                  <button type="button" id="btnAddCustomRoundOpenDate" class="oca-btn-gold-submit" onclick="openCustomRoundOpenDateModal()" style="padding:5px 14px; font-size:12px; display:inline-flex; align-items:center; gap:5px;">
+                    <i class="fa-solid fa-plus"></i> เพิ่มวันเปิดเรียน
                   </button>
                   <button type="button" class="oca-btn-gold-submit" onclick="saveRoundOpenDatesFromUI()" style="padding:4px 12px; font-size:11.5px; background:linear-gradient(135deg, #0284c7 0%, #0369a1 100%); border-color:#38bdf8; color:#FFFFFF;">
                     <i class="fa-solid fa-floppy-disk" style="margin-right:4px;"></i> บันทึกวันเปิดรายรอบ
@@ -44353,8 +44350,42 @@ if (action === 'getDashboardStats') {
       }
     }
     window.saveActiveGlobalTermSetting = saveActiveGlobalTermSetting;
+    function ensureRollingAcademicYears(sel, futureYears = 3, activeYearStr = '') {
+      if (!sel) return;
+      const nowBE = new Date().getFullYear() + 543;
+      const parsedActive = parseInt(activeYearStr, 10);
+      const baseBE = Math.max(nowBE, Number.isFinite(parsedActive) ? parsedActive : nowBE);
+      const maxBE = baseBE + Math.max(0, Number(futureYears) || 0);
+      const prevVal = sel.value;
+      const allOpt = Array.from(sel.options).find(o => o.value === 'ALL');
+      const yearSet = new Set();
+      Array.from(sel.options).forEach(o => {
+        const v = String(o.value || '').trim();
+        if (/^\d{4}$/.test(v)) yearSet.add(parseInt(v, 10));
+      });
+      const minBE = Math.min(2568, baseBE);
+      for (let y = minBE; y <= maxBE; y++) yearSet.add(y);
+      const sortedYears = Array.from(yearSet).sort((a, b) => b - a);
+      sel.innerHTML = '';
+      if (allOpt) sel.appendChild(allOpt);
+      sortedYears.forEach(y => {
+        const opt = document.createElement('option');
+        opt.value = String(y);
+        opt.textContent = String(y);
+        sel.appendChild(opt);
+      });
+      if (prevVal && sel.querySelector(`option[value="${prevVal}"]`)) {
+        sel.value = prevVal;
+      } else if (activeYearStr && sel.querySelector(`option[value="${activeYearStr}"]`)) {
+        sel.value = activeYearStr;
+      }
+    }
+    window.ensureRollingAcademicYears = ensureRollingAcademicYears;
     function syncYearSelectOption(sel, targetYearStr, forceSync, labelFormatter, skipAllOverride = false) {
       if (!sel || !targetYearStr) return;
+      if (sel.id === 'selTermDatesYear') {
+        ensureRollingAcademicYears(sel, 3, targetYearStr);
+      }
       if (forceSync) delete sel.dataset.userModified;
       const existing = sel.querySelector(`option[value="${targetYearStr}"]`);
       if (!existing) {
@@ -45295,7 +45326,11 @@ if (action === 'getDashboardStats') {
     function renderRoundOpenDatesInputs() {
       const grid = document.getElementById('gridRoundOpenDates');
       if (!grid) return;
-      const year = (document.getElementById('selTermDatesYear')?.value || getResolvedActiveYearTerm().yearBE).trim();
+      const selYearEl = document.getElementById('selTermDatesYear');
+      if (selYearEl && typeof ensureRollingAcademicYears === 'function') {
+        ensureRollingAcademicYears(selYearEl, 3, getResolvedActiveYearTerm().yearBE);
+      }
+      const year = (selYearEl?.value || getResolvedActiveYearTerm().yearBE).trim();
       const term = (document.getElementById('selRoundOpenDateTerm')?.value || getResolvedActiveYearTerm().term).trim();
       const map = window._ocaRoundOpenDatesMap || (() => {
         try { return JSON.parse(localStorage.getItem('oca_round_open_dates_v1') || '{}'); } catch (_) { return {}; }
@@ -45329,17 +45364,18 @@ if (action === 'getDashboardStats') {
         .map(item => {
           const safeKey = escapeHtml(item.key);
           const isoVal = item.isoDate || ((item.thaiDate && typeof parseThaiDateToIso === 'function') ? parseThaiDateToIso(item.thaiDate) : '');
+          const thaiVal = item.thaiDate || ((isoVal && typeof formatIsoToThaiDate === 'function') ? formatIsoToThaiDate(isoVal) : '');
           return (
-            '<div class="oca-custom-round-open-card" style="background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.28); border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between;">' +
-            '  <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px;">' +
-            '    <div style="font-size:12px; font-weight:700; color:var(--accent-emerald); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(item.label) + '"><i class="fa-solid fa-calendar-plus" style="margin-right:4px;"></i>' + escapeHtml(item.label) + '</div>' +
-            '    <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">' +
-            '      <button type="button" onclick="openCustomRoundOpenDateModal(\'' + safeKey + '\')" title="แก้ไข" style="background:rgba(56,189,248,0.15); border:1px solid rgba(56,189,248,0.4); color:#0284c7; border-radius:5px; cursor:pointer; font-size:11px; padding:2px 6px;"><i class="fa-solid fa-pen"></i></button>' +
-            '      <button type="button" onclick="deleteCustomRoundOpenDate(\'' + safeKey + '\')" title="ลบ" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#dc2626; border-radius:5px; cursor:pointer; font-size:11px; padding:2px 6px;"><i class="fa-solid fa-trash-can"></i></button>' +
+            '<div class="oca-custom-round-open-card" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between;">' +
+            '  <div style="display:flex; justify-content:space-between; align-items:center; gap:4px; margin-bottom:6px;">' +
+            '    <div style="font-size:12px; font-weight:700; color:var(--accent-sky); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(item.label) + '">' + escapeHtml(item.label) + '</div>' +
+            '    <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">' +
+            '      <button type="button" onclick="openCustomRoundOpenDateModal(\'' + safeKey + '\')" title="แก้ไขชื่อ/วันที่" style="background:none; border:none; color:var(--accent-sky); cursor:pointer; font-size:11.5px; padding:2px 4px; flex-shrink:0;"><i class="fa-solid fa-pen"></i></button>' +
+            '      <button type="button" onclick="deleteCustomRoundOpenDate(\'' + safeKey + '\')" title="ลบ" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:11.5px; padding:2px 4px; flex-shrink:0;"><i class="fa-solid fa-trash-can"></i></button>' +
             '    </div>' +
             '  </div>' +
-            '  <div style="font-size:13px; font-weight:700; color:var(--text-main);">' + escapeHtml(item.thaiDate || isoVal) + '</div>' +
-            '  <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">กำหนดเอง (คลิกเลือกในใบเสร็จได้)</div>' +
+            '  <input type="date" id="cfgCustomRoundOpenDate_' + safeKey + '" data-custom-key="' + safeKey + '" value="' + escapeHtml(isoVal) + '" class="oca-input cfg-custom-round-open-input" style="font-size:12px; height:34px; padding:4px 10px; text-align:left; width:100%; box-sizing:border-box;">' +
+            '  <div style="font-size:11px; color:var(--color-gold); margin-top:4px; font-variant-numeric:tabular-nums; text-align:left;">' + (thaiVal ? escapeHtml(thaiVal) : '<span style="color:var(--text-muted);">ใช้วันเปิดเทอมกลาง</span>') + '</div>' +
             '</div>'
           );
         });
@@ -45381,7 +45417,11 @@ if (action === 'getDashboardStats') {
     }
     window.closeCustomRoundOpenDateModal = closeCustomRoundOpenDateModal;
     async function saveCustomRoundOpenDateFromModal() {
-      const year = (document.getElementById('selTermDatesYear')?.value || getResolvedActiveYearTerm().yearBE).trim();
+      const selYearEl = document.getElementById('selTermDatesYear');
+      if (selYearEl && typeof ensureRollingAcademicYears === 'function') {
+        ensureRollingAcademicYears(selYearEl, 3, getResolvedActiveYearTerm().yearBE);
+      }
+      const year = (selYearEl?.value || getResolvedActiveYearTerm().yearBE).trim();
       const term = (document.getElementById('selRoundOpenDateTerm')?.value || getResolvedActiveYearTerm().term).trim();
       const existingKey = (document.getElementById('inpCustomRoundOpenKey')?.value || '').trim();
       const label = (document.getElementById('inpCustomRoundOpenLabel')?.value || '').trim();
@@ -45486,7 +45526,11 @@ if (action === 'getDashboardStats') {
     }
     window.clearOnlineEnrollScheduleDates = clearOnlineEnrollScheduleDates;
     async function saveRoundOpenDatesFromUI() {
-      const year = (document.getElementById('selTermDatesYear')?.value || getResolvedActiveYearTerm().yearBE).trim();
+      const selYearEl = document.getElementById('selTermDatesYear');
+      if (selYearEl && typeof ensureRollingAcademicYears === 'function') {
+        ensureRollingAcademicYears(selYearEl, 3, getResolvedActiveYearTerm().yearBE);
+      }
+      const year = (selYearEl?.value || getResolvedActiveYearTerm().yearBE).trim();
       const term = (document.getElementById('selRoundOpenDateTerm')?.value || getResolvedActiveYearTerm().term).trim();
       const inputs = Array.from(document.querySelectorAll('#gridRoundOpenDates .cfg-round-open-input'));
       if (!window._ocaRoundOpenDatesMap) window._ocaRoundOpenDatesMap = {};
@@ -45507,6 +45551,29 @@ if (action === 'getDashboardStats') {
         }
       });
       try { localStorage.setItem('oca_round_open_dates_v1', JSON.stringify(window._ocaRoundOpenDatesMap)); } catch (_) {}
+      const customInputs = Array.from(document.querySelectorAll('#gridRoundOpenDates .cfg-custom-round-open-input'));
+      if (customInputs.length > 0) {
+        if (!window._ocaCustomRoundOpenDatesMap) window._ocaCustomRoundOpenDatesMap = {};
+        customInputs.forEach(inp => {
+          const fullKey = inp.dataset.customKey;
+          if (!fullKey) return;
+          const isoVal = (inp.value || '').trim();
+          const existing = window._ocaCustomRoundOpenDatesMap[fullKey] || {};
+          const label = String(existing.label || fullKey).replace(/\|/g, ' ');
+          const thaiDate = (isoVal && typeof formatIsoToThaiDate === 'function') ? formatIsoToThaiDate(isoVal) : '';
+          window._ocaCustomRoundOpenDatesMap[fullKey] = { key: fullKey, label: label, thaiDate: thaiDate, isoDate: isoVal };
+          rows.push({
+            key: `round_open_custom_${fullKey}`,
+            name: `${label}|${thaiDate}`.slice(0, 90),
+            mode: 'always',
+            amount: 0,
+            start_date: isoVal || null,
+            end_date: null,
+            updated_at: nowIso
+          });
+        });
+        try { localStorage.setItem('oca_custom_round_open_dates_v1', JSON.stringify(window._ocaCustomRoundOpenDatesMap)); } catch (_) {}
+      }
       try {
         if (typeof _supabase !== 'undefined' && _supabase && rows.length > 0) {
           const { error } = await _supabase.from('fee_settings').upsert(rows, { onConflict: 'key' });
@@ -45516,6 +45583,7 @@ if (action === 'getDashboardStats') {
           });
         }
         renderRoundOpenDatesInputs();
+        if (typeof renderReceiptCustomOpenDateChips === 'function') renderReceiptCustomOpenDateChips();
         if (typeof onReceiptScheduleChanged === 'function') onReceiptScheduleChanged();
         if (typeof logConfigAuditEvent === 'function') {
           logConfigAuditEvent('บันทึกวันเปิดรายรอบ', `เทอม ${term}/${year}`);
@@ -92219,7 +92287,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=296';
+      const swPath = basePath + 'sw.js?v=297';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92256,7 +92324,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (296):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (297):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
