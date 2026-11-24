@@ -123,29 +123,35 @@
 
   async function checkPosture(supabaseClient, notifyUser = false) {
     const mountEl = document.getElementById('ocaRlsPostureMount');
-    const posture = { rlsStaffProtected: false, auditAppendOnly: false, checkedAt: new Date().toISOString() };
+    const posture = { rlsStaffProtected: false, auditAppendOnly: false, networkError: '', checkedAt: new Date().toISOString() };
 
     if (supabaseClient && typeof supabaseClient.rpc === 'function') {
       try {
         const { data, error } = await supabaseClient.rpc('check_oca_rls_posture');
-        if (!error && data && typeof data === 'object') {
+        if (error) {
+          console.warn('[OcaRlsGuard] checkPosture RPC error:', error.message || error);
+          const msg = String(error.message || '');
+          if (!/function.*check_oca_rls_posture|does not exist|42883/i.test(msg)) {
+            posture.networkError = msg || 'RPC connection error';
+          }
+        } else if (data && typeof data === 'object') {
           posture.rlsStaffProtected = Boolean(data.rls_staff_users);
           posture.auditAppendOnly = Boolean(data.append_only_trigger && data.rls_audit_logs);
         }
       } catch (err) {
         console.warn('[OcaRlsGuard] checkPosture RPC warning:', err);
+        posture.networkError = String((err && err.message) || err || 'Network error');
       }
     }
 
     renderCard(mountEl, posture);
     if (notifyUser && typeof global.showToast === 'function') {
-      global.showToast(
-        'ตรวจสอบ RLS เสร็จสิ้น',
-        (posture.rlsStaffProtected && posture.auditAppendOnly)
+      const toastMsg = posture.networkError
+        ? ('ไม่สามารถเชื่อมต่อฐานข้อมูลได้ชั่วคราว: ' + posture.networkError)
+        : ((posture.rlsStaffProtected && posture.auditAppendOnly)
           ? 'ฐานข้อมูลเปิดใช้งาน RLS & Append-Only Audit ครบถ้วน'
-          : 'กรุณารัน sql/oca_rls_security_hardening_v261.sql ใน Supabase SQL Editor',
-        '🛡️'
-      );
+          : 'กรุณารัน sql/oca_rls_security_hardening_v261.sql ใน Supabase SQL Editor');
+      global.showToast('ตรวจสอบ RLS เสร็จสิ้น', toastMsg, posture.networkError ? '⚠️' : '🛡️');
     }
     return posture;
   }
