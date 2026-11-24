@@ -1,4 +1,4 @@
-const CACHE_NAME = '316';
+const CACHE_NAME = '317';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -128,18 +128,20 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(event.request).then((cached) => {
         if (cached) return cached;
-        return fetch(event.request).then((res) => {
-          if (res && res.status === 200) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return res;
-        });
+        return fetch(event.request)
+          .then((res) => {
+            if (res && res.status === 200) {
+              const clone = res.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+            }
+            return res;
+          })
+          .catch(() => new Response('Offline', { status: 503, statusText: 'Offline' }));
       })
     );
     return;
   }
-  const isFreshAsset = isSameOrigin && (reqPath.endsWith('.html') || reqPath.endsWith('.js') || reqPath.endsWith('/'));
+  const isFreshAsset = isSameOrigin && (reqPath.endsWith('.html') || reqPath.endsWith('.js') || reqPath.endsWith('.css') || reqPath.endsWith('.json') || reqPath.endsWith('/'));
   const fetchTarget = isFreshAsset ? new Request(event.request, { cache: 'no-cache' }) : event.request;
 
   event.respondWith(
