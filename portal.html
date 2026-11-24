@@ -12755,7 +12755,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '315';
+      var LATEST_VERSION = '316';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -16241,7 +16241,7 @@ body.printing-report #printReportContainer {
 
                   <!-- Student Photo (100% Border-Free Fit + Zero White Border Gap) -->
                   <div id="cardFrontPhotoBox" role="button" tabindex="0" onclick="document.getElementById('inpCardDirectPhotoUpload').click()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" title="คลิกเพื่ออัปโหลดหรือเปลี่ยนรูปถ่ายบนบัตร" style="position:absolute; left:65.8%; top:31.8%; width:28.2%; height:52.0%; border-radius:0 !important; border:none !important; background:#02231c !important; overflow:hidden; display:flex; align-items:center; justify-content:center; box-shadow:none; z-index:2; cursor:pointer; transition:transform 0.12s ease;">
-                    <img id="cardFrontPhoto" crossOrigin="anonymous" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" alt="Student Photo" style="width:100%; height:100%; object-fit:cover; display:none; border:none !important; border-radius:0 !important; background:#02231c;">
+                    <img id="cardFrontPhoto" crossOrigin="anonymous" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" onerror="this.style.display='none'; var fb=document.getElementById('cardFrontPhotoFallback'); if(fb) fb.style.display='flex';" alt="Student Photo" style="width:100%; height:100%; object-fit:cover; display:none; border:none !important; border-radius:0 !important; background:#02231c;">
                     <div id="cardFrontPhotoFallback" style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#02231c; border:1.5px dashed rgba(253, 230, 138, 0.65); font-size:11.5px; text-align:center; padding:6px; box-sizing:border-box;">
                       <i class="fa-solid fa-camera" style="font-size:22px; margin-bottom:4px;"></i>
                       <span>คลิกเพื่อใส่รูปถ่าย</span>
@@ -27415,8 +27415,8 @@ body.printing-report #printReportContainer {
           reports: ['student-list', 'course-breakdown', 'term-timetable', 'course-attendance', 'dashboard']
         },
         fee_settings: {
-          core: ['fee_settings'],
-          reports: ['student-list', 'course-breakdown', 'ministry-report', 'term-timetable', 'textbook-sales', 'exam-reg', 'exam-rooms', 'financial', 'dashboard']
+          core: ['fee_settings', 'students', 'receipts'],
+          reports: ['student-list', 'course-breakdown', 'ministry-report', 'deferral', 'term-timetable', 'textbook-sales', 'exam-reg', 'exam-rooms', 'course-attendance', 'financial', 'dashboard']
         },
         textbooks: {
           core: ['fee_settings'],
@@ -31412,8 +31412,10 @@ if (action === 'getDashboardStats') {
             const pad = n => String(n).padStart(2, '0');
             const dateStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear() + 543}`;
             const transferNote = `[ย้ายคอร์ส: ${oldCourse} (${oldSchedule}) -> ${newCourse} (${newSchedule || 'ตามประกาศ'}) เมื่อ ${dateStr} โดย ${officer.username} เหตุผล: ${reason}]`;
-            const currentNotes = stData.notes || '';
-            const updatedNotes = currentNotes ? `${currentNotes} | ${transferNote}` : transferNote;
+            const currentNotes = String(stData.notes || '').replace(/\s*\|?\s*\[กลุ่ม:[^\]]*\]/g, '').trim();
+            const newGroupLabel = (params.newClassGroup || params.classGroup || '').toString().trim();
+            const newGroupTag = newGroupLabel ? `[กลุ่ม: ${newGroupLabel}]` : '';
+            const updatedNotes = [currentNotes, transferNote, newGroupTag].filter(Boolean).join(' | ');
             const studentUpdate = {
               current_course: newCourse,
               notes: updatedNotes
@@ -31522,9 +31524,9 @@ if (action === 'getDashboardStats') {
                 delivery_method: 'รับเอง',
                 learning_mode: '-',
                 open_date: '',
-                room: (params.room || '').toString().trim(),
-                class_group: (params.classGroup || params.class_group || '').toString().trim() || null,
-                teacher_name: (params.teacherName || params.teacher_name || '').toString().trim() || null,
+                room: (params.newRoom || params.room || '').toString().trim(),
+                class_group: (params.newClassGroup || params.classGroup || params.class_group || '').toString().trim() || null,
+                teacher_name: (params.newTeacherName || params.teacherName || params.teacher_name || '').toString().trim() || null,
                 email: (stData.email && stData.email.includes('@')) ? stData.email.trim() : null,
                 email_status: 'NO_EMAIL'
               };
@@ -32422,6 +32424,18 @@ if (action === 'getDashboardStats') {
             } catch (_) {}
           }
           if (params.status === 'SHIPPED') {
+            if (targetIds.length > 0) {
+              try {
+                const { data: unshippedRows } = await _supabase.from('receipts').select('receipt_no, claim_status, edit_notes').in('receipt_no', targetIds);
+                if (Array.isArray(unshippedRows)) {
+                  for (const ur of unshippedRows) {
+                    if (String(ur.claim_status || '').toUpperCase() !== 'CLAIMED' && ur.edit_notes) {
+                      await adjustExtraBooksStockFromNotes(ur.edit_notes, -1);
+                    }
+                  }
+                }
+              } catch (_) {}
+            }
             if (!updateObj.tracking_number) {
               updateObj.tracking_number = 'SHIPPED';
             }
@@ -32715,7 +32729,7 @@ if (action === 'getDashboardStats') {
             invalidateOcaReportCaches('courses');
           }
           if (typeof broadcastOcaDataSync === 'function') {
-            broadcastOcaDataSync('courses', 'UPDATE', { id: courseId, code: courseCode, name: params.name, price: Number(params.price) || 0, linked_book: linkedBookVal, is_active: true });
+            broadcastOcaDataSync('courses', 'UPDATE', { id: courseId, code: courseCode, name: params.name, price: Number(params.price) || 0, linked_book: linkedBookVal, is_active: coursePayload.is_active !== false });
           }
           return { success: true };
         }
@@ -33301,11 +33315,16 @@ if (action === 'getDashboardStats') {
           const existingRef = String(target.payment_ref || '').trim();
           const voidTag = `[VOIDED: ${voidReason} | ${staffLabel}]`;
           const newPaymentRef = existingRef ? `${existingRef} ${voidTag}` : voidTag;
-          const { error: voidErr } = await _supabase
+          const { data: voidedRows, error: voidErr } = await _supabase
             .from('receipts')
             .update({ claim_status: 'VOIDED', payment_ref: newPaymentRef })
-            .eq('id', target.id);
+            .eq('id', target.id)
+            .neq('claim_status', 'VOIDED')
+            .select('id');
           if (voidErr) throw voidErr;
+          if (!voidedRows || voidedRows.length === 0) {
+            return { success: false, message: `ใบเสร็จเลขที่ ${target.receipt_no} ถูกยกเลิก (VOID) ไปแล้ว` };
+          }
           const creditMatch = String(target.edit_notes || target.payment_ref || '').match(/\[CREDIT_REDEEMED:฿?([\d,]+(?:\.\d+)?)\]/);
           const redeemedAmt = creditMatch ? Number(String(creditMatch[1]).replace(/,/g, '')) : 0;
           if (redeemedAmt > 0 && target.student_id) {
@@ -33326,6 +33345,9 @@ if (action === 'getDashboardStats') {
             } catch (credErr) {
               console.warn('[VOID_RECEIPT] credit refund exception:', credErr);
             }
+          }
+          if (String(target.claim_status || '').toUpperCase() === 'CLAIMED' && target.edit_notes) {
+            await adjustExtraBooksStockFromNotes(target.edit_notes, 1);
           }
           try {
             const { error: auditErr } = await _supabase.from('security_audit_logs').insert([{
@@ -34037,6 +34059,9 @@ if (action === 'getDashboardStats') {
           // Scenario 25 Protection: Never reset an already CLAIMED textbook status back to PENDING!
           if (currentRc.claim_status === 'CLAIMED') {
             updateFields.claim_status = 'CLAIMED';
+          } else if (params.deliveryMethod !== undefined && (currentRc.claim_status === 'PENDING' || currentRc.claim_status === 'จัดส่งตามที่อยู่')) {
+            const dmStr = String(params.deliveryMethod || '');
+            updateFields.claim_status = (dmStr.indexOf('ส่ง') !== -1) ? 'จัดส่งตามที่อยู่' : 'PENDING';
           }
           updateFields.updated_at = new Date().toISOString();
           const { error: updErr } = await _supabase.from('receipts').update(updateFields).eq('receipt_no', rcNo);
@@ -44996,6 +45021,15 @@ if (action === 'getDashboardStats') {
         if (typeof _loadedSearchYear !== 'undefined') _loadedSearchYear = String(yearBE);
         if (typeof initTermTimetableDropdowns === 'function') initTermTimetableDropdowns();
         if (typeof loadLoginAnalytics === 'function') loadLoginAnalytics(true);
+        window._tbReportTermSynced = false;
+        window._examRegReportTermSynced = false;
+        const setSelIfExist = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = String(v); };
+        setSelIfExist('selReportTbYear', yearBE);
+        setSelIfExist('selReportTbTerm', term);
+        setSelIfExist('selReportExamRegYear', yearBE);
+        setSelIfExist('selReportExamRegTerm', term);
+        if (typeof populateEnrollCoursesAndSchedules === 'function') populateEnrollCoursesAndSchedules();
+        if (typeof loadReceiptCoursesDropdown === 'function') loadReceiptCoursesDropdown();
         if (typeof logConfigAuditEvent === 'function') await logConfigAuditEvent('เปลี่ยนเทอมเปิดรับสมัครกลาง', seedDetail);
         if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('fee_settings');
       } catch (err) {
@@ -48346,6 +48380,8 @@ if (action === 'getDashboardStats') {
               _lastCoursesManagerLoadedAt = 0;
               loadCoursesManager(false, true);
               if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('courses');
+              if (typeof loadReceiptCoursesDropdown === 'function') loadReceiptCoursesDropdown();
+              if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
             })
             .catch(err => {
               showModal('ข้อผิดพลาด', 'ไม่สามารถลบคอร์สเรียนได้: ' + (err.message || ''), '❌');
@@ -49453,8 +49489,12 @@ if (action === 'getDashboardStats') {
       }
       try {
         if (typeof _supabase !== 'undefined' && _supabase) {
+          const batchOpt = selTarget ? selTarget.options[selTarget.selectedIndex] : null;
+          const batchTeacher = batchOpt ? (batchOpt.dataset.teacher || '').trim() : '';
+          const batchUpdate = { room: targetRoom, class_group: targetSec };
+          if (batchTeacher) batchUpdate.teacher_name = batchTeacher;
           const { error } = await _supabase.from('receipts')
-            .update({ room: targetRoom })
+            .update(batchUpdate)
             .in('id', selectedReceiptIds)
             .eq('year_be', y)
             .eq('term', t);
@@ -49655,23 +49695,24 @@ if (action === 'getDashboardStats') {
       }
       try {
         if (typeof _supabase !== 'undefined' && _supabase) {
-          const rcUpdateObj = { room: targetRoom };
+          const indivTeacher = opt ? (opt.dataset.teacher || '').trim() : '';
+          const rcUpdateObj = { room: targetRoom, class_group: targetSec };
+          if (indivTeacher) rcUpdateObj.teacher_name = indivTeacher;
           let q = _supabase.from('receipts').update(rcUpdateObj).eq('id', rc.id);
           if (rc.year_be) q = q.eq('year_be', rc.year_be);
           if (rc.term) q = q.eq('term', rc.term);
           const { error } = await q;
           if (error) throw error;
-          if (remark) {
-            try {
-              const { data: stRow } = await _supabase.from('students').select('notes').eq('student_id', rc.student_id).maybeSingle();
-              const curNotes = stRow?.notes || '';
-              const groupNote = `[ย้ายกลุ่มเป็น ${targetSec} (${targetRoom})]: ${remark}`;
-              const newNotes = curNotes ? `${curNotes} | ${groupNote}` : groupNote;
-              const { error: stErr } = await _supabase.from('students').update({ notes: newNotes }).eq('student_id', rc.student_id);
-              if (stErr) console.warn('[IndividualGroupTransfer] students note update warning:', stErr);
-            } catch (errNotes) {
-              console.warn('[IndividualGroupTransfer] notes update error:', errNotes);
-            }
+          try {
+            const { data: stRow } = await _supabase.from('students').select('notes').eq('student_id', rc.student_id).maybeSingle();
+            const curNotes = String(stRow?.notes || '').replace(/\s*\|?\s*\[กลุ่ม:[^\]]*\]/g, '').trim();
+            const groupTag = `[กลุ่ม: ${targetSec} (${targetRoom})]`;
+            const groupNote = remark ? `[ย้ายกลุ่มเป็น ${targetSec} (${targetRoom})]: ${remark}` : '';
+            const newNotes = [curNotes, groupTag, groupNote].filter(Boolean).join(' | ');
+            const { error: stErr } = await _supabase.from('students').update({ notes: newNotes }).eq('student_id', rc.student_id);
+            if (stErr) console.warn('[IndividualGroupTransfer] students note update warning:', stErr);
+          } catch (errNotes) {
+            console.warn('[IndividualGroupTransfer] notes update error:', errNotes);
           }
           try {
             const officer = (typeof getAuditActor === 'function') ? getAuditActor() : { username: 'Staff', fullName: 'Staff' };
@@ -50345,6 +50386,8 @@ if (action === 'getDashboardStats') {
               _lastCoursesManagerLoadedAt = 0;
             loadCoursesManager(false, true);
               if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('schedules');
+              if (typeof loadReceiptCoursesDropdown === 'function') loadReceiptCoursesDropdown();
+              if (typeof populatePublicEnrollDropdowns === 'function') populatePublicEnrollDropdowns();
             })
             .catch(err => {
               showModal('ข้อผิดพลาด', 'ไม่สามารถลบรอบเวลาได้: ' + (err.message || ''), '❌');
@@ -53493,9 +53536,11 @@ if (action === 'getDashboardStats') {
           const used = Math.max(0, Number(redeemedAmount) || 0);
           if (!sid || used <= 0 || typeof _supabase === 'undefined' || !_supabase) return false;
           try {
-            const curAvail = Math.max(0, Number(window._rcptStudentCreditState && window._rcptStudentCreditState.available) || 0);
-            const remaining = Math.max(0, Number((curAvail - used).toFixed(2)));
             const creditKey = 'student_credit_' + sid;
+            const { data: liveCredRow, error: liveCredErr } = await _supabase.from('fee_settings').select('amount').eq('key', creditKey).maybeSingle();
+            if (liveCredErr) throw liveCredErr;
+            const curAvail = Math.max(0, Number(liveCredRow ? liveCredRow.amount : (window._rcptStudentCreditState && window._rcptStudentCreditState.available)) || 0);
+            const remaining = Math.max(0, Number((curAvail - used).toFixed(2)));
             if (remaining <= 0) {
               const { error: delErr } = await _supabase.from('fee_settings').delete().eq('key', creditKey);
               if (delErr) throw delErr;
@@ -54531,7 +54576,7 @@ if (action === 'getDashboardStats') {
       const btnSave = document.getElementById('btnSaveReceiptForm');
       setButtonLoading(btnSave, true, isCourseTransfer ? 'กำลังบันทึกย้ายคอร์ส...' : (isCourseRenewal ? 'กำลังบันทึกต่อคอร์ส...' : 'กำลังออกใบเสร็จ...'));
       await callGasApi(apiAction, payload, 'POST')
-        .then(res => {
+        .then(async res => {
           setButtonLoading(btnSave, false);
           if (res && res.success) {
             window._rcptAttachedExamItems = [];
@@ -54610,7 +54655,8 @@ if (action === 'getDashboardStats') {
             }
             // Freeze saved receipt preview BEFORE resetting left-side inputs so immediate print shows full receipt
             if (redeemedCreditAmt > 0 && buyerId && !res.duplicatePrevented && typeof redeemStudentCreditBalance === 'function') {
-              redeemStudentCreditBalance(buyerId, redeemedCreditAmt, res.receiptNo);
+              const credOk = await redeemStudentCreditBalance(buyerId, redeemedCreditAmt, res.receiptNo);
+              if (!credOk) console.warn('[saveReceiptForm] credit balance deduction did not complete for', buyerId);
             }
             const rcptPreviewEl = document.getElementById('viewContinuousReceipt');
             window._frozenReceiptPreview = true;
@@ -55886,7 +55932,17 @@ if (action === 'getDashboardStats') {
       if (inpOtherReg) inpOtherReg.value = item.otherRegFee || 0;
       if (inpDiscNorm) inpDiscNorm.value = item.discountNormal || 0;
       if (inpDiscOther) inpDiscOther.value = item.discountOther || 0;
-      if (inpNotes) inpNotes.value = item.editNotes || '';
+      const rawEditNotesStr = String(item.editNotes || '');
+      const tagRe = /\[CREDIT_REDEEMED:[^\]]*\]|\[(?:EXAM_ITEMS|EXTRA_BOOKS|EXTRA_COURSES):\[[\s\S]*?\]\]/g;
+      const extractedTags = rawEditNotesStr.match(tagRe) || [];
+      window._editingReceiptPreserveMeta = {
+        receiptNo: item.receiptNo,
+        shippingFee: Number(item.shippingFee || 0),
+        transferFee: Number(item.transferFee || 0),
+        machineTags: extractedTags.join(' ')
+      };
+      const cleanHumanNotes = rawEditNotesStr.replace(tagRe, '').replace(/\s{2,}/g, ' ').trim();
+      if (inpNotes) inpNotes.value = cleanHumanNotes;
       if (chkEmail) chkEmail.checked = !!item.email;
       calcEditReceiptModalTotals();
       modal.style.display = 'flex';
@@ -55895,6 +55951,7 @@ if (action === 'getDashboardStats') {
       const modal = document.getElementById('modalEditReceipt');
       if (modal) modal.style.display = 'none';
       currentEditingReceiptNo = '';
+      window._editingReceiptPreserveMeta = null;
     }
     function calcEditReceiptModalTotals() {
       const base = Number(document.getElementById('inpEditRcptBaseAmount')?.value) || 0;
@@ -55903,11 +55960,15 @@ if (action === 'getDashboardStats') {
       const otherReg = Number(document.getElementById('inpEditRcptOtherRegFee')?.value) || 0;
       const discNorm = Number(document.getElementById('inpEditRcptDiscountNormal')?.value) || 0;
       const discOther = Number(document.getElementById('inpEditRcptDiscountOther')?.value) || 0;
-      const editNotesStr = String(document.getElementById('inpEditRcptNotes')?.value || '');
+      const meta = (window._editingReceiptPreserveMeta && window._editingReceiptPreserveMeta.receiptNo === currentEditingReceiptNo)
+        ? window._editingReceiptPreserveMeta
+        : { shippingFee: 0, transferFee: 0, machineTags: '' };
+      const editNotesStr = String(document.getElementById('inpEditRcptNotes')?.value || '') + ' ' + String(meta.machineTags || '');
       const crMatch = editNotesStr.match(/\[CREDIT_REDEEMED:\s*฿?([\d,]+(?:\.\d+)?)\]/i);
       const creditRedeemed = crMatch ? (Number(crMatch[1].replace(/,/g, '')) || 0) : 0;
       const total = Math.max(0, base - discNorm - discOther) + reg + card + otherReg;
-      const netTotal = Math.max(0, total - creditRedeemed);
+      const totalWithShipTransfer = total + Number(meta.shippingFee || 0) + Number(meta.transferFee || 0);
+      const netTotal = Math.max(0, totalWithShipTransfer - creditRedeemed);
       const grandInput = document.getElementById('inpEditRcptGrandTotal');
       if (grandInput) {
         grandInput.value = '฿' + toArabicDigits(netTotal.toLocaleString('en-US', { minimumFractionDigits: 2 }));
@@ -55945,7 +56006,12 @@ if (action === 'getDashboardStats') {
       const rawEditLm = document.getElementById('inpEditRcptLearningMode')?.value || '-';
       const learningMode = (rawEditLm === '-') ? '-' : window.normalizeLearningMode(rawEditLm, '-');
       const existingRcItem = Array.isArray(receiptHistoryCachedLogs) ? receiptHistoryCachedLogs.find(l => l && l.receiptNo === currentEditingReceiptNo) : null;
-      const preservedItemCode = (existingRcItem && existingRcItem.itemCode) ? existingRcItem.itemCode : itemName;
+      const resolvedCode = (typeof resolveCourseCodeFromText === 'function') ? resolveCourseCodeFromText(itemName, existingRcItem && existingRcItem.itemCode) : '';
+      const preservedItemCode = resolvedCode || (existingRcItem && existingRcItem.itemCode) || itemName;
+      const editMeta = (window._editingReceiptPreserveMeta && window._editingReceiptPreserveMeta.receiptNo === currentEditingReceiptNo)
+        ? window._editingReceiptPreserveMeta
+        : { shippingFee: 0, transferFee: 0, machineTags: '' };
+      const finalEditNotes = editMeta.machineTags ? `${editNotes} ${editMeta.machineTags}`.trim() : editNotes;
       const payload = {
         receiptNo: currentEditingReceiptNo,
         buyerName: buyerName,
@@ -55962,10 +56028,12 @@ if (action === 'getDashboardStats') {
         regFee: Number(document.getElementById('inpEditRcptRegFee')?.value) || 0,
         cardFee: Number(document.getElementById('inpEditRcptCardFee')?.value) || 0,
         otherRegFee: Number(document.getElementById('inpEditRcptOtherRegFee')?.value) || 0,
+        shippingFee: Number(editMeta.shippingFee || 0),
+        transferFee: Number(editMeta.transferFee || 0),
         discountNormal: Number(document.getElementById('inpEditRcptDiscountNormal')?.value) || 0,
         discountOther: Number(document.getElementById('inpEditRcptDiscountOther')?.value) || 0,
         grandTotal: grandTotal,
-        editNotes: editNotes,
+        editNotes: finalEditNotes,
         sendEmail: sendEmail
       };
       callGasApi('updateReceipt', payload, 'POST')
@@ -61428,11 +61496,12 @@ if (action === 'getDashboardStats') {
     }
     window.extractExamLineItemsFromReceipt = extractExamLineItemsFromReceipt;
     let _examReportQueryKey = '';
-    async function fetchExamReportReceipts(forceRefresh) {
-      const mode = document.getElementById('selReportExamRegMode')?.value || 'term';
-      const targetDate = (document.getElementById('inpReportExamRegDate')?.value || '').trim();
-      const targetYear = Number(document.getElementById('selReportExamRegYear')?.value || 0);
-      const targetTerm = (document.getElementById('selReportExamRegTerm')?.value || 'ALL').trim();
+    async function fetchExamReportReceipts(forceRefresh, opts) {
+      const o = (opts && typeof opts === 'object') ? opts : {};
+      const mode = o.mode || document.getElementById('selReportExamRegMode')?.value || 'term';
+      const targetDate = (o.date !== undefined ? o.date : (document.getElementById('inpReportExamRegDate')?.value || '')).trim();
+      const targetYear = Number(o.yearBE || document.getElementById('selReportExamRegYear')?.value || 0);
+      const targetTerm = (o.term || document.getElementById('selReportExamRegTerm')?.value || 'ALL').trim();
       const range = buildIndexedReportReceiptRange(mode, targetDate, targetYear, targetTerm);
       if (!forceRefresh && _examReportRowsCache.length > 0 && _examReportQueryKey === range.key) return _examReportRowsCache;
       let rows = [];
@@ -61643,7 +61712,7 @@ if (action === 'getDashboardStats') {
         tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:16px; color:var(--text-muted);">กำลังโหลดข้อมูลห้องสอบ...</td></tr>';
       }
       try {
-        const rows = await fetchExamReportReceipts(forceRefresh);
+        const rows = await fetchExamReportReceipts(forceRefresh, { mode: 'term' });
         const allItems = [];
         rows.forEach(r => extractExamLineItemsFromReceipt(r).forEach(it => allItems.push(it)));
         populateExamRoomFilterOptions(allItems);
@@ -63851,13 +63920,14 @@ if (action === 'getDashboardStats') {
         }
         return;
       }
+      const csvCell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
       let csv = '﻿';
       csv += 'ช่วงเวลา,รหัสวิชา,กลุ่ม,อาจารย์ผู้สอน,จำนวน (คน),ห้องเรียน,หมายเหตุ\n';
       for (const slot of (data.slots || [])) {
         for (const cls of [...(slot.classes || [])].sort((a, b) => naturalCompareCode(a.courseCode, b.courseCode) || naturalCompareCode(a.section, b.section))) {
-          csv += `"${slot.slotLabel || ''}","${cls.courseCode || ''}","${cls.section || ''}","${cls.lecturerName || ''}",${cls.studentCount || 0},"${cls.room || ''}","${cls.remark || ''}"\n`;
+          csv += `${csvCell(slot.slotLabel)},${csvCell(cls.courseCode)},${csvCell(cls.section)},${csvCell(cls.lecturerName)},${cls.studentCount || 0},${csvCell(cls.room)},${csvCell(cls.remark)}\n`;
         }
-        csv += `"รวมช่วง ${slot.slotLabel || ''}","","","",${slot.slotTotal || 0},"",""\n`;
+        csv += `${csvCell('รวมช่วง ' + (slot.slotLabel || ''))},"","","",${slot.slotTotal || 0},"",""\n`;
       }
       const summary = data.summary || {};
       csv += `\nรวมนักศึกษาในเทอม ${data.semId || ''},,,,${summary.total || 0},,\n`;
@@ -64018,6 +64088,38 @@ if (action === 'getDashboardStats') {
       }
       if (elPrinted) elPrinted.textContent = toArabicDigits(printed);
       if (elShipped) elShipped.textContent = toArabicDigits(shipped);
+    }
+    async function adjustExtraBooksStockFromNotes(editNotesStr, direction) {
+      if (!editNotesStr || typeof _supabase === 'undefined' || !_supabase) return;
+      const m = String(editNotesStr).match(/\[EXTRA_BOOKS:(\[[\s\S]*?\])\]/);
+      if (!m || !m[1]) return;
+      try {
+        const books = JSON.parse(m[1]);
+        if (!Array.isArray(books) || books.length === 0) return;
+        const targetKeys = books.map(b => String(b.id || b.code || '').trim()).filter(Boolean).map(id => (id.startsWith('tb:') ? id : 'tb:' + id));
+        if (targetKeys.length === 0) return;
+        const { data: tbRows, error: tbErr } = await _supabase.from('fee_settings').select('key, name, amount, mode').in('key', targetKeys);
+        if (tbErr || !Array.isArray(tbRows) || tbRows.length === 0) return;
+        const nowIso = new Date().toISOString();
+        const updates = [];
+        tbRows.forEach(row => {
+          const cleanId = row.key.replace(/^tb:/, '');
+          const qty = books.filter(b => String(b.id || b.code || '').replace(/^tb:/, '') === cleanId).reduce((s, b) => s + Math.max(1, Number(b.qty) || 1), 0);
+          if (qty > 0) {
+            const parts = String(row.mode || '0').split('|');
+            const cur = parseInt(parts[0], 10) || 0;
+            const linked = parts.length > 1 ? parts.slice(1).join('|').trim() : '';
+            const next = Math.max(0, cur + (direction * qty));
+            updates.push({ key: row.key, name: String(row.name || cleanId).slice(0, 90), amount: Number(row.amount || 0), mode: (linked ? `${next}|${linked}` : String(next)).slice(0, 90), updated_at: nowIso });
+          }
+        });
+        if (updates.length > 0) {
+          const { error: upErr } = await _supabase.from('fee_settings').upsert(updates, { onConflict: 'key' });
+          if (upErr) console.warn('[adjustExtraBooksStockFromNotes] upsert warning:', upErr.message);
+        }
+      } catch (e) {
+        console.warn('[adjustExtraBooksStockFromNotes] error:', e);
+      }
     }
     function resolveCourseCodeFromText(rawText, fallbackCode) {
       const fb = String(fallbackCode || '').trim().toUpperCase();
@@ -87557,6 +87659,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             .select('device_info, created_at')
             .eq('action', 'TEACHER_ATTENDANCE_SAVED')
             .ilike('device_info', `%"schedule_id":"${scheduleId}"%`)
+            .ilike('device_info', `%"attendance_date":"${attDate}"%`)
             .order('created_at', { ascending: false })
             .limit(200);
           if (logs && logs.length > 0) {
@@ -87594,18 +87697,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
             const list = JSON.parse(rawUser);
             if (Array.isArray(list)) list.forEach(r => { if (r.student_id && !savedAttMap[r.student_id]) savedAttMap[r.student_id] = r; });
           }
-        }
-        const rawGen = localStorage.getItem(genKey);
-        if (rawGen) {
-          const list = JSON.parse(rawGen);
-          if (Array.isArray(list)) list.forEach(r => { if (r.student_id && !savedAttMap[r.student_id]) savedAttMap[r.student_id] = r; });
-        }
-        Object.keys(localStorage).filter(k => k.startsWith('oca_att_') && k.includes(`_${scheduleId}_${attDate}`)).forEach(k => {
-          try {
-            const list = JSON.parse(localStorage.getItem(k) || '[]');
+        } else {
+          const rawGen = localStorage.getItem(genKey);
+          if (rawGen) {
+            const list = JSON.parse(rawGen);
             if (Array.isArray(list)) list.forEach(r => { if (r.student_id && !savedAttMap[r.student_id]) savedAttMap[r.student_id] = r; });
-          } catch (_) {}
-        });
+          }
+        }
       } catch (_) {}
       // 3. Merge roster with exact saved attendance status & notes
       _teacherRosterData = studentsList.map(s => {
@@ -87787,7 +87885,6 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         } catch (_) {}
       };
       mergeAttCacheRows(`oca_att_${user.username}_${scheduleId}_${attDate}`, rows);
-      mergeAttCacheRows(`oca_att_${scheduleId}_${attDate}`, rows);
       try {
         localStorage.setItem('oca_teacher_selected_schedule', scheduleId);
         localStorage.setItem('oca_teacher_selected_date', attDate);
@@ -92653,7 +92750,9 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       if (!hasMultiCourses && appExtraBooks.length === 0 && appExtraExams.length === 0 && !appIsBooksOnly && !appIsExamOnly && !appIsBooksAndExamsOnly && !(appShippingFee > 0) && !appIsShip) return rcPayload;
       const appBooksTotal = appExtraBooks.reduce((s, b) => s + (Math.max(0, Number(b.price) || 0) * Math.max(1, Number(b.qty) || 1)), 0);
       const appExamsTotal = appExtraExams.reduce((s, ex) => s + (Math.max(0, Number(ex.price) || 0) * Math.max(1, Number(ex.qty) || 1)), 0);
-      const appOtherRegFee = Math.max(Number(rcPayload.otherRegFee || 0), Number(info.otherRegFee || 0)) || (Number(rcPayload.otherRegFee || 0) + appBooksTotal + appExamsTotal);
+      const appOtherRegFee = (appIsBooksOnly || appIsExamOnly || appIsBooksAndExamsOnly)
+        ? (appBooksTotal + appExamsTotal)
+        : (Math.max(Number(rcPayload.otherRegFee || 0), Number(info.otherRegFee || 0)) + appBooksTotal + appExamsTotal);
       const appDeliveryMethod = appIsShip ? 'ส่งไปตามที่อยู่' : 'รับเอง';
       const extraCoursesJsonTag = hasMultiCourses
         ? `[EXTRA_COURSES:${JSON.stringify(appExtraCourses.map(c => ({ id: c.id || c.code || '', code: c.code || c.id || '', name: c.name || c.code || '', qty: Number(c.qty) || 1, price: Number(c.price) || 0 })))}]`
@@ -92680,7 +92779,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const overrides = {
         deliveryMethod: appDeliveryMethod,
         shippingFee: appShippingFee,
-        otherRegFee: appIsBooksOnly ? 0 : (appIsBooksAndExamsOnly ? appExamsTotal : appOtherRegFee),
+        otherRegFee: (appIsBooksOnly || appIsExamOnly) ? 0 : (appIsBooksAndExamsOnly ? appExamsTotal : appOtherRegFee),
         ...(combinedEditNotes ? { editNotes: combinedEditNotes } : {})
       };
       if (appIsBooksOnly || appIsBooksAndExamsOnly) {
@@ -93344,7 +93443,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=315';
+      const swPath = basePath + 'sw.js?v=316';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -93381,7 +93480,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (315):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (316):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
