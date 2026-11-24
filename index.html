@@ -12609,7 +12609,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '282';
+      var LATEST_VERSION = '283';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -16443,7 +16443,7 @@ body.printing-report #printReportContainer {
             </div>
 
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
-              <button type="button" class="oca-btn-gold-submit oca-btn-print" id="btnPrintReceiptTop" style="padding:10px 22px; font-size:14px;" onclick="printReceipt()">
+              <button type="button" class="oca-btn-gold-submit oca-btn-print" id="btnPrintReceiptTop" style="display:none; padding:10px 22px; font-size:14px;" onclick="printReceipt()">
                 <i class="fa-solid fa-print"></i> <span id="txtBtnPrintRcpt">พิมพ์ใบเสร็จ</span>
               </button>
             </div>
@@ -50399,6 +50399,14 @@ if (action === 'getDashboardStats') {
     let receiptCoursesList = [];
     let receiptBooksList = [];
     let receiptCurrentOfficialNo = '';
+    let receiptIsOfficiallyIssued = false;
+    function syncTopPrintReceiptButtonVisibility() {
+      const btn = document.getElementById('btnPrintReceiptTop');
+      if (!btn) return;
+      const hasOfficial = Boolean(receiptIsOfficiallyIssued && receiptCurrentOfficialNo && String(receiptCurrentOfficialNo).trim() !== '' && String(receiptCurrentOfficialNo).trim() !== '-');
+      btn.style.display = hasOfficial ? 'inline-flex' : 'none';
+    }
+    window.syncTopPrintReceiptButtonVisibility = syncTopPrintReceiptButtonVisibility;
     let receiptCurrentClaimToken = '';
     let receiptDraftToken = '';
     function initReceiptsModule() {
@@ -50719,6 +50727,8 @@ if (action === 'getDashboardStats') {
     function selectReceiptStudent(studentId) {
       window._frozenReceiptPreview = false;
       window._frozenReceiptHtml = null;
+      receiptIsOfficiallyIssued = false;
+      syncTopPrintReceiptButtonVisibility();
       window._rcptDiscountNormalUserEdited = false;
       window._rcptDiscountNormalCustomVal = undefined;
       const dropdown = document.getElementById('listRcptSearchResults');
@@ -51272,6 +51282,8 @@ if (action === 'getDashboardStats') {
      */
     function clearReceiptStudentSearch() {
       currentReceiptStudent = null;
+      receiptIsOfficiallyIssued = false;
+      syncTopPrintReceiptButtonVisibility();
       window._rcptCompanyMeta = null;
       const inpSearch = document.getElementById('inpRcptStudentSearch');
       if (inpSearch) inpSearch.value = '';
@@ -53128,7 +53140,9 @@ if (action === 'getDashboardStats') {
             const inpExNoteReset2 = document.getElementById('inpRcptExamNote');
             if (inpExNoteReset2) inpExNoteReset2.value = '';
             receiptCurrentOfficialNo = res.receiptNo;
+            receiptIsOfficiallyIssued = true;
             receiptCurrentClaimToken = res.claimToken;
+            syncTopPrintReceiptButtonVisibility();
             const elNo = document.getElementById('lblPrevRcptNo');
             if (elNo) elNo.textContent = toArabicDigits(res.receiptNo);
             const badge = document.getElementById('badgeRcptDraft');
@@ -53340,7 +53354,9 @@ if (action === 'getDashboardStats') {
       const lblResetFormBase = document.getElementById('lblRcptBaseFeeLabel');
       if (lblResetFormBase) lblResetFormBase.innerHTML = 'ค่าเล่าเรียนพื้นฐาน (Tuition Fee) *';
       receiptCurrentOfficialNo = '';
+      receiptIsOfficiallyIssued = false;
       receiptCurrentClaimToken = '';
+      syncTopPrintReceiptButtonVisibility();
       const badge = document.getElementById('badgeRcptDraft');
       if (badge) {
         badge.textContent = 'Draft';
@@ -54731,7 +54747,9 @@ if (action === 'getDashboardStats') {
         }
       }
       receiptCurrentOfficialNo = item.receiptNo || item.receipt_no;
+      receiptIsOfficiallyIssued = true;
       receiptCurrentClaimToken = item.claimToken || item.claim_token;
+      syncTopPrintReceiptButtonVisibility();
       const delivMethod = item.deliveryMethod || item.delivery_method || '';
       const isDelivery = delivMethod === 'ส่งตำรา' || delivMethod === 'ส่งไปตามที่อยู่' || delivMethod.indexOf('ส่ง') !== -1;
       const boxQrWrap = document.getElementById('boxPrevQrCodeWrap');
@@ -91532,13 +91550,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=282';
+      const swPath = basePath + 'sw.js?v=283';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (282):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (283):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
