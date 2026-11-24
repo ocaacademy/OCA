@@ -12753,7 +12753,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '305';
+      var LATEST_VERSION = '306';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -15664,8 +15664,7 @@ body.printing-report #printReportContainer {
                         <span>👶</span> <span>ส่วนลดคอร์สเด็ก (฿)</span>
                       </label>
 
-                      <input type="number" id="cfgGeneralDiscountKids" class="oca-input" value="100" min="0" placeholder="เช่น 100" style="color:var(--accent-emerald); font-weight:700;" oninput="updateFeeSettingStatusPreview('discountNormal'); if(typeof updateFeeMatrixRateBadges==='function') updateFeeMatrixRateBadges();" title="มีผลกับหลักสูตรเยาวชนและประถม (CE, E, OE)">
-                      <span style="font-size:11px; color:var(--text-muted); margin-top:2px;">(CE, E, OE)</span>
+                      <input type="number" id="cfgGeneralDiscountKids" class="oca-input" value="100" min="0" placeholder="เช่น 100" style="color:var(--accent-emerald); font-weight:700;" oninput="updateFeeSettingStatusPreview('discountNormal'); if(typeof updateFeeMatrixRateBadges==='function') updateFeeMatrixRateBadges();" title="อัตราส่วนลดมาตรฐานสำหรับคอร์สเด็ก">
                     </div>
 
                     <div class="oca-input-group">
@@ -15673,8 +15672,7 @@ body.printing-report #printReportContainer {
                         <span>🧑</span> <span>ส่วนลดคอร์สผู้ใหญ่ (฿)</span>
                       </label>
 
-                      <input type="number" id="cfgGeneralDiscountNormal" class="oca-input" value="200" min="0" placeholder="เช่น 200" style="color:var(--accent-emerald); font-weight:700;" oninput="updateFeeSettingStatusPreview('discountNormal'); if(typeof updateFeeMatrixRateBadges==='function') updateFeeMatrixRateBadges();" title="มีผลกับหลักสูตรขั้นต้น, ขั้นกลาง, ขั้นสูง, สนทนา, HSK (C, S, SS)">
-                      <span style="font-size:11px; color:var(--text-muted); margin-top:2px;">(C, S, SS, HSK)</span>
+                      <input type="number" id="cfgGeneralDiscountNormal" class="oca-input" value="200" min="0" placeholder="เช่น 200" style="color:var(--accent-emerald); font-weight:700;" oninput="updateFeeSettingStatusPreview('discountNormal'); if(typeof updateFeeMatrixRateBadges==='function') updateFeeMatrixRateBadges();" title="อัตราส่วนลดมาตรฐานสำหรับคอร์สผู้ใหญ่">
                     </div>
 
                     <div class="oca-input-group">
@@ -42261,6 +42259,9 @@ if (action === 'getDashboardStats') {
         endDate = startDate;
       }
       updateFeeSettingStatusPreview(key);
+      if ((key === 'discountNormal' || key === 'lateRegPenalty') && typeof updateFeeMatrixRateBadges === 'function') {
+        updateFeeMatrixRateBadges();
+      }
     }
     window.onFeeDateInputChange = onFeeDateInputChange;
     function onFeeModeChange(key) {
@@ -42464,14 +42465,12 @@ if (action === 'getDashboardStats') {
         baseAmount = ruleArt;
         categoryLabel = 'ส่วนลดปกติ (ศิลปะ)';
       } else if (isKids) {
-        targetItem = feeItems.disc_rule_kids || feeItems.discountKids || normItem;
-        const kidsVal = (feeItems.disc_rule_kids || (globalFeePresets && globalFeePresets.disc_rule_kids !== undefined))
-          ? ruleKids
-          : ((normItem.kidsAmount !== undefined && normItem.kidsAmount !== null && normItem.kidsAmount !== '' && !isNaN(Number(normItem.kidsAmount)))
-            ? normItem.kidsAmount
-            : ((globalFeePresets && globalFeePresets.discountKids !== undefined && globalFeePresets.discountKids !== null && !isNaN(Number(globalFeePresets.discountKids)))
-              ? globalFeePresets.discountKids
-              : 0));
+        targetItem = normItem;
+        const kidsVal = (normItem.kidsAmount !== undefined && normItem.kidsAmount !== null && normItem.kidsAmount !== '' && !isNaN(Number(normItem.kidsAmount)))
+          ? normItem.kidsAmount
+          : ((globalFeePresets && globalFeePresets.discountKids !== undefined && globalFeePresets.discountKids !== null && !isNaN(Number(globalFeePresets.discountKids)))
+            ? globalFeePresets.discountKids
+            : ruleKids);
         baseAmount = Math.max(0, Number(kidsVal));
         categoryLabel = 'ส่วนลดปกติ (เด็ก)';
       } else if (is3HrAdult) {
@@ -42479,16 +42478,14 @@ if (action === 'getDashboardStats') {
         baseAmount = ruleAdult3;
         categoryLabel = 'ส่วนลดปกติ (ผู้ใหญ่ 3 ชม./สัปดาห์)';
       } else {
-        targetItem = feeItems.disc_rule_adult5 || normItem;
-        const adultVal = (feeItems.disc_rule_adult5 || (globalFeePresets && globalFeePresets.disc_rule_adult5 !== undefined))
-          ? ruleAdult5
-          : ((normItem.adultAmount !== undefined && normItem.adultAmount !== null && normItem.adultAmount !== '' && !isNaN(Number(normItem.adultAmount)))
-            ? normItem.adultAmount
-            : ((normItem.amount !== undefined && normItem.amount !== null && normItem.amount !== '' && !isNaN(Number(normItem.amount)))
-              ? normItem.amount
-              : ((globalFeePresets && globalFeePresets.discountNormal !== undefined && globalFeePresets.discountNormal !== null && !isNaN(Number(globalFeePresets.discountNormal)))
-                ? globalFeePresets.discountNormal
-                : 0)));
+        targetItem = normItem;
+        const adultVal = (normItem.adultAmount !== undefined && normItem.adultAmount !== null && normItem.adultAmount !== '' && !isNaN(Number(normItem.adultAmount)))
+          ? normItem.adultAmount
+          : ((normItem.amount !== undefined && normItem.amount !== null && normItem.amount !== '' && !isNaN(Number(normItem.amount)))
+            ? normItem.amount
+            : ((globalFeePresets && globalFeePresets.discountNormal !== undefined && globalFeePresets.discountNormal !== null && !isNaN(Number(globalFeePresets.discountNormal)))
+              ? globalFeePresets.discountNormal
+              : ruleAdult5));
         baseAmount = Math.max(0, Number(adultVal));
         categoryLabel = 'ส่วนลดปกติ (ผู้ใหญ่ 5 ชม./สัปดาห์)';
       }
@@ -43169,6 +43166,20 @@ if (action === 'getDashboardStats') {
       }
     }
     window.deleteCustomGeneralFeeItem = deleteCustomGeneralFeeItem;
+    function syncLatePenaltyKidsForSave(items) {
+      const inpSaveLatePenKids = document.getElementById('cfgGeneralLateRegPenaltyKids');
+      const latePenKidsStr = inpSaveLatePenKids ? inpSaveLatePenKids.value.trim() : '';
+      const latePenKidsAmt = (latePenKidsStr !== '' && !isNaN(Number(latePenKidsStr)) && Number(latePenKidsStr) >= 0) ? Number(latePenKidsStr) : 0;
+      if (items.lateRegPenalty) {
+        items.lateRegPenalty.kidsAmount = latePenKidsAmt;
+        items.lateRegPenaltyKids = {
+          amount: latePenKidsAmt,
+          mode: items.lateRegPenalty.mode,
+          startDate: items.lateRegPenalty.startDate,
+          endDate: items.lateRegPenalty.endDate
+        };
+      }
+    }
     let isSavingFeeSettings = false;
     async function saveGeneralFeeSettings() {
       if (isSavingFeeSettings) return;
@@ -43244,18 +43255,7 @@ if (action === 'getDashboardStats') {
         items.discountNormal.kidsAmount = kidsSaveAmt;
         items.discountNormal.adultAmount = items.discountNormal.amount;
       }
-      const inpSaveLatePenKids = document.getElementById('cfgGeneralLateRegPenaltyKids');
-      const latePenKidsStr = inpSaveLatePenKids ? inpSaveLatePenKids.value.trim() : '';
-      const latePenKidsAmt = (latePenKidsStr !== '' && !isNaN(Number(latePenKidsStr)) && Number(latePenKidsStr) >= 0) ? Number(latePenKidsStr) : 0;
-      if (items.lateRegPenalty) {
-        items.lateRegPenalty.kidsAmount = latePenKidsAmt;
-        items.lateRegPenaltyKids = {
-          amount: latePenKidsAmt,
-          mode: items.lateRegPenalty.mode,
-          startDate: items.lateRegPenalty.startDate,
-          endDate: items.lateRegPenalty.endDate
-        };
-      }
+      syncLatePenaltyKidsForSave(items);
       const discRuleSaveSpec = [
         { key: 'disc_rule_adult5', inpId: 'inpDiscRuleAdult5', def: 200 },
         { key: 'disc_rule_adult3', inpId: 'inpDiscRuleAdult3', def: 100 },
@@ -43267,10 +43267,18 @@ if (action === 'getDashboardStats') {
       const normMode = (items.discountNormal && items.discountNormal.mode) ? items.discountNormal.mode : 'always';
       const normStart = (items.discountNormal && items.discountNormal.startDate) ? items.discountNormal.startDate : '';
       const normEnd = (items.discountNormal && items.discountNormal.endDate) ? items.discountNormal.endDate : '';
+      const inpDRKids = document.getElementById('inpDiscRuleKids');
+      const inpDRAdult5 = document.getElementById('inpDiscRuleAdult5');
+      if (inpDRKids) inpDRKids.value = kidsSaveAmt;
+      if (inpDRAdult5 && items.discountNormal) inpDRAdult5.value = items.discountNormal.amount;
       discRuleSaveSpec.forEach(spec => {
         const el = document.getElementById(spec.inpId);
         const s = el ? el.value.trim() : '';
-        const val = (el && s !== '' && !isNaN(Number(s)) && Number(s) >= 0) ? Number(s) : spec.def;
+        const val = (spec.key === 'disc_rule_kids')
+          ? kidsSaveAmt
+          : ((spec.key === 'disc_rule_adult5' && items.discountNormal)
+            ? items.discountNormal.amount
+            : ((el && s !== '' && !isNaN(Number(s)) && Number(s) >= 0) ? Number(s) : spec.def));
         discRulesSaved[spec.key] = val;
         items[spec.key] = { amount: val, mode: normMode, startDate: normStart, endDate: normEnd };
       });
@@ -43824,7 +43832,7 @@ if (action === 'getDashboardStats') {
         updateFeeMatrixRowDiscountDisplay(cId);
       });
       updateFeeCourseMatrixSummary();
-      toast('จัดกลุ่มด่วนสำเร็จ', `จัดกลุ่มตาม Prefix (CE, E, OE = เด็ก ${toArabicDigits(kidsCount)} คอร์ส / C, S = ผู้ใหญ่ ${toArabicDigits(adultCount)} คอร์ส) แล้ว กรุณากด "บันทึก"`, '✓');
+      toast('จัดกลุ่มตามระดับคอร์สสำเร็จ', `จัดกลุ่มตามระดับคอร์ส (คอร์สเด็ก ${toArabicDigits(kidsCount)} คอร์ส / คอร์สผู้ใหญ่ ${toArabicDigits(adultCount)} คอร์ส) แล้ว กรุณากด "บันทึก"`, '✓');
     }
     window.autoAssignDiscountsByPrefix = autoAssignDiscountsByPrefix;
     function setAllCourseAudience(aud) {
@@ -52800,7 +52808,23 @@ if (action === 'getDashboardStats') {
           }
         }
       }
-        // 4. Auto apply appropriate Normal Discount for Kids vs Adult courses
+        // 4. Auto apply appropriate Normal Discount & Late Penalty for Kids vs Adult courses
+        const lpSw = (typeof resolveLateRegPenalty === 'function') ? resolveLateRegPenalty(course) : null;
+        const chkOtherSw = document.getElementById('chkRcptApplyOtherRegFee');
+        const inpOtherSw = document.getElementById('inpRcptOtherRegFee');
+        const tileOtherSw = document.getElementById('tileRcptOtherRegFee');
+        if (lpSw && lpSw.active && lpSw.amount > 0) {
+          if (chkOtherSw) chkOtherSw.checked = true;
+          if (tileOtherSw) tileOtherSw.classList.add('active');
+          if (inpOtherSw) inpOtherSw.value = lpSw.amount;
+        } else {
+          const baseOtherAmt = Number(globalFeePresets?.items?.otherRegFee?.amount ?? globalFeePresets?.otherRegFee ?? 0);
+          if (baseOtherAmt <= 0) {
+            if (chkOtherSw) chkOtherSw.checked = false;
+            if (tileOtherSw) tileOtherSw.classList.remove('active');
+            if (inpOtherSw) inpOtherSw.value = 0;
+          }
+        }
         const rcptSchedId = typeof getSelectedScheduleId === 'function' ? getSelectedScheduleId('selRcptSchedule') : '';
         const courseDisc = typeof resolveCourseDiscount === 'function' ? resolveCourseDiscount(course, rcptSchedId) : { amount: 200, isKids: false, label: 'ส่วนลดปกติ (ผู้ใหญ่ 5 ชม./สัปดาห์)', active: true };
         const chkNorm = document.getElementById('chkRcptApplyDiscountNormal');
@@ -53281,6 +53305,14 @@ if (action === 'getDashboardStats') {
         }
         let amt = (typeof item.amount === 'number') ? item.amount : (Number(item.amount) !== undefined && !isNaN(Number(item.amount)) ? Number(item.amount) : (Number(globalFeePresets && globalFeePresets[key]) || 0));
         if (isNaN(amt) || amt < 0) amt = 0;
+        if (key === 'otherRegFee' && amt === 0 && typeof resolveLateRegPenalty === 'function') {
+          const selCCalc = document.getElementById('selRcptCourse');
+          const cIdCalc = selCCalc ? selCCalc.value : '';
+          const cObjCalc = (Array.isArray(receiptCoursesList) ? receiptCoursesList.find(c => c.id === cIdCalc || c.code === cIdCalc) : null) ||
+                           (window.cachedCoursesList && Array.isArray(window.cachedCoursesList) ? window.cachedCoursesList.find(c => c.id === cIdCalc || c.code === cIdCalc) : null);
+          const lpCalc = resolveLateRegPenalty(cObjCalc);
+          if (lpCalc && lpCalc.active && lpCalc.amount > 0) amt = lpCalc.amount;
+        }
         if (inp) inp.value = amt;
         return { active: true, amount: amt };
       };
@@ -81602,7 +81634,9 @@ function openPublicRegisterView() {
         "กรองตามผู้ใช้งาน": "按用户筛选",
         "กรองตามสถานะความปลอดภัย": "按安全状态筛选",
         "กรองตามระดับความสำคัญ": "按严重级别筛选",
-        "กรองจำนวนวันย้อนหลัง": "按查询天数筛选"
+        "กรองจำนวนวันย้อนหลัง": "按查询天数筛选",
+        "อัตราส่วนลดมาตรฐานสำหรับคอร์สเด็ก": "少儿课程标准折扣金额",
+        "อัตราส่วนลดมาตรฐานสำหรับคอร์สผู้ใหญ่": "成人课程标准折扣金额"
       },
       en: {
         "ปีการศึกษา พ.ศ. รายงานเลื่อนภาคเรียน": "Deferral Report Academic Year (B.E.)",
@@ -84221,7 +84255,9 @@ function openPublicRegisterView() {
         "รายรับคอร์สเรียนทั่วไป": "General Courses Revenue",
         "รายรับคอร์สติวสอบ HSK": "HSK Prep Revenue",
         "ยอดรายรับ (บาท)": "Revenue (THB)",
-        "0 คน": "0 students"
+        "0 คน": "0 students",
+        "อัตราส่วนลดมาตรฐานสำหรับคอร์สเด็ก": "Standard discount rate for Kids courses",
+        "อัตราส่วนลดมาตรฐานสำหรับคอร์สผู้ใหญ่": "Standard discount rate for Adult courses"
       }
     };
     window.OCA_INNER_CONTENT_I18N = OCA_INNER_CONTENT_I18N;
@@ -92823,7 +92859,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=305';
+      const swPath = basePath + 'sw.js?v=306';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92860,7 +92896,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (305):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (306):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
