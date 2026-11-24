@@ -12597,7 +12597,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '278';
+      var LATEST_VERSION = '279';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -18006,7 +18006,7 @@ body.printing-report #printReportContainer {
                   <span>ทั้งหมด 0 รายการ</span>
                 </span>
 
-                <span id="tbCatalogHeroPriceRangePill" style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#fbbf24; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.35); padding:5px 12px; border-radius:999px; font-family:'JetBrains Mono', monospace;">
+                <span id="tbCatalogHeroPriceRangePill" style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--color-gold-dark, #B45309); background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.35); padding:5px 12px; border-radius:999px; font-family:'JetBrains Mono', monospace;">
                   <i class="fa-solid fa-tags" style="font-size:11px;"></i>
                   <span>ช่วงราคา ฿350 – ฿450</span>
                 </span>
@@ -18037,7 +18037,7 @@ body.printing-report #printReportContainer {
                 <div style="position:relative; width:100%; max-width:320px;">
                   <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:12px;"></i>
                   <input type="text" id="inpSearchTextbooks" class="oca-input" placeholder="ค้นหาตำราเรียน..." oninput="filterTextbooksCatalog(this.value)" style="padding-left:32px; padding-right:30px; font-size:12.5px !important; border-radius:8px;">
-                  <button type="button" id="btnClearSearchTextbooks" class="oca-search-clear-btn" onclick="document.getElementById('inpSearchTextbooks').value=''; filterTextbooksCatalog('');" style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+                  <button type="button" id="btnClearSearchTextbooks" aria-label="ล้างคำค้นหาตำราเรียน" title="ล้างคำค้นหาตำราเรียน" class="oca-search-clear-btn" onclick="document.getElementById('inpSearchTextbooks').value=''; filterTextbooksCatalog('');" style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
                 </div>
               </div>
 
@@ -18172,7 +18172,7 @@ body.printing-report #printReportContainer {
                   </button>
 
                   <button type="button" class="oca-type-toggle-btn" style="padding:6px 12px; font-size:12px;" onclick="batchUpdateShippingStatus('SHIPPED')">
-                    <i class="fa-solid fa-box-check"></i> มาร์กว่าส่งแล้ว
+                    <i class="fa-solid fa-clipboard-check"></i> มาร์กว่าส่งแล้ว
                   </button>
                 </div>
               </div>
@@ -23509,7 +23509,7 @@ body.printing-report #printReportContainer {
                   </div>
                   <img id="imgViewerSlip" src="" alt="Verified Slip" style="max-height:480px; max-width:100%; object-fit:contain; border-radius:8px; cursor:zoom-in; border:1px solid var(--border-soft); box-shadow:0 10px 25px rgba(0,0,0,0.2);" onclick="openSlipLightbox(this.src)">
                   <div id="boxViewerNoSlip" style="display:none; padding:40px; color:var(--text-muted);">
-                    <i class="fa-solid fa-image-slash" style="font-size:40px; margin-bottom:10px; display:block;"></i>
+                    <i class="fa-solid fa-eye-slash" style="font-size:40px; margin-bottom:10px; display:block;"></i>
                     <span>ไม่พบรูปภาพสลิปสำหรับใบเสร็จเลขที่นี้ (อาจเป็นการชำระด้วยเงินสด ณ เคาน์เตอร์ หรือไม่ได้แนบสลิป)</span>
                   </div>
                 </div>
@@ -30485,13 +30485,15 @@ if (action === 'getDashboardStats') {
           // Idempotency Guard: prevent duplicate receipt and duplicate email generation within 120s
           params.student_id = params.student_id || params.studentId || params.buyerId;
           params.year_be = params.year_be || params.yearBE;
-          if (params.student_id && params.term && params.year_be) {
+          const cleanTNum = Number(cleanTermNumber(params.term, ''));
+          const cleanYNum = Number(String(params.year_be || '').trim());
+          if (params.student_id && Number.isFinite(cleanTNum) && cleanTNum > 0 && Number.isFinite(cleanYNum) && cleanYNum > 2500) {
             const twoMinutesAgo = new Date(Date.now() - 120000).toISOString();
             let dupQ = _supabase.from('receipts')
               .select('*')
               .eq('student_id', params.student_id)
-              .eq('term', cleanTermNumber(params.term, ''))
-              .eq('year_be', String(params.year_be).trim())
+              .eq('term', cleanTNum)
+              .eq('year_be', cleanYNum)
               .gte('created_at', twoMinutesAgo);
             const rType = params.type || params.receipt_type || 'tuition';
             dupQ = dupQ.eq('receipt_type', rType);
@@ -31247,8 +31249,10 @@ if (action === 'getDashboardStats') {
                 qb = qb.eq('citizen_id', cleanQ);
               } else if (cleanQ.length >= 9 && cleanQ.length <= 10) {
                 qb = qb.or(`phone_number.eq.${cleanQ},smart_card_uid.eq.${cleanQ}`);
-              } else {
+              } else if (Number(cleanQ) <= 2147483647) {
                 qb = qb.eq('student_id', cleanQ);
+              } else {
+                qb = qb.or(`citizen_id.eq.${cleanQ},phone_number.eq.${cleanQ},smart_card_uid.eq.${cleanQ}`);
               }
             } else {
               qb = qb.ilike('full_name', `%${safeQ}%`);
@@ -31799,10 +31803,11 @@ if (action === 'getDashboardStats') {
         if (action === 'getShippingOrders') {
           let rawYearReceipts = [];
           try {
+            const shipMinYear = Math.max(2568, ((typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm()?.yearBE : 0) || (new Date().getFullYear() + 543)) - 1);
             const fetchShipRows = () => fetchAllPaginatedSupabaseRows(() =>
               _supabase.from('receipts')
                 .select('id, receipt_no, receipt_type, student_id, buyer_name, citizen_id, address, item_name, material_type, delivery_method, shipping_fee, tracking_number, claim_status, claimed_at, claimed_by, edit_notes, created_at')
-                .gte('year_be', 2569)
+                .gte('year_be', shipMinYear)
                 .order('created_at', { ascending: false })
             , 1000, 20000);
             rawYearReceipts = (typeof window.withSupabaseRetry === 'function')
@@ -31964,6 +31969,14 @@ if (action === 'getDashboardStats') {
           } else if (params.status === 'PENDING_PRINT') {
             updateObj.claim_status = 'จัดส่งตามที่อยู่';
             updateObj.tracking_number = null;
+            if (targetIds.length === 1) {
+              try {
+                const { data: curShipRow } = await _supabase.from('receipts').select('edit_notes').eq('receipt_no', targetIds[0]).maybeSingle();
+                if (curShipRow && curShipRow.edit_notes) {
+                  updateObj.edit_notes = String(curShipRow.edit_notes).replace(/\s*\|\s*สถานะ:\s*พิมพ์ใบปะหน้าแล้ว/g, '').replace(/สถานะ:\s*พิมพ์ใบปะหน้าแล้ว\s*\|?\s*/g, '').replace(/พิมพ์ใบปะหน้าแล้ว/g, '').trim();
+                }
+              } catch (_) {}
+            }
           } else if (params.status === 'PRINTED' && targetIds.length > 0) {
             try {
               const { data: existingNotesRows, error: exNoteErr } = await _supabase.from('receipts')
@@ -39921,8 +39934,8 @@ if (action === 'getDashboardStats') {
       showConfirmModal({
         title: 'ยืนยันการลบข้อมูลนักศึกษา',
         subtitle: 'แจ้งเตือนการลบข้อมูลถาวร (Permanent Deletion)',
-        titleColor: '#fca5a5',
-        subtitleColor: '#f87171',
+        titleColor: 'var(--accent-rose, #DC2626)',
+        subtitleColor: 'var(--accent-crimson, #B91C1C)',
         message: htmlMsg,
         isHtml: true,
         icon: 'fa-trash-can',
@@ -47787,14 +47800,14 @@ if (action === 'getDashboardStats') {
           const tNum = parseInt(t, 10) || 5;
           const tPrefix = yr + String(tNum);
           const nextTPrefix = (tNum < 5) ? (yr + String(tNum + 1)) : (String(Number(yr) + 1) + '0');
-          const cleanC = String(c || '').replace(/[()]/g, '').trim();
+          const cleanC = String(c || '').replace(/["(),]/g, '').trim();
           const data = await fetchAllPaginatedSupabaseRows(() => {
             let q = _supabase.from('receipts')
               .select('id, student_id, buyer_name, receipt_no, item_code, item_name, schedule, room, year_be, term')
               .gte('receipt_no', tPrefix + '0000')
               .lt('receipt_no', nextTPrefix + '0000')
               .eq('year_be', y)
-              .eq('term', t)
+              .eq('term', tNum)
               .order('student_id', { ascending: true });
             if (cleanC) {
               const cUpper = cleanC.toUpperCase();
@@ -48913,7 +48926,10 @@ if (action === 'getDashboardStats') {
                 { onConflict: 'key' }
               ); if (wErr) throw wErr; }
             }
-          } catch (_) {}
+          } catch (saveOffsetErr) {
+            console.warn('[savePrinterPresetOffsets] DB sync warn:', saveOffsetErr);
+            if (typeof showToast === 'function') showToast('บันทึกค่าตั้งค่าเครื่องพิมพ์ลง Cloud ไม่สำเร็จ', saveOffsetErr?.message || 'บันทึกในเครื่องไว้ชั่วคราวแล้ว', '⚠️');
+          }
         }, 650);
       } catch (_) {}
     }
@@ -49495,8 +49511,19 @@ if (action === 'getDashboardStats') {
       }
     }
     function handleCardPhotoFileSelected(event) {
-      const file = event.target.files && event.target.files[0];
+      const inputEl = event && event.target;
+      const file = inputEl && inputEl.files && inputEl.files[0];
       if (!file) return;
+      if (!/^image\//i.test(file.type || '')) {
+        if (typeof showToast === 'function') showToast('ไฟล์ไม่รองรับ', 'กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WEBP) เท่านั้น', '⚠️');
+        if (inputEl) inputEl.value = '';
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        if (typeof showToast === 'function') showToast('ไฟล์มีขนาดใหญ่เกินไป', 'กรุณาเลือกไฟล์รูปภาพขนาดไม่เกิน 10 MB', '⚠️');
+        if (inputEl) inputEl.value = '';
+        return;
+      }
       const reader = new FileReader();
       reader.onload = async function(e) {
         const dataUrl = e.target.result;
@@ -49522,6 +49549,13 @@ if (action === 'getDashboardStats') {
                 currentCardStudent.photoUrl = uploadedUrl;
                 currentCardStudent.photo = uploadedUrl;
                 currentCardStudent.photo_url = uploadedUrl;
+                if (Array.isArray(cachedSearchStudentsData)) {
+                  const cachedItem = cachedSearchStudentsData.find(s => String(s.studentId || s.student_id) === String(currentCardStudent.studentId));
+                  if (cachedItem) { cachedItem.photoUrl = uploadedUrl; cachedItem.photo = uploadedUrl; cachedItem.photo_url = uploadedUrl; }
+                }
+                if (typeof broadcastOcaDataSync === 'function') {
+                  broadcastOcaDataSync('students', 'UPDATE', { student_id: currentCardStudent.studentId });
+                }
                 if (frontPhoto) frontPhoto.src = uploadedUrl;
                 if (avatarImg) avatarImg.src = uploadedUrl;
                 if (typeof showToast === 'function') showToast('อัปโหลดรูปสำเร็จ', 'บันทึกรูปถ่ายลงระบบเรียบร้อยแล้ว', '✅', 2500);
@@ -54553,11 +54587,14 @@ if (action === 'getDashboardStats') {
           if (fsErr) console.warn('[openReceiptDetailViewer] slip fetch error:', fsErr);
           if (fsData) slipRow = fsData;
           else if (item && (item.buyerId || item.student_id || item.studentId)) {
-            const bId = item.buyerId || item.student_id || item.studentId;
-            const { data: altList, error: altErr } = await _supabase
-              .from('fee_settings')
-              .select('*')
-              .or(`key.eq.pending_slip_url:${bId},key.eq.student_slip:${bId},key.eq.pending_slip:${bId}`);
+            const rawBId = item.buyerId || item.student_id || item.studentId;
+            const bId = String(rawBId || '').replace(/[^0-9A-Za-z_-]/g, '');
+            const { data: altList, error: altErr } = bId
+              ? await _supabase
+                  .from('fee_settings')
+                  .select('*')
+                  .or(`key.eq.pending_slip_url:${bId},key.eq.student_slip:${bId},key.eq.pending_slip:${bId}`)
+              : { data: [], error: null };
             if (!altErr && Array.isArray(altList) && altList.length > 0) {
               slipRow = altList.find(r => r.key === 'pending_slip_url:' + bId && r.name) || altList[0];
             }
@@ -59145,7 +59182,8 @@ if (action === 'getDashboardStats') {
     }
     function extractTextbookLineItemsFromReceipt(r) {
       if (!r || typeof r !== 'object') return [];
-      const st = String(r.status || '').toUpperCase();
+      if (typeof isReceiptVoided === 'function' && isReceiptVoided(r)) return [];
+      const st = String(r.status || r.claim_status || '').toUpperCase();
       if (st === 'VOIDED' || st === 'VOID' || st === 'CANCELLED' || r.is_voided === true || r.voided === true) return [];
       const rType = String(r.receipt_type || '').toLowerCase();
       const rawNotes = String(r.edit_notes || r.notes || '');
@@ -59293,6 +59331,7 @@ if (action === 'getDashboardStats') {
               .select('id, receipt_no, created_at, student_id, buyer_name, receipt_type, item_code, item_name, base_amount, reg_fee, card_fee, other_reg_fee, transfer_fee, shipping_fee, grand_total, claim_status, edit_notes, year_be, term')
               .gte('receipt_no', range.minR)
               .lt('receipt_no', range.maxR)
+              .or('claim_status.is.null,claim_status.neq.VOIDED')
               .or('receipt_type.in.(book,course_book,textbook),edit_notes.ilike.*EXTRA_BOOKS*');
             if (range.startIso && range.endIso) {
               q = q.gte('created_at', range.startIso).lte('created_at', range.endIso);
@@ -62431,8 +62470,11 @@ if (action === 'getDashboardStats') {
       pStyle.textContent = '@page { size: A4 portrait; margin: 6mm; }';
       printContainer.innerHTML = build8UpA4SheetsHtml(orders);
       document.body.classList.add('printing-shipping-labels');
-      window.print();
-      setTimeout(() => {
+      let _shipPrintCleaned = false;
+      const cleanupShipPrint = () => {
+        if (_shipPrintCleaned) return;
+        _shipPrintCleaned = true;
+        window.removeEventListener('afterprint', cleanupShipPrint);
         document.body.classList.remove('printing-shipping-labels');
         if (pStyle) pStyle.remove();
         // ถามผู้ใช้เพื่อปรับสถานะเป็น PRINTED อัตโนมัติเพื่อความสะดวก
@@ -62454,7 +62496,10 @@ if (action === 'getDashboardStats') {
             });
           }, 300);
         }
-      }, 1000);
+      };
+      window.addEventListener('afterprint', cleanupShipPrint, { once: true });
+      window.print();
+      setTimeout(cleanupShipPrint, 2500);
     }
     /**
      * เปลี่ยนสถานะการจัดส่ง (PRINTED หรือ SHIPPED)
@@ -75576,12 +75621,18 @@ function openPublicRegisterView() {
           const isDigits = /^\d+$/.test(query);
           let stQb = _supabase.from('students').select('*');
           if (isDigits) {
-            if (query.length === 7) {
+            if (query.length === 7 && Number(query) <= 2147483647) {
               stQb = stQb.eq('student_id', query);
-            } else {
+            } else if (query.length >= 2 && query.length <= 6) {
               const minId = query.padEnd(7, '0');
               const maxId = String(Number(query) + 1).padEnd(7, '0');
-              stQb = stQb.gte('student_id', minId).lt('student_id', maxId);
+              if (Number(maxId) <= 2147483647) {
+                stQb = stQb.gte('student_id', minId).lt('student_id', maxId);
+              } else {
+                stQb = stQb.or(`citizen_id.eq.${query},phone_number.eq.${query}`);
+              }
+            } else {
+              stQb = stQb.or(`citizen_id.eq.${query},phone_number.eq.${query},smart_card_uid.eq.${query}`);
             }
           } else {
             const cleanNameQ = sanitizePostgrestSearchToken(query);
@@ -77351,6 +77402,7 @@ function openPublicRegisterView() {
     const OCA_INNER_CONTENT_I18N = {
       th: {},
       zh: {
+        "ล้างคำค้นหาตำราเรียน": "清除教材搜索",
         "ปิดหน้าต่างยกเลิกใบเสร็จ": "关闭作废收据弹窗",
         "ปิดหน้าต่างปิดยอดแคชเชียร์": "关闭每日结算弹窗",
         "ปิดหน้าต่างแก้ไขข้อมูลนักศึกษา": "关闭编辑学员信息弹窗",
@@ -79875,6 +79927,7 @@ function openPublicRegisterView() {
         "0 คน": "0 人"
       },
       en: {
+        "ล้างคำค้นหาตำราเรียน": "Clear textbook search",
         "ปิดหน้าต่างยกเลิกใบเสร็จ": "Close void receipt modal",
         "ปิดหน้าต่างปิดยอดแคชเชียร์": "Close daily shift closing modal",
         "ปิดหน้าต่างแก้ไขข้อมูลนักศึกษา": "Close edit student modal",
@@ -87062,11 +87115,18 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     }
     window.editTeacherNotice = editTeacherNotice;
     async function deleteTeacherNotice(noticeId) {
+      if (typeof hasUserPermission === 'function' && !hasUserPermission('teacher') && !hasUserPermission('settings')) {
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่ได้รับอนุญาตให้ลบประกาศถึงครู', '⚠️');
+        return;
+      }
       if (!noticeId || typeof _supabase === 'undefined' || !_supabase) return;
       if (!(await showConfirmModal('ต้องการลบประกาศถึงครูรายการนี้ใช่หรือไม่?'))) return;
       try {
         const { error } = await _supabase.from('security_audit_logs').delete().eq('id', noticeId);
         if (error) throw error;
+        if (typeof broadcastOcaDataSync === 'function') {
+          broadcastOcaDataSync('fee_settings', 'UPDATE', { key: 'teacher_notice_deleted' });
+        }
         if (typeof showToast === 'function') showToast('ลบประกาศสำเร็จ', 'ลบประกาศถึงครูเรียบร้อยแล้ว', '✅', 2500);
         if (typeof loadTeacherNoticeHistoryList === 'function') await loadTeacherNoticeHistoryList();
         if (typeof loadTeacherActivityTrackerReport === 'function') loadTeacherActivityTrackerReport();
@@ -87079,6 +87139,10 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
      * Submits and broadcasts notice to teachers via Supabase Realtime
      */
     async function submitSendTeacherNotice() {
+      if (typeof hasUserPermission === 'function' && !hasUserPermission('teacher') && !hasUserPermission('settings')) {
+        if (typeof showToast === 'function') showToast('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่ได้รับอนุญาตให้ส่งประกาศถึงครู', '⚠️');
+        return;
+      }
       const selTarget = document.getElementById('selComposeTeacherTarget');
       const radUrgency = document.querySelector('input[name="radNoticeUrgency"]:checked');
       const inpTitle = document.getElementById('inpComposeNoticeTitle');
@@ -90984,13 +91048,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=278';
+      const swPath = basePath + 'sw.js?v=279';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (278):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (279):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
@@ -91299,7 +91363,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
     <div style="position:relative; max-width:95vw; max-height:90vh; display:flex; align-items:center; justify-content:center;" onclick="event.stopPropagation()">
       <img id="imgZoomSlipFull" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" alt="Full Slip" onerror="this.style.display='none'; const fb=document.getElementById('zoomSlipErrorFallback'); if(fb) fb.style.display='flex';" style="max-height:90vh; max-width:95vw; object-fit:contain; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.8);" />
       <div id="zoomSlipErrorFallback" style="display:none; flex-direction:column; align-items:center; justify-content:center; gap:10px; border:1px solid rgba(255,255,255,0.2); border-radius:12px; padding:28px 36px; text-align:center;">
-        <i class="fa-solid fa-image-slash" style="font-size:32px; color:#F59E0B;"></i>
+        <i class="fa-solid fa-eye-slash" style="font-size:32px; color:#F59E0B;"></i>
         <div style="font-size:14px; font-weight:700;">ไม่พบรูปภาพสลิป หรือไม่สามารถโหลดรูปภาพได้</div>
       </div>
     </div>
