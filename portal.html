@@ -2095,17 +2095,20 @@
     input[type="datetime-local"][data-oca-date-display]::before {
       content: attr(data-oca-date-display);
       position: absolute;
-      top: 50%;
+      top: 0;
+      bottom: 0;
       left: 8px;
       right: 30px;
-      transform: translateY(-50%);
+      display: flex !important;
+      align-items: center !important;
+      transform: none !important;
       background: inherit;
       color: inherit;
       font-family: inherit;
       font-size: inherit;
       font-weight: inherit;
-      line-height: 1.2;
-      padding: 2px 0;
+      line-height: 1 !important;
+      padding: 0 !important;
       margin: 0;
       pointer-events: none;
       white-space: nowrap;
@@ -12750,7 +12753,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '303';
+      var LATEST_VERSION = '304';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -54908,11 +54911,20 @@ if (action === 'getDashboardStats') {
                                emailStatusUpper.includes('COMPLETED') ||
                                emailStatusUpper.includes('DONE');
       const isEmailProcessing = emailStatusUpper.includes('PROCESSING') || emailStatusUpper.includes('SENDING');
+      const rawEmailTs = row.updatedAt || row.updated_at || row.createdAt || row.created_at || '';
+      let emailAgeMs = Number.MAX_SAFE_INTEGER;
+      if (rawEmailTs) {
+        const parsedMs = Date.parse(rawEmailTs);
+        if (!Number.isNaN(parsedMs)) emailAgeMs = Date.now() - parsedMs;
+      }
+      const isStaleProcessing = isEmailProcessing && (emailAgeMs > 5 * 60 * 1000);
       let emailStatusBadge = '';
       if (isEmailDelivered) {
         emailStatusBadge = '<span style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:#10B981; padding:2px 7px; border-radius:6px; font-weight:700; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-check"></i> จัดส่งแล้ว</span>';
-      } else if (isEmailProcessing) {
+      } else if (isEmailProcessing && !isStaleProcessing) {
         emailStatusBadge = '<span style="background:rgba(234,179,8,0.15); border:1px solid rgba(234,179,8,0.3); color:#facc15; padding:2px 7px; border-radius:6px; font-weight:600; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-spinner fa-spin"></i> กำลังส่ง</span>';
+      } else if (isStaleProcessing) {
+        emailStatusBadge = '<span style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.32); color:#dc2626; padding:2px 7px; border-radius:6px; font-weight:700; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;" title="การส่งอีเมลค้างเกิน 5 นาที กรุณากดปุ่มส่งเมลใหม่"><i class="fa-solid fa-triangle-exclamation"></i> ส่งไม่สำเร็จ (ส่งใหม่)</span>';
       } else {
         emailStatusBadge = '<span style="background:rgba(2,132,199,0.15); border:1px solid rgba(2,132,199,0.3); color:#38bdf8; padding:2px 7px; border-radius:6px; font-weight:600; font-size:12px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-paper-plane"></i> รอส่ง</span>';
       }
@@ -56416,7 +56428,7 @@ if (action === 'getDashboardStats') {
       } else if (isShipping) {
         statusColHtml = '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:3px;">' +
           '<span style="background:rgba(56,189,248,0.15); color:#0369A1; border:1px solid rgba(3,105,161,0.35); padding:3px 10px; border-radius:12px; font-weight:700; font-size:11.5px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-truck"></i> จัดส่งทางพัสดุ</span>' +
-          '<button type="button" class="oca-btn-icon" style="padding:2px 8px; font-size:10.5px; border-radius:5px; background:rgba(56,189,248,0.1); border:1px solid rgba(3,105,161,0.35); color:var(--accent-sky); cursor:pointer;" onclick="handleScannedQrToken(\'' + escapeHtml(row.receiptNo) + '\')">ตรวจสอบพัสดุ</button>' +
+          '<button type="button" class="oca-btn-info oca-btn-sm" style="height:24px !important; padding:0 10px !important; font-size:11px !important; white-space:nowrap;" onclick="handleScannedQrToken(\'' + escapeHtml(row.receiptNo) + '\')">ตรวจสอบพัสดุ</button>' +
           '</div>';
       } else {
         statusColHtml = '<div style="display:inline-flex; flex-direction:column; align-items:center; gap:4px;">' +
@@ -92317,7 +92329,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=303';
+      const swPath = basePath + 'sw.js?v=304';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92354,7 +92366,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (303):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (304):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
