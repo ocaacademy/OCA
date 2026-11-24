@@ -12753,7 +12753,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '304';
+      var LATEST_VERSION = '305';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -15703,23 +15703,33 @@ body.printing-report #printReportContainer {
                   </div>
                 </div>
 
-                <!-- Zone 1B: Manual Late Registration Penalty Box -->
+                <!-- Zone 1B: Manual Late Registration Penalty Box (Kids / Adult + CRUD) -->
                 <div id="boxLateRegPenaltyConfig" style="background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:12px 14px;">
                   <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
                     <span style="font-size:12.5px; font-weight:700; color:#D97706; display:flex; align-items:center; gap:6px;">
-                      <i class="fa-solid fa-clock-rotate-left"></i> ค่าปรับลงทะเบียนเกินกำหนด (กำหนดเอง)
+                      <i class="fa-solid fa-clock-rotate-left"></i> ค่าปรับลงทะเบียนเกินกำหนด (กำหนดเอง — แยกเด็ก / ผู้ใหญ่)
                     </span>
-                    <span id="badgeFeeStatus_lateRegPenalty" style="font-size:12px; padding:2px 8px; border-radius:12px; font-weight:500;">ปิดใช้งาน</span>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <span id="badgeFeeStatus_lateRegPenalty" style="font-size:12px; padding:2px 8px; border-radius:12px; font-weight:500;">ปิดใช้งาน</span>
+                      <button type="button" id="btnAddLatePenaltyRule" class="oca-btn-gold oca-btn-sm" onclick="openLatePenaltyRuleModal()">
+                        <i class="fa-solid fa-plus"></i> เพิ่มรายการค่าปรับ
+                      </button>
+                    </div>
                   </div>
-                  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
                     <div class="oca-input-group">
-                      <label class="oca-label" for="cfgGeneralLateRegPenalty">ยอดค่าปรับลงทะเบียนเกินกำหนด (฿)</label>
-                      <input type="number" id="cfgGeneralLateRegPenalty" class="oca-input" value="0" min="0" placeholder="เช่น 100 หรือ 200" style="color:#D97706; font-weight:700;" oninput="updateFeeSettingStatusPreview('lateRegPenalty')">
-                      <span style="font-size:11px; color:var(--text-muted); margin-top:2px;">ดึงเข้าใบเสร็จอัตโนมัติเมื่ออยู่ในช่วงเวลาที่กำหนด</span>
+                      <label class="oca-label" for="cfgGeneralLateRegPenaltyKids" style="display:flex; align-items:center; gap:4px;"><span>👶</span> <span>ค่าปรับคอร์สเด็ก (฿)</span></label>
+                      <input type="number" id="cfgGeneralLateRegPenaltyKids" class="oca-input" value="0" min="0" placeholder="เช่น 100" style="color:#D97706; font-weight:700;" oninput="updateFeeSettingStatusPreview('lateRegPenalty'); if(typeof updateFeeMatrixRateBadges==='function') updateFeeMatrixRateBadges();">
+                      <span style="font-size:11px; color:var(--text-muted); margin-top:2px;">ดึงเข้าใบเสร็จอัตโนมัติสำหรับคอร์สเด็ก</span>
+                    </div>
+                    <div class="oca-input-group">
+                      <label class="oca-label" for="cfgGeneralLateRegPenalty" style="display:flex; align-items:center; gap:4px;"><span>🧑</span> <span>ค่าปรับคอร์สผู้ใหญ่ (฿)</span></label>
+                      <input type="number" id="cfgGeneralLateRegPenalty" class="oca-input" value="0" min="0" placeholder="เช่น 200" style="color:#D97706; font-weight:700;" oninput="updateFeeSettingStatusPreview('lateRegPenalty'); if(typeof updateFeeMatrixRateBadges==='function') updateFeeMatrixRateBadges();">
+                      <span style="font-size:11px; color:var(--text-muted); margin-top:2px;">ดึงเข้าใบเสร็จอัตโนมัติสำหรับคอร์สผู้ใหญ่</span>
                     </div>
                     <div class="oca-input-group">
                       <label class="oca-label" for="cfgMode_lateRegPenalty"><i class="fa-solid fa-calendar-days" style="color:#D97706; margin-right:4px;"></i>เงื่อนไขการคิดค่าปรับ</label>
-                      <select id="cfgMode_lateRegPenalty" class="oca-input" onchange="onFeeModeChange('lateRegPenalty')">
+                      <select id="cfgMode_lateRegPenalty" class="oca-input" onchange="onFeeModeChange('lateRegPenalty'); if(typeof updateFeeMatrixRateBadges==='function') updateFeeMatrixRateBadges();">
                         <option value="disabled" selected>ปิดใช้งาน (ไม่คิดค่าปรับ)</option>
                         <option value="period">⏱ ตั้งช่วงเวลา (กำหนดวันที่เริ่มต้น - สิ้นสุด)</option>
                         <option value="always">✓ ใช้ตลอดไป (คิดค่าปรับทุกใบเสร็จ)</option>
@@ -15729,16 +15739,44 @@ body.printing-report #printReportContainer {
                   <div id="boxDateRange_lateRegPenalty" style="display:none; grid-template-columns:1fr 1fr auto; gap:8px; align-items:end; width:100%; min-width:0; box-sizing:border-box; overflow:hidden; background:var(--bg-subcard); padding:8px; border-radius:6px; border:1px dashed rgba(245,158,11,0.3); margin-top:8px;">
                     <div>
                       <label class="oca-label" style="font-size:12px;" for="cfgStart_lateRegPenalty">เริ่มปรับตั้งแต่วันที่</label>
-                      <input type="date" id="cfgStart_lateRegPenalty" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('lateRegPenalty')">
+                      <input type="date" id="cfgStart_lateRegPenalty" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('lateRegPenalty'); if(typeof updateFeeMatrixRateBadges==='function') updateFeeMatrixRateBadges();">
                     </div>
                     <div>
                       <label class="oca-label" style="font-size:12px;" for="cfgEnd_lateRegPenalty">ถึงวันที่</label>
-                      <input type="date" id="cfgEnd_lateRegPenalty" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('lateRegPenalty')">
+                      <input type="date" id="cfgEnd_lateRegPenalty" class="oca-input" style="font-size:12px; padding:4px 6px;" onclick="if(this.showPicker){try{this.showPicker();}catch(_){}}" onchange="onFeeDateInputChange('lateRegPenalty'); if(typeof updateFeeMatrixRateBadges==='function') updateFeeMatrixRateBadges();">
                     </div>
                     <div>
-                      <button type="button" class="oca-btn-cancel-custom" onclick="clearLateRegPenaltyDates()" style="height:34px; padding:0 10px; font-size:11.5px; white-space:nowrap;">
+                      <button type="button" class="oca-btn-cancel-custom oca-btn-sm" onclick="clearLateRegPenaltyDates()">
                         <i class="fa-solid fa-eraser" style="margin-right:4px;"></i>ล้างช่วงเวลา
                       </button>
+                    </div>
+                  </div>
+                  <div id="boxLatePenaltyCustomRules" style="display:none; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; padding-top:8px; border-top:1px dashed rgba(245,158,11,0.3);"></div>
+                  <div id="modalLatePenaltyRule" class="oca-modal-overlay" onclick="if(event.target===this)closeLatePenaltyRuleModal()" style="display:none; z-index:9999;">
+                    <div class="oca-modal-box" style="max-width:440px; width:92%; padding:20px; border-radius:14px;">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                        <h3 id="titleLatePenaltyRuleModal" style="margin:0; font-size:15.5px; font-weight:700; color:var(--text-main);">เพิ่มรายการค่าปรับลงทะเบียนเกินกำหนด</h3>
+                        <button type="button" onclick="closeLatePenaltyRuleModal()" style="background:none; border:none; color:var(--text-muted); font-size:18px; cursor:pointer;" aria-label="ปิดหน้าต่าง">&times;</button>
+                      </div>
+                      <input type="hidden" id="inpLatePenRuleKey" value="">
+                      <div class="oca-input-group" style="margin-bottom:12px;">
+                        <label class="oca-label" for="inpLatePenRuleName">ชื่อรายการค่าปรับ *</label>
+                        <input type="text" id="inpLatePenRuleName" class="oca-input" maxlength="55" placeholder="เช่น ปรับล่าช้าเกิน 7 วัน หรือ คอร์สพิเศษ HSK">
+                      </div>
+                      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+                        <div class="oca-input-group">
+                          <label class="oca-label" for="inpLatePenRuleKids">👶 ค่าปรับเด็ก (฿)</label>
+                          <input type="number" id="inpLatePenRuleKids" class="oca-input" min="0" value="0">
+                        </div>
+                        <div class="oca-input-group">
+                          <label class="oca-label" for="inpLatePenRuleAdult">🧑 ค่าปรับผู้ใหญ่ (฿)</label>
+                          <input type="number" id="inpLatePenRuleAdult" class="oca-input" min="0" value="0">
+                        </div>
+                      </div>
+                      <div style="display:flex; justify-content:flex-end; gap:8px;">
+                        <button type="button" class="oca-btn-cancel-custom oca-btn-sm" onclick="closeLatePenaltyRuleModal()">ยกเลิก</button>
+                        <button type="button" class="oca-btn-primary oca-btn-sm" onclick="saveLatePenaltyRuleFromModal()">บันทึกรายการค่าปรับ</button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -15750,12 +15788,12 @@ body.printing-report #printReportContainer {
                   <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                     <div>
                       <div style="font-size:13.5px; font-weight:700; color:var(--accent-emerald); display:flex; align-items:center; gap:6px;">
-                        <i class="fa-solid fa-table-cells"></i> ตารางจัดหมวดหมู่ส่วนลดคอร์สเรียนแบบกลุ่ม (Course Discount Batch Matrix)
+                        <i class="fa-solid fa-table-cells"></i> ตารางจัดหมวดหมู่ส่วนลด &amp; ค่าปรับลงทะเบียนเกินกำหนด (Course Discount &amp; Late Penalty Matrix)
                       </div>
 
                       <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
 
-                        ติ๊กเลือกหมวดหมู่ส่วนลดให้แต่ละคอร์ส เพื่อใช้อัตราเงินกลางด้านบน (เด็ก ฿<span id="lblFeeMatrixKidsRate" style="color:var(--accent-emerald); font-weight:700;">100</span> / ผู้ใหญ่ ฿<span id="lblFeeMatrixAdultRate" style="color:var(--accent-emerald); font-weight:700;">200</span>) หักส่วนลดอัตโนมัติในเมนูออกใบเสร็จ
+                        ติ๊กเลือกให้แต่ละคอร์สได้ทั้งส่วนลดปกติ (เด็ก ฿<span id="lblFeeMatrixKidsRate" style="color:var(--accent-emerald); font-weight:700;">100</span> / ผู้ใหญ่ ฿<span id="lblFeeMatrixAdultRate" style="color:var(--accent-emerald); font-weight:700;">200</span>) และค่าปรับเกินกำหนด โดยอ้างอิงตามช่วงวัน–เวลาที่กำหนดด้านบนอัตโนมัติ
 
                       </div>
                     </div>
@@ -15767,19 +15805,27 @@ body.printing-report #printReportContainer {
 
                   <!-- Quick Action Buttons -->
                   <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
-                    <button type="button" class="oca-btn-cancel-custom" style="padding:5px 12px; font-size:12px; display:inline-flex; align-items:center; gap:6px; background:rgba(16,185,129,0.15); border-color:rgba(16,185,129,0.4); color:var(--accent-emerald);" onclick="autoAssignDiscountsByPrefix()" title="จัดกลุ่มตาม Prefix: CE, E, OE เป็นเด็ก / อื่นๆ เป็นผู้ใหญ่">
-                      <i class="fa-solid fa-bolt" style="color:var(--accent-gold);"></i> จัดกลุ่มด่วนตาม Prefix (CE, E, OE = เด็ก / C, S = ผู้ใหญ่)
+                    <button type="button" class="oca-btn-cancel-custom oca-btn-sm" onclick="autoAssignDiscountsByPrefix()" title="จัดกลุ่มตามระดับคอร์ส (คอร์สเด็ก / คอร์สผู้ใหญ่)">
+                      <i class="fa-solid fa-bolt" style="color:var(--accent-gold);"></i> จัดกลุ่มตามระดับคอร์ส (Level)
                     </button>
 
-                    <button type="button" class="oca-btn-cancel-custom" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:5px;" onclick="setAllCourseAudience('kids')" title="เลือกหมวดหมู่เด็กทั้งหมด">
+                    <button type="button" class="oca-btn-cancel-custom oca-btn-sm" onclick="setAllCourseAudience('kids')" title="เลือกหมวดหมู่เด็กทั้งหมด">
                       <i class="fa-solid fa-child"></i> เลือกเด็กทั้งหมด
                     </button>
 
-                    <button type="button" class="oca-btn-cancel-custom" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:5px;" onclick="setAllCourseAudience('adult')" title="เลือกหมวดหมู่ผู้ใหญ่ทั้งหมด">
+                    <button type="button" class="oca-btn-cancel-custom oca-btn-sm" onclick="setAllCourseAudience('adult')" title="เลือกหมวดหมู่ผู้ใหญ่ทั้งหมด">
                       <i class="fa-solid fa-user"></i> เลือกผู้ใหญ่ทั้งหมด
                     </button>
 
-                    <button type="button" class="oca-btn-cancel-custom" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:5px;" onclick="resetCourseDiscountMatrix()" title="คืนค่าเดิมก่อนแก้ไข">
+                    <button type="button" class="oca-btn-cancel-custom oca-btn-sm" onclick="autoAssignLatePenaltiesByLevel()" title="ตั้งค่าปรับตามหมวดเด็ก/ผู้ใหญ่">
+                      <i class="fa-solid fa-clock-rotate-left" style="color:#D97706;"></i> ตั้งค่าปรับตามหมวดเด็ก/ผู้ใหญ่
+                    </button>
+
+                    <button type="button" class="oca-btn-cancel-custom oca-btn-sm" onclick="setAllCourseLatePenalty('none')" title="ไม่คิดค่าปรับทุกคอร์ส">
+                      <i class="fa-solid fa-ban" style="color:#DC2626;"></i> ไม่ปรับทั้งหมด
+                    </button>
+
+                    <button type="button" class="oca-btn-cancel-custom oca-btn-sm" onclick="resetCourseDiscountMatrix()" title="คืนค่าเดิมก่อนแก้ไข">
                       <i class="fa-solid fa-rotate-left"></i> คืนค่าเดิม
                     </button>
                   </div>
@@ -15789,27 +15835,28 @@ body.printing-report #printReportContainer {
                     <table id="tableFeeCourseDiscountMatrix" class="oca-table" style="width:100%; border-collapse:collapse; font-size:12.5px; text-align:left;">
                       <thead style="position:sticky; top:0; z-index:2; background:var(--bg-table-header);">
                         <tr style="border-bottom:1px solid rgba(16,185,129,0.25);">
-                          <th style="padding:9px 12px; width:110px; white-space:nowrap; position:sticky; top:0; background:var(--bg-table-header); color:var(--accent-emerald);">รหัสคอร์ส</th>
-                          <th style="padding:9px 12px; min-width:240px; position:sticky; top:0; background:var(--bg-table-header); color:var(--accent-emerald);">ชื่อคอร์สและระดับ</th>
-                          <th style="padding:9px 12px; width:150px; text-align:center; white-space:nowrap; position:sticky; top:0; background:var(--bg-table-header); color:var(--accent-emerald);">
-
-                            👶 คอร์สเด็ก (฿<span id="lblColKidsRate">100</span>)
-
+                          <th style="padding:9px 12px; width:100px; white-space:nowrap; position:sticky; top:0; background:var(--bg-table-header); color:var(--accent-emerald);">รหัสคอร์ส</th>
+                          <th style="padding:9px 12px; min-width:210px; position:sticky; top:0; background:var(--bg-table-header); color:var(--accent-emerald);">ชื่อคอร์สและระดับ</th>
+                          <th style="padding:9px 10px; width:125px; text-align:center; white-space:nowrap; position:sticky; top:0; background:var(--bg-table-header); color:var(--accent-emerald);">
+                            👶 ส่วนลดเด็ก (฿<span id="lblColKidsRate">100</span>)
                           </th>
-
-                          <th style="padding:9px 12px; width:150px; text-align:center; white-space:nowrap; position:sticky; top:0; background:var(--bg-table-header); color:#38bdf8;">
-
-                            🧑 คอร์สผู้ใหญ่ (฿<span id="lblColAdultRate">200</span>)
-
+                          <th style="padding:9px 10px; width:130px; text-align:center; white-space:nowrap; position:sticky; top:0; background:var(--bg-table-header); color:#38bdf8;">
+                            🧑 ส่วนลดผู้ใหญ่ (฿<span id="lblColAdultRate">200</span>)
                           </th>
-
-                          <th style="padding:9px 12px; width:140px; text-align:center; white-space:nowrap; position:sticky; top:0; background:var(--bg-table-header); color:var(--accent-gold);">ส่วนลดที่จะได้รับ</th>
+                          <th style="padding:9px 10px; width:125px; text-align:center; white-space:nowrap; position:sticky; top:0; background:var(--bg-table-header); color:var(--accent-gold);">ส่วนลดที่จะได้รับ</th>
+                          <th style="padding:9px 10px; width:125px; text-align:center; white-space:nowrap; position:sticky; top:0; background:var(--bg-table-header); color:#D97706;">
+                            👶 ค่าปรับเด็ก (฿<span id="lblColPenKidsRate">0</span>)
+                          </th>
+                          <th style="padding:9px 10px; width:130px; text-align:center; white-space:nowrap; position:sticky; top:0; background:var(--bg-table-header); color:#D97706;">
+                            🧑 ค่าปรับผู้ใหญ่ (฿<span id="lblColPenAdultRate">0</span>)
+                          </th>
+                          <th style="padding:9px 10px; width:130px; text-align:center; white-space:nowrap; position:sticky; top:0; background:var(--bg-table-header); color:#D97706;">ค่าปรับที่จะเก็บ</th>
                         </tr>
                       </thead>
 
                       <tbody id="tbodyFeeCourseDiscountMatrix">
                         <tr>
-                          <td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted);">
+                          <td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">
                             <i class="fa-solid fa-spinner fa-spin" style="margin-right:6px; color:var(--accent-emerald);"></i> กำลังโหลดรายการคอร์สเรียน...
                           </td>
                         </tr>
@@ -15823,8 +15870,8 @@ body.printing-report #printReportContainer {
                       <span>กำลังคำนวณจำนวนคอร์ส...</span>
                     </div>
 
-                    <button type="button" class="oca-btn-gold-submit" id="btnSaveFeeCourseDiscountMatrix" onclick="saveFeeCourseDiscountMatrix()" style="padding:7px 18px; font-size:12.5px; display:inline-flex; align-items:center; gap:6px;">
-                      <i class="fa-solid fa-floppy-disk"></i> บันทึกการจับคู่ส่วนลดคอร์สทั้งหมด
+                    <button type="button" class="oca-btn-primary oca-btn-sm" id="btnSaveFeeCourseDiscountMatrix" onclick="saveFeeCourseDiscountMatrix()">
+                      <i class="fa-solid fa-floppy-disk"></i> บันทึกการจับคู่ส่วนลด &amp; ค่าปรับทั้งหมด
                     </button>
                   </div>
                 </div>
@@ -15832,7 +15879,7 @@ body.printing-report #printReportContainer {
             </div>
 
             <!-- [ANCHOR: DYNAMIC_DISCOUNT_RULES_MATRIX] กฎส่วนลดมาตรฐานแยกตามประเภทคอร์ส -->
-            <div id="boxDynamicDiscountRulesMatrix" style="margin-top:16px; background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.28); border-radius:12px; padding:14px 16px;">
+            <div id="boxDynamicDiscountRulesMatrix" hidden style="display:none !important; margin-top:16px; background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.28); border-radius:12px; padding:14px 16px;">
               <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
                 <div>
                   <span style="font-weight:700; font-size:13.5px; color:var(--accent-emerald);"><i class="fa-solid fa-percent" style="margin-right:6px;"></i>ตารางกฎส่วนลดมาตรฐานแยกตามประเภทคอร์ส (Dynamic Discount Rules)</span>
@@ -29160,6 +29207,8 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
               if (localMatrix && typeof localMatrix === 'object') matrixDiscountMap = { ...localMatrix };
             } catch (_) {}
           }
+          const latePenaltyRulesMap = {};
+          const courseLatePenaltyMap = {};
           (fees || []).forEach(f => {
             if (f && f.key && f.name) {
               if (f.key.startsWith('course_audience_')) {
@@ -29171,9 +29220,29 @@ body { margin:0; padding:0; background-color:#e2e8f0; font-family:'Noto Sans Tha
               } else if (f.key.startsWith('course_disc_')) {
                 const cId = f.key.replace('course_disc_', '');
                 courseDiscMap[cId] = (f.amount !== undefined && f.amount !== null) ? Number(f.amount) : Number(f.name);
+              } else if (f.key.startsWith('course_late_penalty_')) {
+                const cId = f.key.replace('course_late_penalty_', '');
+                courseLatePenaltyMap[cId] = f.name;
+              } else if (f.key.startsWith('late_penalty_rule_')) {
+                const rKey = f.key.replace('late_penalty_rule_', '');
+                const parts = String(f.name || '').split('|');
+                latePenaltyRulesMap[rKey] = {
+                  key: rKey,
+                  label: parts[0] || rKey,
+                  kidsAmount: Math.max(0, Number(parts[1] !== undefined ? parts[1] : f.amount || 0)),
+                  adultAmount: Math.max(0, Number(parts[2] !== undefined ? parts[2] : f.amount || 0))
+                };
               }
             }
           });
+          if (Object.keys(latePenaltyRulesMap).length > 0) {
+            window._ocaLatePenaltyRulesMap = latePenaltyRulesMap;
+            try { localStorage.setItem('oca_late_penalty_rules_v1', JSON.stringify(latePenaltyRulesMap)); } catch (_) {}
+          }
+          if (Object.keys(courseLatePenaltyMap).length > 0) {
+            window._feeMatrixPenaltySaved = courseLatePenaltyMap;
+            try { localStorage.setItem('oca_course_late_penalty_map_v1', JSON.stringify(courseLatePenaltyMap)); } catch (_) {}
+          }
           const matrixRow = (fees || []).find(f => f && f.key === 'course_discount_matrix_map');
           if (matrixRow && matrixRow.name && matrixRow.name.startsWith('{')) {
             try {
@@ -38310,8 +38379,12 @@ if (action === 'getDashboardStats') {
         const chkReg = document.getElementById('chkRcptApplyRegFee');
         if (chkReg) { chkReg.checked = true; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('regFee'); }
         // ค่าลงทะเบียนอื่นๆ (หรือค่าปรับลงทะเบียนเกินกำหนดหากเปิดใช้งานอยู่)
+        const selCNewPre = document.getElementById('selRcptCourse');
+        const selValNewPre = selCNewPre ? selCNewPre.value : '';
+        const cObjNewPre = (Array.isArray(receiptCoursesList) ? receiptCoursesList.find(c => c.id === selValNewPre || c.code === selValNewPre || c.name === selValNewPre) : null) ||
+                           (Array.isArray(cachedCoursesList) ? cachedCoursesList.find(c => c.id === selValNewPre || c.code === selValNewPre || c.name === selValNewPre) : null);
         const chkOther = document.getElementById('chkRcptApplyOtherRegFee');
-        const lpNew = (typeof resolveLateRegPenalty === 'function') ? resolveLateRegPenalty() : null;
+        const lpNew = (typeof resolveLateRegPenalty === 'function') ? resolveLateRegPenalty(cObjNewPre) : null;
         if (lpNew && lpNew.active && lpNew.amount > 0) {
           if (chkOther) { chkOther.checked = true; document.getElementById('tileRcptOtherRegFee')?.classList.add('active'); }
           const inpOtherNew = document.getElementById('inpRcptOtherRegFee');
@@ -38371,8 +38444,12 @@ if (action === 'getDashboardStats') {
         const chkReg = document.getElementById('chkRcptApplyRegFee');
         if (chkReg && chkReg.checked) { chkReg.checked = false; if (typeof toggleReceiptFee === 'function') toggleReceiptFee('regFee'); }
         // ค่าลงทะเบียนอื่นๆ (หรือค่าปรับลงทะเบียนเกินกำหนดหากเปิดใช้งานอยู่)
+        const selCRenewPre = document.getElementById('selRcptCourse');
+        const selValRenewPre = selCRenewPre ? selCRenewPre.value : '';
+        const cObjRenewPre = (Array.isArray(receiptCoursesList) ? receiptCoursesList.find(c => c.id === selValRenewPre || c.code === selValRenewPre || c.name === selValRenewPre) : null) ||
+                             (Array.isArray(cachedCoursesList) ? cachedCoursesList.find(c => c.id === selValRenewPre || c.code === selValRenewPre || c.name === selValRenewPre) : null);
         const chkOther = document.getElementById('chkRcptApplyOtherRegFee');
-        const lpRenew = (typeof resolveLateRegPenalty === 'function') ? resolveLateRegPenalty() : null;
+        const lpRenew = (typeof resolveLateRegPenalty === 'function') ? resolveLateRegPenalty(cObjRenewPre) : null;
         if (lpRenew && lpRenew.active && lpRenew.amount > 0) {
           if (chkOther) { chkOther.checked = true; document.getElementById('tileRcptOtherRegFee')?.classList.add('active'); }
           const inpOtherRenew = document.getElementById('inpRcptOtherRegFee');
@@ -42442,28 +42519,61 @@ if (action === 'getDashboardStats') {
       };
     }
     window.resolveCourseDiscount = resolveCourseDiscount;
-    function resolveLateRegPenalty() {
+    function resolveLateRegPenalty(courseObj) {
       const items = (typeof globalFeePresets === 'object' && globalFeePresets && globalFeePresets.items) || {};
       const item = items.lateRegPenalty || (typeof globalFeePresets === 'object' && globalFeePresets ? globalFeePresets.lateRegPenalty : null);
+      const kidsItem = items.lateRegPenaltyKids || (typeof globalFeePresets === 'object' && globalFeePresets ? globalFeePresets.lateRegPenaltyKids : null);
       if (!item || typeof item !== 'object') {
-        return { active: false, amount: 0, mode: 'disabled', label: '' };
+        return { active: false, amount: 0, kidsAmount: 0, adultAmount: 0, mode: 'disabled', label: '' };
       }
       const mode = item.mode || 'disabled';
-      const amt = Math.max(0, Number(item.amount || 0));
-      if (mode === 'disabled' || isNaN(amt) || amt <= 0) {
-        return { active: false, amount: 0, mode: mode, label: '' };
+      const adultAmt = Math.max(0, Number(item.amount || 0));
+      const kidsAmt = Math.max(0, Number((kidsItem && kidsItem.amount !== undefined) ? kidsItem.amount : (item.kidsAmount !== undefined ? item.kidsAmount : adultAmt)));
+      if (mode === 'disabled' || (adultAmt <= 0 && kidsAmt <= 0)) {
+        return { active: false, amount: 0, kidsAmount: kidsAmt, adultAmount: adultAmt, mode: mode, label: '' };
       }
-      if (mode === 'always') {
-        return { active: true, amount: amt, mode: 'always', label: 'ค่าปรับลงทะเบียนเกินกำหนด' };
+      let isActive = true;
+      if (mode !== 'always') {
+        const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(item) : { active: false };
+        isActive = Boolean(st && st.active);
       }
-      const st = (typeof getFeeItemStatus === 'function') ? getFeeItemStatus(item) : { active: false };
+      if (!isActive) {
+        return {
+          active: false,
+          amount: 0,
+          kidsAmount: kidsAmt,
+          adultAmount: adultAmt,
+          mode: mode,
+          startDate: item.startDate || '',
+          endDate: item.endDate || '',
+          label: ''
+        };
+      }
+      let chosenAmt = adultAmt;
+      if (courseObj && typeof courseObj === 'object') {
+        const cId = courseObj.id || courseObj.code || '';
+        const penMap = window._feeMatrixPenaltySaved || (() => {
+          try { return JSON.parse(localStorage.getItem('oca_course_late_penalty_map_v1') || '{}'); } catch (_) { return {}; }
+        })();
+        const pref = penMap[cId] || penMap[courseObj.code] || courseObj.late_penalty_audience;
+        if (pref === 'none') {
+          return { active: false, amount: 0, kidsAmount: kidsAmt, adultAmount: adultAmt, mode: mode, label: '' };
+        }
+        const isKidsTarget = (pref === 'kids') || (!pref && typeof isKidsCourse === 'function' && isKidsCourse(courseObj));
+        chosenAmt = isKidsTarget ? kidsAmt : adultAmt;
+      }
+      if (chosenAmt <= 0) {
+        return { active: false, amount: 0, kidsAmount: kidsAmt, adultAmount: adultAmt, mode: mode, label: '' };
+      }
       return {
-        active: Boolean(st && st.active),
-        amount: Boolean(st && st.active) ? amt : 0,
-        mode: 'period',
+        active: true,
+        amount: chosenAmt,
+        kidsAmount: kidsAmt,
+        adultAmount: adultAmt,
+        mode: mode,
         startDate: item.startDate || '',
         endDate: item.endDate || '',
-        label: Boolean(st && st.active) ? 'ค่าปรับลงทะเบียนเกินกำหนด' : ''
+        label: 'ค่าปรับลงทะเบียนเกินกำหนด'
       };
     }
     window.resolveLateRegPenalty = resolveLateRegPenalty;
@@ -42537,7 +42647,11 @@ if (action === 'getDashboardStats') {
           rawAmount = defaultFallback[k];
         }
         if (k === 'otherRegFee') {
-          const lp = (typeof resolveLateRegPenalty === 'function') ? resolveLateRegPenalty() : null;
+          const selCLp = document.getElementById('selRcptCourse');
+          const cIdLp = selCLp ? selCLp.value : '';
+          const cObjLp = (Array.isArray(receiptCoursesList) ? receiptCoursesList.find(c => c.id === cIdLp || c.code === cIdLp) : null) ||
+                         (window.cachedCoursesList && Array.isArray(window.cachedCoursesList) ? window.cachedCoursesList.find(c => c.id === cIdLp || c.code === cIdLp) : null);
+          const lp = (typeof resolveLateRegPenalty === 'function') ? resolveLateRegPenalty(cObjLp) : null;
           if (lp && lp.active && lp.amount > 0 && rawAmount === 0) {
             rawAmount = lp.amount;
             item = { amount: lp.amount, mode: lp.mode || 'always', startDate: lp.startDate || '', endDate: lp.endDate || '' };
@@ -42737,6 +42851,26 @@ if (action === 'getDashboardStats') {
         normalizedItems.discountNormal.kidsAmount = kidsAmt;
         normalizedItems.discountNormal.adultAmount = normalizedItems.discountNormal.amount;
       }
+      const inpLatePenaltyKids = document.getElementById('cfgGeneralLateRegPenaltyKids');
+      let latePenKidsAmt = 0;
+      if (rawItems.lateRegPenaltyKids && rawItems.lateRegPenaltyKids.amount !== undefined && rawItems.lateRegPenaltyKids.amount !== null && rawItems.lateRegPenaltyKids.amount !== '') {
+        latePenKidsAmt = Number(rawItems.lateRegPenaltyKids.amount);
+      } else if (rawItems.lateRegPenalty && rawItems.lateRegPenalty.kidsAmount !== undefined && rawItems.lateRegPenalty.kidsAmount !== null && rawItems.lateRegPenalty.kidsAmount !== '') {
+        latePenKidsAmt = Number(rawItems.lateRegPenalty.kidsAmount);
+      }
+      latePenKidsAmt = (!isNaN(latePenKidsAmt) && latePenKidsAmt >= 0) ? latePenKidsAmt : 0;
+      if (inpLatePenaltyKids) inpLatePenaltyKids.value = latePenKidsAmt;
+      if (normalizedItems.lateRegPenalty) {
+        normalizedItems.lateRegPenalty.kidsAmount = latePenKidsAmt;
+        normalizedItems.lateRegPenaltyKids = {
+          amount: latePenKidsAmt,
+          mode: normalizedItems.lateRegPenalty.mode,
+          startDate: normalizedItems.lateRegPenalty.startDate,
+          endDate: normalizedItems.lateRegPenalty.endDate
+        };
+      }
+      if (typeof renderLatePenaltyCustomRules === 'function') renderLatePenaltyCustomRules();
+      if (typeof updateFeeMatrixRateBadges === 'function') updateFeeMatrixRateBadges();
       const discRuleSpec = [
         { key: 'disc_rule_adult5', inpId: 'inpDiscRuleAdult5', def: 200 },
         { key: 'disc_rule_adult3', inpId: 'inpDiscRuleAdult3', def: 100 },
@@ -43110,6 +43244,18 @@ if (action === 'getDashboardStats') {
         items.discountNormal.kidsAmount = kidsSaveAmt;
         items.discountNormal.adultAmount = items.discountNormal.amount;
       }
+      const inpSaveLatePenKids = document.getElementById('cfgGeneralLateRegPenaltyKids');
+      const latePenKidsStr = inpSaveLatePenKids ? inpSaveLatePenKids.value.trim() : '';
+      const latePenKidsAmt = (latePenKidsStr !== '' && !isNaN(Number(latePenKidsStr)) && Number(latePenKidsStr) >= 0) ? Number(latePenKidsStr) : 0;
+      if (items.lateRegPenalty) {
+        items.lateRegPenalty.kidsAmount = latePenKidsAmt;
+        items.lateRegPenaltyKids = {
+          amount: latePenKidsAmt,
+          mode: items.lateRegPenalty.mode,
+          startDate: items.lateRegPenalty.startDate,
+          endDate: items.lateRegPenalty.endDate
+        };
+      }
       const discRuleSaveSpec = [
         { key: 'disc_rule_adult5', inpId: 'inpDiscRuleAdult5', def: 200 },
         { key: 'disc_rule_adult3', inpId: 'inpDiscRuleAdult3', def: 100 },
@@ -43201,25 +43347,167 @@ if (action === 'getDashboardStats') {
         });
     }
     // =========================================================================
-    // COURSE DISCOUNT BATCH ASSIGNMENT MATRIX (FEE SETTINGS CARD 4)
+    // COURSE DISCOUNT & LATE PENALTY BATCH MATRIX + CUSTOM RULES CRUD (v305)
     // =========================================================================
     window._feeMatrixDraft = {};
+    window._feeMatrixPenaltyDraft = {};
+    window._feeMatrixPenaltySaved = window._feeMatrixPenaltySaved || (() => {
+      try { return JSON.parse(localStorage.getItem('oca_course_late_penalty_map_v1') || '{}'); } catch (_) { return {}; }
+    })();
+    window._ocaLatePenaltyRulesMap = window._ocaLatePenaltyRulesMap || (() => {
+      try { return JSON.parse(localStorage.getItem('oca_late_penalty_rules_v1') || '{}'); } catch (_) { return {}; }
+    })();
+    function renderLatePenaltyCustomRules() {
+      const box = document.getElementById('boxLatePenaltyCustomRules');
+      if (!box) return;
+      const items = Object.values(window._ocaLatePenaltyRulesMap || {});
+      if (items.length === 0) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+      }
+      box.style.display = 'flex';
+      box.innerHTML = '<span style="font-size:12px; font-weight:700; color:#D97706;">รายการค่าปรับเพิ่มเติม:</span>' + items.map(it => {
+        const k = escapeHtml(it.key);
+        return (
+          '<div style="background:var(--bg-subcard); border:1px solid rgba(245,158,11,0.35); border-radius:10px; padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:8px;">' +
+          '  <span>' + escapeHtml(it.label) + ' (เด็ก <strong style="color:#D97706;">฿' + toArabicDigits(Number(it.kidsAmount || 0)) + '</strong> / ผู้ใหญ่ <strong style="color:#D97706;">฿' + toArabicDigits(Number(it.adultAmount || 0)) + '</strong>)</span>' +
+          '  <button type="button" onclick="openLatePenaltyRuleModal(\'' + k + '\')" title="แก้ไข" style="background:none; border:none; color:#0284C7; cursor:pointer; font-size:11.5px; padding:2px 4px;"><i class="fa-solid fa-pen"></i></button>' +
+          '  <button type="button" onclick="deleteLatePenaltyRule(\'' + k + '\')" title="ลบ" style="background:none; border:none; color:#DC2626; cursor:pointer; font-size:11.5px; padding:2px 4px;"><i class="fa-solid fa-trash-can"></i></button>' +
+          '</div>'
+        );
+      }).join('');
+    }
+    window.renderLatePenaltyCustomRules = renderLatePenaltyCustomRules;
+    function openLatePenaltyRuleModal(editKey) {
+      const modal = document.getElementById('modalLatePenaltyRule');
+      const inpKey = document.getElementById('inpLatePenRuleKey');
+      const inpName = document.getElementById('inpLatePenRuleName');
+      const inpKids = document.getElementById('inpLatePenRuleKids');
+      const inpAdult = document.getElementById('inpLatePenRuleAdult');
+      const title = document.getElementById('titleLatePenaltyRuleModal');
+      if (!modal) return;
+      if (editKey && window._ocaLatePenaltyRulesMap && window._ocaLatePenaltyRulesMap[editKey]) {
+        const it = window._ocaLatePenaltyRulesMap[editKey];
+        if (inpKey) inpKey.value = editKey;
+        if (inpName) inpName.value = it.label || '';
+        if (inpKids) inpKids.value = Number(it.kidsAmount || 0);
+        if (inpAdult) inpAdult.value = Number(it.adultAmount || 0);
+        if (title) title.textContent = 'แก้ไขรายการค่าปรับลงทะเบียนเกินกำหนด';
+      } else {
+        if (inpKey) inpKey.value = '';
+        if (inpName) inpName.value = '';
+        if (inpKids) inpKids.value = 0;
+        if (inpAdult) inpAdult.value = 0;
+        if (title) title.textContent = 'เพิ่มรายการค่าปรับลงทะเบียนเกินกำหนด';
+      }
+      modal.style.display = 'flex';
+    }
+    window.openLatePenaltyRuleModal = openLatePenaltyRuleModal;
+    function closeLatePenaltyRuleModal() {
+      const modal = document.getElementById('modalLatePenaltyRule');
+      if (modal) modal.style.display = 'none';
+    }
+    window.closeLatePenaltyRuleModal = closeLatePenaltyRuleModal;
+    async function saveLatePenaltyRuleFromModal() {
+      const existingKey = (document.getElementById('inpLatePenRuleKey')?.value || '').trim();
+      const label = (document.getElementById('inpLatePenRuleName')?.value || '').trim().replace(/\|/g, ' ');
+      const kidsAmt = Math.max(0, Number(document.getElementById('inpLatePenRuleKids')?.value || 0));
+      const adultAmt = Math.max(0, Number(document.getElementById('inpLatePenRuleAdult')?.value || 0));
+      if (!label) {
+        if (typeof toast === 'function') toast('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อรายการค่าปรับ', 'warning');
+        return;
+      }
+      const ruleKey = existingKey || String(Date.now());
+      const rowPayload = {
+        key: `late_penalty_rule_${ruleKey}`.slice(0, 90),
+        name: `${label}|${kidsAmt}|${adultAmt}`.slice(0, 90),
+        amount: adultAmt,
+        mode: 'always',
+        start_date: null,
+        end_date: null,
+        updated_at: new Date().toISOString()
+      };
+      try {
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          const { error } = await _supabase.from('fee_settings').upsert([rowPayload], { onConflict: 'key' });
+          if (error) throw error;
+          if (typeof broadcastOcaDataSync === 'function') broadcastOcaDataSync('fee_settings', 'UPDATE', rowPayload);
+        }
+        window._ocaLatePenaltyRulesMap = window._ocaLatePenaltyRulesMap || {};
+        window._ocaLatePenaltyRulesMap[ruleKey] = { key: ruleKey, label, kidsAmount: kidsAmt, adultAmount: adultAmt };
+        try { localStorage.setItem('oca_late_penalty_rules_v1', JSON.stringify(window._ocaLatePenaltyRulesMap)); } catch (_) {}
+        closeLatePenaltyRuleModal();
+        renderLatePenaltyCustomRules();
+        if (typeof toast === 'function') toast('บันทึกสำเร็จ', `บันทึกรายการค่าปรับ "${label}" แล้ว`, '✓');
+      } catch (err) {
+        console.error('[LatePenaltyRule] Save error:', err);
+        if (typeof showModal === 'function') showModal('ข้อผิดพลาด', 'ไม่สามารถบันทึกรายการค่าปรับได้: ' + (err.message || ''), '❌');
+      }
+    }
+    window.saveLatePenaltyRuleFromModal = saveLatePenaltyRuleFromModal;
+    async function deleteLatePenaltyRule(ruleKey) {
+      if (!ruleKey) return;
+      const it = (window._ocaLatePenaltyRulesMap && window._ocaLatePenaltyRulesMap[ruleKey]) || {};
+      const ok = (typeof showConfirmModal === 'function')
+        ? await showConfirmModal('ยืนยันการลบรายการค่าปรับ', `ต้องการลบรายการค่าปรับ "${it.label || ruleKey}" ใช่หรือไม่?`)
+        : true;
+      if (!ok) return;
+      try {
+        const dbKey = `late_penalty_rule_${ruleKey}`;
+        if (typeof _supabase !== 'undefined' && _supabase) {
+          const { error } = await _supabase.from('fee_settings').delete().eq('key', dbKey);
+          if (error) throw error;
+          if (typeof broadcastOcaDataSync === 'function') broadcastOcaDataSync('fee_settings', 'DELETE', { key: dbKey });
+        }
+        if (window._ocaLatePenaltyRulesMap) delete window._ocaLatePenaltyRulesMap[ruleKey];
+        try { localStorage.setItem('oca_late_penalty_rules_v1', JSON.stringify(window._ocaLatePenaltyRulesMap || {})); } catch (_) {}
+        renderLatePenaltyCustomRules();
+        if (typeof toast === 'function') toast('ลบสำเร็จ', 'ลบรายการค่าปรับเรียบร้อยแล้ว', '✓');
+      } catch (err) {
+        console.error('[LatePenaltyRule] Delete error:', err);
+        if (typeof showModal === 'function') showModal('ข้อผิดพลาด', 'ไม่สามารถลบรายการค่าปรับได้: ' + (err.message || ''), '❌');
+      }
+    }
+    window.deleteLatePenaltyRule = deleteLatePenaltyRule;
+    function getUiFeeTimeState(feeKey) {
+      const mode = document.getElementById(`cfgMode_${feeKey}`)?.value || (feeKey === 'lateRegPenalty' ? 'disabled' : 'always');
+      const start = document.getElementById(`cfgStart_${feeKey}`)?.value || '';
+      const end = document.getElementById(`cfgEnd_${feeKey}`)?.value || '';
+      if (mode === 'disabled') return { active: false, reason: 'ปิดใช้งาน' };
+      if (mode === 'always') return { active: true, reason: 'ใช้ตลอดไป' };
+      if (typeof getFeeItemStatus === 'function') {
+        const st = getFeeItemStatus({ mode, startDate: start, endDate: end });
+        return { active: Boolean(st && st.active), reason: (st && st.active) ? 'อยู่ในช่วงเวลา' : 'นอกช่วงเวลา' };
+      }
+      return { active: true, reason: 'อยู่ในช่วงเวลา' };
+    }
     function updateFeeMatrixRateBadges() {
       const inpKids = document.getElementById('cfgGeneralDiscountKids');
       const inpAdult = document.getElementById('cfgGeneralDiscountNormal');
       const kidsRate = (inpKids && !isNaN(Number(inpKids.value)) && Number(inpKids.value) >= 0) ? Number(inpKids.value) : 100;
       const adultRate = (inpAdult && !isNaN(Number(inpAdult.value)) && Number(inpAdult.value) >= 0) ? Number(inpAdult.value) : 200;
+      const inpPenKids = document.getElementById('cfgGeneralLateRegPenaltyKids');
+      const inpPenAdult = document.getElementById('cfgGeneralLateRegPenalty');
+      const penKidsRate = (inpPenKids && !isNaN(Number(inpPenKids.value)) && Number(inpPenKids.value) >= 0) ? Number(inpPenKids.value) : 0;
+      const penAdultRate = (inpPenAdult && !isNaN(Number(inpPenAdult.value)) && Number(inpPenAdult.value) >= 0) ? Number(inpPenAdult.value) : 0;
       const elKids1 = document.getElementById('lblFeeMatrixKidsRate');
       const elAdult1 = document.getElementById('lblFeeMatrixAdultRate');
       const elKids2 = document.getElementById('lblColKidsRate');
       const elAdult2 = document.getElementById('lblColAdultRate');
+      const elPenK = document.getElementById('lblColPenKidsRate');
+      const elPenA = document.getElementById('lblColPenAdultRate');
       if (elKids1) elKids1.textContent = toArabicDigits(kidsRate);
       if (elAdult1) elAdult1.textContent = toArabicDigits(adultRate);
       if (elKids2) elKids2.textContent = toArabicDigits(kidsRate);
       if (elAdult2) elAdult2.textContent = toArabicDigits(adultRate);
+      if (elPenK) elPenK.textContent = toArabicDigits(penKidsRate);
+      if (elPenA) elPenA.textContent = toArabicDigits(penAdultRate);
       if (Array.isArray(cachedCoursesList)) {
         cachedCoursesList.forEach(c => {
-          updateFeeMatrixRowDiscountDisplay(c.id || c.code);
+          const cid = c.id || c.code;
+          updateFeeMatrixRowDiscountDisplay(cid);
+          updateFeeMatrixRowPenaltyDisplay(cid);
         });
       }
     }
@@ -43237,16 +43525,105 @@ if (action === 'getDashboardStats') {
       const inpAdult = document.getElementById('cfgGeneralDiscountNormal');
       const kidsRate = (inpKids && !isNaN(Number(inpKids.value)) && Number(inpKids.value) >= 0) ? Number(inpKids.value) : 100;
       const adultRate = (inpAdult && !isNaN(Number(inpAdult.value)) && Number(inpAdult.value) >= 0) ? Number(inpAdult.value) : 200;
-      if (customDisc !== null) {
-        cell.innerHTML = `<span style="color:var(--accent-gold); font-weight:700;">฿${toArabicDigits(customDisc.toLocaleString('en-US'))}</span> <span style="font-size:10.5px; color:var(--text-muted);">(กำหนดเอง)</span>`;
+      const discTime = getUiFeeTimeState('discountNormal');
+      const timeTag = `<div style="font-size:10px; color:var(--text-muted); font-weight:500;">${discTime.reason}</div>`;
+      if (!discTime.active) {
+        cell.innerHTML = `<span style="color:var(--text-muted); font-size:11.5px;">฿0</span>${timeTag}`;
+      } else if (customDisc !== null) {
+        cell.innerHTML = `<span style="color:var(--accent-gold); font-weight:700;">฿${toArabicDigits(customDisc.toLocaleString('en-US'))}</span> <span style="font-size:10.5px; color:var(--text-muted);">(กำหนดเอง)</span>${timeTag}`;
       } else if (chkKids && chkKids.checked) {
-        cell.innerHTML = `<span style="color:var(--accent-emerald); font-weight:700;">฿${toArabicDigits(kidsRate.toLocaleString('en-US'))}</span>`;
+        cell.innerHTML = `<span style="color:var(--accent-emerald); font-weight:700;">฿${toArabicDigits(kidsRate.toLocaleString('en-US'))}</span>${timeTag}`;
       } else if (chkAdult && chkAdult.checked) {
-        cell.innerHTML = `<span style="color:#38bdf8; font-weight:700;">฿${toArabicDigits(adultRate.toLocaleString('en-US'))}</span>`;
+        cell.innerHTML = `<span style="color:#38bdf8; font-weight:700;">฿${toArabicDigits(adultRate.toLocaleString('en-US'))}</span>${timeTag}`;
       } else {
         cell.innerHTML = `<span style="color:var(--text-muted); font-size:11.5px;">- ไม่มีส่วนลด -</span>`;
       }
     }
+    function updateFeeMatrixRowPenaltyDisplay(cId) {
+      const cell = document.getElementById(`cellFeeMatrixPen_${cId}`);
+      if (!cell) return;
+      const chkKids = document.getElementById(`chkFeePenalty_kids_${cId}`);
+      const chkAdult = document.getElementById(`chkFeePenalty_adult_${cId}`);
+      const inpPenKids = document.getElementById('cfgGeneralLateRegPenaltyKids');
+      const inpPenAdult = document.getElementById('cfgGeneralLateRegPenalty');
+      const penKidsRate = (inpPenKids && !isNaN(Number(inpPenKids.value)) && Number(inpPenKids.value) >= 0) ? Number(inpPenKids.value) : 0;
+      const penAdultRate = (inpPenAdult && !isNaN(Number(inpPenAdult.value)) && Number(inpPenAdult.value) >= 0) ? Number(inpPenAdult.value) : 0;
+      const penTime = getUiFeeTimeState('lateRegPenalty');
+      const timeTag = `<div style="font-size:10px; color:var(--text-muted); font-weight:500;">${penTime.reason}</div>`;
+      if ((!chkKids || !chkKids.checked) && (!chkAdult || !chkAdult.checked)) {
+        cell.innerHTML = `<span style="color:var(--text-muted); font-size:11.5px;">ไม่คิดค่าปรับ</span>`;
+        return;
+      }
+      if (!penTime.active) {
+        cell.innerHTML = `<span style="color:var(--text-muted); font-size:11.5px;">฿0</span>${timeTag}`;
+        return;
+      }
+      const amt = (chkKids && chkKids.checked) ? penKidsRate : penAdultRate;
+      if (amt <= 0) {
+        cell.innerHTML = `<span style="color:var(--text-muted); font-size:11.5px;">฿0</span>${timeTag}`;
+      } else {
+        cell.innerHTML = `<span style="color:#D97706; font-weight:700;">+฿${toArabicDigits(amt.toLocaleString('en-US'))}</span>${timeTag}`;
+      }
+    }
+    function toggleFeeCourseLatePenalty(cId, group) {
+      const chkKids = document.getElementById(`chkFeePenalty_kids_${cId}`);
+      const chkAdult = document.getElementById(`chkFeePenalty_adult_${cId}`);
+      if (!chkKids || !chkAdult) return;
+      if (group === 'kids') {
+        if (chkKids.checked) {
+          chkAdult.checked = false;
+          window._feeMatrixPenaltyDraft[cId] = 'kids';
+        } else {
+          window._feeMatrixPenaltyDraft[cId] = 'none';
+        }
+      } else if (group === 'adult') {
+        if (chkAdult.checked) {
+          chkKids.checked = false;
+          window._feeMatrixPenaltyDraft[cId] = 'adult';
+        } else {
+          window._feeMatrixPenaltyDraft[cId] = 'none';
+        }
+      }
+      updateFeeMatrixRowPenaltyDisplay(cId);
+      updateFeeCourseMatrixSummary();
+    }
+    window.toggleFeeCourseLatePenalty = toggleFeeCourseLatePenalty;
+    function autoAssignLatePenaltiesByLevel() {
+      const courses = Array.isArray(cachedCoursesList) ? cachedCoursesList : [];
+      if (courses.length === 0) return;
+      let kCount = 0;
+      let aCount = 0;
+      courses.forEach(c => {
+        const cId = c.id || c.code;
+        const isK = (typeof isKidsCourse === 'function') && isKidsCourse(c);
+        const grp = isK ? 'kids' : 'adult';
+        window._feeMatrixPenaltyDraft[cId] = grp;
+        const chkK = document.getElementById(`chkFeePenalty_kids_${cId}`);
+        const chkA = document.getElementById(`chkFeePenalty_adult_${cId}`);
+        if (chkK) chkK.checked = isK;
+        if (chkA) chkA.checked = !isK;
+        if (isK) kCount++; else aCount++;
+        updateFeeMatrixRowPenaltyDisplay(cId);
+      });
+      updateFeeCourseMatrixSummary();
+      if (typeof toast === 'function') toast('ตั้งค่าปรับตามหมวดสำเร็จ', `เด็ก ${toArabicDigits(kCount)} คอร์ส / ผู้ใหญ่ ${toArabicDigits(aCount)} คอร์ส (กดบันทึกเพื่อยืนยัน)`, '✓');
+    }
+    window.autoAssignLatePenaltiesByLevel = autoAssignLatePenaltiesByLevel;
+    function setAllCourseLatePenalty(grp) {
+      const courses = Array.isArray(cachedCoursesList) ? cachedCoursesList : [];
+      if (courses.length === 0) return;
+      courses.forEach(c => {
+        const cId = c.id || c.code;
+        window._feeMatrixPenaltyDraft[cId] = grp;
+        const chkK = document.getElementById(`chkFeePenalty_kids_${cId}`);
+        const chkA = document.getElementById(`chkFeePenalty_adult_${cId}`);
+        if (chkK) chkK.checked = (grp === 'kids');
+        if (chkA) chkA.checked = (grp === 'adult');
+        updateFeeMatrixRowPenaltyDisplay(cId);
+      });
+      updateFeeCourseMatrixSummary();
+    }
+    window.setAllCourseLatePenalty = setAllCourseLatePenalty;
     function updateFeeCourseMatrixSummary() {
       const lbl = document.getElementById('lblFeeMatrixSummary');
       if (!lbl) return;
@@ -43343,9 +43720,17 @@ if (action === 'getDashboardStats') {
         }
         const isKids = targetAud === 'kids';
         const isAdult = targetAud === 'adult';
-        const customDisc = (c.custom_discount_normal !== undefined && c.custom_discount_normal !== null && c.custom_discount_normal !== '')
-          ? Number(c.custom_discount_normal)
-          : null;
+        let penPref = window._feeMatrixPenaltyDraft[cId];
+        if (penPref === undefined) {
+          penPref = (window._feeMatrixPenaltySaved && (window._feeMatrixPenaltySaved[cId] || window._feeMatrixPenaltySaved[c.code])) || (isKids ? 'kids' : 'adult');
+        }
+        const isPenKids = penPref === 'kids';
+        const isPenAdult = penPref === 'adult';
+        const customDisc = (course_custom_val => course_custom_val)(
+          (c.custom_discount_normal !== undefined && c.custom_discount_normal !== null && c.custom_discount_normal !== '')
+            ? Number(c.custom_discount_normal)
+            : null
+        );
         const customBadge = customDisc !== null
           ? `<span style="font-size:10px; background:rgba(234,179,8,0.18); border:1px solid rgba(180,83,9,0.4); color:#0F172A; padding:1px 6px; border-radius:4px;"><i class="fa-solid fa-star" style="margin-right:3px;"></i>ส่วนลดกำหนดเอง ฿${toArabicDigits(customDisc)}</span>`
           : '';
@@ -43375,14 +43760,31 @@ if (action === 'getDashboardStats') {
               </label>
             </td>
 
-            <td style="padding:8px 12px; text-align:center; font-weight:600;" id="cellFeeMatrixDisc_${cId}">
+            <td style="padding:8px 10px; text-align:center; font-weight:600;" id="cellFeeMatrixDisc_${cId}">
+            </td>
+
+            <td style="padding:8px 10px; text-align:center;">
+              <label style="display:inline-flex; align-items:center; justify-content:center; cursor:pointer; width:100%; height:100%;">
+                <input type="checkbox" id="chkFeePenalty_kids_${cId}" class="oca-matrix-chk" data-cid="${cId}" data-pen="kids" ${isPenKids ? 'checked' : ''} onchange="toggleFeeCourseLatePenalty('${cId}', 'kids')" style="width:18px; height:18px; cursor:pointer; accent-color:#D97706;">
+              </label>
+            </td>
+
+            <td style="padding:8px 10px; text-align:center;">
+              <label style="display:inline-flex; align-items:center; justify-content:center; cursor:pointer; width:100%; height:100%;">
+                <input type="checkbox" id="chkFeePenalty_adult_${cId}" class="oca-matrix-chk" data-cid="${cId}" data-pen="adult" ${isPenAdult ? 'checked' : ''} onchange="toggleFeeCourseLatePenalty('${cId}', 'adult')" style="width:18px; height:18px; cursor:pointer; accent-color:#DC2626;">
+              </label>
+            </td>
+
+            <td style="padding:8px 10px; text-align:center; font-weight:600;" id="cellFeeMatrixPen_${cId}">
             </td>
           </tr>
 
         `;
       }).join('');
       filtered.forEach(c => {
-        updateFeeMatrixRowDiscountDisplay(c.id || c.code);
+        const cid = c.id || c.code;
+        updateFeeMatrixRowDiscountDisplay(cid);
+        updateFeeMatrixRowPenaltyDisplay(cid);
       });
       updateFeeCourseMatrixSummary();
     }
@@ -43443,6 +43845,7 @@ if (action === 'getDashboardStats') {
     window.setAllCourseAudience = setAllCourseAudience;
     function resetCourseDiscountMatrix() {
       window._feeMatrixDraft = {};
+      window._feeMatrixPenaltyDraft = {};
       renderFeeCourseDiscountMatrix(document.getElementById('inpFeeMatrixSearch')?.value || '');
       toast('คืนค่าเดิมเรียบร้อย', 'ย้อนกลับไปใช้ค่าก่อนแก้ไขเรียบร้อยแล้ว', 'info');
     }
@@ -43483,26 +43886,50 @@ if (action === 'getDashboardStats') {
       }
       try {
         const matrixMap = {};
+        const penaltyMap = { ...(window._feeMatrixPenaltySaved || {}) };
         (cachedCoursesList || []).forEach(c => {
           const cId = c.id || c.code;
           if (cId) matrixMap[cId] = c.target_audience || (c.is_kids ? 'kids' : 'adult');
+          let penChoice = window._feeMatrixPenaltyDraft[cId];
+          if (penChoice === undefined) {
+            const chkPK = document.getElementById(`chkFeePenalty_kids_${cId}`);
+            const chkPA = document.getElementById(`chkFeePenalty_adult_${cId}`);
+            if (chkPK && chkPK.checked) penChoice = 'kids';
+            else if (chkPA && chkPA.checked) penChoice = 'adult';
+            else if (chkPK || chkPA) penChoice = 'none';
+            else penChoice = penaltyMap[cId] || ((typeof isKidsCourse === 'function' && isKidsCourse(c)) ? 'kids' : 'adult');
+          }
+          if (cId) penaltyMap[cId] = penChoice;
+          if (c.code) penaltyMap[c.code] = penChoice;
+          c.late_penalty_audience = penChoice;
         });
+        window._feeMatrixPenaltySaved = penaltyMap;
+        window._feeMatrixPenaltyDraft = {};
         updates.forEach(u => {
           if (u.id) matrixMap[u.id] = u.target_audience;
           if (u.code) matrixMap[u.code] = u.target_audience;
         });
         try {
           localStorage.setItem('oca_course_discount_matrix_map', JSON.stringify(matrixMap));
+          localStorage.setItem('oca_course_late_penalty_map_v1', JSON.stringify(penaltyMap));
         } catch (_) {}
         if (typeof _supabase !== 'undefined' && _supabase) {
           try {
             const audienceUpserts = [];
             updates.forEach(u => {
               const audName = String(u.target_audience || 'kids').slice(0, 20);
+              const penName = String(penaltyMap[u.id] || penaltyMap[u.code] || 'none').slice(0, 20);
               if (u.id) {
                 audienceUpserts.push({
                   key: `course_audience_${u.id}`.slice(0, 90),
                   name: audName,
+                  amount: 0,
+                  mode: 'always',
+                  updated_at: new Date().toISOString()
+                });
+                audienceUpserts.push({
+                  key: `course_late_penalty_${u.id}`.slice(0, 90),
+                  name: penName,
                   amount: 0,
                   mode: 'always',
                   updated_at: new Date().toISOString()
@@ -43512,6 +43939,13 @@ if (action === 'getDashboardStats') {
                 audienceUpserts.push({
                   key: `course_audience_${u.code}`.slice(0, 90),
                   name: audName,
+                  amount: 0,
+                  mode: 'always',
+                  updated_at: new Date().toISOString()
+                });
+                audienceUpserts.push({
+                  key: `course_late_penalty_${u.code}`.slice(0, 90),
+                  name: penName,
                   amount: 0,
                   mode: 'always',
                   updated_at: new Date().toISOString()
@@ -79976,6 +80410,36 @@ function openPublicRegisterView() {
         "ส่วนลดปกติ (แยกเด็ก / ผู้ใหญ่) ใช้กำหนดส่วนลดอัตโนมัติของแต่ละคอร์ส ส่วน": "常规折扣（区分少儿 / 成人）用于设定每门课程的自动折扣，而",
         "สามารถกำหนดยอดและช่วงวันเริ่มต้น–สิ้นสุดได้เองในกล่องค่าปรับด้านล่างอย่างอิสระ — อย่าลืมกดปุ่มบันทึกเมื่อแก้ไขเสร็จ": "可在下方罚款设置框中自由设定金额及起止日期——修改完成后请记得点击保存按钮",
         "ค่าปรับลงทะเบียนเกินกำหนด (กำหนดเอง)": "逾期报名罚款（自定义）",
+        "ค่าปรับลงทะเบียนเกินกำหนด (กำหนดเอง — แยกเด็ก / ผู้ใหญ่)": "逾期报名罚款（自定义 — 区分少儿/成人）",
+        "เพิ่มรายการค่าปรับ": "添加罚款项目",
+        "ค่าปรับคอร์สเด็ก (฿)": "少儿课程罚款（泰铢）",
+        "ดึงเข้าใบเสร็จอัตโนมัติสำหรับคอร์สเด็ก": "少儿课程自动计入收据",
+        "ค่าปรับคอร์สผู้ใหญ่ (฿)": "成人课程罚款（泰铢）",
+        "ดึงเข้าใบเสร็จอัตโนมัติสำหรับคอร์สผู้ใหญ่": "成人课程自动计入收据",
+        "เพิ่มรายการค่าปรับลงทะเบียนเกินกำหนด": "添加逾期报名罚款项目",
+        "ชื่อรายการค่าปรับ *": "罚款项目名称 *",
+        "เช่น ปรับล่าช้าเกิน 7 วัน หรือ คอร์สพิเศษ HSK": "例如：逾期超过7天罚款或HSK专项课程",
+        "👶 ค่าปรับเด็ก (฿)": "👶 少儿罚款（泰铢）",
+        "🧑 ค่าปรับผู้ใหญ่ (฿)": "🧑 成人罚款（泰铢）",
+        "บันทึกรายการค่าปรับ": "保存罚款项目",
+        "ตารางจัดหมวดหมู่ส่วนลด & ค่าปรับลงทะเบียนเกินกำหนด (Course Discount & Late Penalty Matrix)": "课程折扣与逾期罚款批量归类矩阵",
+        "ติ๊กเลือกให้แต่ละคอร์สได้ทั้งส่วนลดปกติ (เด็ก ฿": "可为每门课程同时勾选常规折扣（少儿 泰铢",
+        ") และค่าปรับเกินกำหนด โดยอ้างอิงตามช่วงวัน–เวลาที่กำหนดด้านบนอัตโนมัติ": "）及逾期罚款，系统将自动依据上方设定的日期时间范围计算",
+        "จัดกลุ่มตามระดับคอร์ส (คอร์สเด็ก / คอร์สผู้ใหญ่)": "按课程级别分组（少儿课程/成人课程）",
+        "จัดกลุ่มตามระดับคอร์ส (Level)": "按课程级别分组",
+        "ตั้งค่าปรับตามหมวดเด็ก/ผู้ใหญ่": "按少儿/成人分类设置罚款",
+        "ไม่คิดค่าปรับทุกคอร์ส": "所有课程均不收取罚款",
+        "ไม่ปรับทั้งหมด": "全部不罚款",
+        "👶 ส่วนลดเด็ก (฿": "👶 少儿折扣（泰铢",
+        "🧑 ส่วนลดผู้ใหญ่ (฿": "🧑 成人折扣（泰铢",
+        "👶 ค่าปรับเด็ก (฿": "👶 少儿罚款（泰铢",
+        "🧑 ค่าปรับผู้ใหญ่ (฿": "🧑 成人罚款（泰铢",
+        "ส่วนลดเด็ก": "少儿折扣",
+        "ส่วนลดผู้ใหญ่": "成人折扣",
+        "ค่าปรับเด็ก": "少儿罚款",
+        "ค่าปรับผู้ใหญ่": "成人罚款",
+        "ค่าปรับที่จะเก็บ": "应收罚款",
+        "บันทึกการจับคู่ส่วนลด & ค่าปรับทั้งหมด": "保存全部折扣与罚款匹配",
         "ปิดใช้งาน": "已停用",
         "ยอดค่าปรับลงทะเบียนเกินกำหนด (฿)": "逾期报名罚款金额（泰铢）",
         "เช่น 100 หรือ 200": "例如 100 或 200",
@@ -82691,6 +83155,36 @@ function openPublicRegisterView() {
         "ส่วนลดปกติ (แยกเด็ก / ผู้ใหญ่) ใช้กำหนดส่วนลดอัตโนมัติของแต่ละคอร์ส ส่วน": "Standard Discounts (Kids / Adults) configure automatic course discounts, while",
         "สามารถกำหนดยอดและช่วงวันเริ่มต้น–สิ้นสุดได้เองในกล่องค่าปรับด้านล่างอย่างอิสระ — อย่าลืมกดปุ่มบันทึกเมื่อแก้ไขเสร็จ": "can be configured independently with custom amount and start/end dates below — remember to click Save when finished",
         "ค่าปรับลงทะเบียนเกินกำหนด (กำหนดเอง)": "Late Registration Penalty (Custom)",
+        "ค่าปรับลงทะเบียนเกินกำหนด (กำหนดเอง — แยกเด็ก / ผู้ใหญ่)": "Late Registration Penalty (Custom — Kids / Adult)",
+        "เพิ่มรายการค่าปรับ": "Add Penalty Rule",
+        "ค่าปรับคอร์สเด็ก (฿)": "Kids Course Penalty (฿)",
+        "ดึงเข้าใบเสร็จอัตโนมัติสำหรับคอร์สเด็ก": "Auto-applied on receipts for kids courses",
+        "ค่าปรับคอร์สผู้ใหญ่ (฿)": "Adult Course Penalty (฿)",
+        "ดึงเข้าใบเสร็จอัตโนมัติสำหรับคอร์สผู้ใหญ่": "Auto-applied on receipts for adult courses",
+        "เพิ่มรายการค่าปรับลงทะเบียนเกินกำหนด": "Add Late Registration Penalty Rule",
+        "ชื่อรายการค่าปรับ *": "Penalty Rule Name *",
+        "เช่น ปรับล่าช้าเกิน 7 วัน หรือ คอร์สพิเศษ HSK": "e.g., Over 7 days late or Special HSK",
+        "👶 ค่าปรับเด็ก (฿)": "👶 Kids Penalty (฿)",
+        "🧑 ค่าปรับผู้ใหญ่ (฿)": "🧑 Adult Penalty (฿)",
+        "บันทึกรายการค่าปรับ": "Save Penalty Rule",
+        "ตารางจัดหมวดหมู่ส่วนลด & ค่าปรับลงทะเบียนเกินกำหนด (Course Discount & Late Penalty Matrix)": "Course Discount & Late Penalty Batch Matrix",
+        "ติ๊กเลือกให้แต่ละคอร์สได้ทั้งส่วนลดปกติ (เด็ก ฿": "Select both standard discount (Kids ฿",
+        ") และค่าปรับเกินกำหนด โดยอ้างอิงตามช่วงวัน–เวลาที่กำหนดด้านบนอัตโนมัติ": ") and late penalty per course, automatically governed by the date ranges above",
+        "จัดกลุ่มตามระดับคอร์ส (คอร์สเด็ก / คอร์สผู้ใหญ่)": "Auto-group by course level (Kids / Adult)",
+        "จัดกลุ่มตามระดับคอร์ส (Level)": "Group by Course Level",
+        "ตั้งค่าปรับตามหมวดเด็ก/ผู้ใหญ่": "Set Penalty by Kids/Adult",
+        "ไม่คิดค่าปรับทุกคอร์ส": "Exempt all courses from late penalty",
+        "ไม่ปรับทั้งหมด": "No Penalty All",
+        "👶 ส่วนลดเด็ก (฿": "👶 Kids Disc. (฿",
+        "🧑 ส่วนลดผู้ใหญ่ (฿": "🧑 Adult Disc. (฿",
+        "👶 ค่าปรับเด็ก (฿": "👶 Kids Penalty (฿",
+        "🧑 ค่าปรับผู้ใหญ่ (฿": "🧑 Adult Penalty (฿",
+        "ส่วนลดเด็ก": "Kids Disc.",
+        "ส่วนลดผู้ใหญ่": "Adult Disc.",
+        "ค่าปรับเด็ก": "Kids Penalty",
+        "ค่าปรับผู้ใหญ่": "Adult Penalty",
+        "ค่าปรับที่จะเก็บ": "Applicable Penalty",
+        "บันทึกการจับคู่ส่วนลด & ค่าปรับทั้งหมด": "Save All Discount & Penalty Mappings",
         "ปิดใช้งาน": "Disabled",
         "ยอดค่าปรับลงทะเบียนเกินกำหนด (฿)": "Late Registration Penalty Amount (THB)",
         "เช่น 100 หรือ 200": "e.g. 100 or 200",
@@ -92329,7 +92823,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=304';
+      const swPath = basePath + 'sw.js?v=305';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92366,7 +92860,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (304):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (305):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
