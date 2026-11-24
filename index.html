@@ -12753,7 +12753,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '306';
+      var LATEST_VERSION = '307';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -15862,15 +15862,11 @@ body.printing-report #printReportContainer {
                     </table>
                   </div>
 
-                  <!-- Footer Summary & Atomic Save Button -->
+                  <!-- Footer Summary -->
                   <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.08);">
                     <div id="lblFeeMatrixSummary" style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:8px;">
                       <span>กำลังคำนวณจำนวนคอร์ส...</span>
                     </div>
-
-                    <button type="button" class="oca-btn-primary oca-btn-sm" id="btnSaveFeeCourseDiscountMatrix" onclick="saveFeeCourseDiscountMatrix()">
-                      <i class="fa-solid fa-floppy-disk"></i> บันทึกการจับคู่ส่วนลด &amp; ค่าปรับทั้งหมด
-                    </button>
                   </div>
                 </div>
               </div>
@@ -43323,7 +43319,7 @@ if (action === 'getDashboardStats') {
         shippingFee: items.shippingFee ? Number(items.shippingFee.amount ?? 0) : 0,
         items: globalFeePresets.items
       })
-        .then(res => {
+        .then(async res => {
           if (res && res.feeSettings) {
             globalFeePresets = res.feeSettings;
             try {
@@ -43331,6 +43327,7 @@ if (action === 'getDashboardStats') {
             } catch(_) {}
           }
           populateGeneralFeeInputs(globalFeePresets);
+          if (typeof saveFeeCourseDiscountMatrix === 'function') await saveFeeCourseDiscountMatrix(true);
           if (typeof logConfigAuditEvent === 'function') {
             logConfigAuditEvent(
               'บันทึกอัตราค่าธรรมเนียมและส่วนลด',
@@ -43859,13 +43856,13 @@ if (action === 'getDashboardStats') {
     }
     window.resetCourseDiscountMatrix = resetCourseDiscountMatrix;
     let isSavingFeeCourseMatrix = false;
-    async function saveFeeCourseDiscountMatrix() {
+    async function saveFeeCourseDiscountMatrix(silent = false) {
       if (isSavingFeeCourseMatrix) return;
       const btn = document.getElementById('btnSaveFeeCourseDiscountMatrix');
       const origHtml = btn ? btn.innerHTML : '';
       const courses = Array.isArray(cachedCoursesList) ? cachedCoursesList : [];
       if (courses.length === 0) {
-        showModal('ไม่พบข้อมูล', 'ไม่มีรายการคอร์สเรียนให้บันทึก', '⚠️');
+        if (!silent) showModal('ไม่พบข้อมูล', 'ไม่มีรายการคอร์สเรียนให้บันทึก', '⚠️');
         return;
       }
       const updates = [];
@@ -43884,7 +43881,7 @@ if (action === 'getDashboardStats') {
         }
       });
       if (updates.length === 0) {
-        toast('ข้อมูลเป็นปัจจุบันอยู่แล้ว', 'ไม่มีรายการจับคู่ส่วนลดคอร์สที่เปลี่ยนแปลง', 'info');
+        if (!silent) toast('ข้อมูลเป็นปัจจุบันอยู่แล้ว', 'ไม่มีรายการจับคู่ส่วนลดคอร์สที่เปลี่ยนแปลง', 'info');
         return;
       }
       isSavingFeeCourseMatrix = true;
@@ -44001,17 +43998,19 @@ if (action === 'getDashboardStats') {
         }
         renderFeeCourseDiscountMatrix(document.getElementById('inpFeeMatrixSearch')?.value || '');
         if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('fee_settings');
-        showModal(
-          'บันทึกสำเร็จ',
-          `บันทึกการกำหนดกลุ่มส่วนลดคอร์สเรียนสำเร็จจำนวน ${toArabicDigits(updates.length)} คอร์ส (ระบบออกใบเสร็จและคำนวณส่วนลดจะดึงหมวดหมู่ใหม่นี้ไปใช้งานโดยอัตโนมัติ)`,
-          '✓'
-        );
-        if (typeof showActivitySuccessPopup === 'function') {
-          showActivitySuccessPopup('บันทึกกลุ่มส่วนลดสำเร็จ', `บันทึกการกำหนดกลุ่มส่วนลดคอร์สเรียนสำเร็จจำนวน ${toArabicDigits(updates.length)} คอร์ส`, '✅');
+        if (!silent) {
+          showModal(
+            'บันทึกสำเร็จ',
+            `บันทึกการกำหนดกลุ่มส่วนลดคอร์สเรียนสำเร็จจำนวน ${toArabicDigits(updates.length)} คอร์ส (ระบบออกใบเสร็จและคำนวณส่วนลดจะดึงหมวดหมู่ใหม่นี้ไปใช้งานโดยอัตโนมัติ)`,
+            '✓'
+          );
+          if (typeof showActivitySuccessPopup === 'function') {
+            showActivitySuccessPopup('บันทึกกลุ่มส่วนลดสำเร็จ', `บันทึกการกำหนดกลุ่มส่วนลดคอร์สเรียนสำเร็จจำนวน ${toArabicDigits(updates.length)} คอร์ส`, '✅');
+          }
         }
       } catch (err) {
         console.error('saveFeeCourseDiscountMatrix error:', err);
-        showModal('ข้อผิดพลาด', 'ไม่สามารถบันทึกการจับคู่ส่วนลดคอร์สได้: ' + (err.message || ''), '❌');
+        if (!silent) showModal('ข้อผิดพลาด', 'ไม่สามารถบันทึกการจับคู่ส่วนลดคอร์สได้: ' + (err.message || ''), '❌');
       } finally {
         isSavingFeeCourseMatrix = false;
         if (btn) {
@@ -92859,7 +92858,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=306';
+      const swPath = basePath + 'sw.js?v=307';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92896,7 +92895,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (306):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (307):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
