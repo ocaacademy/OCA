@@ -1,4 +1,4 @@
-const CACHE_NAME = '288';
+const CACHE_NAME = '289';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -11,7 +11,6 @@ const ASSETS_TO_CACHE = [
   './js/oca-offline-queue.js',
   './js/oca-rls-guard.js',
   './js/oca-backup-ops.js',
-  './modnet_quantized.onnx',
   'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js',
   './icon-192.png',
@@ -30,7 +29,6 @@ const ASSETS_TO_CACHE = [
   './assets/images/kiosk_cat_music.jpg',
   './assets/images/kiosk_cat_art.jpg',
   './assets/data/thai_address_compact.json',
-  'https://lh3.googleusercontent.com/d/1fcU0PER7rsamfGUrIpI-kJVDLKednw7P',
   'https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
@@ -126,6 +124,21 @@ self.addEventListener('fetch', (event) => {
   }
 
   const reqPath = event.request.url.split('?')[0].toLowerCase();
+  if (isSameOrigin && reqPath.endsWith('.onnx')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((res) => {
+          if (res && res.status === 200) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return res;
+        });
+      })
+    );
+    return;
+  }
   const isFreshAsset = isSameOrigin && (reqPath.endsWith('.html') || reqPath.endsWith('.js') || reqPath.endsWith('/'));
   const fetchTarget = isFreshAsset ? new Request(event.request, { cache: 'no-cache' }) : event.request;
 
