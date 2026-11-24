@@ -12597,7 +12597,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '280';
+      var LATEST_VERSION = '281';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -27127,8 +27127,8 @@ body.printing-report #printReportContainer {
           reports: ['student-list', 'course-breakdown', 'ministry-report', 'deferral', 'course-attendance', 'dashboard']
         },
         receipts: {
-          core: ['receipts'],
-          reports: ['student-list', 'course-breakdown', 'ministry-report', 'deferral', 'course-attendance', 'textbook-sales', 'exam-reg', 'exam-rooms', 'financial', 'dashboard']
+          core: ['receipts', 'students'],
+          reports: ['student-list', 'course-breakdown', 'ministry-report', 'deferral', 'term-timetable', 'course-attendance', 'textbook-sales', 'exam-reg', 'exam-rooms', 'financial', 'dashboard']
         },
         courses: {
           core: ['courses', 'offerings'],
@@ -30681,22 +30681,47 @@ if (action === 'getDashboardStats') {
             if (params.address) updateObj.address = params.address;
             if (params.phone) updateObj.phone_number = params.phone;
             if (params.email && params.email.includes('@')) updateObj.email = params.email.trim();
-            if (action === 'transferStudentCourseAndReceipt') {
-              const actor = getAuditActor();
-              const now = new Date();
-              const pad = n => String(n).padStart(2, '0');
-              const dateStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear() + 543}`;
-              const oldC = params.oldCourse || '-';
-              const oldS = params.oldSchedule || '-';
-              const newC = targetCourse || params.courseName || params.itemName || '';
-              const newS = targetSchedule || params.scheduleName || params.schedule || '';
-              const transferNote = `[ย้ายคอร์ส: ${oldC} (${oldS}) -> ${newC} (${newS}) เมื่อ ${dateStr} โดย ${actor.username || actor.fullName}]`;
+            const rcLearningMode = String(receiptData.learning_mode || params.learningMode || '').trim();
+            const rcClassGroup = String(receiptData.class_group || params.classGroup || '').trim();
+            const rcTeacherName = String(receiptData.teacher_name || params.teacherName || '').trim();
+            const rcRoom = String(receiptData.room || params.room || '').trim();
+            if (action === 'transferStudentCourseAndReceipt' || rcLearningMode || rcClassGroup || rcTeacherName) {
               try {
-                const { data: stNotes } = await _supabase.from('students').select('notes').eq('student_id', targetSid).limit(1);
-                const curNotes = (stNotes && stNotes[0] && stNotes[0].notes) || '';
-                updateObj.notes = curNotes ? `${curNotes} | ${transferNote}` : transferNote;
-              } catch (_) {
-                updateObj.notes = transferNote;
+                const { data: stNotes, error: stNotesErr } = await _supabase.from('students').select('notes').eq('student_id', targetSid).limit(1);
+                if (stNotesErr) console.warn('[saveReceipt] notes lookup warning:', stNotesErr.message);
+                const rawNotes = (!stNotesErr && stNotes && stNotes[0] && stNotes[0].notes) ? String(stNotes[0].notes) : '';
+                const extMatch = rawNotes.match(/\s*\|?\s*(\[EXT_PROFILE:\{[\s\S]*?\}\])/);
+                const extTag = extMatch ? extMatch[1] : '';
+                let baseNotes = rawNotes
+                  .replace(/\s*\|?\s*\[EXT_PROFILE:\{[\s\S]*?\}\]/g, '')
+                  .replace(/\s*\[กลุ่ม:\s*[^\]]+\]/g, '')
+                  .replace(/\s*\[รูปแบบ:\s*[^\]]+\]/g, '')
+                  .trim();
+                const syncTags = [];
+                if (rcLearningMode) syncTags.push(`[รูปแบบ: ${rcLearningMode}]`);
+                if (rcClassGroup || rcTeacherName) {
+                  const gParts = [];
+                  if (rcClassGroup) gParts.push(rcClassGroup);
+                  if (rcTeacherName) gParts.push(`อ.${rcTeacherName}`);
+                  if (rcRoom) gParts.push(`ห้อง ${rcRoom}`);
+                  syncTags.push(`[กลุ่ม: ${gParts.join(' | ')}]`);
+                }
+                if (action === 'transferStudentCourseAndReceipt') {
+                  const actor = getAuditActor();
+                  const now = new Date();
+                  const pad = n => String(n).padStart(2, '0');
+                  const dateStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear() + 543}`;
+                  const oldC = params.oldCourse || '-';
+                  const oldS = params.oldSchedule || '-';
+                  const newC = targetCourse || params.courseName || params.itemName || '';
+                  const newS = targetSchedule || params.scheduleName || params.schedule || '';
+                  syncTags.push(`[ย้ายคอร์ส: ${oldC} (${oldS}) -> ${newC} (${newS}) เมื่อ ${dateStr} โดย ${actor.username || actor.fullName}]`);
+                }
+                const combinedBody = [baseNotes, ...syncTags].filter(Boolean).join(' ').trim();
+                const finalNotes = extTag ? (combinedBody ? `${combinedBody} | ${extTag}` : extTag) : combinedBody;
+                if (finalNotes) updateObj.notes = finalNotes;
+              } catch (notesSyncErr) {
+                console.warn('[saveReceipt] notes sync warning:', notesSyncErr);
               }
             }
             const { error: stErr } = await _supabase.from('students').update(updateObj).eq('student_id', targetSid);
@@ -37615,6 +37640,7 @@ if (action === 'getDashboardStats') {
             if (typeof initAcademicYearSelect === 'function') initAcademicYearSelect();
             resetEnrollCameraAndPhotoState();
             calcNextStudentId();
+            if (typeof invalidateOcaReportCaches === 'function') invalidateOcaReportCaches('students');
             try { loadDashData(); } catch(_) {}
             const houseNoEl = document.getElementById('addrHouseNo'); if (houseNoEl) houseNoEl.value = '';
             const mooEl = document.getElementById('addrMoo'); if (mooEl) mooEl.value = '';
@@ -59061,6 +59087,10 @@ if (action === 'getDashboardStats') {
             if (ext.nationality && (!existing.nationality || existing.nationality === 'ต่างชาติ/จีน')) {
               existing.nationality = String(ext.nationality || '').trim();
             }
+            const dupGender = String(ext.gender || '').trim();
+            if ((!existing.gender || existing.gender === '-') && dupGender) {
+              existing.gender = dupGender;
+            }
             if (checkMinistryGraduation(existing.allCourses)) existing.status = 'GRADUATED';
             return;
           }
@@ -59073,6 +59103,8 @@ if (action === 'getDashboardStats') {
           const ethnicity = String(ext.ethnicity || '').trim() || '-';
           let cleanFullName = (s.full_name || '').trim();
           const pref = (s.prefix || '').trim();
+          const gender = String(ext.gender || '').trim() ||
+            (['นาย', 'ด.ช.', 'เด็กชาย', 'Mr.'].includes(pref) ? 'ชาย' : (['นาง', 'นางสาว', 'น.ส.', 'ด.ญ.', 'เด็กหญิง', 'Mrs.', 'Ms.'].includes(pref) ? 'หญิง' : '-'));
           if (pref) {
             while (cleanFullName.startsWith(pref)) {
               cleanFullName = cleanFullName.slice(pref.length).trim();
@@ -59090,6 +59122,7 @@ if (action === 'getDashboardStats') {
             idNumber: idNumber,
             passportNo: passportNo,
             prefix: pref,
+            gender: gender,
             fullName: cleanFullName,
             ethnicity: ethnicity,
             nationality: nationality,
@@ -91503,13 +91536,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html') 
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) 
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=280';
+      const swPath = basePath + 'sw.js?v=281';
       // Permanent fix for auto-refresh: Log SW controller change without forced reload
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         console.log('OCA PWA Controller changed: ServiceWorker updated seamlessly without reload.');
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (280):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (281):', reg.scope);
       }).catch(function(err) {
         console.warn('OCA PWA ServiceWorker Warning:', err);
       });
