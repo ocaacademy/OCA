@@ -12755,7 +12755,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '310';
+      var LATEST_VERSION = '311';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -28572,9 +28572,11 @@ body.printing-report #printReportContainer {
               if (pinRow && pinRow.length > 0 && pinRow[0].name) {
                 hasCloudPin = true;
                 if (pinRow[0].name === hashHex) {
+                  window._ocaSavedSecurityPin = pin;
                   try {
                     localStorage.removeItem('oca_custom_pin');
                     localStorage.setItem('oca_custom_pin_hash', hashHex);
+                    sessionStorage.setItem('oca_session_pin_display', pin);
                   } catch (_) {}
                   return { success: true };
                 }
@@ -41121,12 +41123,21 @@ if (action === 'getDashboardStats') {
       const inp2 = document.getElementById('inpConfirmSecurityPin');
       let savedPin = window._ocaSavedSecurityPin || '';
       if (!savedPin) {
-        try { savedPin = window.localStorage.getItem('oca_custom_pin') || ''; } catch (_) {}
+        try { savedPin = sessionStorage.getItem('oca_session_pin_display') || ''; } catch (_) {}
       }
-      if (!savedPin) savedPin = '1234';
+      let hasCustomPinHash = false;
+      try { hasCustomPinHash = Boolean(localStorage.getItem('oca_custom_pin_hash')); } catch (_) {}
       if (inpCur) {
-        inpCur.type = 'password';
-        inpCur.value = savedPin;
+        if (savedPin) {
+          inpCur.type = 'password';
+          inpCur.value = savedPin;
+        } else if (hasCustomPinHash) {
+          inpCur.type = 'text';
+          inpCur.value = '•••••••• (ตั้งรหัสใหม่แล้ว — เข้ารหัสปลอดภัย)';
+        } else {
+          inpCur.type = 'password';
+          inpCur.value = '1234';
+        }
       }
       if (inp1) {
         inp1.type = 'password';
@@ -41263,6 +41274,10 @@ if (action === 'getDashboardStats') {
       try {
         const res = await callGasApi('updateSecurityPin', { newPin: p1 });
         if (res && res.success) {
+          window._ocaSavedSecurityPin = p1;
+          try { sessionStorage.setItem('oca_session_pin_display', p1); } catch (_) {}
+          const inpCurPin = document.getElementById('inpCurrentSecurityPin');
+          if (inpCurPin) inpCurPin.value = p1;
           const inpP1 = document.getElementById('inpNewSecurityPin');
           const inpP2 = document.getElementById('inpConfirmSecurityPin');
           if (inpP1) inpP1.value = '';
@@ -65543,6 +65558,7 @@ if (action === 'getDashboardStats') {
       if (typeof _cachedTeacherTimesheets !== 'undefined') _cachedTeacherTimesheets = [];
       if (typeof _cachedProcessedTimesheetRows !== 'undefined') _cachedProcessedTimesheetRows = [];
       window._ocaSavedSecurityPin = '';
+      try { sessionStorage.removeItem('oca_session_pin_display'); } catch (_) {}
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
           const chans = [window._activeOcaChannel, _ocaRealtimeChannel, window._activeTeacherContactsChannel, window._activeAttendanceChannel];
@@ -93146,7 +93162,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=310';
+      const swPath = basePath + 'sw.js?v=311';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -93183,7 +93199,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (310):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (311):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
