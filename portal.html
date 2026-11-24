@@ -12755,7 +12755,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '314';
+      var LATEST_VERSION = '315';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -32249,7 +32249,7 @@ if (action === 'getDashboardStats') {
             const shipMinYear = Math.max(2568, ((typeof resolveCurrentAcademicTerm === 'function' ? resolveCurrentAcademicTerm()?.yearBE : 0) || (new Date().getFullYear() + 543)) - 1);
             const fetchShipRows = () => fetchAllPaginatedSupabaseRows(() =>
               _supabase.from('receipts')
-                .select('id, receipt_no, receipt_type, student_id, buyer_name, citizen_id, address, item_name, material_type, delivery_method, shipping_fee, tracking_number, claim_status, claimed_at, claimed_by, edit_notes, created_at')
+                .select('id, receipt_no, receipt_type, student_id, buyer_name, citizen_id, address, item_code, item_name, material_type, delivery_method, shipping_fee, tracking_number, claim_status, claimed_at, claimed_by, edit_notes, created_at')
                 .gte('year_be', shipMinYear)
                 .order('created_at', { ascending: false })
             , 1000, 20000);
@@ -33981,7 +33981,8 @@ if (action === 'getDashboardStats') {
               .from('security_audit_logs')
               .select('id')
               .eq('action', 'RECEIPT_VERSION_BACKUP')
-              .ilike('details', `%"receiptNo":"${rcNo}"%`);
+              .ilike('details', `%"receiptNo":"${rcNo}"%`)
+              .limit(50);
             if (backupErr) console.warn('updateReceipt backup query warning:', backupErr);
             const nextRev = (pastBackups ? pastBackups.length : 0) + 1;
             const editorName = params.operator || (window.currentUser && window.currentUser.name) || 'Admin';
@@ -43362,6 +43363,24 @@ if (action === 'getDashboardStats') {
         };
       }
     }
+    function buildMergedGlobalFeePresets(items, kidsSaveAmt, discRulesSaved) {
+      return {
+        ...(globalFeePresets || {}),
+        tuitionFee: items.tuitionFee ? items.tuitionFee.amount : 0,
+        regFee: items.regFee ? items.regFee.amount : 0,
+        otherRegFee: items.otherRegFee ? items.otherRegFee.amount : 0,
+        discountNormal: items.discountNormal ? items.discountNormal.amount : 0,
+        discountKids: kidsSaveAmt,
+        discountOther: items.discountOther ? items.discountOther.amount : 0,
+        lateRegPenalty: items.lateRegPenalty ? items.lateRegPenalty.amount : 0,
+        lateRegPenaltyKids: items.lateRegPenaltyKids ? items.lateRegPenaltyKids.amount : 0,
+        cardFee: items.cardFee ? Number(items.cardFee.amount ?? 0) : 0,
+        transferFee: items.transferFee ? Number(items.transferFee.amount ?? 0) : 0,
+        shippingFee: items.shippingFee ? Number(items.shippingFee.amount ?? 0) : 0,
+        ...discRulesSaved,
+        items: { ...((globalFeePresets && globalFeePresets.items) || {}), ...items }
+      };
+    }
     function validateGeneralFeeDateRanges(keys) {
       for (const k of keys) {
         const prevItemCfg = (globalFeePresets && globalFeePresets.items && globalFeePresets.items[k]) || {};
@@ -43476,21 +43495,7 @@ if (action === 'getDashboardStats') {
         items[spec.key] = { amount: val, mode: normMode, startDate: normStart, endDate: normEnd };
       });
       // Update in-memory state and local storage immediately
-      globalFeePresets = {
-        tuitionFee: items.tuitionFee ? items.tuitionFee.amount : 0,
-        regFee: items.regFee ? items.regFee.amount : 0,
-        otherRegFee: items.otherRegFee ? items.otherRegFee.amount : 0,
-        discountNormal: items.discountNormal ? items.discountNormal.amount : 0,
-        discountKids: kidsSaveAmt,
-        discountOther: items.discountOther ? items.discountOther.amount : 0,
-        cardFee: items.cardFee ? Number(items.cardFee.amount ?? 0) : 0,
-        transferFee: items.transferFee ? Number(items.transferFee.amount ?? 0) : 0,
-        shippingFee: items.shippingFee ? Number(items.shippingFee.amount ?? 0) : 0,
-        ...discRulesSaved,
-        items: {
-          ...items
-        }
-      };
+      globalFeePresets = buildMergedGlobalFeePresets(items, kidsSaveAmt, discRulesSaved);
       if (globalFeePresets.items && globalFeePresets.items.discountNormal) {
         globalFeePresets.items.discountNormal.kidsAmount = kidsSaveAmt;
         globalFeePresets.items.discountNormal.adultAmount = globalFeePresets.discountNormal;
@@ -60138,7 +60143,7 @@ if (action === 'getDashboardStats') {
         let receiptsMap = new Map();
         if (rcNos.length > 0 && typeof _supabase !== 'undefined' && _supabase) {
           try {
-            const { data: rcRows } = await _supabase.from('receipts').select('receipt_no, student_id, buyer_name, item_name, grand_total, created_at, claim_status, edit_notes').in('receipt_no', rcNos.slice(0, 30));
+            const { data: rcRows } = await _supabase.from('receipts').select('receipt_no, student_id, buyer_name, item_code, item_name, grand_total, created_at, claim_status, edit_notes').in('receipt_no', rcNos.slice(0, 30));
             if (Array.isArray(rcRows)) {
               rcRows.forEach(r => receiptsMap.set(String(r.receipt_no), r));
             }
@@ -93339,7 +93344,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=314';
+      const swPath = basePath + 'sw.js?v=315';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -93376,7 +93381,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (314):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (315):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
