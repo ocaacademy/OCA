@@ -12778,7 +12778,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '297';
+      var LATEST_VERSION = '298';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -45351,7 +45351,10 @@ if (action === 'getDashboardStats') {
           '<div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between;">' +
           '  <div style="display:flex; justify-content:space-between; align-items:center; gap:4px; margin-bottom:6px;">' +
           '    <div style="font-size:12px; font-weight:700; color:var(--accent-sky); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="' + escapeHtml(s.name || s.id) + '">' + escapeHtml(s.id) + ': ' + escapeHtml(s.name || '') + '</div>' +
-          (thaiVal ? '<button type="button" onclick="clearRoundOpenDateItem(\'' + escapeHtml(s.id) + '\')" title="ล้างวันที่" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:11.5px; padding:2px 4px; flex-shrink:0;"><i class="fa-solid fa-eraser"></i></button>' : '') +
+          '    <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">' +
+          '      <button type="button" onclick="openStandardRoundOpenDateModal(\'' + escapeHtml(s.id) + '\')" title="แก้ไขวันเปิดเรียน" style="background:none; border:none; color:var(--accent-sky); cursor:pointer; font-size:11.5px; padding:2px 4px; flex-shrink:0;"><i class="fa-solid fa-pen"></i></button>' +
+          '      <button type="button" onclick="clearRoundOpenDateItem(\'' + escapeHtml(s.id) + '\')" title="ลบวันเปิดเรียน" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:11.5px; padding:2px 4px; flex-shrink:0;"><i class="fa-solid fa-trash-can"></i></button>' +
+          '    </div>' +
           '  </div>' +
           '  <input type="date" id="cfgRoundOpenDate_' + escapeHtml(s.id) + '" data-sch-id="' + escapeHtml(s.id) + '" value="' + escapeHtml(isoVal) + '" class="oca-input cfg-round-open-input" style="font-size:12px; height:34px; padding:4px 10px; text-align:left; width:100%; box-sizing:border-box;">' +
           '  <div style="font-size:11px; color:var(--color-gold); margin-top:4px; font-variant-numeric:tabular-nums; text-align:left;">' + (thaiVal ? escapeHtml(thaiVal) : '<span style="color:var(--text-muted);">ใช้วันเปิดเทอมกลาง</span>') + '</div>' +
@@ -45385,10 +45388,44 @@ if (action === 'getDashboardStats') {
     async function clearRoundOpenDateItem(schId) {
       if (!schId) return;
       const inp = document.getElementById('cfgRoundOpenDate_' + schId);
-      if (inp) inp.value = '';
+      if (!inp || !String(inp.value || '').trim()) {
+        if (typeof toast === 'function') toast('ไม่มีข้อมูล', 'รอบนี้ยังไม่มีวันเปิดเรียนที่กำหนดไว้', 'info');
+        return;
+      }
+      const ok = (typeof showConfirmModal === 'function')
+        ? await showConfirmModal('ยืนยันการลบวันเปิดเรียน', `ต้องการลบวันเปิดเรียนของรอบ ${schId} ในเทอมนี้ใช่หรือไม่?`)
+        : true;
+      if (!ok) return;
+      inp.value = '';
       await saveRoundOpenDatesFromUI();
     }
     window.clearRoundOpenDateItem = clearRoundOpenDateItem;
+    function openStandardRoundOpenDateModal(schId) {
+      if (!schId) return;
+      const modal = document.getElementById('modalCustomRoundOpenDate');
+      const inpKey = document.getElementById('inpCustomRoundOpenKey');
+      const inpLabel = document.getElementById('inpCustomRoundOpenLabel');
+      const inpDate = document.getElementById('inpCustomRoundOpenDate');
+      const title = document.getElementById('titleCustomRoundOpenModal');
+      if (!modal) return;
+      const scheds = (Array.isArray(cachedSchedulesList) && cachedSchedulesList.length > 0)
+        ? cachedSchedulesList
+        : (typeof OFFICIAL_DEFAULT_SCHEDULES !== 'undefined' ? OFFICIAL_DEFAULT_SCHEDULES : []);
+      const s = scheds.find(x => x && x.id === schId);
+      if (inpKey) inpKey.value = `SCH::${schId}`;
+      if (inpLabel) {
+        inpLabel.value = s ? `${s.id}: ${s.name || ''}` : schId;
+        inpLabel.readOnly = true;
+        inpLabel.style.opacity = '0.8';
+      }
+      if (inpDate) {
+        const curInp = document.getElementById('cfgRoundOpenDate_' + schId);
+        inpDate.value = curInp ? (curInp.value || '') : '';
+      }
+      if (title) title.textContent = 'แก้ไขวันเปิดเรียน';
+      modal.style.display = 'flex';
+    }
+    window.openStandardRoundOpenDateModal = openStandardRoundOpenDateModal;
     function openCustomRoundOpenDateModal(editKey) {
       const modal = document.getElementById('modalCustomRoundOpenDate');
       const inpKey = document.getElementById('inpCustomRoundOpenKey');
@@ -45396,6 +45433,10 @@ if (action === 'getDashboardStats') {
       const inpDate = document.getElementById('inpCustomRoundOpenDate');
       const title = document.getElementById('titleCustomRoundOpenModal');
       if (!modal) return;
+      if (inpLabel) {
+        inpLabel.readOnly = false;
+        inpLabel.style.opacity = '';
+      }
       if (editKey && window._ocaCustomRoundOpenDatesMap && window._ocaCustomRoundOpenDatesMap[editKey]) {
         const item = window._ocaCustomRoundOpenDatesMap[editKey];
         if (inpKey) inpKey.value = editKey;
@@ -45426,6 +45467,18 @@ if (action === 'getDashboardStats') {
       const existingKey = (document.getElementById('inpCustomRoundOpenKey')?.value || '').trim();
       const label = (document.getElementById('inpCustomRoundOpenLabel')?.value || '').trim();
       const isoVal = (document.getElementById('inpCustomRoundOpenDate')?.value || '').trim();
+      if (existingKey.startsWith('SCH::')) {
+        const schId = existingKey.slice(5);
+        if (!isoVal) {
+          if (typeof toast === 'function') toast('ข้อมูลไม่ครบ', 'กรุณาระบุวันเปิดเรียน', 'warning');
+          return;
+        }
+        const inp = document.getElementById('cfgRoundOpenDate_' + schId);
+        if (inp) inp.value = isoVal;
+        closeCustomRoundOpenDateModal();
+        await saveRoundOpenDatesFromUI();
+        return;
+      }
       if (!label || !isoVal) {
         if (typeof toast === 'function') toast('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อรอบและวันเปิดเรียน', 'warning');
         return;
@@ -92287,7 +92340,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=297';
+      const swPath = basePath + 'sw.js?v=298';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92324,7 +92377,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (297):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (298):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
