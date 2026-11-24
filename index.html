@@ -2096,16 +2096,21 @@
       content: attr(data-oca-date-display);
       position: absolute;
       top: 50%;
-      left: 10px;
+      left: 8px;
+      right: 30px;
       transform: translateY(-50%);
+      background: inherit;
       color: inherit;
       font-family: inherit;
       font-size: inherit;
       font-weight: inherit;
-      line-height: 1;
+      line-height: 1.2;
+      padding: 2px 0;
       margin: 0;
       pointer-events: none;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       z-index: 1;
     }
     /* Backend Menus & Settings Date Inputs Uniform Alignment (Strictly Excluding Registration Forms) */
@@ -2169,29 +2174,7 @@
       cursor: pointer;
       opacity: 0.85;
     }
-    /* Disable pseudo-element date overlay on mobile and tablet touch devices to prevent ghost double-rendering */
-    @media (hover: none) and (pointer: coarse), (max-width: 1024px) {
-      input[type="date"][data-oca-date-display]::before,
-      input[type="datetime-local"][data-oca-date-display]::before {
-        display: none !important;
-        content: none !important;
-      }
-      input[type="date"][data-oca-date-display]::-webkit-datetime-edit,
-      input[type="date"][data-oca-date-display]::-webkit-datetime-edit-fields-wrapper,
-      input[type="date"][data-oca-date-display]::-webkit-datetime-edit-text,
-      input[type="date"][data-oca-date-display]::-webkit-datetime-edit-month-field,
-      input[type="date"][data-oca-date-display]::-webkit-datetime-edit-day-field,
-      input[type="date"][data-oca-date-display]::-webkit-datetime-edit-year-field,
-      input[type="datetime-local"][data-oca-date-display]::-webkit-datetime-edit,
-      input[type="datetime-local"][data-oca-date-display]::-webkit-datetime-edit-fields-wrapper,
-      input[type="datetime-local"][data-oca-date-display]::-webkit-datetime-edit-text,
-      input[type="datetime-local"][data-oca-date-display]::-webkit-datetime-edit-month-field,
-      input[type="datetime-local"][data-oca-date-display]::-webkit-datetime-edit-day-field,
-      input[type="datetime-local"][data-oca-date-display]::-webkit-datetime-edit-year-field {
-        color: inherit !important;
-        -webkit-text-fill-color: inherit !important;
-      }
-    }
+    /* v300: System-wide DD/MM/BBBB (พ.ศ.) overlay stays active across all viewports (Desktop, <=1024px, Tablet, Mobile) with opaque background mask preventing double-rendering. */
     #oca-app-root .oca-input:focus {
       border-color: var(--color-gold);
       box-shadow: 0 0 0 3px rgba(229, 204, 162, 0.25);
@@ -12778,7 +12761,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '299';
+      var LATEST_VERSION = '300';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -60842,8 +60825,10 @@ if (action === 'getDashboardStats') {
       });
       const summaryRows = Array.from(levelMap.values()).sort((a, b) => naturalCompareCode(a.level, b.level));
       const mode = document.getElementById('selReportExamRegMode')?.value || 'term';
+      const rawExamDate = document.getElementById('inpReportExamRegDate')?.value || '';
+      const fmtExamDate = (rawExamDate && typeof window.formatIsoToDDMMYYYY === 'function') ? window.formatIsoToDDMMYYYY(rawExamDate) : rawExamDate;
       const periodLabel = mode === 'daily'
-        ? `ประจำวันที่ ${document.getElementById('inpReportExamRegDate')?.value || ''}`
+        ? `ประจำวันที่ ${fmtExamDate}`
         : (mode === 'year'
           ? `ปีการศึกษา ${document.getElementById('selReportExamRegYear')?.value || ''}`
           : `ภาคเรียน ${document.getElementById('selReportExamRegTerm')?.value || 'ALL'} / ปี ${document.getElementById('selReportExamRegYear')?.value || ''}`);
@@ -62253,9 +62238,10 @@ if (action === 'getDashboardStats') {
         const rcptDate = toBkkDateIso(r.createdAt || r.created_at || '');
         return rcptDate && rcptDate >= effectiveStart && rcptDate <= effectiveEnd;
       });
+      const fmtBeDate = (iso) => (iso && typeof window.formatIsoToDDMMYYYY === 'function') ? window.formatIsoToDDMMYYYY(iso) : iso;
       const periodLabel = (effectiveStart === effectiveEnd)
-        ? `ประจำวันที่ ${effectiveStart}`
-        : `ช่วงวันที่ ${effectiveStart} ถึง ${effectiveEnd}`;
+        ? `ประจำวันที่ ${fmtBeDate(effectiveStart)}`
+        : `ช่วงวันที่ ${fmtBeDate(effectiveStart)} ถึง ${fmtBeDate(effectiveEnd)}`;
       const docHtml = renderFinanceA4PrintDocument({
         reportType: 'daily',
         reportTitleTh: 'รายงานสรุปรายรับประจำวัน',
@@ -89383,11 +89369,13 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       window._attTrackResolvedTeacher = teacherName;
       if (docSub) {
         const nowStr = new Date().toLocaleDateString('th-TH');
+        const fromBeStr = effectiveFromDate ? ((typeof window.formatIsoToDDMMYYYY === 'function') ? window.formatIsoToDDMMYYYY(effectiveFromDate) : effectiveFromDate) : 'ทั้งหมด';
+        const toBeStr = effectiveToDate ? ((typeof window.formatIsoToDDMMYYYY === 'function') ? window.formatIsoToDDMMYYYY(effectiveToDate) : effectiveToDate) : 'ปัจจุบัน';
         docSub.innerHTML = `<span><strong>ปีการศึกษา/เทอม:</strong> ${yearBE}/${termNo}</span> &nbsp;|&nbsp; ` +
           `<span><strong>คอร์สเรียน:</strong> ${escapeHtml(courseDisplay)}</span> &nbsp;|&nbsp; ` +
           `<span><strong>รอบเวลา:</strong> ${escapeHtml(schedDisplay)}</span> &nbsp;|&nbsp; ` +
           `<span style="color:var(--accent-gold); font-weight:700;"><i class="fa-solid fa-chalkboard-user" style="margin-right:4px;"></i><strong>ครูผู้สอน:</strong> ${escapeHtml(teacherName)}</span> &nbsp;|&nbsp; ` +
-          `<span><strong>ช่วงวันที่:</strong> ${effectiveFromDate || 'ทั้งหมด'} ถึง ${effectiveToDate || 'ปัจจุบัน'}</span> &nbsp;|&nbsp; ` +
+          `<span><strong>ช่วงวันที่:</strong> ${fromBeStr} ถึง ${toBeStr}</span> &nbsp;|&nbsp; ` +
           `<span><strong>วันที่พิมพ์:</strong> ${nowStr}</span>`;
       }
       // 4. Aggregate Attendance Statistics per Student
@@ -92340,7 +92328,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=299';
+      const swPath = basePath + 'sw.js?v=300';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92377,7 +92365,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (299):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (300):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
