@@ -1052,7 +1052,7 @@
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 </style>
-<link rel="stylesheet" href="css/oca-core-part1.css?v=347">
+<link rel="stylesheet" href="css/oca-core-part1.css?v=348">
 <style>
     #oca-app-root .oca-input {
       width: 100%;
@@ -4802,7 +4802,7 @@ body.printing-report #printReportContainer {
       }
     }
 </style>
-<link rel="stylesheet" href="css/oca-core-part2.css?v=347">
+<link rel="stylesheet" href="css/oca-core-part2.css?v=348">
 <style>
     @media (max-width: 640px) {
       #tabReceipts .oca-receipt-ctrl-panel div[style*="grid-template-columns:1fr 1fr"],
@@ -10702,7 +10702,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '347';
+      var LATEST_VERSION = '348';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -27879,22 +27879,34 @@ if (action === 'getDashboardStats') {
           window._ocaDashStatsCache = window._ocaDashStatsCache || {};
           const _cDash = window._ocaDashStatsCache[targetYearBE];
           if (!(params && params.forceRefresh) && _cDash && (Date.now() - _cDash.ts) < 60000) return _cDash.data;
+          window._ocaDashStatsInFlight = window._ocaDashStatsInFlight || {};
+          if (!(params && params.forceRefresh) && window._ocaDashStatsInFlight[targetYearBE]) return window._ocaDashStatsInFlight[targetYearBE];
+          const _dashPromise = (async () => {
+            try {
           const yrPrefix = targetYearBE.slice(-2);
           const nextYrPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
           const minYrId = yrPrefix + '00000', maxYrId = nextYrPrefix + '00000';
-          const [resC, resSc, resFee, resStaff, resT1, resT2, resT3, resT4, resT5, resAllStudents, resAllReceipts] = await Promise.all([
+          const [resC, resSc, resFee, resStaff, resT1, resT2, resT3, resT4, resT5, resDelYear, resAllStudents, resAllReceipts] = await Promise.all([
             _supabase.from('courses').select('id, is_active').eq('is_active', true).then(r => ({ ...r, data: Array.isArray(r.data) ? r.data.filter(c => c && c.is_active === true) : [] })),
             _supabase.from('schedules').select('id', { count: 'exact', head: true }),
             _supabase.from('fee_settings').select('key', { count: 'exact', head: true }),
             _supabase.rpc('get_safe_staff_users'),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.DELETED').gte('student_id', yrPrefix + '10000').lt('student_id', yrPrefix + '20000'),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.DELETED').gte('student_id', yrPrefix + '20000').lt('student_id', yrPrefix + '30000'),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.DELETED').gte('student_id', yrPrefix + '30000').lt('student_id', yrPrefix + '40000'),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.DELETED').gte('student_id', yrPrefix + '40000').lt('student_id', yrPrefix + '50000'),
-            _supabase.from('students').select('student_id', { count: 'exact', head: true }).or('status.is.null,status.neq.DELETED').gte('student_id', yrPrefix + '50000').lt('student_id', yrPrefix + '60000'),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', yrPrefix + '10000').lt('student_id', yrPrefix + '20000'),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', yrPrefix + '20000').lt('student_id', yrPrefix + '30000'),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', yrPrefix + '30000').lt('student_id', yrPrefix + '40000'),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', yrPrefix + '40000').lt('student_id', yrPrefix + '50000'),
+            _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', yrPrefix + '50000').lt('student_id', yrPrefix + '60000'),
+            _supabase.from('students').select('student_id').gte('student_id', minYrId).lt('student_id', maxYrId).eq('status', 'DELETED'),
             _supabase.from('students').select('student_id', { count: 'estimated', head: true }),
             _supabase.from('receipts').select('receipt_no', { count: 'estimated', head: true })
           ]);
+          const delByTerm = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+          if (!resDelYear?.error && Array.isArray(resDelYear?.data)) {
+            resDelYear.data.forEach(r => {
+              const tChar = String(r?.student_id || '').charAt(2);
+              if (delByTerm[tChar] !== undefined) delByTerm[tChar]++;
+            });
+          }
           const activeCoursesList = Array.isArray(resC?.data) ? resC.data.filter(c => c && c.is_active === true) : [];
           const cCount = (!resC?.error && Array.isArray(resC?.data)) ? activeCoursesList.length : 0;
           const scCount = resSc?.count || 8;
@@ -27902,11 +27914,11 @@ if (action === 'getDashboardStats') {
           const uCount = (!resStaff?.error && Array.isArray(resStaff?.data) && resStaff.data.length > 0) ? resStaff.data.length : (resStaff?.count || 5);
           const reg = window.OCA_ACADEMIC_YEARS_REGISTRY || {};
           const regEntry = reg[targetYearBE] || { total: 0, terms: { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 } };
-          const liveT1 = (!resT1?.error && typeof resT1?.count === 'number') ? resT1.count : Number(regEntry.terms && regEntry.terms['1'] || 0);
-          const liveT2 = (!resT2?.error && typeof resT2?.count === 'number') ? resT2.count : Number(regEntry.terms && regEntry.terms['2'] || 0);
-          const liveT3 = (!resT3?.error && typeof resT3?.count === 'number') ? resT3.count : Number(regEntry.terms && regEntry.terms['3'] || 0);
-          const liveT4 = (!resT4?.error && typeof resT4?.count === 'number') ? resT4.count : Number(regEntry.terms && regEntry.terms['4'] || 0);
-          const liveT5 = (!resT5?.error && typeof resT5?.count === 'number') ? resT5.count : Number(regEntry.terms && regEntry.terms['5'] || 0);
+          const liveT1 = (!resT1?.error && typeof resT1?.count === 'number') ? Math.max(0, resT1.count - delByTerm['1']) : Number(regEntry.terms && regEntry.terms['1'] || 0);
+          const liveT2 = (!resT2?.error && typeof resT2?.count === 'number') ? Math.max(0, resT2.count - delByTerm['2']) : Number(regEntry.terms && regEntry.terms['2'] || 0);
+          const liveT3 = (!resT3?.error && typeof resT3?.count === 'number') ? Math.max(0, resT3.count - delByTerm['3']) : Number(regEntry.terms && regEntry.terms['3'] || 0);
+          const liveT4 = (!resT4?.error && typeof resT4?.count === 'number') ? Math.max(0, resT4.count - delByTerm['4']) : Number(regEntry.terms && regEntry.terms['4'] || 0);
+          const liveT5 = (!resT5?.error && typeof resT5?.count === 'number') ? Math.max(0, resT5.count - delByTerm['5']) : Number(regEntry.terms && regEntry.terms['5'] || 0);
           const liveSum = liveT1 + liveT2 + liveT3 + liveT4 + liveT5;
           const termCounts = liveSum > 0
             ? { '1': liveT1, '2': liveT2, '3': liveT3, '4': liveT4, '5': liveT5 }
@@ -28064,6 +28076,12 @@ if (action === 'getDashboardStats') {
           };
           window._ocaDashStatsCache[targetYearBE] = { ts: Date.now(), data: dashResult };
           return dashResult;
+            } finally {
+              delete window._ocaDashStatsInFlight[targetYearBE];
+            }
+          })();
+          window._ocaDashStatsInFlight[targetYearBE] = _dashPromise;
+          return _dashPromise;
         }
         // --- 3. FINANCIAL SUMMARY (YEARLY, TERM, DAILY WITH CALENDAR DRILLDOWN) ---
         if (action === 'getFinancialSummary') {
@@ -29686,10 +29704,10 @@ if (action === 'getDashboardStats') {
             const validYear = /^\d{4}$/.test(reqYear) ? reqYear : String(_activeYT.yearBE);
             const yrPrefix = validYear.slice(-2);
             const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
-            const minId = yrPrefix + '00000';
-            const maxId = nextPrefix + '00000';
             const fetchLimit = (params && params.limit) ? Math.min(Number(params.limit), 300) : 300;
             const reqTerm = (params && params.term && params.term !== 'ALL') ? Number(params.term) : null;
+            const minId = (reqTerm >= 1 && reqTerm <= 5) ? (yrPrefix + String(reqTerm) + '0000') : (yrPrefix + '00000');
+            const maxId = (reqTerm >= 1 && reqTerm <= 5) ? (yrPrefix + String(reqTerm + 1) + '0000') : (nextPrefix + '00000');
             let qTot = _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minId).lt('student_id', maxId);
             let qDel = _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', minId).lt('student_id', maxId).eq('status', 'DELETED');
             let qList = _supabase.from('students')
@@ -59006,17 +59024,12 @@ if (action === 'getDashboardStats') {
               if (chunk.length < pageSize) break;
             }
           } else {
-            let qCount = _supabase.from('students')
-              .select('*', { count: /^\d{4}$/.test(yearFilter) ? 'exact' : 'estimated', head: true })
-              .or('status.is.null,status.neq.DELETED');
-            if (/^\d{4}$/.test(yearFilter)) {
-              const yrPrefix = yearFilter.slice(-2);
-              const nextPrefix = String(Number(yrPrefix) + 1).padStart(2, '0');
-              qCount = qCount.gte('student_id', yrPrefix + '00000').lt('student_id', nextPrefix + '00000');
-            }
-            const countRes = await qCount;
+            const isYr = /^\d{4}$/.test(yearFilter), yp = isYr ? yearFilter.slice(-2) : '', np = isYr ? String(Number(yp) + 1).padStart(2, '0') : '';
+            let qCount = _supabase.from('students').select('student_id', { count: isYr ? 'exact' : 'estimated', head: true });
+            if (isYr) qCount = qCount.gte('student_id', yp + '00000').lt('student_id', np + '00000');
+            const [countRes, delRes] = await Promise.all([qCount, isYr ? _supabase.from('students').select('student_id', { count: 'exact', head: true }).gte('student_id', yp + '00000').lt('student_id', np + '00000').eq('status', 'DELETED') : Promise.resolve({ count: 0 })]);
             if (countRes.error) console.warn('[Ministry Report] count warning:', countRes.error);
-            totalStudents = countRes.count || 0;
+            totalStudents = Math.max(0, (countRes.count || 0) - (delRes.count || 0));
             while (stPageCount < maxMinistryPages) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
               let q = _supabase.from('students')
@@ -64122,6 +64135,8 @@ if (action === 'getDashboardStats') {
           }
           return;
         }
+        const _kpiEl = document.getElementById('loginKpiTotal');
+        if (!_kpiEl || _kpiEl.offsetParent === null) return;
         const spin = document.getElementById('loginSyncSpin');
         if (spin) spin.classList.add('fa-spin');
         // 1. Resolve Active Academic Year / Term from fee_settings first (zero hardcoded 2569/5)
@@ -64192,7 +64207,7 @@ if (action === 'getDashboardStats') {
     if (!window._loginAutoRefreshTimer) {
       window._loginAutoRefreshTimer = setInterval(() => {
         const splitView = document.getElementById('viewLoginSplit');
-        if (!document.hidden && splitView && splitView.style.display !== 'none') {
+        if (!document.hidden && splitView && splitView.style.display !== 'none' && document.getElementById('loginKpiTotal')?.offsetParent !== null) {
           loadLoginAnalytics(true);
         }
       }, 12000);
@@ -92452,7 +92467,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=347';
+      const swPath = basePath + 'sw.js?v=348';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92489,7 +92504,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (347):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (348):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
