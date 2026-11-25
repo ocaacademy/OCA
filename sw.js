@@ -1,4 +1,4 @@
-const CACHE_NAME = '318';
+const CACHE_NAME = '320';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -153,13 +153,13 @@ self.addEventListener('fetch', (event) => {
           return res;
         }
         if (!res || res.status >= 500) {
-          const cached = await caches.match(event.request);
+          const cached = await caches.match(event.request) || await caches.match(event.request, { ignoreSearch: true });
           if (cached) return cached;
         }
         return res;
       })
       .catch(async () => {
-        const cached = await caches.match(event.request);
+        const cached = await caches.match(event.request) || await caches.match(event.request, { ignoreSearch: true });
         if (cached) return cached;
         return new Response('', { status: 408, headers: { 'Content-Type': 'text/plain' } });
       })
