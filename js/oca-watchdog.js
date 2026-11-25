@@ -8,6 +8,13 @@
 (function (global) {
   'use strict';
 
+  function _t(th, en, zh) {
+    const lang = String(global._currentSystemLang || 'th').toLowerCase();
+    if (lang === 'en') return en || th;
+    if (lang === 'zh') return zh || en || th;
+    return th;
+  }
+
   const THROTTLE_MS = 5 * 60 * 1000;
   let _lastRunAt = 0;
 
@@ -89,8 +96,12 @@
           alerts.push({
             id: `watchdog_shift_${yyyymmdd}`,
             action: 'ACCOUNTING_WATCHDOG_SHIFT',
-            teacher_name: 'Watchdog บัญชี',
-            details: `พบผลต่างเงินสดปิดยอดกะวันที่ ${isoDate}: ${variance > 0 ? '+' : ''}${variance.toLocaleString('en-US')} บาท`,
+            teacher_name: _t('Watchdog บัญชี', 'Accounting Watchdog', '账务监控'),
+            details: _t(
+              `พบผลต่างเงินสดปิดยอดกะวันที่ ${isoDate}: ${variance > 0 ? '+' : ''}${variance.toLocaleString('en-US')} บาท`,
+              `Shift closing cash variance on ${isoDate}: ${variance > 0 ? '+' : ''}${variance.toLocaleString('en-US')} THB`,
+              `日结现金差异 (${isoDate}): ${variance > 0 ? '+' : ''}${variance.toLocaleString('en-US')} 泰铢`
+            ),
             created_at: shiftRow.updated_at || new Date().toISOString(),
             read: false
           });
