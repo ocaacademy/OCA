@@ -5,6 +5,13 @@
 (function (global) {
   'use strict';
 
+  function _t(th, en, zh) {
+    const lang = String(global._currentSystemLang || 'th').toLowerCase();
+    if (lang === 'en') return en || th;
+    if (lang === 'zh') return zh || en || th;
+    return th;
+  }
+
   const REQUIRED_TABLES = ['courses', 'fee_settings', 'receipts', 'schedules', 'security_audit_logs', 'staff_users', 'students'];
   const OPTIONAL_TABLES = ['app_settings'];
 
@@ -102,9 +109,9 @@
       const passed = missing.length === 0 && invalidShape.length === 0 && coreOk;
       const summaryRows = REQUIRED_TABLES.concat(OPTIONAL_TABLES.filter(t => counts[t] !== undefined || invalidShape.includes(t))).map(t => {
         if (invalidShape.includes(t)) {
-          return `<li><code>${t}</code>: <span style="color:#EF4444;">โครงสร้างแถวไม่ถูกต้อง (พบข้อมูลที่ไม่ใช่ Object)</span></li>`;
+          return `<li><code>${t}</code>: <span style="color:#EF4444;">${_t('โครงสร้างแถวไม่ถูกต้อง (พบข้อมูลที่ไม่ใช่ Object)', 'Invalid row structure (non-object entry)', '行结构无效（存在非对象条目）')}</span></li>`;
         }
-        return `<li><code>${t}</code>: ${counts[t] !== undefined ? counts[t].toLocaleString('en-US') + ' แถว' : '<span style="color:#EF4444;">ไม่พบตาราง</span>'}</li>`;
+        return `<li><code>${t}</code>: ${counts[t] !== undefined ? counts[t].toLocaleString('en-US') + ' ' + _t('แถว', 'rows', '行') : `<span style="color:#EF4444;">${_t('ไม่พบตาราง', 'Missing table', '缺少表')}</span>`}</li>`;
       }).join('');
       return {
         passed,
@@ -113,7 +120,7 @@
         counts,
         html: `
           <div style="font-weight:800; margin-bottom:6px; color:${passed ? '#059669' : '#D97706'};">
-            ${passed ? '✓ ผลการตรวจ Dry-Run ผ่าน 100% — ไฟล์พร้อมใช้งานกู้คืน' : '⚠️ พบข้อสังเกตในไฟล์สำรองข้อมูล'} (${String(fileName).replace(/[<>&"]/g, '')})
+            ${passed ? _t('✓ ผลการตรวจ Dry-Run ผ่าน 100% — ไฟล์พร้อมใช้งานกู้คืน', '✓ Dry-Run Passed 100% — Backup file is ready for restore', '✓ 预检 100% 通过 — 备份文件可用于恢复') : _t('⚠️ พบข้อสังเกตในไฟล์สำรองข้อมูล', '⚠️ Backup file warnings detected', '⚠️ 检测到备份文件异常')} (${String(fileName).replace(/[<>&"]/g, '')})
           </div>
           <ul style="margin:0 0 6px 18px; padding:0;">${summaryRows}</ul>
           <div style="font-size:11.5px; color:var(--text-muted);">
