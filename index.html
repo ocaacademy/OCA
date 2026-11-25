@@ -1051,7 +1051,7 @@
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 </style>
-<link rel="stylesheet" href="css/oca-core-part1.css?v=324">
+<link rel="stylesheet" href="css/oca-core-part1.css?v=325">
 <style>
     #oca-app-root .oca-input {
       width: 100%;
@@ -4799,7 +4799,7 @@ body.printing-report #printReportContainer {
       }
     }
 </style>
-<link rel="stylesheet" href="css/oca-core-part2.css?v=324">
+<link rel="stylesheet" href="css/oca-core-part2.css?v=325">
 <style>
     @media (max-width: 640px) {
       #tabReceipts .oca-receipt-ctrl-panel div[style*="grid-template-columns:1fr 1fr"],
@@ -10664,7 +10664,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '324';
+      var LATEST_VERSION = '325';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -28148,7 +28148,8 @@ if (action === 'getDashboardStats') {
               const nextYy = String(Math.max(0, parsedFilterYear - 2500 + 1)).padStart(2, '0');
               q = q.gte('receipt_no', `${yy}00000`).lt('receipt_no', `${nextYy}00000`);
             } else {
-              q = q.gte('receipt_no', '6900000');
+              const dynCurYy = String(Math.max(0, getDynamicFallbackYearBE() - 2500)).padStart(2, '0');
+              q = q.gte('receipt_no', `${dynCurYy}00000`);
               isFallbackPartial = true;
             }
             const { data: chunk, error: rcptErr } = await q
@@ -31427,8 +31428,18 @@ if (action === 'getDashboardStats') {
                 if (insErr) throw insErr;
               }
             }
-            // C. Query current live textbooks from Supabase
-            const { data: tbRows, error: qErr } = await _supabase.from('fee_settings').select('*').like('key', 'tb:%').order('key', { ascending: true });
+            // C. Query current live textbooks from Supabase (paginated)
+            let tbRows = [];
+            let qErr = null;
+            try {
+              tbRows = await fetchAllPaginatedSupabaseRows(
+                () => _supabase.from('fee_settings').select('*').like('key', 'tb:%').order('key', { ascending: true }),
+                1000,
+                10000
+              );
+            } catch (err) {
+              qErr = err;
+            }
             if (qErr) throw qErr;
             let list = [];
             if (Array.isArray(tbRows) && tbRows.length > 0) {
@@ -32155,42 +32166,19 @@ if (action === 'getDashboardStats') {
           const newP = (params.newPassword || '').toString().trim();
           if (!u) return { success: false, message: 'กรุณากรอกชื่อผู้ใช้งาน หรืออีเมล' };
           if (!newP) return { success: false, message: 'กรุณาระบุรหัสผ่านใหม่ที่ต้องการตั้ง' };
-          // 1. Prioritize secure RPC for password changing
-          try {
-            const { data: rpcRes, error: rpcErr } = await _supabase.rpc('change_staff_password', {
-              p_username: u,
-              p_old_password: oldP,
-              p_new_password: newP
-            });
-            if (!rpcErr && rpcRes && rpcRes.success) {
-              return rpcRes;
-            }
-          } catch (_) {}
-          // 2. Fallback to direct query
-          const isMasterKey = oldP === 'OcaAdmin@2026' || oldP === 'dongfang2026';
-          const { data: staffList } = await _supabase.from('staff_users')
-            .select('*')
-            .or(`username.ilike.${u},email.ilike.${u}`)
-            .limit(1);
-          if (staffList && staffList.length > 0) {
-            const user = staffList[0];
-            const isOldMatch = user.password_hash === oldP || isMasterKey;
-            if (!isOldMatch) {
-              return { success: false, message: 'รหัสผ่านเดิม หรือ Master Recovery Key ไม่ถูกต้อง' };
-            }
-            { const { error: wErr } = await _supabase.from('staff_users').update({
-              password_hash: newP,
-              updated_at: new Date().toISOString()
-            }).eq('id', user.id); if (wErr) throw wErr; }
-            return { success: true, message: `เปลี่ยนรหัสผ่านสำหรับ ${user.username} สำเร็จเรียบร้อยแล้ว` };
+          // 1. Authoritative RPC for password changing (zero hardcoded keys, zero fake success)
+          const { data: rpcRes, error: rpcErr } = await _supabase.rpc('change_staff_password', {
+            p_username: u,
+            p_old_password: oldP,
+            p_new_password: newP
+          });
+          if (!rpcErr && rpcRes && typeof rpcRes === 'object') {
+            return rpcRes;
           }
-          if (['admin', 'registrar', 'cashier', 'shipping'].includes(u)) {
-            if (!isMasterKey) {
-              return { success: false, message: 'รหัสผ่านเดิม หรือ Security PIN ไม่ถูกต้อง' };
-            }
-            return { success: true, message: `รีเซ็ตรหัสผ่านบัญชี ${u} สำเร็จ สามารถเข้าสู่ระบบด้วยรหัสผ่านใหม่ได้ทันที` };
-          }
-          return { success: false, message: 'ไม่พบบัญชีผู้ใช้งานนี้ในระบบ' };
+          return {
+            success: false,
+            message: (rpcErr && rpcErr.message) || 'ไม่สามารถเปลี่ยนรหัสผ่านได้ กรุณาตรวจสอบรหัสผ่านเดิมหรือลองใหม่อีกครั้ง'
+          };
         }
         // --- 19. GOOGLE FORMS & GMAIL LEGACY DECOUPLED STUBS ---
         // Completely decoupled from Google Sheets/GAS
@@ -60878,7 +60866,8 @@ if (action === 'getDashboardStats') {
         const nYy = String(Number(yy) + 1).padStart(2, '0');
         return q.gte('receipt_no', `${yy}00000`).lt('receipt_no', `${nYy}00000`).order('receipt_no', { ascending: false });
       }
-      return q.gte('receipt_no', '6800000').order('receipt_no', { ascending: false });
+      const dynPrevYy = String(Math.max(0, getDynamicFallbackYearBE() - 2501)).padStart(2, '0');
+      return q.gte('receipt_no', `${dynPrevYy}00000`).order('receipt_no', { ascending: false });
     }
     async function fetchReceiptsForFinancePrint() {
       const opts = arguments[0] || {};
@@ -92156,7 +92145,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=324';
+      const swPath = basePath + 'sw.js?v=325';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92193,7 +92182,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (324):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (325):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
