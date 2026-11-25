@@ -5,6 +5,13 @@
 (function (global) {
   'use strict';
 
+  function _t(th, en, zh) {
+    const lang = String(global._currentSystemLang || 'th').toLowerCase();
+    if (lang === 'en') return en || th;
+    if (lang === 'zh') return zh || en || th;
+    return th;
+  }
+
   function formatCheckedTime(isoStr) {
     try {
       const dt = isoStr ? new Date(isoStr) : new Date();
@@ -28,10 +35,10 @@
     const allOk = !netErr && isProtected && isAppendOnly;
     const badgeClass = allOk ? 'oca-mod-badge-ok' : 'oca-mod-badge-warn';
     const badgeText = netErr
-      ? '<span class="oca-rls-dot" aria-hidden="true"></span><i class="fa-solid fa-wifi"></i><span>ไม่สามารถเชื่อมต่อเพื่อตรวจสอบ RLS ได้ (Network Error)</span>'
+      ? `<span class="oca-rls-dot" aria-hidden="true"></span><i class="fa-solid fa-wifi"></i><span>${_t('ไม่สามารถเชื่อมต่อเพื่อตรวจสอบ RLS ได้ (Network Error)', 'Unable to verify RLS (Network Error)', '无法连接以验证 RLS（网络错误）')}</span>`
       : (allOk
         ? '<span class="oca-rls-dot" aria-hidden="true"></span><i class="fa-solid fa-circle-check"></i><span>RLS &amp; Append-Only Active</span>'
-        : '<span class="oca-rls-dot" aria-hidden="true"></span><i class="fa-solid fa-triangle-exclamation"></i><span>รอรัน SQL Hardening ใน Supabase</span>');
+        : `<span class="oca-rls-dot" aria-hidden="true"></span><i class="fa-solid fa-triangle-exclamation"></i><span>${_t('รอรัน SQL Hardening ใน Supabase', 'Pending SQL Hardening in Supabase', '待在 Supabase 执行 SQL 加固')}</span>`);
     const checkedLabel = formatCheckedTime(posture && posture.checkedAt);
 
     mountEl.innerHTML = `
@@ -43,7 +50,7 @@
             </div>
             <div>
               <h3 class="oca-mod-card-title">
-                <span>สถานะความปลอดภัยฐานข้อมูล (RLS &amp; Append-Only Audit Logs)</span>
+                <span>${_t('สถานะความปลอดภัยฐานข้อมูล (RLS &amp; Append-Only Audit Logs)', 'Database Security Posture (RLS &amp; Append-Only Audit Logs)', '数据库安全状态（RLS 与只增审计日志）')}</span>
               </h3>
               <div class="oca-mod-card-sub">
                 ตรวจสอบสิทธิ์การเข้าถึงตาราง <code class="oca-rls-code">staff_users</code> ผ่าน RPC และล็อก <code class="oca-rls-code">security_audit_logs</code> แบบเพิ่มได้อย่างเดียว (ห้ามแก้ไข/ลบ)
