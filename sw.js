@@ -1,4 +1,4 @@
-const CACHE_NAME = '335';
+const CACHE_NAME = '336';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -14,7 +14,7 @@ const ASSETS_TO_CACHE = [
   './js/oca-rls-guard.js',
   './js/oca-backup-ops.js',
   'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js',
-  'https://cdn.jsdelivr.net/npm/chart.js',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js',
   './icon-192.png',
   './icon-512.png',
   './apple-touch-icon.png',
