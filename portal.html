@@ -1051,7 +1051,7 @@
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 </style>
-<link rel="stylesheet" href="css/oca-core-part1.css?v=332">
+<link rel="stylesheet" href="css/oca-core-part1.css?v=333">
 <style>
     #oca-app-root .oca-input {
       width: 100%;
@@ -4799,7 +4799,7 @@ body.printing-report #printReportContainer {
       }
     }
 </style>
-<link rel="stylesheet" href="css/oca-core-part2.css?v=332">
+<link rel="stylesheet" href="css/oca-core-part2.css?v=333">
 <style>
     @media (max-width: 640px) {
       #tabReceipts .oca-receipt-ctrl-panel div[style*="grid-template-columns:1fr 1fr"],
@@ -10664,7 +10664,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '332';
+      var LATEST_VERSION = '333';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -34072,6 +34072,11 @@ if (action === 'getDashboardStats') {
         if (leftFg !== -1 && rightFg > leftFg) {
           for (let x = leftFg + 1; x < rightFg; x++) {
             const idx = row + x;
+            const jT = idx * 4;
+            const dRefT = Math.hypot(srcPixels[jT] - refR, srcPixels[jT + 1] - refG, srcPixels[jT + 2] - refB);
+            if (isUniformBackdrop && dRefT < 48 && alphaArr[idx] < 0.65) {
+              continue;
+            }
             if (exteriorBg[idx] === 0 || alphaArr[idx] >= 0.35) {
               alphaArr[idx] = 1.0;
             }
@@ -34132,6 +34137,7 @@ if (action === 'getDashboardStats') {
       }
       for (let i = 0; i < N; i++) {
         const j = i * 4;
+        const py = Math.floor(i / w);
         const sR = srcPixels[j];
         const sG = srcPixels[j + 1];
         const sB = srcPixels[j + 2];
@@ -34155,6 +34161,12 @@ if (action === 'getDashboardStats') {
         if (a > 0 && isUniformBackdrop && distMap[i] <= 2 && distToRef < 52 && gA < 0.78) {
           a *= Math.max(0, (distToRef - 24) / 28);
         }
+        if (a > 0 && isBackdropBlue && isUniformBackdrop && distMap[i] <= 1 && distToRef < 65 && gA < 0.88) {
+          a *= Math.max(0, (distToRef - 28) / 37);
+        }
+        if (a > 0 && isBackdropGreen && py < h * 0.68 && distToRef < 75 && sG > Math.max(sR, sB) + 32) {
+          a *= Math.max(0, (distToRef - 38) / 37);
+        }
         let fgR = sR;
         let fgG = sG;
         let fgB = sB;
@@ -34165,10 +34177,10 @@ if (action === 'getDashboardStats') {
           fgG = Math.min(255, Math.max(0, (sG - decontam * refG) * invA));
           fgB = Math.min(255, Math.max(0, (sB - decontam * refB) * invA));
         }
-        if (a > 0 && distMap[i] <= 4) {
-          const wRim = a < 1 ? 0.85 : Math.min(0.85, (5 - distMap[i]) * 0.22);
-          if (isBackdropBlue && sB > sR + 16 && distToRef < 145) {
-            const capB = Math.max(fgR, fgG * 0.85);
+        if (a > 0 && (distMap[i] <= 4 || (isBackdropGreen && (distMap[i] <= 12 || py < h * 0.65)))) {
+          const wRim = (a < 1 || distMap[i] <= 2) ? 0.95 : Math.min(0.85, (5 - distMap[i]) * 0.22);
+          if (isBackdropBlue && distMap[i] <= 4 && sB > sR + 16 && distToRef < 145) {
+            const capB = py < h * 0.55 ? Math.min(fgR, fgG) + 6 : Math.max(fgR, fgG * 0.85);
             if (fgB > capB) {
               fgB = Math.round(fgB * (1 - wRim) + capB * wRim);
             }
@@ -34177,9 +34189,12 @@ if (action === 'getDashboardStats') {
               fgG = Math.round(fgG * (1 - wRim * 0.75) + targetG * (wRim * 0.75));
             }
           }
-          if (isBackdropGreen && fgG > Math.max(fgR, fgB) + 10) {
-            const capG = Math.max(fgR, fgB) + 4;
-            fgG = Math.round(fgG * (1 - wRim) + capG * wRim);
+          if (isBackdropGreen && fgG > Math.max(fgR, fgB) + 8) {
+            const gLimit = (fgR + fgB) * 0.52 + 4;
+            if (fgG > gLimit) {
+              const gWeight = distMap[i] <= 4 ? 0.90 : 0.78;
+              fgG = Math.round(fgG * (1 - gWeight) + gLimit * gWeight);
+            }
           }
         }
         outPixels[j] = Math.round(fgR * a + bg[0] * (1 - a));
@@ -92187,7 +92202,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=332';
+      const swPath = basePath + 'sw.js?v=333';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92224,7 +92239,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (332):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (333):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
