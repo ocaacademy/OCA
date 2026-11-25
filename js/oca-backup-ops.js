@@ -65,7 +65,7 @@
         } catch (err) {
           if (box) {
             box.style.display = 'block';
-            box.innerHTML = `<div style="color:#EF4444; font-weight:700;">✗ อ่านไฟล์ไม่สำเร็จ: ${String(err?.message || err).replace(/[<>&"]/g, '')}</div>`;
+            box.innerHTML = `<div style="color:#EF4444; font-weight:700;"><i class="fa-solid fa-circle-xmark" style="margin-right:4px;"></i> อ่านไฟล์ไม่สำเร็จ: ${String(err?.message || err).replace(/[<>&"]/g, '')}</div>`;
           }
         } finally {
           fileInp.value = '';
@@ -120,7 +120,7 @@
         counts,
         html: `
           <div style="font-weight:800; margin-bottom:6px; color:${passed ? '#059669' : '#D97706'};">
-            ${passed ? _t('✓ ผลการตรวจ Dry-Run ผ่าน 100% — ไฟล์พร้อมใช้งานกู้คืน', '✓ Dry-Run Passed 100% — Backup file is ready for restore', '✓ 预检 100% 通过 — 备份文件可用于恢复') : _t('⚠️ พบข้อสังเกตในไฟล์สำรองข้อมูล', '⚠️ Backup file warnings detected', '⚠️ 检测到备份文件异常')} (${String(fileName).replace(/[<>&"]/g, '')})
+            ${passed ? '<i class="fa-solid fa-circle-check" style="margin-right:4px;"></i> ' + _t('ผลการตรวจ Dry-Run ผ่าน 100% — ไฟล์พร้อมใช้งานกู้คืน', 'Dry-Run Passed 100% — Backup file is ready for restore', '预检 100% 通过 — 备份文件可用于恢复') : '<i class="fa-solid fa-triangle-exclamation" style="margin-right:4px;"></i> ' + _t('พบข้อสังเกตในไฟล์สำรองข้อมูล', 'Backup file warnings detected', '检测到备份文件异常')} (${String(fileName).replace(/[<>&"]/g, '')})
           </div>
           <ul style="margin:0 0 6px 18px; padding:0;">${summaryRows}</ul>
           <div style="font-size:11.5px; color:var(--text-muted);">
