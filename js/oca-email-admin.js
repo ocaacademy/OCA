@@ -11,6 +11,13 @@
 (function (global) {
   'use strict';
 
+  function _t(th, en, zh) {
+    const lang = String(global._currentSystemLang || 'th').toLowerCase();
+    if (lang === 'en') return en || th;
+    if (lang === 'zh') return zh || en || th;
+    return th;
+  }
+
   const DEFAULT_EMAIL_CONFIG = Object.freeze({
     brevoLowQuotaThreshold: 50,
     autoEmailOnApprove: true,
@@ -75,13 +82,17 @@
     if (key) _receiptEmailCooldownMap.set(key, Date.now());
   }
 
+  function getEmailConfigSync() {
+    return { ..._cachedEmailConfig };
+  }
+
   async function loadEmailConfig(force = false) {
     if (!force && global._ocaEmailConfigLoaded) {
       return { ..._cachedEmailConfig };
     }
     try {
       if (global.OcaAppConfig && typeof global.OcaAppConfig.get === 'function') {
-        const stored = await global.OcaAppConfig.get('email_config', null);
+        const stored = await global.OcaAppConfig.get('email_config', null, force);
         if (stored && typeof stored === 'object') {
           _cachedEmailConfig = { ...DEFAULT_EMAIL_CONFIG, ...stored };
           global._ocaEmailConfigLoaded = true;
@@ -369,7 +380,7 @@
   async function loadIdleTimeoutMinutes() {
     try {
       if (global.OcaAppConfig && typeof global.OcaAppConfig.get === 'function') {
-        const val = await global.OcaAppConfig.get('idle_timeout_minutes', 30);
+        const val = await global.OcaAppConfig.get('idle_timeout_minutes', 30, true);
         const mins = Number(val);
         if ([15, 30, 60].includes(mins)) {
           global._ocaIdleTimeoutMinutes = mins;
@@ -611,7 +622,7 @@
     const lblBackup = document.getElementById('lblLastBackupStatus');
     const badgeRemind = document.getElementById('badgeBackupOverdueWarning');
     try {
-      const meta = global.OcaAppConfig ? await global.OcaAppConfig.get('last_backup_at', null) : null;
+      const meta = global.OcaAppConfig ? await global.OcaAppConfig.get('last_backup_at', null, true) : null;
       if (meta && meta.at) {
         const dt = new Date(meta.at);
         const daysAgo = Math.floor((Date.now() - dt.getTime()) / (24 * 60 * 60 * 1000));
@@ -721,6 +732,7 @@
   }
 
   global.saveSlipGuardSettingsFromUi = async function () {
+    if (!_isOcaAdminAllowed()) return;
     if (!global.OcaSlipGuard) return;
     const beforeCfg = (typeof global.OcaSlipGuard.getConfigSync === 'function') ? global.OcaSlipGuard.getConfigSync() : {};
     const nextCfg = {
@@ -749,12 +761,13 @@
         }
         return ok;
       },
-      'บันทึกการตั้งค่า Slip Guard แล้ว',
-      'อัปเดตลง app_settings เรียบร้อย'
+      _t('บันทึกการตั้งค่า Slip Guard แล้ว', 'Slip Guard settings saved', '防伪凭条设置已保存'),
+      _t('อัปเดตลง app_settings เรียบร้อย', 'Updated in app_settings', '已更新至 app_settings')
     );
   };
 
   global.saveEmailSettingsFromUi = async function () {
+    if (!_isOcaAdminAllowed()) return;
     const beforeCfg = { ..._cachedEmailConfig };
     const nextCfg = {
       brevoLowQuotaThreshold: Number(document.getElementById('inpEmailBrevoThreshold')?.value || 50),
@@ -778,8 +791,8 @@
         }
         return ok;
       },
-      'บันทึกการตั้งค่าอีเมลแล้ว',
-      'อัปเดตลง app_settings เรียบร้อย'
+      _t('บันทึกการตั้งค่าอีเมลแล้ว', 'Email settings saved', '邮件设置已保存'),
+      _t('อัปเดตลง app_settings เรียบร้อย', 'Updated in app_settings', '已更新至 app_settings')
     );
   };
 
@@ -788,24 +801,24 @@
     const btn = document.getElementById('btnSettingsSendTestEmail');
     const target = inp ? inp.value.trim() : '';
     if (!isValidOcaEmail(target)) {
-      if (typeof global.showToast === 'function') global.showToast('อีเมลไม่ถูกต้อง', 'กรุณากรอกอีเมลให้ถูกต้องตามรูปแบบ RFC', '⚠️');
+      if (typeof global.showToast === 'function') global.showToast(_t('อีเมลไม่ถูกต้อง', 'Invalid email', '邮箱格式无效'), _t('กรุณากรอกอีเมลให้ถูกต้องตามรูปแบบ RFC', 'Please enter a valid RFC email address', '请输入有效的邮箱地址'), '⚠️');
       if (inp) inp.focus();
       return;
     }
-    if (btn) { btn.disabled = true; btn.textContent = 'กำลังส่ง...'; }
+    if (btn) { btn.disabled = true; btn.textContent = _t('กำลังส่ง...', 'Sending...', '发送中...'); }
     try {
       const res = await sendTestEmailFromSettings(target);
       if (typeof global.showToast === 'function') {
-        global.showToast(res.success ? 'ส่งอีเมลทดสอบสำเร็จ' : 'ส่งอีเมลทดสอบไม่สำเร็จ', res.message || res.error || '', res.success ? '✅' : '❌');
+        global.showToast(res.success ? _t('ส่งอีเมลทดสอบสำเร็จ', 'Test email sent', '测试邮件发送成功') : _t('ส่งอีเมลทดสอบไม่สำเร็จ', 'Test email failed', '测试邮件发送失败'), res.message || res.error || '', res.success ? '✅' : '❌');
       }
     } finally {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> ทดสอบส่งอีเมล'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> ${_t('ทดสอบส่งอีเมล', 'Send Test Email', '发送测试邮件')}`; }
     }
   };
 
   let _emailActionBusy = false;
   global.handleRemoveBlacklistedSlip = async function (key) {
-    if (!key || !global.OcaSlipGuard || _emailActionBusy) return;
+    if (!_isOcaAdminAllowed() || !key || !global.OcaSlipGuard || _emailActionBusy) return;
     if (typeof global.requireSecurityPinVerification === 'function') {
       const pinOk = await global.requireSecurityPinVerification('ยืนยันการปลดล็อกสลิปบัญชีดำ', `ปลดล็อกสลิป ${key} ออกจากบัญชีดำ`);
       if (!pinOk) return;
@@ -834,7 +847,7 @@
   };
 
   global.handleRetryFailedEmail = async function (id) {
-    if (_emailActionBusy) return;
+    if (!_isOcaAdminAllowed() || _emailActionBusy) return;
     _emailActionBusy = true;
     try {
       const res = await retryFailedEmail(id);
@@ -857,7 +870,7 @@
   };
 
   global.handleDeleteFailedEmail = async function (id) {
-    if (_emailActionBusy) return;
+    if (!_isOcaAdminAllowed() || _emailActionBusy) return;
     _emailActionBusy = true;
     try {
       await removeFailedEmailItem(id);
@@ -868,7 +881,7 @@
   };
 
   global.handleRetryAllFailedEmails = async function () {
-    if (_emailActionBusy) return;
+    if (!_isOcaAdminAllowed() || _emailActionBusy) return;
     _emailActionBusy = true;
     const btn = document.getElementById('btnRetryAllFailedEmails');
     if (btn) { btn.disabled = true; btn.textContent = 'กำลังส่งซ้ำ...'; }
@@ -885,6 +898,7 @@
   };
 
   global.handleSaveIdleTimeoutFromUi = async function () {
+    if (!_isOcaAdminAllowed()) return;
     const sel = document.getElementById('selSettingsIdleTimeout');
     const prevMins = Number(global._ocaIdleTimeoutMinutes || 30);
     const mins = Number(sel ? sel.value : 30);
@@ -905,40 +919,54 @@
         }
         return ok;
       },
-      'บันทึกเวลา Auto-Logout แล้ว',
-      `ตั้งค่าเป็น ${mins} นาที`
+      _t('บันทึกเวลา Auto-Logout แล้ว', 'Auto-Logout timeout saved', '自动登出超时已保存'),
+      _t(`ตั้งค่าเป็น ${mins} นาที`, `Set to ${mins} minutes`, `已设为 ${mins} 分钟`)
     );
   };
 
   global.handleExportFull8TableBackup = async function () {
+    if (!_isOcaAdminAllowed()) return;
     const btn = document.getElementById('btnExportFull8TableBackup');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังสำรองข้อมูล 8 ตาราง...'; }
+    if (btn) { btn.disabled = true; btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${_t('กำลังสำรองข้อมูล 8 ตาราง...', 'Backing up 8 tables...', '正在备份 8 张表...')}`; }
     try {
       const meta = await exportFull8TableBackup((prog) => {
         if (btn && prog) {
-          btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังสำรองตาราง ${prog.index}/${prog.totalTables} (${prog.table}: ${Number(prog.rows || 0).toLocaleString()} แถว)...`;
+          btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${_t(`กำลังสำรองตาราง ${prog.index}/${prog.totalTables} (${prog.table}: ${Number(prog.rows || 0).toLocaleString()} แถว)...`, `Backing up table ${prog.index}/${prog.totalTables} (${prog.table}: ${Number(prog.rows || 0).toLocaleString()} rows)...`, `正在备份表 ${prog.index}/${prog.totalTables} (${prog.table}: ${Number(prog.rows || 0).toLocaleString()} 行)...`)}`;
         }
       });
-      const summaryDesc = `รวมทั้งหมด ${Number(meta.totalRecords || 0).toLocaleString()} รายการ (บันทึก Audit Log และ last_backup_at แล้ว)`;
+      const summaryDesc = _t(
+        `รวมทั้งหมด ${Number(meta.totalRecords || 0).toLocaleString()} รายการ (บันทึก Audit Log และ last_backup_at แล้ว)`,
+        `Total ${Number(meta.totalRecords || 0).toLocaleString()} records (Audit Log & last_backup_at recorded)`,
+        `共 ${Number(meta.totalRecords || 0).toLocaleString()} 条记录（已记录审计日志和备份时间）`
+      );
       if (typeof global.showToast === 'function') {
-        global.showToast('สำรองข้อมูลครบ 8 ตารางสำเร็จ!', summaryDesc, '✅');
+        global.showToast(_t('สำรองข้อมูลครบ 8 ตารางสำเร็จ!', '8-Table Full Backup Complete!', '8 张表完整备份成功！'), summaryDesc, '✅');
       }
       if (typeof global.showOcaAlert === 'function') {
-        global.showOcaAlert('สำรองข้อมูลครบ 8 ตารางสำเร็จ!', summaryDesc, 'success');
+        global.showOcaAlert(_t('สำรองข้อมูลครบ 8 ตารางสำเร็จ!', '8-Table Full Backup Complete!', '8 张表完整备份成功！'), summaryDesc, 'success');
       }
       await initSettingsAppConfigView();
     } catch (err) {
       const errMsg = (err && err.message) || String(err);
       if (typeof global.showToast === 'function') {
-        global.showToast('สำรองข้อมูลไม่สำเร็จ', errMsg, '❌');
+        global.showToast(_t('สำรองข้อมูลไม่สำเร็จ', 'Backup failed', '备份失败'), errMsg, '❌');
       }
       if (typeof global.showOcaAlert === 'function') {
-        global.showOcaAlert('สำรองข้อมูลไม่สำเร็จ', errMsg, 'error');
+        global.showOcaAlert(_t('สำรองข้อมูลไม่สำเร็จ', 'Backup failed', '备份失败'), errMsg, 'error');
       }
     } finally {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-database"></i> สำรองข้อมูลครบทั้ง 8 ตาราง (Full JSON Backup)'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-database"></i> ${_t('สำรองข้อมูลครบทั้ง 8 ตาราง (Full JSON Backup)', 'Full 8-Table JSON Backup', '完整 8 表 JSON 备份')}`; }
     }
   };
+
+  function _isOcaAdminAllowed() {
+    if (typeof global.isAdminStaffUser === 'function') return global.isAdminStaffUser();
+    const u = (typeof global.getSavedCurrentUser === 'function') ? global.getSavedCurrentUser() : null;
+    if (!u) return false;
+    const r = String(u.role || u.userRole || '').trim().toLowerCase();
+    const un = String(u.username || '').trim().toLowerCase();
+    return ['admin', 'administrator', 'superadmin'].includes(r) || un === 'admin' || un === 'cake';
+  }
 
   global.OcaEmailAdmin = {
     DEFAULT_EMAIL_CONFIG,
@@ -947,6 +975,7 @@
     isValidOcaEmail,
     checkEmailSendCooldown,
     markEmailSentNow,
+    getEmailConfigSync,
     loadEmailConfig,
     saveEmailConfig,
     getFailedEmailQueue,
