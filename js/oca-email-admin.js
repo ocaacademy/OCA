@@ -411,6 +411,13 @@
   async function fetchAllTableRowsPaginated(sb, tableName, onProgress) {
     const all = [];
     const pageSize = 1000;
+    if (tableName === 'staff_users' && typeof sb.rpc === 'function') {
+      const { data: rpcStaff, error: rpcErr } = await sb.rpc('get_safe_staff_users');
+      if (!rpcErr && Array.isArray(rpcStaff) && rpcStaff.length > 0) {
+        if (typeof onProgress === 'function') onProgress(rpcStaff.length);
+        return rpcStaff;
+      }
+    }
     const KEYSET_COLS = {
       receipts: 'receipt_no',
       students: 'student_id',
