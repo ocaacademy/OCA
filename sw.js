@@ -1,4 +1,4 @@
-const CACHE_NAME = '320';
+const CACHE_NAME = '321';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -7,6 +7,8 @@ const ASSETS_TO_CACHE = [
   './js/oca-slip-guard.js',
   './js/oca-email-admin.js',
   './css/oca-modular-v261.css',
+  './css/oca-core-part1.css',
+  './css/oca-core-part2.css',
   './js/oca-watchdog.js',
   './js/oca-offline-queue.js',
   './js/oca-rls-guard.js',
