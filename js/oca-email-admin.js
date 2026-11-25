@@ -446,26 +446,36 @@
       return all;
     }
     const orderColMap = {
+      students: 'student_id',
+      receipts: 'id',
       courses: 'id',
       schedules: 'id',
       fee_settings: 'key',
       app_settings: 'key',
-      staff_users: 'username'
+      staff_users: 'username',
+      security_audit_logs: 'id'
     };
     const orderCol = orderColMap[tableName] || null;
     let from = 0;
-    for (let page = 0; page < 250; page++) {
-      let qPage = sb.from(tableName).select('*');
-      if (orderCol) qPage = qPage.order(orderCol, { ascending: true });
-      const { data, error } = await qPage.range(from, from + pageSize - 1);
-      if (error) {
-        throw new Error(`[OcaEmailAdmin.backup] table ${tableName} error: ${error.message || error}`);
+    let done = false;
+    for (let batch = 0; batch < 4 && !done; batch++) {
+      for (let page = 0; page < 250; page++) {
+        let qPage = sb.from(tableName).select('*');
+        if (orderCol) qPage = qPage.order(orderCol, { ascending: true });
+        const { data, error } = await qPage.range(from, from + pageSize - 1);
+        if (error) {
+          throw new Error(`[OcaEmailAdmin.backup] table ${tableName} error: ${error.message || error}`);
+        }
+        if (!Array.isArray(data) || data.length === 0) { done = true; break; }
+        all.push(...data);
+        if (typeof onProgress === 'function') onProgress(all.length);
+        if (data.length < pageSize) { done = true; break; }
+        if (batch === 3 && page === 249) {
+          console.warn(`[OcaEmailAdmin.backup] table ${tableName} hit 1000-page ceiling (${all.length} rows)`);
+          all._truncated = true;
+        }
+        from += pageSize;
       }
-      if (!Array.isArray(data) || data.length === 0) break;
-      all.push(...data);
-      if (typeof onProgress === 'function') onProgress(all.length);
-      if (data.length < pageSize) break;
-      from += pageSize;
     }
     return all;
   }
@@ -480,6 +490,7 @@
 
     const tablesData = {};
     const counts = {};
+    const truncatedTables = [];
     let totalRows = 0;
     for (let idx = 0; idx < FULL_BACKUP_TABLES.length; idx++) {
       const tbl = FULL_BACKUP_TABLES[idx];
@@ -491,6 +502,7 @@
           onProgress({ index: idx + 1, totalTables: FULL_BACKUP_TABLES.length, table: tbl, rows: n });
         }
       });
+      if (rows && rows._truncated) truncatedTables.push(tbl);
       tablesData[tbl] = rows;
       counts[tbl] = rows.length;
       totalRows += rows.length;
@@ -502,6 +514,7 @@
       exported_by: actor.username,
       tables: FULL_BACKUP_TABLES,
       counts,
+      truncated_tables: truncatedTables,
       total_records: totalRows,
       data: tablesData
     };
