@@ -1051,7 +1051,7 @@
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 </style>
-<link rel="stylesheet" href="css/oca-core-part1.css?v=322">
+<link rel="stylesheet" href="css/oca-core-part1.css?v=323">
 <style>
     #oca-app-root .oca-input {
       width: 100%;
@@ -4799,7 +4799,7 @@ body.printing-report #printReportContainer {
       }
     }
 </style>
-<link rel="stylesheet" href="css/oca-core-part2.css?v=322">
+<link rel="stylesheet" href="css/oca-core-part2.css?v=323">
 <style>
     @media (max-width: 640px) {
       #tabReceipts .oca-receipt-ctrl-panel div[style*="grid-template-columns:1fr 1fr"],
@@ -10664,7 +10664,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '322';
+      var LATEST_VERSION = '323';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -63336,16 +63336,20 @@ if (action === 'getDashboardStats') {
       const u = String(user.username || '').toLowerCase().trim();
       if (typeof _supabase !== 'undefined' && _supabase) {
         try {
-          // 0. ตรวจสอบสถานะบัญชีพนักงานจาก DB เพื่อบังคับออกจากระบบทันทีหากถูกลบหรือระงับใช้งาน
-          const { data: staffStatusRow, error: staffStatusErr } = await _supabase
-            .from('staff_users')
-            .select('username, is_active')
-            .ilike('username', u)
-            .maybeSingle();
-          if (!staffStatusErr && (!staffStatusRow || staffStatusRow.is_active === false)) {
-            console.warn('[Session Security] User deleted or suspended in DB:', u);
-            if (typeof logoutStaff === 'function') logoutStaff(true);
-            return;
+          // 0. ตรวจสอบสถานะบัญชีพนักงานผ่าน RPC (get_safe_staff_users) เพื่อรองรับ RLS บน staff_users
+          const { data: safeStaffRows, error: safeStaffErr } = await _supabase.rpc('get_safe_staff_users');
+          if (!safeStaffErr && Array.isArray(safeStaffRows) && safeStaffRows.length > 0) {
+            const matchedStaff = safeStaffRows.find(r => String(r && r.username || '').toLowerCase().trim() === u);
+            const stUpper = String((matchedStaff && matchedStaff.status) || '').toUpperCase().trim();
+            const isSuspended = Boolean(matchedStaff && (
+              matchedStaff.is_active === false ||
+              ['INACTIVE', 'SUSPENDED', 'DISABLED', 'DELETED'].includes(stUpper)
+            ));
+            if (!matchedStaff || isSuspended) {
+              console.warn('[Session Security] User deleted or suspended in DB:', u);
+              if (typeof logoutStaff === 'function') await logoutStaff(true);
+              return;
+            }
           }
           const { data, error } = await _supabase
             .from('fee_settings')
@@ -67577,10 +67581,19 @@ if (action === 'getDashboardStats') {
       if (typeof _supabase !== 'undefined' && _supabase && typeof getSavedCurrentUser === 'function') {
         const curU = getSavedCurrentUser();
         if (curU && curU.username) {
-          _supabase.from('staff_users').select('username, role, full_name, permissions').eq('username', curU.username).maybeSingle()
-            .then(({ data: dbU, error: dbUErr }) => {
-              if (!dbUErr && dbU && typeof handleRealtimeStaffPermissionsUpdate === 'function') {
-                handleRealtimeStaffPermissionsUpdate(dbU);
+          const curUKey = String(curU.username || '').toLowerCase().trim();
+          _supabase.rpc('get_safe_staff_users')
+            .then(({ data: rpcUsers, error: rpcErr }) => {
+              if (!rpcErr && Array.isArray(rpcUsers) && typeof handleRealtimeStaffPermissionsUpdate === 'function') {
+                const found = rpcUsers.find(r => String(r && r.username || '').toLowerCase().trim() === curUKey);
+                if (found) {
+                  handleRealtimeStaffPermissionsUpdate({
+                    username: found.username,
+                    role: found.role,
+                    full_name: found.fullName || found.full_name || '',
+                    permissions: found.permissions
+                  });
+                }
               }
             }, () => {});
         }
@@ -91988,7 +92001,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=322';
+      const swPath = basePath + 'sw.js?v=323';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92025,7 +92038,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (322):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (323):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
