@@ -1,4 +1,4 @@
-const CACHE_NAME = '334';
+const CACHE_NAME = '335';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -74,7 +74,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (key !== CACHE_NAME && key !== 'oca-ai-models-v1') {
             console.log('[SW] Deleting stale cache:', key);
             return caches.delete(key);
           }
