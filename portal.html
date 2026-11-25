@@ -1051,7 +1051,7 @@
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 </style>
-<link rel="stylesheet" href="css/oca-core-part1.css?v=325">
+<link rel="stylesheet" href="css/oca-core-part1.css?v=326">
 <style>
     #oca-app-root .oca-input {
       width: 100%;
@@ -4799,7 +4799,7 @@ body.printing-report #printReportContainer {
       }
     }
 </style>
-<link rel="stylesheet" href="css/oca-core-part2.css?v=325">
+<link rel="stylesheet" href="css/oca-core-part2.css?v=326">
 <style>
     @media (max-width: 640px) {
       #tabReceipts .oca-receipt-ctrl-panel div[style*="grid-template-columns:1fr 1fr"],
@@ -10664,7 +10664,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '325';
+      var LATEST_VERSION = '326';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -28764,28 +28764,33 @@ if (action === 'getDashboardStats') {
                 p_citizen_id: isPassport ? '' : (cleanId.length === 13 ? cleanId : ''),
                 p_passport_no: isPassport ? cleanId : ''
               });
-              if (!safeDupErr && safeDup && safeDup.is_duplicate) {
-                return {
-                  success: true,
-                  found: true,
-                  isDuplicate: true,
-                  studentId: safeDup.student_id || '',
-                  id: safeDup.student_id || '',
-                  fullName: safeDup.masked_name || '',
-                  duplicates: [{
+              if (!safeDupErr && safeDup) {
+                if (safeDup.is_duplicate) {
+                  return {
+                    success: true,
+                    found: true,
+                    isDuplicate: true,
                     studentId: safeDup.student_id || '',
+                    id: safeDup.student_id || '',
                     fullName: safeDup.masked_name || '',
-                    citizenId: '***',
-                    phoneNumber: '***',
-                    course: '-',
-                    schedule: '-',
-                    matchReason: 'พบข้อมูลซ้ำในระบบ (PDPA Protected)'
-                  }],
-                  student: {
-                    student_id: safeDup.student_id || '',
-                    full_name: safeDup.masked_name || ''
-                  }
-                };
+                    duplicates: [{
+                      studentId: safeDup.student_id || '',
+                      fullName: safeDup.masked_name || '',
+                      citizenId: '***',
+                      phoneNumber: '***',
+                      course: '-',
+                      schedule: '-',
+                      matchReason: 'พบข้อมูลซ้ำในระบบ (PDPA Protected)'
+                    }],
+                    student: {
+                      student_id: safeDup.student_id || '',
+                      full_name: safeDup.masked_name || ''
+                    }
+                  };
+                }
+                if (safeDup.is_duplicate === false) {
+                  return { success: true, found: false, isDuplicate: false, duplicates: [] };
+                }
               }
             } catch (_) {}
           }
@@ -28801,6 +28806,10 @@ if (action === 'getDashboardStats') {
             .limit(5);
           if (foundErr) {
             console.warn('checkStudentDuplicate/checkStatus query error:', foundErr);
+            const isTimeoutErr = /57014|statement timeout|canceling statement/i.test(String(foundErr.code || '') + ' ' + String(foundErr.message || ''));
+            if (action === 'checkStudentDuplicate' && isTimeoutErr) {
+              return { success: true, found: false, isDuplicate: false, timeoutBypassed: true, duplicates: [] };
+            }
             return { success: false, found: false, isDuplicate: false, duplicates: [], error: foundErr.message };
           }
           const hasMatches = !!(found && found.length > 0);
@@ -67996,7 +68005,7 @@ if (action === 'getDashboardStats') {
       backHome: 'กลับสู่หน้าหลัก',
       langHint: 'เปลี่ยนภาษา / Language:',
       academySub: 'โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก (东方文化学院)',
-      badgeTitle: '📝 ใบสมัครเข้าศึกษาออนไลน์ (Online Admission Application)',
+      badgeTitle: 'ใบสมัครเข้าศึกษาออนไลน์ (Online Admission Application)',
       bannerOpenPrefix: 'เปิดรับสมัครเรียนออนไลน์ถึงวันที่',
       // Auto-save & Restored Alert
       autoSaveNoteTitle: 'ข้อแนะนำ: สบายใจได้ ระบบช่วยบันทึกข้อมูลให้อัตโนมัติ',
@@ -68146,7 +68155,7 @@ if (action === 'getDashboardStats') {
       backHome: 'Back to Home',
       langHint: 'Language:',
       academySub: 'Oriental Culture Academy (东方文化学院)',
-      badgeTitle: '📝 Online Student Admission Application',
+      badgeTitle: 'Online Student Admission Application',
       bannerOpenPrefix: 'Online admission open until',
       // Auto-save & Restored Alert
       autoSaveNoteTitle: 'Friendly Reminder: Auto-Save Draft Protection is Active',
@@ -68296,7 +68305,7 @@ if (action === 'getDashboardStats') {
       backHome: '返回首页',
       langHint: '语言 / Language:',
       academySub: '东方文化学院',
-      badgeTitle: '📝 在线入学申请表 ',
+      badgeTitle: '在线入学申请表 ',
       bannerOpenPrefix: '在线报名截止日期至',
       // Auto-save & Restored Alert
       autoSaveNoteTitle: '温馨提示: 系统已开启自动草稿保护',
@@ -71440,7 +71449,7 @@ function openPublicRegisterView() {
       const selectedProv = pSel.value;
       dSel.innerHTML = '<option value="">-- เลือกอำเภอ / เขต --</option>';
       if (sSel) sSel.innerHTML = '<option value="">-- เลือกตำบล / แขวง --</option>';
-      if (zSel) zSel.innerHTML = '<option value="">-- เลือกรหัสไปรษณีย์ --</option>';
+      if (zSel) zSel.innerHTML = `<option value="">${escapeHtml((typeof OCA_REG_I18N !== 'undefined' && OCA_REG_I18N[typeof currentRegLanguage !== 'undefined' ? currentRegLanguage : 'th']?.postalCodePlace) || '-- เลือกรหัสไปรษณีย์ --')}</option>`;
       const db = getKioskThaiAddressDB();
       if (selectedProv && db && db.districtsByProv) {
         const districts = [...(db.districtsByProv[selectedProv] || [])];
@@ -71466,7 +71475,7 @@ function openPublicRegisterView() {
       const selectedDist = dSel.value;
       const selectedOption = dSel.options[dSel.selectedIndex];
       sSel.innerHTML = '<option value="">-- เลือกตำบล / แขวง --</option>';
-      if (zSel) zSel.innerHTML = '<option value="">-- เลือกรหัสไปรษณีย์ --</option>';
+      if (zSel) zSel.innerHTML = `<option value="">${escapeHtml((typeof OCA_REG_I18N !== 'undefined' && OCA_REG_I18N[typeof currentRegLanguage !== 'undefined' ? currentRegLanguage : 'th']?.postalCodePlace) || '-- เลือกรหัสไปรษณีย์ --')}</option>`;
       const db = getKioskThaiAddressDB();
       const distId = selectedOption ? selectedOption.getAttribute('data-id') : '';
       if (selectedDist && distId && db && db.subdistrictsByDist) {
@@ -71489,7 +71498,7 @@ function openPublicRegisterView() {
       const zSel = document.getElementById('inpKioskEditPostalCode');
       if (!sSel || !zSel) return;
       const selectedOption = sSel.options[sSel.selectedIndex];
-      zSel.innerHTML = '<option value="">-- เลือกรหัสไปรษณีย์ --</option>';
+      zSel.innerHTML = `<option value="">${escapeHtml((typeof OCA_REG_I18N !== 'undefined' && OCA_REG_I18N[typeof currentRegLanguage !== 'undefined' ? currentRegLanguage : 'th']?.postalCodePlace) || '-- เลือกรหัสไปรษณีย์ --')}</option>`;
       const zipCode = selectedOption ? String(selectedOption.getAttribute('data-zip') || '').trim() : '';
       if (zipCode) {
         const opt = document.createElement('option');
@@ -74083,9 +74092,9 @@ function openPublicRegisterView() {
       }
       if (lmBox) {
         const modes = [
-          { val: 'Online', icon: '🌐', title: d.lmOnlineTitle || '1. ONLINE (เรียนออนไลน์)', sub: d.lmOnlineSub || 'เรียนสดผ่านออนไลน์ (Zoom / Live)', rec: isOnlineCourse },
-          { val: 'Onsite', icon: '🏫', title: d.lmOnsiteTitle || '2. ONSITE (เรียนที่สถาบัน)', sub: d.lmOnsiteSub || 'เข้าเรียนในห้องเรียนที่สถาบัน OCA', rec: false },
-          { val: 'Hybrid', icon: '🔄', title: d.lmHybridTitle || '3. HYBRID (ผสมผสาน)', sub: d.lmHybridSub || 'เรียนได้ทั้งออนไลน์และที่สถาบัน', rec: false }
+          { val: 'Online', icon: '<i class="fa-solid fa-globe" style="color:#0284C7;" aria-hidden="true"></i>', title: d.lmOnlineTitle || '1. ONLINE (เรียนออนไลน์)', sub: d.lmOnlineSub || 'เรียนสดผ่านออนไลน์ (Zoom / Live)', rec: isOnlineCourse },
+          { val: 'Onsite', icon: '<i class="fa-solid fa-school" style="color:#0F766E;" aria-hidden="true"></i>', title: d.lmOnsiteTitle || '2. ONSITE (เรียนที่สถาบัน)', sub: d.lmOnsiteSub || 'เข้าเรียนในห้องเรียนที่สถาบัน OCA', rec: false },
+          { val: 'Hybrid', icon: '<i class="fa-solid fa-arrows-rotate" style="color:#D97706;" aria-hidden="true"></i>', title: d.lmHybridTitle || '3. HYBRID (ผสมผสาน)', sub: d.lmHybridSub || 'เรียนได้ทั้งออนไลน์และที่สถาบัน', rec: false }
         ];
         lmBox.innerHTML = modes.map(m => {
           const isSel = ctx.selectedLearningMode === m.val;
@@ -92052,7 +92061,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const selectedProv = pSel.value;
       dSel.innerHTML = '<option value="">-- เลือกอำเภอ / เขต --</option>';
       if (sSel) sSel.innerHTML = '<option value="">-- เลือกตำบล / แขวง --</option>';
-      if (zSel) zSel.innerHTML = '<option value="">-- เลือกรหัสไปรษณีย์ --</option>';
+      if (zSel) zSel.innerHTML = `<option value="">${escapeHtml((typeof OCA_REG_I18N !== 'undefined' && OCA_REG_I18N[typeof currentRegLanguage !== 'undefined' ? currentRegLanguage : 'th']?.postalCodePlace) || '-- เลือกรหัสไปรษณีย์ --')}</option>`;
       if (!selectedProv || !pubThaiAddressDB) return;
       const districts = (pubThaiAddressDB.districtsByProv && pubThaiAddressDB.districtsByProv[selectedProv]) || [];
       districts.sort((a, b) => a.name.localeCompare(b.name, 'th'));
@@ -92075,7 +92084,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const selectedDist = dSel.value;
       const selectedOption = dSel.options[dSel.selectedIndex];
       sSel.innerHTML = '<option value="">-- เลือกตำบล / แขวง --</option>';
-      if (zSel) zSel.innerHTML = '<option value="">-- เลือกรหัสไปรษณีย์ --</option>';
+      if (zSel) zSel.innerHTML = `<option value="">${escapeHtml((typeof OCA_REG_I18N !== 'undefined' && OCA_REG_I18N[typeof currentRegLanguage !== 'undefined' ? currentRegLanguage : 'th']?.postalCodePlace) || '-- เลือกรหัสไปรษณีย์ --')}</option>`;
       if (!selectedDist || !selectedOption || !pubThaiAddressDB) return;
       const distId = selectedOption.getAttribute('data-id');
       if (!distId) return;
@@ -92096,7 +92105,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
       const zSel = document.getElementById('selPubPostalCode');
       if (!sSel || !zSel) return;
       const selectedOption = sSel.options[sSel.selectedIndex];
-      zSel.innerHTML = '<option value="">-- เลือกรหัสไปรษณีย์ --</option>';
+      zSel.innerHTML = `<option value="">${escapeHtml((typeof OCA_REG_I18N !== 'undefined' && OCA_REG_I18N[typeof currentRegLanguage !== 'undefined' ? currentRegLanguage : 'th']?.postalCodePlace) || '-- เลือกรหัสไปรษณีย์ --')}</option>`;
       if (selectedOption && selectedOption.getAttribute('data-zip')) {
         const zipCode = selectedOption.getAttribute('data-zip').trim();
         if (zipCode) {
@@ -92145,7 +92154,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=325';
+      const swPath = basePath + 'sw.js?v=326';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92182,7 +92191,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (325):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (326):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
