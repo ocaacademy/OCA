@@ -10,6 +10,13 @@
 (function (global) {
   'use strict';
 
+  function _t(th, en, zh) {
+    const lang = String(global._currentSystemLang || 'th').toLowerCase();
+    if (lang === 'en') return en || th;
+    if (lang === 'zh') return zh || en || th;
+    return th;
+  }
+
   const DEFAULT_SLIP_GUARD_CONFIG = Object.freeze({
     strictCrc16: true,
     maxSlipAgeDays: 7,
@@ -153,7 +160,11 @@
         transRef: '',
         crcValid: false,
         crcResult: crcCheck,
-        reason: 'รหัสตรวจสอบความถูกต้อง EMVCo CRC-16 (Tag 63) ไม่ตรงกัน — สลิปอาจถูกดัดแปลงหรือปลอมแปลง',
+        reason: _t(
+          'รหัสตรวจสอบความถูกต้อง EMVCo CRC-16 (Tag 63) ไม่ตรงกัน — สลิปอาจถูกดัดแปลงหรือปลอมแปลง',
+          'EMVCo CRC-16 (Tag 63) checksum mismatch — slip may be altered or counterfeit',
+          'EMVCo CRC-16 (Tag 63) 校验不匹配 — 凭条可能被篡改或伪造'
+        ),
         qrRaw: raw,
         raw
       };
@@ -242,7 +253,11 @@
         transRef: '',
         crcValid: crcCheck.hasCrcTag ? crcCheck.valid : null,
         crcResult: crcCheck,
-        reason: 'ไม่พบรหัสอ้างอิงธุรกรรม (transRef) ใน QR — ระบบไม่อนุญาตให้สร้างรหัสจำลอง กรุณาให้แคชเชียร์ตรวจสอบสลิปด้วยตนเอง',
+        reason: _t(
+          'ไม่พบรหัสอ้างอิงธุรกรรม (transRef) ใน QR — ระบบไม่อนุญาตให้สร้างรหัสจำลอง กรุณาให้แคชเชียร์ตรวจสอบสลิปด้วยตนเอง',
+          'Transaction reference (transRef) not found in QR — synthetic IDs are blocked; please ask cashier to verify manually',
+          'QR 中未找到交易参考号 (transRef) — 系统禁止生成模拟单号，请由收银员人工核验凭条'
+        ),
         qrRaw: raw,
         raw
       };
@@ -400,7 +415,7 @@
     }
     try {
       if (global.OcaAppConfig && typeof global.OcaAppConfig.get === 'function') {
-        const stored = await global.OcaAppConfig.get('slip_guard_config', null);
+        const stored = await global.OcaAppConfig.get('slip_guard_config', null, force);
         if (stored && typeof stored === 'object') {
           _cachedSlipGuardConfig = { ...DEFAULT_SLIP_GUARD_CONFIG, ...stored };
           global._ocaSlipGuardConfigLoaded = true;
