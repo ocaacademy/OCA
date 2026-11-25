@@ -1053,7 +1053,7 @@
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 </style>
-<link rel="stylesheet" href="css/oca-core-part1.css?v=354">
+<link rel="stylesheet" href="css/oca-core-part1.css?v=355">
 <style>
     #oca-app-root .oca-input {
       width: 100%;
@@ -4803,7 +4803,7 @@ body.printing-report #printReportContainer {
       }
     }
 </style>
-<link rel="stylesheet" href="css/oca-core-part2.css?v=354">
+<link rel="stylesheet" href="css/oca-core-part2.css?v=355">
 <style>
     @media (max-width: 640px) {
       #tabReceipts .oca-receipt-ctrl-panel div[style*="grid-template-columns:1fr 1fr"],
@@ -10733,7 +10733,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '354';
+      var LATEST_VERSION = '355';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -59042,25 +59042,26 @@ if (action === 'getDashboardStats') {
         const studentCoursesMap = new Map();
         if (typeof _supabase !== 'undefined' && _supabase) {
           const pageSize = 1000;
-          const maxMinistryPages = 50;
+          const maxMinistryPages = 120;
           let offset = 0;
           let stPageCount = 0;
           if (yearFilter === 'ALL') {
             totalStudents = Object.values(window.OCA_ACADEMIC_YEARS_REGISTRY || {}).reduce((acc, y) => acc + (Number(y.total) || 0), 0);
+            let lastSid = null;
             while (stPageCount < maxMinistryPages) {
               if (thisLoadSeq !== _ministryLoadSeq) return;
-              const { data: chunk, error: cErr } = await _supabase.from('students')
+              let qAll = _supabase.from('students')
                 .select('student_id, prefix, full_name, citizen_id, current_course, current_schedule, status, created_at, notes')
-                .gte('student_id', '6800000')
                 .order('student_id', { ascending: false })
-                .range(offset, offset + pageSize - 1);
+                .limit(pageSize);
+              if (lastSid !== null) qAll = qAll.lt('student_id', lastSid);
+              const { data: chunk, error: cErr } = await qAll;
               if (cErr) throw cErr;
               if (!chunk || chunk.length === 0) break;
-              const activeRows = chunk.filter(s => !isStudentDeleted(s));
-              students.push(...activeRows);
-              offset += chunk.length;
+              lastSid = chunk[chunk.length - 1].student_id;
+              students.push(...chunk.filter(s => !isStudentDeleted(s)));
               stPageCount += 1;
-              renderProgress(students.length, totalStudents, 'กำลังดึงข้อมูลทะเบียนนักศึกษาปัจจุบัน...');
+              renderProgress(students.length, Math.max(totalStudents, students.length), 'กำลังดึงข้อมูลทะเบียนนักศึกษาปัจจุบัน...');
               if (chunk.length < pageSize) break;
             }
           } else {
@@ -92516,7 +92517,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=354';
+      const swPath = basePath + 'sw.js?v=355';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92553,7 +92554,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (354):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (355):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
