@@ -1052,7 +1052,7 @@
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 </style>
-<link rel="stylesheet" href="css/oca-core-part1.css?v=338">
+<link rel="stylesheet" href="css/oca-core-part1.css?v=339">
 <style>
     #oca-app-root .oca-input {
       width: 100%;
@@ -4800,7 +4800,7 @@ body.printing-report #printReportContainer {
       }
     }
 </style>
-<link rel="stylesheet" href="css/oca-core-part2.css?v=338">
+<link rel="stylesheet" href="css/oca-core-part2.css?v=339">
 <style>
     @media (max-width: 640px) {
       #tabReceipts .oca-receipt-ctrl-panel div[style*="grid-template-columns:1fr 1fr"],
@@ -10700,7 +10700,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '338';
+      var LATEST_VERSION = '339';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -26541,6 +26541,19 @@ body.printing-report #printReportContainer {
         try {
           let pinHashHex = '';
           if (typeof _supabase !== 'undefined' && _supabase && window.crypto && window.crypto.subtle) {
+            let curUname = 'default';
+            try {
+              const curU = (typeof getSavedCurrentUser === 'function')
+                ? getSavedCurrentUser()
+                : JSON.parse(sessionStorage.getItem('oca_current_user') || '{}');
+              if (curU && curU.username) curUname = String(curU.username).trim().toLowerCase() || 'default';
+            } catch (_) {}
+            const { error: rpcPinErr } = await _supabase.rpc('set_security_pin', { p_username: curUname, p_new_pin: newPin });
+            if (rpcPinErr) throw rpcPinErr;
+            if (curUname !== 'default') {
+              const { error: rpcDefErr } = await _supabase.rpc('set_security_pin', { p_username: 'default', p_new_pin: newPin });
+              if (rpcDefErr) throw rpcDefErr;
+            }
             const msgUint8 = new window.TextEncoder().encode('OCA_PIN_SALT:' + newPin);
             const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgUint8);
             pinHashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -26575,7 +26588,28 @@ body.printing-report #printReportContainer {
         let hasCloudPin = false;
         let cloudPinCheckOk = false;
         let hashHex = '';
-        // 1. Verify against authoritative cross-device hashed PIN in fee_settings FIRST
+        let curPinUser = 'default';
+        try {
+          const uObj = (typeof getSavedCurrentUser === 'function') ? getSavedCurrentUser() : JSON.parse(sessionStorage.getItem('oca_current_user') || '{}');
+          if (uObj && uObj.username) curPinUser = String(uObj.username).trim().toLowerCase() || 'default';
+        } catch (_) {}
+        // 0. Verify against authoritative Server-Side bcrypt PIN + lockout RPC FIRST
+        try {
+          if (typeof _supabase !== 'undefined' && _supabase) {
+            const { data: pinRpc, error: pinRpcErr } = await _supabase.rpc('verify_security_pin', { p_username: curPinUser, p_pin: pin });
+            if (!pinRpcErr && pinRpc) {
+              if (pinRpc.locked === true) {
+                return { success: false, locked: true, unlockAt: pinRpc.unlock_at || '', message: 'กรอกรหัส PIN ผิดเกินกำหนด บัญชีถูกล็อกชั่วคราว 15 นาที (Server-Side Lockout)' };
+              }
+              if (pinRpc.ok === true) {
+                window._ocaSavedSecurityPin = pin;
+                try { sessionStorage.setItem('oca_session_pin_display', pin); } catch (_) {}
+                return { success: true };
+              }
+            }
+          }
+        } catch (_) {}
+        // 1. Verify against legacy SHA-256 hashed PIN in fee_settings & auto-migrate to Server-Side bcrypt RPC
         try {
           if (typeof _supabase !== 'undefined' && _supabase && window.crypto && window.crypto.subtle) {
             const msgUint8 = new window.TextEncoder().encode('OCA_PIN_SALT:' + pin);
@@ -26592,6 +26626,14 @@ body.printing-report #printReportContainer {
                 hasCloudPin = true;
                 if (pinRow[0].name === hashHex) {
                   window._ocaSavedSecurityPin = pin;
+                  try {
+                    const { error: migDefErr } = await _supabase.rpc('set_security_pin', { p_username: 'default', p_new_pin: pin });
+                    if (migDefErr) console.warn('[PIN auto-migrate default]', migDefErr.message);
+                    if (curPinUser !== 'default') {
+                      const { error: migUsrErr } = await _supabase.rpc('set_security_pin', { p_username: curPinUser, p_new_pin: pin });
+                      if (migUsrErr) console.warn('[PIN auto-migrate user]', migUsrErr.message);
+                    }
+                  } catch (_) {}
                   try {
                     localStorage.removeItem('oca_custom_pin');
                     localStorage.setItem('oca_custom_pin_hash', hashHex);
@@ -34594,72 +34636,41 @@ if (action === 'getDashboardStats') {
           for (let y = 0; y < h; y++) {
             const row = y * w;
             let lastFg = -999;
-            for (let x = 0; x < w; x++) {
-              if (mpAlpha[row + x] >= 0.08) lastFg = x;
-              if (x - lastFg <= R_MP) mpHoriz[row + x] = 1;
-            }
+            for (let x = 0; x < w; x++) { if (mpAlpha[row + x] >= 0.08) lastFg = x; if (x - lastFg <= R_MP) mpHoriz[row + x] = 1; }
             lastFg = 999999;
-            for (let x = w - 1; x >= 0; x--) {
-              if (mpAlpha[row + x] >= 0.08) lastFg = x;
-              if (lastFg - x <= R_MP) mpHoriz[row + x] = 1;
-            }
+            for (let x = w - 1; x >= 0; x--) { if (mpAlpha[row + x] >= 0.08) lastFg = x; if (lastFg - x <= R_MP) mpHoriz[row + x] = 1; }
           }
           const mpSupport = new Uint8Array(N);
           for (let x = 0; x < w; x++) {
             let lastFg = -999;
-            for (let y = 0; y < h; y++) {
-              const idx = y * w + x;
-              if (mpHoriz[idx] === 1) lastFg = y;
-              if (y - lastFg <= R_MP) mpSupport[idx] = 1;
-            }
+            for (let y = 0; y < h; y++) { const idx = y * w + x; if (mpHoriz[idx] === 1) lastFg = y; if (y - lastFg <= R_MP) mpSupport[idx] = 1; }
             lastFg = 999999;
-            for (let y = h - 1; y >= 0; y--) {
-              const idx = y * w + x;
-              if (mpHoriz[idx] === 1) lastFg = y;
-              if (lastFg - y <= R_MP) mpSupport[idx] = 1;
-            }
+            for (let y = h - 1; y >= 0; y--) { const idx = y * w + x; if (mpHoriz[idx] === 1) lastFg = y; if (lastFg - y <= R_MP) mpSupport[idx] = 1; }
           }
           for (let i = 0; i < N; i++) {
-            if (mpSupport[i] === 0) {
-              alphaArr[i] = 0;
-            } else if (isUniformBackdrop && mpAlpha[i] < 0.04 && alphaArr[i] > 0) {
+            if (mpSupport[i] === 0) alphaArr[i] = 0;
+            else if (isUniformBackdrop && mpAlpha[i] < 0.04 && alphaArr[i] > 0) {
               const j = i * 4;
-              const distBg = Math.hypot(srcPixels[j] - refR, srcPixels[j + 1] - refG, srcPixels[j + 2] - refB);
-              if (distBg < 34) {
-                alphaArr[i] = 0;
-              }
+              if (Math.hypot(srcPixels[j] - refR, srcPixels[j + 1] - refG, srcPixels[j + 2] - refB) < 34) alphaArr[i] = 0;
             }
           }
         }
         let exteriorBg = computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB, alphaArr, isUniformBackdrop);
-        const sanityY1 = Math.floor(h * 0.60);
-        const sanityY2 = Math.floor(h * 0.95);
-        const sanityX1 = Math.floor(w * 0.32);
-        const sanityX2 = Math.floor(w * 0.68);
-        let torsoFgCount = 0;
-        let torsoTotal = 0;
+        const sanityY1 = Math.floor(h * 0.60), sanityY2 = Math.floor(h * 0.95), sanityX1 = Math.floor(w * 0.32), sanityX2 = Math.floor(w * 0.68);
+        let torsoFgCount = 0, torsoTotal = 0;
         for (let y = sanityY1; y < sanityY2; y++) {
           const row = y * w;
-          for (let x = sanityX1; x < sanityX2; x++) {
-            torsoTotal++;
-            if (alphaArr[row + x] >= 0.50) torsoFgCount++;
-          }
+          for (let x = sanityX1; x < sanityX2; x++) { torsoTotal++; if (alphaArr[row + x] >= 0.50) torsoFgCount++; }
         }
         if (torsoTotal > 0 && (torsoFgCount / torsoTotal) < 0.45 && mpAlpha && mpAlpha.length === N) {
           const recoverY = Math.floor(h * 0.48);
-          for (let i = recoverY * w; i < N; i++) {
-            alphaArr[i] = Math.max(alphaArr[i], mpAlpha[i]);
-          }
+          for (let i = recoverY * w; i < N; i++) alphaArr[i] = Math.max(alphaArr[i], mpAlpha[i]);
           exteriorBg = computeExteriorBackdropMask(srcPixels, w, h, refR, refG, refB, alphaArr, isUniformBackdrop);
         }
         let fgCount = 0;
-        for (let i = 0; i < N; i++) {
-          if (alphaArr[i] >= 0.50) fgCount++;
-        }
+        for (let i = 0; i < N; i++) { if (alphaArr[i] >= 0.50) fgCount++; }
         const fgRatio = fgCount / N;
-        if (fgRatio < 0.10 || fgRatio > 0.96) {
-          return null;
-        }
+        if (fgRatio < 0.10 || fgRatio > 0.96) return null;
         const outCanvas = document.createElement('canvas');
         outCanvas.width = w;
         outCanvas.height = h;
@@ -39760,6 +39771,15 @@ if (action === 'getDashboardStats') {
           btnOk.disabled = true;
           try {
             const res = await callGasApi('verifySecurityPin', { pin }, 'POST');
+            if (res && res.locked) {
+              const srvUnlock = res.unlockAt ? Date.parse(res.unlockAt) : (Date.now() + 900000);
+              window._ocaPinLockoutUntil = isNaN(srvUnlock) ? (Date.now() + 900000) : srvUnlock;
+              if (errEl) {
+                errEl.textContent = res.message || 'กรอกรหัส PIN ผิดเกินกำหนด บัญชีถูกล็อกชั่วคราว (Server-Side Lockout)';
+                errEl.style.display = 'block';
+              }
+              return;
+            }
             if (res && res.success) {
               window._ocaPinFailCount = 0;
               window._ocaPinLockoutUntil = 0;
@@ -92563,7 +92583,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=338';
+      const swPath = basePath + 'sw.js?v=339';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92600,7 +92620,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (338):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (339):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
