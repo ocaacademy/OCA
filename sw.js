@@ -1,10 +1,11 @@
-const CACHE_NAME = '353';
+const CACHE_NAME = '354';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './portal.html',
   './manifest.json',
   './js/oca-slip-guard.js',
+  './js/oca-hover-popover.js',
   './js/oca-email-admin.js',
   './css/oca-modular-v261.css',
   './css/oca-core-part1.css',
