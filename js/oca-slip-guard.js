@@ -583,6 +583,111 @@
     `;
   }
 
+  const _deletingPendingSlips = new Set();
+
+  /**
+   * Delete a pending slip from the review queue after mandatory Security PIN verification.
+   * Preserves the student's profile row and logs SLIP_DELETED to security_audit_logs.
+   */
+  async function deletePendingSlipWithPin(studentId) {
+    const sid = String(studentId || '').trim();
+    if (!sid) return false;
+    if (_deletingPendingSlips.has(sid)) return false;
+    _deletingPendingSlips.add(sid);
+    try {
+      if (typeof global.requireSecurityPinVerification !== 'function') {
+        if (typeof global.showToast === 'function') {
+          global.showToast('ไม่สามารถตรวจสอบ PIN ได้', 'ไม่พบโมดูลยืนยันรหัส PIN ความปลอดภัย', '❌', 4000);
+        }
+        return false;
+      }
+      const pinOk = await global.requireSecurityPinVerification(
+        'ยืนยันการลบสลิปรอตรวจสอบ',
+        `ลบสลิปรอตรวจสอบของนักศึกษารหัส ${sid} ออกจากคิวอย่างถาวร`
+      );
+      if (!pinOk) return false;
+
+      const sb = global._supabase;
+      if (!sb) throw new Error('ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
+
+      const pendingKey = (typeof global.makeFeeSettingKey === 'function' && global.OCA_CONSTANTS?.FEE_KEY_PREFIXES?.PENDING_SLIP)
+        ? global.makeFeeSettingKey(global.OCA_CONSTANTS.FEE_KEY_PREFIXES.PENDING_SLIP, sid)
+        : ('pending_slip:' + sid);
+
+      const { data: livePending, error: livePendErr } = await sb
+        .from('fee_settings')
+        .select('key,mode')
+        .eq('key', pendingKey)
+        .maybeSingle();
+      if (livePendErr) throw livePendErr;
+
+      const liveMode = String(livePending?.mode || '').toUpperCase();
+      if (liveMode === 'APPROVING' || liveMode === 'APPROVED') {
+        if (typeof global.showToast === 'function') {
+          global.showToast('ไม่สามารถลบได้', 'รายการนี้ถูกอนุมัติหรือกำลังอนุมัติโดยเจ้าหน้าที่ท่านอื่นแล้ว', '⚠️', 3500);
+        }
+        if (typeof global.loadPendingSlipsQueue === 'function') await global.loadPendingSlipsQueue();
+        return false;
+      }
+
+      const { error: delErr } = await sb
+        .from('fee_settings')
+        .delete()
+        .like('key', 'pending_slip%:' + sid);
+      if (delErr) throw delErr;
+
+      const { error: unlockErr } = await sb
+        .from('fee_settings')
+        .delete()
+        .eq('name', ('LOCKED:' + sid).slice(0, 90));
+      if (unlockErr) console.warn('[OcaSlipGuard.deletePendingSlipWithPin] unlock warning:', unlockErr);
+
+      try {
+        const actor = typeof global.getAuditActor === 'function'
+          ? global.getAuditActor()
+          : { username: 'staff', fullName: 'Staff', role: 'CASHIER', deviceId: '', deviceInfo: '' };
+        const { error: audErr } = await sb.from('security_audit_logs').insert([{
+          action: 'SLIP_DELETED',
+          username: actor.username,
+          full_name: actor.fullName,
+          role: actor.role,
+          device_id: actor.deviceId,
+          device_info: actor.deviceInfo,
+          details: `ลบสลิปรอตรวจสอบนักศึกษารหัส ${sid} ออกจากคิว (ยืนยัน PIN แล้ว)`,
+          records: 1,
+          status: 'SUCCESS'
+        }]);
+        if (audErr) console.warn('[OcaSlipGuard.deletePendingSlipWithPin] audit log warning:', audErr);
+      } catch (audCatchErr) {
+        console.warn('[OcaSlipGuard.deletePendingSlipWithPin] audit exception:', audCatchErr);
+      }
+
+      if (typeof global.broadcastOcaDataSync === 'function') {
+        global.broadcastOcaDataSync('fee_settings', 'DELETE', { key: pendingKey });
+      }
+      if (typeof global.invalidateOcaReportCaches === 'function') {
+        global.invalidateOcaReportCaches('students');
+      }
+      if (typeof global.showToast === 'function') {
+        global.showToast('ลบสลิปเรียบร้อยแล้ว', `ลบสลิปรอตรวจสอบรหัส ${sid} ออกจากคิวแล้ว`, '🗑️', 3500);
+      }
+      if (typeof global.showActivitySuccessPopup === 'function') {
+        global.showActivitySuccessPopup('ลบสลิปรอตรวจสอบแล้ว', `ลบสลิปรอตรวจสอบของนักศึกษารหัส ${sid} ออกจากคิวเรียบร้อยแล้ว`, '🗑️');
+      }
+      if (typeof global.loadPendingSlipsQueue === 'function') global.loadPendingSlipsQueue();
+      if (typeof global.renderFinancialEmbeddedSlipsQueue === 'function') global.renderFinancialEmbeddedSlipsQueue();
+      return true;
+    } catch (err) {
+      console.error('[OcaSlipGuard.deletePendingSlipWithPin] error:', err);
+      if (typeof global.showToast === 'function') {
+        global.showToast('ลบสลิปไม่สำเร็จ', err.message || 'เกิดข้อผิดพลาด', '❌', 4000);
+      }
+      return false;
+    } finally {
+      _deletingPendingSlips.delete(sid);
+    }
+  }
+
   global.OcaSlipGuard = {
     DEFAULT_CONFIG: DEFAULT_SLIP_GUARD_CONFIG,
     getConfigSync: () => ({ ..._cachedSlipGuardConfig }),
@@ -599,7 +704,8 @@
     blacklistRejectedSlip,
     listBlacklistedSlips,
     removeBlacklistedSlip,
-    buildReceivingBankComparisonHtml
+    buildReceivingBankComparisonHtml,
+    deletePendingSlipWithPin
   };
 
   // Expose top-level helpers for direct calls and Playwright verification
