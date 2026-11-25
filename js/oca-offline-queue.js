@@ -7,6 +7,13 @@
 (function (global) {
   'use strict';
 
+  function _t(th, en, zh) {
+    const lang = String(global._currentSystemLang || 'th').toLowerCase();
+    if (lang === 'en') return en || th;
+    if (lang === 'zh') return zh || en || th;
+    return th;
+  }
+
   const STORAGE_KEY = 'oca_offline_sync_queue_v261';
   const DEAD_LETTER_KEY = 'oca_offline_sync_dead_v261';
   const LOCK_KEY = 'oca_offline_sync_lock_v261';
@@ -115,7 +122,7 @@
       pill.id = 'ocaOfflineQueuePill';
       pill.setAttribute('role', 'status');
       pill.setAttribute('aria-live', 'polite');
-      pill.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i><span id="ocaOfflineQueueText"></span><button type="button" id="btnOcaOfflineQueueFlush">ซิงก์ตอนนี้</button>';
+      pill.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i><span id="ocaOfflineQueueText"></span><button type="button" id="btnOcaOfflineQueueFlush">${_t('ซิงก์ตอนนี้', 'Sync Now', '立即同步')}</button>`;
       document.body.appendChild(pill);
       const btn = document.getElementById('btnOcaOfflineQueueFlush');
       if (btn) {
@@ -140,14 +147,15 @@
     const btnEl = document.getElementById('btnOcaOfflineQueueFlush');
     if (textEl) {
       if (offline && count > 0) {
-        textEl.textContent = `ออฟไลน์ • ค้างซิงก์ ${count} รายการ`;
+        textEl.textContent = _t(`ออฟไลน์ • ค้างซิงก์ ${count} รายการ`, `Offline • ${count} pending`, `离线 • 待同步 ${count} 项`);
       } else if (offline) {
-        textEl.textContent = 'โหมดออฟไลน์ • ระบบกำลังสำรองข้อมูลในเครื่อง';
+        textEl.textContent = _t('โหมดออฟไลน์ • ระบบกำลังสำรองข้อมูลในเครื่อง', 'Offline Mode • Saving locally', '离线模式 • 本地缓存中');
       } else {
-        textEl.textContent = `รอซิงก์ขึ้นระบบ ${count} รายการ`;
+        textEl.textContent = _t(`รอซิงก์ขึ้นระบบ ${count} รายการ`, `Pending sync: ${count} item(s)`, `待同步 ${count} 项`);
       }
     }
     if (btnEl) {
+      btnEl.textContent = _t('ซิงก์ตอนนี้', 'Sync Now', '立即同步');
       btnEl.style.display = (!offline && count > 0) ? 'inline-block' : 'none';
     }
     pill.style.display = 'inline-flex';
