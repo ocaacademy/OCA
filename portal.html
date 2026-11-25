@@ -1051,7 +1051,7 @@
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 </style>
-<link rel="stylesheet" href="css/oca-core-part1.css?v=329">
+<link rel="stylesheet" href="css/oca-core-part1.css?v=330">
 <style>
     #oca-app-root .oca-input {
       width: 100%;
@@ -4799,7 +4799,7 @@ body.printing-report #printReportContainer {
       }
     }
 </style>
-<link rel="stylesheet" href="css/oca-core-part2.css?v=329">
+<link rel="stylesheet" href="css/oca-core-part2.css?v=330">
 <style>
     @media (max-width: 640px) {
       #tabReceipts .oca-receipt-ctrl-panel div[style*="grid-template-columns:1fr 1fr"],
@@ -10664,7 +10664,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '329';
+      var LATEST_VERSION = '330';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -19160,7 +19160,7 @@ body.printing-report #printReportContainer {
 
              =================================================================== -->
 
-        <div id="modalUserPermission" class="oca-custom-modal-backdrop oca-formal-modal" onclick="if(event.target===this)closeUserModal()" style="display:none; padding:20px; z-index:99995;">
+        <div id="modalUserPermission" class="oca-custom-modal-backdrop oca-formal-modal" onclick="if(event.target===this)closeUserModal()" style="display:none; padding:20px; z-index:100050;">
           <div class="oca-custom-modal-box" style="max-width:650px; width:100%; border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.85); border:1.5px solid rgba(215,166,0,0.5); background:var(--bg-card);">
             <!-- Modal Header -->
             <div style="padding:18px 22px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:var(--bg-modal-header);">
@@ -19179,7 +19179,7 @@ body.printing-report #printReportContainer {
             </div>
 
             <!-- Modal Body -->
-            <div style="padding:22px; max-height:75vh; overflow-y:auto;">
+            <div style="padding:20px 22px 24px; max-height:min(72vh, calc(100vh - 140px)); overflow-y:auto;">
               <input type="hidden" id="inpUserIsEdit" value="false">
               <input type="hidden" id="inpUserOrigUsername" value="">
               <!-- Staff Avatar Photo Upload Section -->
@@ -19400,7 +19400,7 @@ body.printing-report #printReportContainer {
 
               <div id="boxModalUserAlert" style="display:none; font-size:12.5px; color:#ef4444; margin-top:14px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); padding:10px 14px; border-radius:8px;"></div>
               <!-- Action Buttons -->
-              <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:22px; flex-wrap:wrap;">
+              <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:18px; flex-wrap:wrap; position:sticky; bottom:-24px; background:var(--bg-card); padding:14px 0 6px; border-top:1px solid var(--border-soft); z-index:5;">
                 <button type="button" class="oca-btn-cancel-custom" onclick="closeUserModal()" style="min-height:40px;">
 
                   ยกเลิก
@@ -19436,7 +19436,7 @@ body.printing-report #printReportContainer {
             </div>
 
             <!-- Modal Body -->
-            <div style="padding:22px; max-height:75vh; overflow-y:auto;">
+            <div style="padding:20px 22px 24px; max-height:min(72vh, calc(100vh - 140px)); overflow-y:auto;">
               <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:18px;">
                 <label id="labelPayeeModeDynamic" style="display:flex; align-items:center; gap:10px; padding:12px; border:1px solid rgba(215,166,0,0.4); border-radius:10px; background:rgba(215,166,0,0.08); cursor:pointer;">
                   <input type="radio" name="radPayeeMode" value="dynamic" onchange="onPayeeModeChanged()" checked style="accent-color:#D7A600;">
@@ -49287,6 +49287,17 @@ if (action === 'getDashboardStats') {
         if (el) el.textContent = toArabicDigits(val) || '-';
       }
     }
+    async function applyCardPhotoAiMatting(rawDataUrl) {
+      if (typeof processPortraitToMaroonDataUri !== 'function') return rawDataUrl;
+      try {
+        if (typeof showToast === 'function') showToast('กำลังประมวลผลรูปถ่าย', 'กำลังปรับพื้นหลังสีแดง AI...', '⏳', 2000);
+        const matted = await processPortraitToMaroonDataUri(rawDataUrl, '#800000');
+        return matted || rawDataUrl;
+      } catch (matErr) {
+        console.warn('[applyCardPhotoAiMatting] AI matting fallback to raw:', matErr);
+        return rawDataUrl;
+      }
+    }
     function handleCardPhotoFileSelected(event) {
       const inputEl = event && event.target;
       const file = inputEl && inputEl.files && inputEl.files[0];
@@ -49303,7 +49314,7 @@ if (action === 'getDashboardStats') {
       }
       const reader = new FileReader();
       reader.onload = async function(e) {
-        const dataUrl = e.target.result;
+        const dataUrl = (typeof applyCardPhotoAiMatting === 'function') ? await applyCardPhotoAiMatting(e.target.result) : e.target.result;
         const frontPhoto = document.getElementById('cardFrontPhoto');
         const frontPhotoFallback = document.getElementById('cardFrontPhotoFallback');
         const avatarImg = document.getElementById('cardStudentAvatarPreview');
@@ -65863,19 +65874,22 @@ if (action === 'getDashboardStats') {
           return;
         }
       }
-      const allCachedUsers = Array.isArray(cachedUsersList) ? cachedUsersList : [];
-      const otherActiveAdmins = allCachedUsers.filter(u =>
-        (u.username || '').toLowerCase().trim() !== targetU &&
-        u.role === 'Administrator' &&
-        u.isActive !== false &&
-        u.status !== 'Suspended'
-      );
-      if (allCachedUsers.length > 0 && otherActiveAdmins.length === 0 && (role !== 'Administrator' || status === 'Suspended')) {
-        if (alertBox) {
-          alertBox.textContent = 'ต้องมีผู้ดูแลระบบ (Administrator) ที่เปิดใช้งานอย่างน้อย 1 บัญชีในระบบเสมอ';
-          alertBox.style.display = 'block';
+      const isAdminRoleVal = (r) => /admin|ผู้ดูแลระบบ/i.test(String(r || ''));
+      if (isEdit) {
+        const allCachedUsers = Array.isArray(cachedUsersList) ? cachedUsersList : [];
+        const otherActiveAdmins = allCachedUsers.filter(u =>
+          (u.username || '').toLowerCase().trim() !== targetU &&
+          isAdminRoleVal(u.role) &&
+          u.isActive !== false &&
+          u.status !== 'Suspended'
+        );
+        if (allCachedUsers.length > 0 && otherActiveAdmins.length === 0 && (!isAdminRoleVal(role) || status === 'Suspended')) {
+          if (alertBox) {
+            alertBox.textContent = 'ต้องมีผู้ดูแลระบบ (Administrator) ที่เปิดใช้งานอย่างน้อย 1 บัญชีในระบบเสมอ';
+            alertBox.style.display = 'block';
+          }
+          return;
         }
-        return;
       }
       if (alertBox) alertBox.style.display = 'none';
       setButtonLoading(btn, true, 'กำลังบันทึก...');
@@ -92157,7 +92171,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=329';
+      const swPath = basePath + 'sw.js?v=330';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92194,7 +92208,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (329):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (330):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
