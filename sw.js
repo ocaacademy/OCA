@@ -1,4 +1,4 @@
-const CACHE_NAME = '356';
+const CACHE_NAME = '357';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const ASSETS_TO_CACHE = [
   './js/oca-hover-popover.js',
   './js/oca-student-ai-photo.js',
   './js/oca-student-portal.js',
+  './js/oca-student-notify.js',
   './js/oca-email-admin.js',
   './css/oca-modular-v261.css',
   './css/oca-core-part1.css',
@@ -176,5 +177,41 @@ self.addEventListener('fetch', (event) => {
         if (cached) return cached;
         return new Response('', { status: 408, headers: { 'Content-Type': 'text/plain' } });
       })
+  );
+});
+
+// Background Web Push Notification (Android & iOS 16.4+ Home Screen PWA)
+self.addEventListener('push', (event) => {
+  let payload = { title: 'OCA Student', body: 'มีการอัปเดตใบเสร็จรับเงินของคุณ', url: './student.html?tab=finance' };
+  try {
+    if (event.data) {
+      const parsed = event.data.json();
+      if (parsed && typeof parsed === 'object') payload = { ...payload, ...parsed };
+    }
+  } catch (_) {
+    try { if (event.data) payload.body = event.data.text(); } catch (__) {}
+  }
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: './student-icon-192.png',
+      badge: './student-favicon.png',
+      data: { url: payload.url || './student.html?tab=finance' }
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification && event.notification.data && event.notification.data.url) || './student.html?tab=finance';
+  event.waitUntil(
+    self.clients.matchAll({ includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url && client.url.includes('student.html') && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+    })
   );
 });
