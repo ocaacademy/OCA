@@ -3248,6 +3248,26 @@
     }
   }
 
+  function isRealAndroidDevice() {
+    const ua = (navigator && navigator.userAgent) || '';
+    const plat = (navigator && navigator.platform) || '';
+    return /android/i.test(ua) && !/win|mac|iphone|ipad|ipod/i.test(plat) && (navigator.maxTouchPoints || 0) > 0;
+  }
+
+  function openAndroidChromeIntent(ev) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    if (isRealAndroidDevice()) {
+      try { global.location.href = 'intent://ocaacademy.github.io/OCA/student/#Intent;scheme=https;package=com.android.chrome;end'; } catch (_) {}
+      return;
+    }
+    const url = 'https://ocaacademy.github.io/OCA/student/';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).catch(() => {});
+    }
+    const btn = document.getElementById('btnOpenAndroidChromePwa');
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i><span>คัดลอกลิงก์แล้ว — เปิดใน Chrome เพื่อติดตั้ง</span>';
+  }
+
   async function installPwa() {
     const ua = (navigator && navigator.userAgent) || '';
     const isAndroid = /android/i.test(ua);
@@ -3267,7 +3287,7 @@
       global.__ocaStudentWaitingInstall = false;
       return;
     }
-    if (isInAppWebView) {
+    if (isInAppWebView && isRealAndroidDevice()) {
       try { global.location.href = 'intent://ocaacademy.github.io/OCA/student/#Intent;scheme=https;package=com.android.chrome;end'; } catch (_) {}
       setTimeout(() => { document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden'); }, 1200);
       return;
@@ -3439,6 +3459,7 @@
     closeNoticeDetail,
     logout,
     installPwa,
+    openAndroidChromeIntent,
     closePwaGuide
   };
   if (global.__ocaPendingEnterLogin) {
