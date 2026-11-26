@@ -15,8 +15,12 @@
   const CHUNK_LEN = 85;
 
   function sanitizeHttpUrl(raw) {
-    const s = String(raw || '').trim();
+    let s = String(raw || '').trim();
     if (!s) return '';
+    if (/^(javascript|data|vbscript):/i.test(s)) return '';
+    if (!/^https?:\/\//i.test(s) && s.includes('.')) {
+      s = 'https://' + s;
+    }
     return /^https?:\/\/[^\s"'<>]+$/i.test(s) ? s : '';
   }
 
@@ -24,9 +28,17 @@
     const p = String(relPath || '').trim();
     if (!p) return '';
     if (/^https?:\/\//i.test(p)) return p;
-    const clean = p.replace(/^payment-slips\//i, '');
+    let bucket = 'student-photos';
+    let clean = p.replace(/^\/+/, '');
+    if (/^payment-slips\//i.test(clean)) {
+      bucket = 'payment-slips';
+      clean = clean.replace(/^payment-slips\//i, '');
+    } else if (/^student-photos\//i.test(clean)) {
+      bucket = 'student-photos';
+      clean = clean.replace(/^student-photos\//i, '');
+    }
     if (sb && sb.storage && typeof sb.storage.from === 'function') {
-      const pub = sb.storage.from('payment-slips').getPublicUrl(clean);
+      const pub = sb.storage.from(bucket).getPublicUrl(clean);
       if (pub && pub.data && pub.data.publicUrl) return pub.data.publicUrl;
     }
     return '';
@@ -283,19 +295,21 @@
         name: text.slice(0, 90),
         amount: idx,
         mode: 'BODY',
+        start_date: null,
+        end_date: null,
         updated_at: nowIso
       });
     });
 
     const imgPath = String(payload?.image_path || '').trim().slice(0, 90);
     if (imgPath) {
-      rows.push({ key: `${NOTICE_META_PREFIX}${id}:img`, name: imgPath, amount: 1, mode: 'META_IMG', updated_at: nowIso });
+      rows.push({ key: `${NOTICE_META_PREFIX}${id}:img`, name: imgPath, amount: 1, mode: 'META_IMG', start_date: null, end_date: null, updated_at: nowIso });
     }
     const docPath = String(payload?.doc_path || '').trim().slice(0, 90);
     if (docPath) {
-      rows.push({ key: `${NOTICE_META_PREFIX}${id}:doc`, name: docPath, amount: 1, mode: 'META_DOC', updated_at: nowIso });
+      rows.push({ key: `${NOTICE_META_PREFIX}${id}:doc`, name: docPath, amount: 1, mode: 'META_DOC', start_date: null, end_date: null, updated_at: nowIso });
       const docName = String(payload?.doc_name || '').trim().slice(0, 90);
-      if (docName) rows.push({ key: `${NOTICE_META_PREFIX}${id}:docn`, name: docName, amount: 1, mode: 'META_DOCN', updated_at: nowIso });
+      if (docName) rows.push({ key: `${NOTICE_META_PREFIX}${id}:docn`, name: docName, amount: 1, mode: 'META_DOCN', start_date: null, end_date: null, updated_at: nowIso });
     }
     const safeUrl = sanitizeHttpUrl(payload?.link_url || '');
     if (safeUrl) {
@@ -305,6 +319,8 @@
           name: safeUrl.slice(i, i + CHUNK_LEN),
           amount: uIdx,
           mode: 'META_URL',
+          start_date: null,
+          end_date: null,
           updated_at: nowIso
         });
       }
@@ -418,7 +434,7 @@
             </div>
             <div style="grid-column:1 / -1;">
               <label for="inpNoticeLink" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;"><i class="fa-solid fa-link"></i> แนบลิงก์ภายนอก (ไม่บังคับ)</label>
-              <input id="inpNoticeLink" type="url" placeholder="https://..." style="width:100%;padding:8px 10px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;box-sizing:border-box;" />
+              <input id="inpNoticeLink" type="text" placeholder="https://..." style="width:100%;padding:8px 10px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;box-sizing:border-box;" />
             </div>
             <div>
               <label for="inpNoticeImageFile" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;"><i class="fa-regular fa-image"></i> แนบรูปภาพประกอบ (≤ 5MB)</label>
@@ -597,6 +613,15 @@
     }
   }
 
+  async function uploadNoticeAttachment(sb, upPath, file) {
+    const opts = { contentType: file.type || 'application/octet-stream', upsert: true };
+    const { error: mainErr } = await sb.storage.from('student-photos').upload(upPath, file, opts);
+    if (!mainErr) return 'student-photos/' + upPath;
+    const { error: fbErr } = await sb.storage.from('payment-slips').upload(upPath, file, opts);
+    if (!fbErr) return 'payment-slips/' + upPath;
+    throw mainErr;
+  }
+
   async function submitStaffNotice(ev) {
     ev.preventDefault();
     const btn = document.getElementById('btnSubmitOcaNotice');
@@ -617,9 +642,7 @@
         if (Number(imgFile.size || 0) > 5 * 1024 * 1024) throw new Error('ขนาดรูปภาพต้องไม่เกิน 5 MB');
         const ext = (imgFile.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
         const upPath = `notices/img_${noticeId}_${Date.now()}.${ext}`;
-        const { error: upErr } = await sb.storage.from('payment-slips').upload(upPath, imgFile, { upsert: true });
-        if (upErr) throw upErr;
-        imagePath = 'payment-slips/' + upPath;
+        imagePath = await uploadNoticeAttachment(sb, upPath, imgFile);
       }
 
       const docFile = document.getElementById('inpNoticeDocFile')?.files?.[0];
@@ -627,9 +650,7 @@
         if (Number(docFile.size || 0) > 10 * 1024 * 1024) throw new Error('ขนาดไฟล์เอกสารต้องไม่เกิน 10 MB');
         const ext = (docFile.name.split('.').pop() || 'pdf').replace(/[^a-zA-Z0-9]/g, '');
         const upPath = `notices/doc_${noticeId}_${Date.now()}.${ext}`;
-        const { error: upErr } = await sb.storage.from('payment-slips').upload(upPath, docFile, { upsert: true });
-        if (upErr) throw upErr;
-        docPath = 'payment-slips/' + upPath;
+        docPath = await uploadNoticeAttachment(sb, upPath, docFile);
         docName = String(docFile.name || '').slice(0, 90);
       }
 
