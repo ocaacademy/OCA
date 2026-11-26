@@ -858,6 +858,18 @@
       const nationality = (document.getElementById('regNationality')?.value || 'ไทย').trim();
       const address = (document.getElementById('regAddress')?.value || '').trim();
 
+      const cleanCid = citizenId.replace(/[\s-]/g, '');
+      if (cleanCid.length >= 6) {
+        const { data: dupRows, error: dupErr } = await _sb
+          .from('students')
+          .select('student_id, full_name, status')
+          .eq('citizen_id', citizenId)
+          .limit(1);
+        if (!dupErr && Array.isArray(dupRows) && dupRows[0] && String(dupRows[0].status || '').toUpperCase() !== 'DELETED') {
+          throw new Error('เลขบัตรประชาชน/พาสปอร์ตนี้มีอยู่ในระบบแล้ว (รหัสนักศึกษา: ' + dupRows[0].student_id + ') กรุณาเข้าสู่ระบบด้วยรหัสนักศึกษาเดิม');
+        }
+      }
+
       const { data: latestRows, error: latErr } = await _sb
         .from('students')
         .select('student_id')
@@ -1228,11 +1240,10 @@
       const { error: upErr } = await _sb.storage.from('payment-slips').upload(path, file, { upsert: true });
       if (upErr) throw upErr;
 
-      const pubUrl = _sb.storage.from('payment-slips').getPublicUrl(path)?.data?.publicUrl || path;
       const summaryName = (`${_checkoutCourse.code} ${deliv}`).slice(0, 90);
       const { error: pErr } = await _sb.from('fee_settings').upsert([
         { key: 'pending_slip:' + sid, name: summaryName, amount: total, mode: 'PENDING', updated_at: new Date().toISOString() },
-        { key: 'pending_slip_url:' + sid, name: String(pubUrl).slice(0, 90), amount: total, mode: 'PENDING', updated_at: new Date().toISOString() }
+        { key: 'pending_slip_url:' + sid, name: String('payment-slips/' + path).slice(0, 90), amount: 1, mode: 'SLIP_URL', updated_at: new Date().toISOString() }
       ], { onConflict: 'key' });
       if (pErr) throw pErr;
 
