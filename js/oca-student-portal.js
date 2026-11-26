@@ -245,6 +245,38 @@
       errCategoryLocked: 'หมวดคอร์สนี้ถูกเจ้าหน้าที่ปิดรับสมัครชั่วคราว',
       errMagicBytes: 'ไฟล์ภาพไม่ถูกต้องหรือเสียหาย (กรุณาใช้ JPG, PNG หรือ WEBP แท้)',
       cartEmptyToast: 'กรุณาเลือกคอร์สลงตะกร้าอย่างน้อย 1 รายการ',
+      secRegDoc: '1. เอกสารยืนยันตัวตน',
+      secRegPersonal: '2. ข้อมูลส่วนตัวผู้เรียน',
+      secRegAddress: '3. ที่อยู่ปัจจุบัน (สำหรับออกใบเสร็จและจัดส่งตำรา)',
+      secRegContact: '4. ข้อมูลติดต่อ & ผู้ติดต่อฉุกเฉิน',
+      secRegCorporate: '5. ข้อมูลบริษัท / นิติบุคคล (กรอกเฉพาะกรณีบริษัทสนับสนุนค่าเล่าเรียน)',
+      fldIdType: 'ประเภทเอกสารยืนยันตัวตน',
+      idTypeCitizen: 'บัตรประชาชนไทย (13 หลัก)',
+      idTypePassport: 'พาสปอร์ตชาวต่างชาติ (Passport)',
+      fldFullNameEn: 'ชื่อ-นามสกุล (ภาษาอังกฤษ)',
+      fldGender: 'เพศ (Gender)',
+      genderUnspecified: 'ไม่ระบุ',
+      genderMale: 'ชาย (Male)',
+      genderFemale: 'หญิง (Female)',
+      genderOther: 'อื่นๆ',
+      fldHouseNo: 'บ้านเลขที่',
+      fldMoo: 'หมู่ที่',
+      fldVillage: 'หมู่บ้าน / อาคาร / คอนโด',
+      fldSoi: 'ซอย',
+      fldRoad: 'ถนน',
+      fldProvince: 'จังหวัด (ฐานข้อมูลไทย)',
+      fldDistrict: 'อำเภอ / เขต',
+      fldSubdistrict: 'ตำบล / แขวง',
+      fldZipcode: 'รหัสไปรษณีย์ (อัตโนมัติ)',
+      fldCompanyName: 'ชื่อเต็มบริษัท / นิติบุคคล (Company Name)',
+      fldCompanyBranch: 'สาขา (สำนักงานใหญ่ / สาขาที่...)',
+      fldCompanyTaxId: 'เลขประจำตัวผู้เสียภาษีอากร 13 หลัก',
+      fldCompanyAddress: 'ที่อยู่สำนักงานสำหรับออกใบเสร็จ',
+      errBadTaxId: 'เลขประจำตัวผู้เสียภาษีอากรของบริษัทต้องครบ 13 หลัก',
+      rcClaimHeader: 'สิทธิ์รับตำราและอุปกรณ์การเรียน (One-Time Claim)',
+      rcClaimRule1: 'ต้องสแกน QR Code ณ สถาบันก่อน จึงจะทราบและแสดงรายการอุปกรณ์ที่ได้รับ',
+      rcClaimRule2: '(ระบบจะแสดงรายการตำราและอุปกรณ์ที่ได้รับบนหน้าจอเจ้าหน้าที่เมื่อสแกน QR Code นี้เท่านั้น)',
+      rcClaimRule3: 'สแกนรับสิทธิ์ได้ 1 ครั้งเท่านั้น ผ่านระบบกล้อง OCA ภายในสถาบัน (ไม่สามารถใช้แอปภายนอกสแกนได้)',
       lookupRateLimit: 'ค้นหาบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่',
       lookupNotFound: 'ไม่พบข้อมูลนักศึกษาที่ตรงกับเงื่อนไข',
       lookupUseSidBtn: 'ใช้รหัสนี้เข้าสู่ระบบ',
@@ -461,6 +493,38 @@
       errCategoryLocked: 'This course category is temporarily locked by staff.',
       errMagicBytes: 'Invalid or corrupted image file signature (use valid JPG, PNG, or WEBP).',
       cartEmptyToast: 'Please add at least 1 course to the cart.',
+      secRegDoc: '1. Identity Document',
+      secRegPersonal: '2. Personal Information',
+      secRegAddress: '3. Current Address (Receipt & Textbook Delivery)',
+      secRegContact: '4. Contact & Emergency Contact',
+      secRegCorporate: '5. Corporate Billing Info (Optional — Company Sponsored)',
+      fldIdType: 'Document Type',
+      idTypeCitizen: 'Thai National ID (13 Digits)',
+      idTypePassport: 'Foreign Passport',
+      fldFullNameEn: 'Full Name (English)',
+      fldGender: 'Gender',
+      genderUnspecified: 'Unspecified',
+      genderMale: 'Male',
+      genderFemale: 'Female',
+      genderOther: 'Other',
+      fldHouseNo: 'House No.',
+      fldMoo: 'Moo',
+      fldVillage: 'Village / Building',
+      fldSoi: 'Soi / Lane',
+      fldRoad: 'Road',
+      fldProvince: 'Province',
+      fldDistrict: 'District / Amphoe',
+      fldSubdistrict: 'Subdistrict / Tambon',
+      fldZipcode: 'Postal Code (Auto)',
+      fldCompanyName: 'Company / Legal Entity Name',
+      fldCompanyBranch: 'Branch (Head Office / Branch No.)',
+      fldCompanyTaxId: '13-Digit Corporate Tax ID',
+      fldCompanyAddress: 'Registered Office Address',
+      errBadTaxId: 'Corporate Tax ID must be exactly 13 digits.',
+      rcClaimHeader: 'Textbook & Materials Claim (One-Time Claim)',
+      rcClaimRule1: 'Present this QR Code at OCA counter to reveal & claim eligible textbooks/materials.',
+      rcClaimRule2: '(Exact eligible textbook items appear on Staff terminal upon official QR verification only.)',
+      rcClaimRule3: 'Valid for 1-time scan via OCA internal camera only (external QR apps are not supported).',
       lookupRateLimit: 'Too many lookup attempts. Please wait a moment.',
       lookupNotFound: 'No matching student record found.',
       lookupUseSidBtn: 'Use This ID to Sign In',
@@ -677,6 +741,38 @@
       errCategoryLocked: '该课程分类已被教务暂时锁定报名',
       errMagicBytes: '图片文件签名无效，请上传真实的 JPG/PNG/WEBP 图片',
       cartEmptyToast: '请至少选择 1 门课程加入购物车',
+      secRegDoc: '1. 身份证明文件',
+      secRegPersonal: '2. 学员个人信息',
+      secRegAddress: '3. 现居地址（收据与教材邮寄）',
+      secRegContact: '4. 联系方式与紧急联系人',
+      secRegCorporate: '5. 公司/法人开票信息（选填 — 仅限公司赞助学费）',
+      fldIdType: '证件类型',
+      idTypeCitizen: '泰国身份证（13位）',
+      idTypePassport: '外籍护照 (Passport)',
+      fldFullNameEn: '英文全名',
+      fldGender: '性别',
+      genderUnspecified: '未指定',
+      genderMale: '男 (Male)',
+      genderFemale: '女 (Female)',
+      genderOther: '其他',
+      fldHouseNo: '门牌号',
+      fldMoo: '村组 (Moo)',
+      fldVillage: '小区/大厦',
+      fldSoi: '巷 (Soi)',
+      fldRoad: '路 (Road)',
+      fldProvince: '府/省 (Province)',
+      fldDistrict: '县/区 (District)',
+      fldSubdistrict: '镇/区 (Subdistrict)',
+      fldZipcode: '邮政编码（自动）',
+      fldCompanyName: '公司全称 / 法人名称',
+      fldCompanyBranch: '分支机构（总部 / 分部）',
+      fldCompanyTaxId: '13位公司税号',
+      fldCompanyAddress: '公司开票注册地址',
+      errBadTaxId: '公司税号必须为13位数字',
+      rcClaimHeader: '教材与教具领取凭证（单次核销）',
+      rcClaimRule1: '请于书院现场出示此二维码，经系统核验后显示并领取教材与教具。',
+      rcClaimRule2: '（具体教材清单仅在书院工作人员扫码核销时于终端显示）',
+      rcClaimRule3: '仅限书院内部相机单次核销有效（不支持第三方外部扫码应用）',
       lookupRateLimit: '查询次数过多，请稍后再试',
       lookupNotFound: '未找到匹配的学员记录',
       lookupUseSidBtn: '使用此学号登录',
@@ -1024,35 +1120,179 @@
     );
   }
 
-  /* THAI ADDRESS AUTOCOMPLETE */
-  async function ensureThaiAddressIndex() {
-    if (_thaiAddrIndex) return _thaiAddrIndex;
+  /* THAI ADDRESS CASCADING DROPDOWNS + AUTOCOMPLETE (77 PROVINCES DB) */
+  let _thaiAddrData = null;
+
+  async function loadThaiAddressDb() {
+    if (_thaiAddrData) return _thaiAddrData;
     try {
       const res = await fetch('./assets/data/thai_address_compact.json');
-      if (!res.ok) return [];
-      const data = await res.json();
-      const idx = [];
-      const distByProv = data.districtsByProv || {};
-      const subByDist = data.subdistrictsByDist || {};
-      Object.entries(distByProv).forEach(([provName, dists]) => {
-        (dists || []).forEach((dist) => {
-          const subs = subByDist[String(dist.id)] || [];
-          subs.forEach((sub) => {
-            idx.push({
-              sub: sub.name,
-              dist: dist.name,
-              prov: provName,
-              zip: String(sub.zipCode || ''),
-              label: `ต.${sub.name} อ.${dist.name} จ.${provName} ${sub.zipCode || ''}`
-            });
+      if (!res.ok) return null;
+      _thaiAddrData = await res.json();
+      return _thaiAddrData;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function addrIds(mode) {
+    const p = mode === 'reg' ? 'reg' : 'prof';
+    return {
+      house: p + 'AddrHouseNo',
+      moo: p + 'AddrMoo',
+      village: p + 'AddrVillage',
+      soi: p + 'AddrSoi',
+      road: p + 'AddrRoad',
+      prov: p + 'AddrProvince',
+      dist: p + 'AddrDistrict',
+      sub: p + 'AddrSubdistrict',
+      zip: p + 'AddrZipcode',
+      full: p + 'Address'
+    };
+  }
+
+  async function initThaiAddressDropdowns(mode) {
+    const db = await loadThaiAddressDb();
+    const ids = addrIds(mode);
+    const provSel = document.getElementById(ids.prov);
+    if (!db || !provSel) return;
+    const prev = provSel.value;
+    const provs = Array.isArray(db.provinces) ? db.provinces : [];
+    provSel.innerHTML = '<option value="">-- เลือกจังหวัด --</option>' +
+      provs.map(pr => `<option value="${esc(pr.name)}">${esc(pr.name)}</option>`).join('');
+    if (prev) provSel.value = prev;
+  }
+
+  async function onAddrProvinceChange(mode) {
+    const db = await loadThaiAddressDb();
+    const ids = addrIds(mode);
+    const provName = document.getElementById(ids.prov)?.value || '';
+    const distSel = document.getElementById(ids.dist);
+    const subSel = document.getElementById(ids.sub);
+    const zipInp = document.getElementById(ids.zip);
+    if (distSel) {
+      const dists = (db && db.districtsByProv && db.districtsByProv[provName]) || [];
+      distSel.innerHTML = '<option value="">-- เลือกอำเภอ / เขต --</option>' +
+        dists.map(d => `<option value="${esc(d.name)}" data-id="${esc(d.id)}">${esc(d.name)}</option>`).join('');
+    }
+    if (subSel) subSel.innerHTML = '<option value="">-- เลือกตำบล / แขวง --</option>';
+    if (zipInp) zipInp.value = '';
+    composeThaiAddress(mode);
+  }
+
+  async function onAddrDistrictChange(mode) {
+    const db = await loadThaiAddressDb();
+    const ids = addrIds(mode);
+    const distSel = document.getElementById(ids.dist);
+    const subSel = document.getElementById(ids.sub);
+    const zipInp = document.getElementById(ids.zip);
+    const distOpt = distSel && distSel.options[distSel.selectedIndex];
+    const distId = distOpt ? distOpt.getAttribute('data-id') : '';
+    if (subSel) {
+      const subs = (db && db.subdistrictsByDist && distId && db.subdistrictsByDist[String(distId)]) || [];
+      subSel.innerHTML = '<option value="">-- เลือกตำบล / แขวง --</option>' +
+        subs.map(s => `<option value="${esc(s.name)}" data-zip="${esc(s.zipCode || '')}">${esc(s.name)}</option>`).join('');
+    }
+    if (zipInp) zipInp.value = '';
+    composeThaiAddress(mode);
+  }
+
+  function onAddrSubdistrictChange(mode) {
+    const ids = addrIds(mode);
+    const subSel = document.getElementById(ids.sub);
+    const zipInp = document.getElementById(ids.zip);
+    const opt = subSel && subSel.options[subSel.selectedIndex];
+    const zip = opt ? (opt.getAttribute('data-zip') || '') : '';
+    if (zipInp && zip) zipInp.value = zip;
+    composeThaiAddress(mode);
+  }
+
+  function composeThaiAddress(mode) {
+    const ids = addrIds(mode);
+    const house = (document.getElementById(ids.house)?.value || '').trim();
+    const moo = (document.getElementById(ids.moo)?.value || '').trim();
+    const village = (document.getElementById(ids.village)?.value || '').trim();
+    const soi = (document.getElementById(ids.soi)?.value || '').trim();
+    const road = (document.getElementById(ids.road)?.value || '').trim();
+    const prov = (document.getElementById(ids.prov)?.value || '').trim();
+    const dist = (document.getElementById(ids.dist)?.value || '').trim();
+    const sub = (document.getElementById(ids.sub)?.value || '').trim();
+    const zip = (document.getElementById(ids.zip)?.value || '').trim();
+    const isBkk = prov.includes('กรุงเทพ');
+    const parts = [
+      house,
+      moo ? `หมู่ ${moo}` : '',
+      village,
+      soi ? `ซ.${soi}` : '',
+      road ? `ถ.${road}` : '',
+      sub ? `${isBkk ? 'แขวง' : 'ต.'}${sub}` : '',
+      dist ? `${isBkk ? 'เขต' : 'อ.'}${dist}` : '',
+      prov ? (isBkk ? prov : `จ.${prov}`) : '',
+      zip
+    ].filter(Boolean);
+    const fullEl = document.getElementById(ids.full);
+    if (fullEl && parts.length) fullEl.value = parts.join(' ');
+  }
+
+  function onIdTypeChange(mode) {
+    const isReg = mode === 'reg';
+    const sel = document.getElementById(isReg ? 'regIdType' : 'profIdType');
+    const cidInp = document.getElementById(isReg ? 'regCitizenId' : 'profCitizenId');
+    if (!sel || !cidInp) return;
+    if (sel.value === 'passport') {
+      cidInp.maxLength = 20;
+      cidInp.placeholder = 'Passport No. (6-20 chars)';
+    } else {
+      cidInp.maxLength = 17;
+      cidInp.placeholder = t('phCitizen');
+    }
+  }
+
+  function encodeStudentExtNotes(rawNotes, extObj) {
+    const cleanText = String(rawNotes || '').replace(/\s*\[EXT:\{[\s\S]*?\}\]\s*/g, '').trim();
+    const cleanExt = {};
+    Object.keys(extObj || {}).forEach((k) => {
+      const v = String(extObj[k] || '').trim();
+      if (v) cleanExt[k] = v;
+    });
+    if (!Object.keys(cleanExt).length) return cleanText;
+    return (cleanText ? cleanText + ' ' : '') + '[EXT:' + JSON.stringify(cleanExt) + ']';
+  }
+
+  function decodeStudentExtNotes(notesStr) {
+    const raw = String(notesStr || '');
+    const m = raw.match(/\[EXT:(\{[\s\S]*?\})\]/);
+    let ext = {};
+    if (m && m[1]) {
+      try { ext = JSON.parse(m[1]) || {}; } catch (_) { ext = {}; }
+    }
+    const cleanText = raw.replace(/\s*\[EXT:\{[\s\S]*?\}\]\s*/g, '').trim();
+    return { cleanText, ext };
+  }
+
+  async function ensureThaiAddressIndex() {
+    if (_thaiAddrIndex) return _thaiAddrIndex;
+    const data = await loadThaiAddressDb();
+    if (!data) return [];
+    const idx = [];
+    const distByProv = data.districtsByProv || {};
+    const subByDist = data.subdistrictsByDist || {};
+    Object.entries(distByProv).forEach(([provName, dists]) => {
+      (dists || []).forEach((dist) => {
+        const subs = subByDist[String(dist.id)] || [];
+        subs.forEach((sub) => {
+          idx.push({
+            sub: sub.name,
+            dist: dist.name,
+            prov: provName,
+            zip: String(sub.zipCode || ''),
+            label: `ต.${sub.name} อ.${dist.name} จ.${provName} ${sub.zipCode || ''}`
           });
         });
       });
-      _thaiAddrIndex = idx;
-      return idx;
-    } catch (_) {
-      return [];
-    }
+    });
+    _thaiAddrIndex = idx;
+    return idx;
   }
 
   async function onAddrSearch(target, query) {
@@ -1133,7 +1373,10 @@
 
   function enterLoginFromWelcome() { showOnlyView('viewStudentAuth'); }
   function backToWelcome() { showOnlyView('viewStudentWelcome'); }
-  function openRegisterView() { showOnlyView('viewStudentRegister'); }
+  function openRegisterView() {
+    showOnlyView('viewStudentRegister');
+    initThaiAddressDropdowns('reg');
+  }
   function backToLogin() { showOnlyView('viewStudentAuth'); }
 
   function toggleSidebar(forceOpen) {
@@ -1256,6 +1499,11 @@
       if (errEl) { errEl.textContent = t('errBadDob'); errEl.classList.remove('st-hidden'); }
       return;
     }
+    const companyTaxId = (document.getElementById('regCompanyTaxId')?.value || '').trim().replace(/\D/g, '');
+    if (companyTaxId && companyTaxId.length !== 13) {
+      if (errEl) { errEl.textContent = t('errBadTaxId'); errEl.classList.remove('st-hidden'); }
+      return;
+    }
 
     if (btn) btn.disabled = true;
     try {
@@ -1263,6 +1511,9 @@
       const yy = String(yearBE).slice(-2);
       const prefixCode = yy + String(term);
       const fullName = (document.getElementById('regFullName')?.value || '').trim();
+      const fullNameEn = (document.getElementById('regFullNameEn')?.value || '').trim();
+      const gender = (document.getElementById('regGender')?.value || '').trim();
+      const idType = (document.getElementById('regIdType')?.value || 'citizen').trim();
       const prefix = (document.getElementById('regPrefix')?.value || '').trim();
       const citizenId = (document.getElementById('regCitizenId')?.value || '').trim();
       const passportNo = (document.getElementById('regPassportNo')?.value || '').trim();
@@ -1272,11 +1523,24 @@
       const email = (document.getElementById('regEmail')?.value || '').trim();
       const nationality = (document.getElementById('regNationality')?.value || 'ไทย').trim();
       const languageLevel = (document.getElementById('regLanguageLevel')?.value || '').trim();
+      composeThaiAddress('reg');
       const address = (document.getElementById('regAddress')?.value || '').trim();
       const emergName = (document.getElementById('regEmergName')?.value || '').trim();
       const emergRel = (document.getElementById('regEmergRelation')?.value || '').trim();
       const emergPhone = (document.getElementById('regEmergPhone')?.value || '').trim();
-      const notes = (document.getElementById('regNotes')?.value || '').trim().slice(0, 300);
+      const companyName = (document.getElementById('regCompanyName')?.value || '').trim();
+      const companyBranch = (document.getElementById('regCompanyBranch')?.value || '').trim();
+      const companyAddress = (document.getElementById('regCompanyAddress')?.value || '').trim();
+      const rawNotes = (document.getElementById('regNotes')?.value || '').trim().slice(0, 300);
+      const notes = encodeStudentExtNotes(rawNotes, {
+        id_type: idType,
+        full_name_en: fullNameEn,
+        gender,
+        company_name: companyName,
+        company_branch: companyBranch,
+        company_tax_id: companyTaxId,
+        company_address: companyAddress
+      });
 
       const cleanCid = citizenId.replace(/[\s-]/g, '');
       if (cleanCid.length >= 6) {
@@ -1412,19 +1676,26 @@
     document.getElementById('lblHomeSched').textContent = _student.current_schedule || '-';
     document.getElementById('lblHomeCoursesCount').textContent = String(_receipts.length || 0);
 
+    const decodedNotes = decodeStudentExtNotes(_student.notes || '');
+    const ext = decodedNotes.ext || {};
+
     document.getElementById('lblCardSid').textContent = _student.student_id;
     document.getElementById('lblCardName').textContent = fullName;
     const cardNameEn = document.getElementById('lblCardNameEn');
-    if (cardNameEn) cardNameEn.textContent = _student.full_name_en || _student.nickname || '';
+    if (cardNameEn) cardNameEn.textContent = ext.full_name_en || _student.full_name_en || _student.nickname || '';
     const issueEl = document.getElementById('lblCardIssueDate');
     if (issueEl) {
       const dt = _student.created_at ? new Date(_student.created_at) : new Date();
       issueEl.textContent = dt.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
     }
 
+    initThaiAddressDropdowns('prof');
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
     setVal('profPrefix', _student.prefix || '');
     setVal('profFullName', _student.full_name || '');
+    setVal('profFullNameEn', ext.full_name_en || '');
+    setVal('profGender', ext.gender || '');
+    setVal('profIdType', ext.id_type || ((_student.passport_no && !_student.citizen_id) ? 'passport' : 'citizen'));
     setVal('profCitizenId', _student.citizen_id || '');
     setVal('profPassportNo', _student.passport_no || '');
     setVal('profEthnicity', _student.ethnicity || '');
@@ -1433,6 +1704,10 @@
     setVal('profAge', calcAgeFromDobInput(_student.birth_date || ''));
     setVal('profPhone', _student.phone_number || '');
     setVal('profLine', _student.line_id || '');
+    setVal('profCompanyName', ext.company_name || '');
+    setVal('profCompanyBranch', ext.company_branch || '');
+    setVal('profCompanyTaxId', ext.company_tax_id || '');
+    setVal('profCompanyAddress', ext.company_address || '');
     setVal('profEmail', _student.email || '');
     setVal('profLanguageLevel', _student.language_level || '');
     setVal('profAddress', _student.address || '');
@@ -2020,12 +2295,17 @@
     if (!_sb || !_student) return;
     const dobIso = normalizeDobIso(document.getElementById('profDob')?.value || '');
     if (!dobIso) { showToast(t('errBadDob')); return; }
+    const companyTaxId = (document.getElementById('profCompanyTaxId')?.value || '').trim().replace(/\D/g, '');
+    if (companyTaxId && companyTaxId.length !== 13) { showToast(t('errBadTaxId')); return; }
     const btn = document.getElementById('btnSaveProfile');
     if (btn) btn.disabled = true;
     try {
       const sid = String(_student.student_id).trim();
       const prefix = (document.getElementById('profPrefix')?.value || '').trim();
       const fullName = (document.getElementById('profFullName')?.value || '').trim();
+      const fullNameEn = (document.getElementById('profFullNameEn')?.value || '').trim();
+      const gender = (document.getElementById('profGender')?.value || '').trim();
+      const idType = (document.getElementById('profIdType')?.value || 'citizen').trim();
       const citizenId = (document.getElementById('profCitizenId')?.value || '').trim();
       const passportNo = (document.getElementById('profPassportNo')?.value || '').trim();
       const ethnicity = (document.getElementById('profEthnicity')?.value || '').trim();
@@ -2034,11 +2314,24 @@
       const lineId = (document.getElementById('profLine')?.value || '').trim();
       const email = (document.getElementById('profEmail')?.value || '').trim();
       const languageLevel = (document.getElementById('profLanguageLevel')?.value || '').trim();
+      composeThaiAddress('prof');
       const address = (document.getElementById('profAddress')?.value || '').trim();
       const emergName = (document.getElementById('profEmergName')?.value || '').trim();
       const emergRel = (document.getElementById('profEmergRelation')?.value || '').trim();
       const emergPhone = (document.getElementById('profEmergPhone')?.value || '').trim();
-      const notes = (document.getElementById('profNotes')?.value || '').trim().slice(0, 300);
+      const companyName = (document.getElementById('profCompanyName')?.value || '').trim();
+      const companyBranch = (document.getElementById('profCompanyBranch')?.value || '').trim();
+      const companyAddress = (document.getElementById('profCompanyAddress')?.value || '').trim();
+      const rawNotes = (document.getElementById('profNotes')?.value || '').trim().slice(0, 300);
+      const notes = encodeStudentExtNotes(rawNotes, {
+        id_type: idType,
+        full_name_en: fullNameEn,
+        gender,
+        company_name: companyName,
+        company_branch: companyBranch,
+        company_tax_id: companyTaxId,
+        company_address: companyAddress
+      });
 
       const { error: rpcErr } = await _sb.rpc('student_portal_update_profile', {
         p_student_id: sid, p_birth_date: dobIso, p_phone: phone, p_line_id: lineId, p_email: email, p_address: address
@@ -2130,6 +2423,7 @@
         if (!p || String(p.studentId || '') !== sid) return;
         showToast(t('rcIssuedToast') + (p.receiptNo || ''));
         await loadStudentAppData();
+        if (p.receiptNo) openReceiptDetail(p.receiptNo);
         if ('Notification' in global && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
           try {
             const reg = await navigator.serviceWorker.ready;
@@ -2245,6 +2539,33 @@
     closeNotifModal();
   }
 
+  function numberToThaiBahtText(amount) {
+    const num = Number(amount || 0);
+    if (!Number.isFinite(num) || num === 0) return 'ศูนย์บาทถ้วน';
+    const digits = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+    const units = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
+    const readInt = (s) => {
+      let out = '';
+      const len = s.length;
+      for (let i = 0; i < len; i++) {
+        const d = Number(s[i]);
+        const pos = len - i - 1;
+        if (d === 0) continue;
+        if (pos % 6 === 1 && d === 1) out += 'สิบ';
+        else if (pos % 6 === 1 && d === 2) out += 'ยี่สิบ';
+        else if (pos % 6 === 0 && d === 1 && len > 1 && Number(s[i - 1]) > 0) out += 'เอ็ด';
+        else out += digits[d] + units[pos % 6];
+        if (pos >= 6 && pos % 6 === 0) out += 'ล้าน';
+      }
+      return out;
+    };
+    const [bahtStr, satangStr] = num.toFixed(2).split('.');
+    let res = bahtStr === '0' ? '' : (readInt(bahtStr) + 'บาท');
+    if (satangStr === '00') res += 'ถ้วน';
+    else res += readInt(satangStr) + 'สตางค์';
+    return res || 'ศูนย์บาทถ้วน';
+  }
+
   async function openReceiptDetail(rcNo) {
     let r = _receipts.find(x => String(x.receipt_no) === String(rcNo));
     if (!r) return;
@@ -2260,50 +2581,81 @@
     }
 
     const fmtAmt = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
-    const dtStr = r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
+    const dtStr = r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
     const stName = r.buyer_name || (_student ? formatStudentDisplayName(_student) : '-');
     const stSid = r.student_id || (_student ? _student.student_id : '-');
+    const stAddr = r.buyer_address || (_student && _student.address) || '-';
+    const schedModeSub = `รอบ ${esc(r.schedule || r.schedule_info || '-')} (${esc(r.learning_mode || 'Onsite')})`;
     const feeRows = [
-      `<tr><td>${esc(r.item_name || r.item_code || '-')}</td><td style="text-align:right;font-family:monospace;">${fmtAmt(r.base_amount || r.grand_total)}</td></tr>`
+      `<tr><td><div>${esc(r.item_name || r.item_code || '-')}</div><div style="font-size:10.5px;color:#64748b;margin-top:1px;">${schedModeSub}</div></td><td style="text-align:right;font-family:monospace;font-weight:700;color:#0369A1;">${fmtAmt(r.base_amount || r.grand_total)}</td></tr>`
     ];
-    if (Number(r.reg_fee || 0) > 0) feeRows.push(`<tr><td>${esc(t('feeReg'))}</td><td style="text-align:right;font-family:monospace;">${fmtAmt(r.reg_fee)}</td></tr>`);
-    if (Number(r.card_fee || 0) > 0) feeRows.push(`<tr><td>Smart Card Fee</td><td style="text-align:right;font-family:monospace;">${fmtAmt(r.card_fee)}</td></tr>`);
-    if (Number(r.other_reg_fee || 0) > 0) feeRows.push(`<tr><td>${esc(t('feeOther'))}</td><td style="text-align:right;font-family:monospace;">${fmtAmt(r.other_reg_fee)}</td></tr>`);
-    if (Number(r.shipping_fee || 0) > 0) feeRows.push(`<tr><td>${esc(t('feeShipping'))}</td><td style="text-align:right;font-family:monospace;">${fmtAmt(r.shipping_fee)}</td></tr>`);
+    if (Number(r.reg_fee || 0) > 0) feeRows.push(`<tr><td>${esc(t('feeReg'))}</td><td style="text-align:right;font-family:monospace;color:#0369A1;">${fmtAmt(r.reg_fee)}</td></tr>`);
+    if (Number(r.card_fee || 0) > 0) feeRows.push(`<tr><td>Smart Card Fee</td><td style="text-align:right;font-family:monospace;color:#0369A1;">${fmtAmt(r.card_fee)}</td></tr>`);
+    if (Number(r.other_reg_fee || 0) > 0) feeRows.push(`<tr><td>${esc(t('feeOther'))}</td><td style="text-align:right;font-family:monospace;color:#0369A1;">${fmtAmt(r.other_reg_fee)}</td></tr>`);
+    if (Number(r.shipping_fee || 0) > 0) feeRows.push(`<tr><td>${esc(t('feeShipping'))}</td><td style="text-align:right;font-family:monospace;color:#0369A1;">${fmtAmt(r.shipping_fee)}</td></tr>`);
+
+    const subTotal = Number(r.base_amount || r.grand_total || 0) + Number(r.reg_fee || 0) + Number(r.card_fee || 0) + Number(r.other_reg_fee || 0) + Number(r.shipping_fee || 0);
     const discSum = Number(r.discount_normal || 0) + Number(r.discount_other || 0);
-    if (discSum > 0) feeRows.push(`<tr><td>${esc(t('feeDiscount'))}</td><td style="text-align:right;font-family:monospace;color:#047857;">-${fmtAmt(discSum)}</td></tr>`);
+    const isCredit = /credit|บัตร/i.test(String(r.payment_method || ''));
+    const termDateText = (_termInfo && _termInfo.dateFrom) ? _termInfo.dateFrom : 'ตามประกาศสถาบัน';
 
     document.getElementById('lblRcDetailTitle').textContent = '#' + (r.receipt_no || '');
+    const cashierEl = document.getElementById('lblRcCashierName');
+    if (cashierEl) cashierEl.textContent = r.cashier_name || r.issued_by || 'ฝ่ายการเงิน OCA';
+
     document.getElementById('boxRcDetailBody').innerHTML = `
-      <div style="text-align:center;border-bottom:1.5px dashed #94A3B8;padding-bottom:8px;margin-bottom:8px;">
-        <div style="font-size:15px;font-weight:800;color:#022C22;"><span class="oca-weibei-brand">東方文化書院</span> • Oriental Culture Academy</div>
-        <div style="font-size:11.5px;font-weight:700;color:#334155;">${esc(t('rcPaperTitle'))}</div>
-        <div style="font-size:10.5px;color:#475569;">64/28 ถ.รองเมือง ซ. 1 แขวงรองเมือง เขตปทุมวัน กทม. 10330 • โทร. 02-216-2826-8</div>
-        <div style="display:inline-block;margin-top:5px;padding:2px 12px;border:1.5px solid #0F172A;border-radius:4px;font-size:12px;font-weight:800;">${esc(t('rcPaperSub'))}</div>
+      <div style="text-align:center;margin-bottom:10px;">
+        <img src="./oca_logo.png" alt="OCA" style="width:42px;height:42px;object-fit:contain;display:block;margin:0 auto 4px auto;" />
+        <div class="oca-weibei-brand" style="font-size:21px;font-weight:800;color:#8A5A00;line-height:1.15;">東方文化書院</div>
+        <div style="font-size:13px;font-weight:800;color:#0F172A;margin-top:2px;">วิทยสถานแห่งวัฒนธรรมตะวันออก</div>
+        <div style="font-size:10.5px;font-weight:700;color:#334155;letter-spacing:0.6px;">ORIENTAL CULTURE ACADEMY (OCA)</div>
+        <div style="font-size:10px;color:#475569;margin-top:2px;">64/28 ถ.รองเมือง ซอย 1 แขวงรองเมือง เขตปทุมวัน กรุงเทพมหานคร 10330</div>
+        <div style="font-size:10px;color:#334155;margin-top:2px;"><strong>เบอร์โทรศัพท์ :</strong> 02-216-2826, 02-216-2827, 02-216-2828 &nbsp; <i class="fa-brands fa-line" style="color:#16A34A;"></i> <strong>Line Official :</strong> @OCANIHAO</div>
+        <div style="font-size:10px;color:#475569;margin-top:1px;"><i class="fa-brands fa-facebook" style="color:#1D4ED8;"></i> <strong>Facebook :</strong> โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก &nbsp; <i class="fa-brands fa-tiktok"></i> <strong>TikTok :</strong> orientalcultureacademy</div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:11.5px;margin-bottom:8px;">
-        <div><strong>No.:</strong> <span style="font-family:monospace;font-weight:800;">#${esc(r.receipt_no)}</span></div>
-        <div style="text-align:right;"><strong>Date:</strong> ${esc(dtStr)}</div>
-        <div style="grid-column:1 / -1;"><strong>Student:</strong> <span data-i18n-locked="true">${esc(stName)}</span> (<span style="font-family:monospace;">${esc(stSid)}</span>)</div>
-        <div><strong>Schedule:</strong> ${esc(r.schedule || r.schedule_info || '-')}</div>
-        <div style="text-align:right;"><strong>Term:</strong> ${esc(r.term || '-')}/${esc(r.year_be || '-')}</div>
-        ${(r.class_group || r.teacher_name) ? `<div style="grid-column:1 / -1;">${r.class_group ? `<strong>Group:</strong> ${esc(r.class_group)} ` : ''}${r.teacher_name ? `• <strong>Lecturer:</strong> ${esc(r.teacher_name)}` : ''}</div>` : ''}
+
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 8px 0;">
+        <div style="border-left:4px solid #0284C7;padding-left:9px;font-size:15px;font-weight:800;color:#0F172A;">${esc(t('rcPaperSub'))}</div>
+        <div style="background:#F8FAFC;border:1px solid #CBD5E1;border-radius:6px;padding:6px 10px;font-size:11px;min-width:165px;line-height:1.5;">
+          <div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:#475569;">เลขที่ / No.</span><strong class="oca-dm-blue" style="font-family:monospace;">${esc(r.receipt_no)}</strong></div>
+          <div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:#475569;">ภาค/ปี / Term:</span><strong class="oca-dm-blue">${esc(r.term || '-')}/${esc(r.year_be || '-')}</strong></div>
+          <div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:#475569;">วันที่ / Date:</span><strong class="oca-dm-blue">${esc(dtStr)}</strong></div>
+        </div>
       </div>
+
+      <div style="border-top:1px solid #E2E8F0;padding-top:8px;margin-bottom:6px;font-size:11.5px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div>ได้รับเงินจาก / Received From: <strong class="oca-dm-blue" data-i18n-locked="true">${esc(stName)}</strong></div>
+        <div>รหัสประจำตัว / ID: <strong class="oca-dm-blue" style="font-family:monospace;">${esc(stSid)}</strong></div>
+        <div style="width:100%;color:#334155;">ที่อยู่ / Address: <span>${esc(stAddr)}</span></div>
+      </div>
+
       <table class="oca-dm-table">
-        <thead><tr><th style="text-align:left;">${esc(t('rcColItem'))}</th><th style="text-align:right;width:110px;">${esc(t('rcColAmount'))}</th></tr></thead>
-        <tbody>${feeRows.join('')}</tbody>
-        <tfoot>
+        <thead><tr><th style="text-align:left;">${esc(t('rcColItem'))}</th><th style="text-align:right;width:125px;">${esc(t('rcColAmount'))}</th></tr></thead>
+        <tbody>
+          ${feeRows.join('')}
+          <tr><td style="text-align:right;font-weight:700;">รวมเงิน / Total:</td><td style="text-align:right;font-family:monospace;" class="oca-dm-blue">${fmtAmt(subTotal)}</td></tr>
+          ${discSum > 0 ? `<tr><td style="text-align:right;color:#DC2626;">${esc(t('feeDiscount'))}:</td><td style="text-align:right;font-family:monospace;color:#DC2626;">-${fmtAmt(discSum)}</td></tr>` : ''}
           <tr style="background:#F8FAFC;font-weight:800;font-size:13px;">
-            <td>${esc(t('rcTotalLabel'))}</td>
-            <td style="text-align:right;font-family:monospace;color:#047857;">฿${fmtAmt(r.grand_total)}</td>
+            <td style="text-align:right;">จำนวนเงินรวมทั้งสิ้น / Net Total:</td>
+            <td style="text-align:right;font-family:monospace;" class="oca-dm-blue">${fmtAmt(r.grand_total)}</td>
           </tr>
-        </tfoot>
+        </tbody>
       </table>
-      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:11.5px;color:#334155;">
-        <span><strong>${esc(t('rcPaymentMethod'))}:</strong> ${esc(r.payment_method || '-')}</span>
-        <span><strong>${esc(t('rcDeliveryStatus'))}:</strong> ${esc(r.delivery_method || t('delivPickupShort'))} (${esc(r.claim_status || 'PENDING')})</span>
+
+      <div style="background:#F8FAFC;border:1px solid #CBD5E1;border-radius:4px;padding:6px 10px;margin:7px 0;font-size:11.5px;">
+        จำนวนเงินตัวอักษร / (Baht in words): <strong>( <span class="oca-dm-blue">${esc(numberToThaiBahtText(r.grand_total))}</span> )</strong>
       </div>
-      ${r.tracking_number ? `<div style="font-size:12px;font-weight:800;color:#0369A1;margin-top:4px;">Tracking: <span style="font-family:monospace;">${esc(r.tracking_number)}</span></div>` : ''}
+
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;font-size:11.5px;margin:7px 0;color:#334155;">
+        <div>ชำระโดย: <strong class="oca-dm-blue">[${isCredit ? '&nbsp;' : '<i class="fa-solid fa-check"></i>'}] โอนเงิน</strong> &nbsp; <strong class="${isCredit ? 'oca-dm-blue' : ''}">[${isCredit ? '<i class="fa-solid fa-check"></i>' : '&nbsp;'}] เครดิต</strong></div>
+        <div>รูปแบบ: <strong class="oca-dm-blue">${esc(r.learning_mode || 'Onsite')}</strong></div>
+      </div>
+
+      <div style="background:#F8FAFC;border:1px solid #BAE6FD;border-radius:4px;padding:6px 10px;font-size:11.5px;color:#1E293B;margin-bottom:8px;">
+        <div><strong>หมายเหตุ:</strong> กำหนดวันเปิดเรียน วันที่ <strong class="oca-dm-blue">${esc(termDateText)}</strong> <span style="color:#0369A1;">(ห้องเรียนสามารถมาดูได้ในวันเปิดเรียน)</span></div>
+        ${(r.class_group || r.teacher_name) ? `<div style="font-size:11px;margin-top:2px;color:#334155;">${r.class_group ? `กลุ่ม: <strong class="oca-dm-blue">${esc(r.class_group)}</strong> ` : ''}${r.teacher_name ? `| อาจารย์ผู้สอน: <strong class="oca-dm-blue">${esc(r.teacher_name)}</strong>` : ''}</div>` : ''}
+        ${r.tracking_number ? `<div style="font-size:11.5px;font-weight:800;color:#0369A1;margin-top:3px;">Tracking: <span style="font-family:monospace;">${esc(r.tracking_number)}</span></div>` : ''}
+      </div>
     `;
 
     const qrBox = document.getElementById('boxRcDetailQr');
@@ -2762,15 +3114,8 @@
   function closePwaGuide() { document.getElementById('modalStudentPwaGuide')?.classList.add('st-hidden'); }
 
   global.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
     _deferredPwaPrompt = e;
     global.__ocaStudentDeferredPrompt = e;
-    const btn = document.getElementById('btnStudentPwaInstall');
-    if (btn) btn.classList.remove('st-hidden');
-    if (global.__ocaStudentWaitingInstall) {
-      global.__ocaStudentWaitingInstall = false;
-      installPwa();
-    }
   });
 
   global.addEventListener('appinstalled', () => {
@@ -2784,8 +3129,11 @@
   if ('serviceWorker' in navigator) {
     global.addEventListener('load', () => {
       const inStudentDir = /\/student(\/|$)/i.test(global.location.pathname || '');
-      const swPath = inStudentDir ? './student/sw.js' : './sw.js';
-      navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).catch(() => {});
+      const swPath = inStudentDir ? new URL('./sw.js', global.location.href).href : './sw.js';
+      const swOpts = inStudentDir
+        ? { scope: new URL('./', global.location.href).href, updateViaCache: 'none' }
+        : { updateViaCache: 'none' };
+      navigator.serviceWorker.register(swPath, swOpts).catch(() => {});
     });
   }
 
@@ -2872,6 +3220,11 @@
     flipIdCard,
     onAddrSearch,
     pickThaiAddress,
+    onAddrProvinceChange,
+    onAddrDistrictChange,
+    onAddrSubdistrictChange,
+    composeThaiAddress,
+    onIdTypeChange,
     hoverNotice,
     hoverCourse,
     hoverReceipt,
