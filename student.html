@@ -110,6 +110,10 @@
           <button type="button" class="st-lang-btn" data-lang="en" onclick="OcaStudentPortal.setLang('en')">EN</button>
           <button type="button" class="st-lang-btn" data-lang="zh" onclick="OcaStudentPortal.setLang('zh')">中文</button>
         </div>
+        <button type="button" id="btnStudentNotifBell" class="st-hidden" onclick="OcaStudentPortal.openNotifModal()" style="position: relative; background: rgba(255,255,255,0.14); color: #FFFFFF; border: 1px solid rgba(255,255,255,0.28); border-radius: 10px; padding: 7px 11px; font-size: 13px; font-weight: 700; cursor: pointer;" title="การแจ้งเตือน">
+          <i class="fa-solid fa-bell"></i>
+          <span id="badgeStudentNotifCount" class="st-hidden" style="position: absolute; top: -6px; right: -6px; background: #DC2626; color: #FFFFFF; font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 999px; border: 1.5px solid #022C22;">0</span>
+        </button>
         <button type="button" id="btnStudentPwaInstall" class="st-btn-gold st-hidden" style="padding: 6px 12px; font-size: 12px;" onclick="OcaStudentPortal.installPwa()">
           <i class="fa-solid fa-mobile-screen-button"></i> <span id="lblInstallPwa">ติดตั้งแอป</span>
         </button>
@@ -258,9 +262,14 @@
             <div style="font-size: 12.5px; color: #475569; font-family: monospace;">ID: <strong id="lblAppStudentId">-</strong> • <span id="lblAppStatus" style="color: #047857; font-weight: 700;">-</span></div>
           </div>
         </div>
-        <button type="button" class="st-btn-gold" style="padding: 8px 14px; font-size: 13px;" onclick="OcaStudentPortal.switchTab('enroll')">
-          <i class="fa-solid fa-plus"></i> <span id="lblQuickEnroll">เลือกคอร์ส / ต่อคอร์ส</span>
-        </button>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" id="btnEnableStudentNotif" class="st-btn-outline" style="padding: 8px 12px; font-size: 12.5px;" onclick="OcaStudentPortal.enableNotifications()">
+            <i class="fa-solid fa-bell"></i> <span id="lblEnableNotif">เปิดรับแจ้งเตือนบนมือถือ</span>
+          </button>
+          <button type="button" class="st-btn-gold" style="padding: 8px 14px; font-size: 13px;" onclick="OcaStudentPortal.switchTab('enroll')">
+            <i class="fa-solid fa-plus"></i> <span id="lblQuickEnroll">เลือกคอร์ส / ต่อคอร์ส</span>
+          </button>
+        </div>
       </div>
       <nav style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px;">
         <button type="button" class="st-tab-btn active" data-tab="home" onclick="OcaStudentPortal.switchTab('home')"><i class="fa-solid fa-house"></i> <span data-i18n="tabHome">หน้าหลัก</span></button>
@@ -443,6 +452,40 @@
         <button type="button" id="btnSubmitCheckout" class="st-btn-primary" style="width: 100%; padding: 12px;" onclick="OcaStudentPortal.submitEnrollment()">
           <i class="fa-solid fa-paper-plane"></i> ยืนยันส่งใบสมัคร &amp; สลิปโอนเงิน
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATION INBOX & ANDROID/iOS GUIDE MODAL -->
+  <div id="modalStudentNotif" class="st-modal-backdrop st-hidden">
+    <div class="st-modal-box">
+      <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E2E8F0; padding-bottom: 10px; margin-bottom: 12px;">
+        <h3 style="margin: 0; font-size: 16px; font-weight: 800;"><i class="fa-solid fa-bell" style="color: #D97706;"></i> การแจ้งเตือนใบเสร็จ &amp; สถานะเรียน</h3>
+        <button type="button" onclick="OcaStudentPortal.closeNotifModal()" style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-weight: 700;">✕</button>
+      </div>
+      <div id="boxIosNotifGuide" class="st-hidden" style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 12px; padding: 12px; font-size: 12.5px; color: #0F172A; margin-bottom: 12px; line-height: 1.55;">
+        <strong>📱 สำหรับ iPhone / iPad (iOS 16.4+):</strong><br/>
+        1. แตะปุ่ม <strong>แชร์ (Share)</strong> ด้านล่างของ Safari แล้วเลือก <strong>"เพิ่มไปยังหน้าจอโฮม (Add to Home Screen)"</strong><br/>
+        2. เปิดแอป <strong>OCA Student</strong> จากหน้าจอหลัก แล้วกดปุ่ม <strong>"เปิดรับแจ้งเตือนบนมือถือ"</strong> อีกครั้ง
+      </div>
+      <div id="boxStudentNotifList" style="display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto;"></div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+        <button type="button" class="st-btn-outline" onclick="OcaStudentPortal.markAllNotifsRead()">ทำเครื่องหมายอ่านแล้วทั้งหมด</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECEIPT DETAIL + TEXTBOOK CLAIM QR MODAL -->
+  <div id="modalStudentReceiptDetail" class="st-modal-backdrop st-hidden">
+    <div class="st-modal-box" style="max-width: 460px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E2E8F0; padding-bottom: 10px; margin-bottom: 12px;">
+        <h3 id="lblRcDetailTitle" style="margin: 0; font-size: 16px; font-weight: 800;">รายละเอียดใบเสร็จรับเงิน</h3>
+        <button type="button" onclick="OcaStudentPortal.closeReceiptDetail()" style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-weight: 700;">✕</button>
+      </div>
+      <div id="boxRcDetailBody" style="font-size: 13px; line-height: 1.65;"></div>
+      <div style="margin-top: 14px; text-align: center; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px;">
+        <div id="boxRcDetailQr" style="display: inline-block; background: #FFFFFF; padding: 8px; border-radius: 8px;"></div>
+        <div style="font-size: 12px; color: #475569; margin-top: 6px;">QR ยืนยันตัวตนรับตำราเรียนที่สถาบัน</div>
       </div>
     </div>
   </div>
