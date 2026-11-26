@@ -1,4 +1,4 @@
-const CACHE_NAME = '357';
+const CACHE_NAME = '358';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const ASSETS_TO_CACHE = [
   './js/oca-student-ai-photo.js',
   './js/oca-student-portal.js',
   './js/oca-student-notify.js',
+  './js/oca-notice-board.js',
   './js/oca-email-admin.js',
   './css/oca-modular-v261.css',
   './css/oca-core-part1.css',
@@ -127,9 +128,12 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(async () => {
-          const cached = await caches.match(event.request);
+          const isStudentNav = event.request.url.toLowerCase().includes('student.html');
+          const cached = await caches.match(event.request) || await caches.match(event.request, { ignoreSearch: true });
           if (cached) return cached;
-          const fallback = await caches.match('./index.html') || await caches.match('./');
+          const fallback = isStudentNav
+            ? (await caches.match('./student.html', { ignoreSearch: true }) || await caches.match('./index.html'))
+            : (await caches.match('./index.html') || await caches.match('./'));
           if (fallback) return fallback;
           return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
         })
