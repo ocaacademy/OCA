@@ -63,6 +63,7 @@
   let _hoverHideTimer = null;
   let _idleTimer = null;
   let _realtimeSyncTimer = null;
+  let _photoFallbackTriedSid = '';
 
   const I18N = {
     th: {
@@ -858,12 +859,29 @@
     const g2 = s.match(/drive\.google\.com\/(?:open|uc)\?(?:[^#]*&)?id=([^&]+)/i);
     if (g2 && g2[1]) return 'https://lh3.googleusercontent.com/d/' + g2[1];
     if (s.startsWith('http://') || s.startsWith('https://')) return s;
+    const cleanPath = s.replace(/^\/+/, '').replace(/^student-photos\//i, '');
     if (_sb && _sb.storage) {
-      const cleanPath = s.replace(/^\/+/, '').replace(/^student-photos\//i, '');
       const pub = _sb.storage.from('student-photos').getPublicUrl(cleanPath);
       if (pub && pub.data && pub.data.publicUrl) return pub.data.publicUrl;
     }
     return s;
+  }
+
+  async function resolveStudentPhotoBySidAsync(sid) {
+    const cleanSid = String(sid || '').trim();
+    if (!cleanSid || !_sb || !_sb.storage) return '';
+    try {
+      const { data, error } = await _sb.storage.from('student-photos').list('', { search: cleanSid, limit: 15 });
+      if (error || !Array.isArray(data) || !data.length) return '';
+      const imgFiles = data
+        .filter(f => f && f.name && f.name.includes(cleanSid) && /\.(jpe?g|png|webp)$/i.test(f.name))
+        .sort((a, b) => String(b.updated_at || b.created_at || b.name).localeCompare(String(a.updated_at || a.created_at || a.name)));
+      if (!imgFiles.length) return '';
+      const pub = _sb.storage.from('student-photos').getPublicUrl(imgFiles[0].name);
+      return (pub && pub.data && pub.data.publicUrl) ? pub.data.publicUrl : '';
+    } catch (_) {
+      return '';
+    }
   }
 
   async function verifyImageMagicBytes(file) {
@@ -1678,18 +1696,39 @@
   function renderHeaderAndProfile() {
     if (!_student) return;
     const fullName = formatStudentDisplayName(_student);
+    const sid = String(_student.student_id || '').trim();
     const photo = resolveStudentPhotoUrl(_student.photo_url);
+
+    const trySidFallback = async () => {
+      if (!sid || _photoFallbackTriedSid === sid) return;
+      _photoFallbackTriedSid = sid;
+      const foundUrl = await resolveStudentPhotoBySidAsync(sid);
+      if (foundUrl && _student && String(_student.student_id || '').trim() === sid) {
+        _student.photo_url = foundUrl;
+        ['imgAppAvatar', 'imgAppAvatarMob', 'imgCardPhoto', 'imgProfileAiPreview'].forEach((id) => {
+          const im = document.getElementById(id);
+          if (im) im.src = foundUrl;
+        });
+      }
+    };
 
     const setImg = (id) => {
       const el = document.getElementById(id);
       if (!el) return;
-      el.onerror = () => { el.onerror = null; el.src = './oca_logo.png'; };
+      el.onerror = () => {
+        el.onerror = null;
+        el.src = './oca_logo.png';
+        trySidFallback();
+      };
       el.src = photo;
     };
     setImg('imgAppAvatar');
     setImg('imgAppAvatarMob');
     setImg('imgCardPhoto');
     setImg('imgProfileAiPreview');
+    if (photo === './oca_logo.png') {
+      trySidFallback();
+    }
 
     document.getElementById('lblAppStudentName').textContent = fullName;
     document.getElementById('lblAppStudentId').textContent = _student.student_id;
@@ -3127,6 +3166,7 @@
       global._activeStudentNotifChannel = null;
     }
     _activeStudentNotifSid = '';
+    _photoFallbackTriedSid = '';
     _student = null;
     _needsDobSetup = false;
     _courses = [];
