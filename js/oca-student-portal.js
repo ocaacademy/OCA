@@ -1654,13 +1654,35 @@
     if (promptEvt && typeof promptEvt.prompt === 'function') {
       try {
         promptEvt.prompt();
-        await promptEvt.userChoice;
+        const choice = await promptEvt.userChoice;
+        if (choice && choice.outcome === 'accepted') {
+          showToast('กำลังติดตั้งแอป OCA Student...');
+        }
       } catch (_) {}
       global.__ocaStudentDeferredPrompt = null;
       _deferredPwaPrompt = null;
+      global.__ocaStudentWaitingInstall = false;
       return;
     }
-    document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden');
+    if (isIosNonStandalone()) {
+      document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden');
+      return;
+    }
+    global.__ocaStudentWaitingInstall = true;
+    showToast('กำลังเตรียมหน้าต่างติดตั้งแอปอัตโนมัติ...');
+    if ('serviceWorker' in navigator) {
+      try { await navigator.serviceWorker.ready; } catch (_) {}
+    }
+    setTimeout(() => {
+      if (!global.__ocaStudentWaitingInstall) return;
+      global.__ocaStudentWaitingInstall = false;
+      const lateEvt = global.__ocaStudentDeferredPrompt || _deferredPwaPrompt;
+      if (lateEvt && typeof lateEvt.prompt === 'function') {
+        installPwa();
+      } else {
+        document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden');
+      }
+    }, 3500);
   }
 
   function closePwaGuide() { document.getElementById('modalStudentPwaGuide')?.classList.add('st-hidden'); }
@@ -1671,6 +1693,18 @@
     global.__ocaStudentDeferredPrompt = e;
     const btn = document.getElementById('btnStudentPwaInstall');
     if (btn) btn.classList.remove('st-hidden');
+    if (global.__ocaStudentWaitingInstall) {
+      global.__ocaStudentWaitingInstall = false;
+      installPwa();
+    }
+  });
+
+  global.addEventListener('appinstalled', () => {
+    _deferredPwaPrompt = null;
+    global.__ocaStudentDeferredPrompt = null;
+    global.__ocaStudentWaitingInstall = false;
+    document.documentElement.classList.add('oca-standalone');
+    showToast('ติดตั้งแอป OCA Student สำเร็จแล้ว');
   });
 
   if ('serviceWorker' in navigator) {
