@@ -244,7 +244,7 @@
             <div style="font-size:16px;font-weight:800;color:#FDE68A;"><i class="fa-solid fa-bullhorn"></i> จัดการบอร์ดประชาสัมพันธ์นักศึกษา</div>
             <div style="font-size:12px;color:#A7F3D0;">ข่าวที่บันทึกจะซิงก์ไปหน้าแรก Student WebApp ทันที (เรียงใหม่ไปเก่า)</div>
           </div>
-          <button type="button" onclick="OcaNoticeBoard.closeStaffManagerModal()" style="background:rgba(255,255,255,0.16);color:#FFFFFF;border:1px solid rgba(255,255,255,0.35);border-radius:8px;width:34px;height:34px;cursor:pointer;font-weight:800;">✕</button>
+          <button type="button" onclick="OcaNoticeBoard.closeStaffManagerModal()" style="background:rgba(255,255,255,0.16);color:#FFFFFF;border:1px solid rgba(255,255,255,0.35);border-radius:8px;width:34px;height:34px;cursor:pointer;font-weight:800;"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div style="padding:18px 20px;display:flex;flex-direction:column;gap:16px;">
           <form id="formOcaNoticeSave" onsubmit="OcaNoticeBoard.submitStaffNotice(event)" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:14px;padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
@@ -339,7 +339,7 @@
           <div style="border:1px solid #E2E8F0;border-radius:12px;padding:11px 13px;background:#FFFFFF;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
             <div style="min-width:0;flex:1;">
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
-                ${n.pinned ? '<span style="background:#FEF3C7;color:#92400E;font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;">📌 ปักหมุด</span>' : ''}
+                ${n.pinned ? '<span style="background:#FEF3C7;color:#92400E;font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;"><i class="fa-solid fa-thumbtack"></i> ปักหมุด</span>' : ''}
                 <span style="background:${cat.bg};color:${cat.fg};font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;">${escHtml(cat.th)}</span>
                 ${statusBadge}
                 <span style="font-size:11.5px;color:#64748B;">${escHtml(dtStr)}</span>
