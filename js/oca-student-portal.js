@@ -2250,7 +2250,7 @@
       const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
       const path = `slips/student_slip_${sid}_${Date.now()}.${ext}`;
       const upOpts = { contentType: file.type || 'image/jpeg', upsert: true };
-      let storedPath = 'student-photos/' + path;
+      let storedPath = path;
       const { error: upErr } = await _sb.storage.from('student-photos').upload(path, file, upOpts);
       if (upErr) {
         const fbPath = `student_slip_${sid}_${Date.now()}.${ext}`;
@@ -2273,7 +2273,6 @@
       }
       closeCheckout();
       await loadStudentAppData();
-      renderHomeTab();
       switchTab('finance');
       logStudentAudit('STUDENT_ENROLL_SLIP', `Submitted slip for ${codesStr} (${deliv}) ฿${total}`, 'SUCCESS');
       showToast(t('slipSubmitSuccess'));
