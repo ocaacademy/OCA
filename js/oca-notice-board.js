@@ -172,6 +172,9 @@
     const pinned = payload?.pinned ? 1 : 0;
     const startDate = String(payload?.start_date || '').trim() || null;
     const endDate = String(payload?.end_date || '').trim() || null;
+    if (startDate && endDate && endDate < startDate) {
+      throw new Error('วันหมดอายุต้องไม่น้อยกว่าวันเริ่มแสดง');
+    }
     const nowIso = new Date().toISOString();
 
     const { error: delBodyErr } = await sb
@@ -279,12 +282,23 @@
               </select>
             </div>
             <div>
-              <label for="inpNoticeStart" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;">วันเริ่มแสดง (ไม่บังคับ)</label>
-              <input id="inpNoticeStart" type="date" style="width:100%;padding:8px 10px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;box-sizing:border-box;" />
+              <label for="selNoticeDuration" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;">ระยะเวลาประชาสัมพันธ์</label>
+              <select id="selNoticeDuration" onchange="OcaNoticeBoard.onDurationPresetChange()" style="width:100%;padding:9px 11px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;">
+                <option value="30" selected>30 วัน (ค่าเริ่มต้น)</option>
+                <option value="7">7 วัน</option>
+                <option value="14">14 วัน</option>
+                <option value="60">60 วัน</option>
+                <option value="custom">กำหนดวันเอง</option>
+                <option value="forever">ไม่จำกัดวัน</option>
+              </select>
             </div>
             <div>
-              <label for="inpNoticeEnd" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;">วันหมดอายุ (ไม่บังคับ)</label>
-              <input id="inpNoticeEnd" type="date" style="width:100%;padding:8px 10px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;box-sizing:border-box;" />
+              <label for="inpNoticeStart" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;">วันเริ่มแสดง</label>
+              <input id="inpNoticeStart" type="date" oninput="OcaNoticeBoard.onManualDateChange()" style="width:100%;padding:8px 10px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;box-sizing:border-box;" />
+            </div>
+            <div>
+              <label for="inpNoticeEnd" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;">วันหมดอายุ</label>
+              <input id="inpNoticeEnd" type="date" oninput="OcaNoticeBoard.onManualDateChange()" style="width:100%;padding:8px 10px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;box-sizing:border-box;" />
             </div>
             <div style="grid-column:1 / -1;">
               <label for="inpNoticeBody" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;">รายละเอียดประกาศ (สูงสุด 500 ตัวอักษร)</label>
@@ -311,16 +325,61 @@
     return modal;
   }
 
+  function addDaysIso(baseIso, days) {
+    const parts = String(baseIso || todayIso()).split('-').map(Number);
+    const dt = new Date(parts[0], (parts[1] || 1) - 1, parts[2] || 1);
+    dt.setDate(dt.getDate() + Number(days || 0));
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  }
+
+  function formatThaiShortDate(iso) {
+    const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return '';
+    return `${m[3]}/${m[2]}/${Number(m[1]) + 543}`;
+  }
+
+  function onDurationPresetChange() {
+    const dur = document.getElementById('selNoticeDuration')?.value || '30';
+    const startEl = document.getElementById('inpNoticeStart');
+    const endEl = document.getElementById('inpNoticeEnd');
+    if (!startEl || !endEl) return;
+    if (dur === 'forever') {
+      if (!startEl.value) startEl.value = todayIso();
+      endEl.value = '';
+      return;
+    }
+    if (dur === 'custom') return;
+    const days = Number(dur);
+    if (Number.isFinite(days) && days > 0) {
+      const base = startEl.value || todayIso();
+      startEl.value = base;
+      endEl.value = addDaysIso(base, days);
+    }
+  }
+
+  function onManualDateChange() {
+    const sel = document.getElementById('selNoticeDuration');
+    if (sel) sel.value = 'custom';
+  }
+
+  function applyDefaultNoticeDates() {
+    const sel = document.getElementById('selNoticeDuration');
+    const startEl = document.getElementById('inpNoticeStart');
+    const endEl = document.getElementById('inpNoticeEnd');
+    if (sel) sel.value = '30';
+    if (startEl) startEl.value = todayIso();
+    if (endEl) endEl.value = addDaysIso(todayIso(), 30);
+  }
+
   function resetStaffForm() {
     const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
     setVal('inpNoticeEditId', '');
     setVal('inpNoticeTitle', '');
     setVal('selNoticeCategory', 'GENERAL');
-    setVal('inpNoticeStart', '');
-    setVal('inpNoticeEnd', '');
     setVal('inpNoticeBody', '');
     const chk = document.getElementById('chkNoticePinned');
     if (chk) chk.checked = false;
+    applyDefaultNoticeDates();
   }
 
   function editStaffNotice(id) {
@@ -331,6 +390,8 @@
     document.getElementById('selNoticeCategory').value = item.category;
     document.getElementById('inpNoticeStart').value = item.start_date || '';
     document.getElementById('inpNoticeEnd').value = item.end_date || '';
+    const sel = document.getElementById('selNoticeDuration');
+    if (sel) sel.value = item.end_date ? 'custom' : 'forever';
     document.getElementById('inpNoticeBody').value = item.body || '';
     document.getElementById('chkNoticePinned').checked = Boolean(item.pinned);
   }
@@ -345,12 +406,22 @@
         box.innerHTML = '<div style="font-size:13px;color:#64748B;padding:14px;text-align:center;border:1px dashed #CBD5E1;border-radius:10px;">ยังไม่มีประกาศในระบบ สามารถสร้างประกาศแรกด้านบนได้เลย</div>';
         return;
       }
+      const today = todayIso();
       box.innerHTML = _staffCache.map((n) => {
         const cat = CATEGORIES[n.category] || CATEGORIES.GENERAL;
         const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-        const statusBadge = n.isExpired
-          ? '<span style="background:#FEE2E2;color:#991B1B;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">หมดอายุ</span>'
-          : '<span style="background:#DCFCE7;color:#166534;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">กำลังแสดง</span>';
+        let statusBadge = '<span style="background:#DCFCE7;color:#166534;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">กำลังแสดง</span>';
+        if (n.isExpired) {
+          statusBadge = '<span style="background:#FEE2E2;color:#991B1B;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">หมดอายุแล้ว</span>';
+        } else if (n.isScheduled) {
+          statusBadge = '<span style="background:#DBEAFE;color:#1E40AF;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">รอถึงวันเริ่มแสดง</span>';
+        } else if (n.end_date) {
+          const daysLeft = Math.max(0, Math.round((Date.parse(n.end_date) - Date.parse(today)) / 86400000));
+          statusBadge = `<span style="background:#DCFCE7;color:#166534;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">กำลังแสดง (เหลือ ${daysLeft} วัน)</span>`;
+        }
+        const rangeTxt = (n.start_date || n.end_date)
+          ? `ระยะเวลา: ${n.start_date ? formatThaiShortDate(n.start_date) : 'ทันที'} – ${n.end_date ? formatThaiShortDate(n.end_date) : 'ไม่มีกำหนด'}`
+          : 'ระยะเวลา: ไม่จำกัดวัน';
         return `
           <div style="border:1px solid #E2E8F0;border-radius:12px;padding:11px 13px;background:#FFFFFF;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
             <div style="min-width:0;flex:1;">
@@ -361,6 +432,7 @@
                 <span style="font-size:11.5px;color:#64748B;">${escHtml(dtStr)}</span>
               </div>
               <div style="font-size:14px;font-weight:800;color:#0F172A;">${escHtml(n.title)}</div>
+              <div style="font-size:11.5px;color:#0369A1;font-weight:600;margin-top:2px;"><i class="fa-regular fa-calendar"></i> ${escHtml(rangeTxt)}</div>
               ${n.body ? `<div style="font-size:12.5px;color:#475569;margin-top:3px;white-space:pre-line;">${escHtml(n.body)}</div>` : ''}
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0;">
@@ -415,6 +487,7 @@
     }
     const modal = ensureStaffModal();
     modal.style.display = 'flex';
+    if (!document.getElementById('inpNoticeEditId')?.value) applyDefaultNoticeDates();
     refreshStaffNoticeList();
   }
 
@@ -434,6 +507,8 @@
     submitStaffNotice,
     editStaffNotice,
     removeStaffNotice,
-    resetStaffForm
+    resetStaffForm,
+    onDurationPresetChange,
+    onManualDateChange
   };
 })(window);
