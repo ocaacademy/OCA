@@ -1,11 +1,10 @@
-const CACHE_NAME = '371';
+const CACHE_NAME = '372';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './portal.html',
   './student.html',
   './manifest.json',
-  './student-manifest.json',
   './js/oca-slip-guard.js',
   './js/oca-hover-popover.js',
   './js/oca-student-ai-photo.js',
@@ -89,7 +88,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME && key !== 'oca-ai-models-v1') {
+          if (key !== CACHE_NAME && key !== 'oca-ai-models-v1' && !key.startsWith('oca-student-')) {
             console.log('[SW] Deleting stale cache:', key);
             return caches.delete(key);
           }
@@ -103,6 +102,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Only intercept GET requests
   if (event.request.method !== 'GET') {
+    return;
+  }
+  if (event.request.url.includes('/student/')) {
     return;
   }
 
