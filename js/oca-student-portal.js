@@ -196,7 +196,21 @@
       imgGenNotReady: 'ระบบสร้างภาพยังไม่พร้อม กรุณาลองใหม่',
       imgSaveSuccess: 'บันทึกรูปภาพเรียบร้อยแล้ว',
       imgSaveFail: 'บันทึกรูปไม่สำเร็จ:',
-      delivPickupShort: 'รับเอง'
+      delivPickupShort: 'รับเอง',
+      fldPassport: 'เลขพาสปอร์ต (Passport No.)',
+      fldEthnicity: 'เชื้อชาติ',
+      fldAge: 'อายุ (คำนวณอัตโนมัติ)',
+      fldEmergRelation: 'ความสัมพันธ์ (ผู้ติดต่อฉุกเฉิน)',
+      fldLangLevel: 'ระดับพื้นฐานภาษาจีนเดิม',
+      fldNotes: 'หมายเหตุประวัตินักศึกษา (ไม่บังคับ)',
+      phNotes: 'ระบุหมายเหตุเพิ่มเติมเกี่ยวกับตัวผู้เรียน (ถ้ามี)...',
+      langLvlSelect: '-- เลือกระดับความรู้เดิม --',
+      langLvlNone: 'ไม่มีพื้นฐานเลย (เริ่มต้นใหม่จากศูนย์)',
+      langLvlPinyin: 'มีพื้นฐานพินอินและคำศัพท์ง่ายๆ',
+      langLvlHsk12: 'ระดับเทียบเท่า HSK 1 - 2',
+      langLvlHsk34: 'ระดับเทียบเท่า HSK 3 - 4',
+      langLvlHsk5: 'ระดับเทียบเท่า HSK 5 ขึ้นไป',
+      ageYearsUnit: 'ปี'
     },
     en: {
       hdrSub: 'Student Self-Service Portal (Enroll • Schedule • Digital ID)',
@@ -343,7 +357,21 @@
       imgGenNotReady: 'Image export engine is not ready. Please try again.',
       imgSaveSuccess: 'Image saved successfully.',
       imgSaveFail: 'Failed to save image:',
-      delivPickupShort: 'Self-pickup'
+      delivPickupShort: 'Self-pickup',
+      fldPassport: 'Passport No.',
+      fldEthnicity: 'Ethnicity',
+      fldAge: 'Age (Auto)',
+      fldEmergRelation: 'Emergency Relation',
+      fldLangLevel: 'Chinese Proficiency Level',
+      fldNotes: 'Student Profile Notes (Optional)',
+      phNotes: 'Additional notes about the student (if any)...',
+      langLvlSelect: '-- Select Current Level --',
+      langLvlNone: 'Complete Beginner (From Zero)',
+      langLvlPinyin: 'Basic Pinyin & Simple Vocabulary',
+      langLvlHsk12: 'Equivalent to HSK 1 - 2',
+      langLvlHsk34: 'Equivalent to HSK 3 - 4',
+      langLvlHsk5: 'Equivalent to HSK 5 or Above',
+      ageYearsUnit: 'yrs'
     },
     zh: {
       hdrSub: '东方文化书院学员在线门户（在线报名 • 课表 • 电子学生证）',
@@ -490,7 +518,21 @@
       imgGenNotReady: '图片生成组件尚未就绪，请重试',
       imgSaveSuccess: '图片保存成功',
       imgSaveFail: '图片保存失败：',
-      delivPickupShort: '书院自取'
+      delivPickupShort: '书院自取',
+      fldPassport: '护照号 (Passport No.)',
+      fldEthnicity: '民族 / 族裔',
+      fldAge: '年龄（自动计算）',
+      fldEmergRelation: '紧急联系人关系',
+      fldLangLevel: '汉语基础水平',
+      fldNotes: '学员档案备注（选填）',
+      phNotes: '如有其他补充信息请填写...',
+      langLvlSelect: '-- 请选择汉语基础水平 --',
+      langLvlNone: '零基础（从头开始学习）',
+      langLvlPinyin: '掌握基本拼音与常用词汇',
+      langLvlHsk12: '相当于 HSK 1 - 2 级',
+      langLvlHsk34: '相当于 HSK 3 - 4 级',
+      langLvlHsk5: '相当于 HSK 5 级及以上',
+      ageYearsUnit: '岁'
     }
   };
 
@@ -577,6 +619,27 @@
     if (!norm) return '';
     const [y, m, d] = norm.split('-').map(Number);
     return String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + String(y + 543);
+  }
+
+  function calcAgeFromDobInput(val) {
+    const iso = normalizeDobIso(val);
+    if (!iso) return '';
+    const parts = iso.split('-').map(Number);
+    if (parts.length !== 3) return '';
+    const today = new Date();
+    let age = today.getFullYear() - parts[0];
+    const mDiff = (today.getMonth() + 1) - parts[1];
+    if (mDiff < 0 || (mDiff === 0 && today.getDate() < parts[2])) age--;
+    if (age < 0 || age > 120) return '';
+    return `${age} ${t('ageYearsUnit')}`;
+  }
+
+  function updateAgeDisplay(mode) {
+    const dobId = mode === 'reg' ? 'regDob' : 'profDob';
+    const ageId = mode === 'reg' ? 'regAge' : 'profAge';
+    const dobEl = document.getElementById(dobId);
+    const ageEl = document.getElementById(ageId);
+    if (dobEl && ageEl) ageEl.value = calcAgeFromDobInput(dobEl.value);
   }
 
   function toggleLoginSecret() {
@@ -985,11 +1048,18 @@
       const fullName = (document.getElementById('regFullName')?.value || '').trim();
       const prefix = (document.getElementById('regPrefix')?.value || '').trim();
       const citizenId = (document.getElementById('regCitizenId')?.value || '').trim();
+      const passportNo = (document.getElementById('regPassportNo')?.value || '').trim();
+      const ethnicity = (document.getElementById('regEthnicity')?.value || 'ไทย').trim();
       const phone = (document.getElementById('regPhone')?.value || '').trim();
       const lineId = (document.getElementById('regLine')?.value || '').trim();
       const email = (document.getElementById('regEmail')?.value || '').trim();
       const nationality = (document.getElementById('regNationality')?.value || 'ไทย').trim();
+      const languageLevel = (document.getElementById('regLanguageLevel')?.value || '').trim();
       const address = (document.getElementById('regAddress')?.value || '').trim();
+      const emergName = (document.getElementById('regEmergName')?.value || '').trim();
+      const emergRel = (document.getElementById('regEmergRelation')?.value || '').trim();
+      const emergPhone = (document.getElementById('regEmergPhone')?.value || '').trim();
+      const notes = (document.getElementById('regNotes')?.value || '').trim().slice(0, 300);
 
       const cleanCid = citizenId.replace(/[\s-]/g, '');
       if (cleanCid.length >= 6) {
@@ -1023,11 +1093,18 @@
         full_name: fullName,
         birth_date: dobIso,
         citizen_id: citizenId,
+        passport_no: passportNo,
+        ethnicity,
         phone_number: phone,
         line_id: lineId,
         email,
         nationality,
+        language_level: languageLevel,
         address,
+        emergency_name: emergName,
+        emergency_relation: emergRel,
+        emergency_phone: emergPhone,
+        notes,
         year_be: yearBE,
         term,
         registration_channel: 'STUDENT_WEBAPP',
@@ -1115,20 +1192,30 @@
     }
 
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    setVal('profPrefix', _student.prefix || '');
+    setVal('profFullName', _student.full_name || '');
+    setVal('profCitizenId', _student.citizen_id || '');
+    setVal('profPassportNo', _student.passport_no || '');
+    setVal('profEthnicity', _student.ethnicity || '');
+    setVal('profNationality', _student.nationality || '');
     setVal('profDob', formatIsoToThaiDob(_student.birth_date || ''));
+    setVal('profAge', calcAgeFromDobInput(_student.birth_date || ''));
     setVal('profPhone', _student.phone_number || '');
     setVal('profLine', _student.line_id || '');
     setVal('profEmail', _student.email || '');
+    setVal('profLanguageLevel', _student.language_level || '');
     setVal('profAddress', _student.address || '');
     setVal('profEmergName', _student.emergency_name || '');
+    setVal('profEmergRelation', _student.emergency_relation || '');
     setVal('profEmergPhone', _student.emergency_phone || '');
+    setVal('profNotes', _student.notes || '');
 
     const sumBox = document.getElementById('boxProfileDbSummary');
     if (sumBox) {
       sumBox.innerHTML =
         `<div><strong>ID:</strong> <span data-i18n-locked="true">${esc(_student.student_id)}</span> • <strong>Status:</strong> ${esc(_student.status || 'ACTIVE')}</div>` +
         `<div><strong>${esc(t('fldNationality'))}:</strong> ${esc(_student.nationality || '-')} ${(_student.ethnicity ? '(' + esc(_student.ethnicity) + ')' : '')}</div>` +
-        `<div><strong>Level:</strong> ${esc(_student.language_level || '-')} • <strong>${esc(t('homeTotalCoursesLbl'))}:</strong> ${_receipts.length}</div>` +
+        `<div><strong>${esc(t('fldLangLevel'))}:</strong> ${esc(_student.language_level || '-')} • <strong>${esc(t('homeTotalCoursesLbl'))}:</strong> ${_receipts.length}</div>` +
         `<div><strong>${esc(t('homeCourseLbl'))}:</strong> <span data-i18n-locked="true">${esc(_student.current_course || '-')}</span></div>`;
     }
   }
@@ -1580,35 +1667,49 @@
     if (btn) btn.disabled = true;
     try {
       const sid = String(_student.student_id).trim();
+      const prefix = (document.getElementById('profPrefix')?.value || '').trim();
+      const fullName = (document.getElementById('profFullName')?.value || '').trim();
+      const citizenId = (document.getElementById('profCitizenId')?.value || '').trim();
+      const passportNo = (document.getElementById('profPassportNo')?.value || '').trim();
+      const ethnicity = (document.getElementById('profEthnicity')?.value || '').trim();
+      const nationality = (document.getElementById('profNationality')?.value || '').trim();
       const phone = (document.getElementById('profPhone')?.value || '').trim();
       const lineId = (document.getElementById('profLine')?.value || '').trim();
       const email = (document.getElementById('profEmail')?.value || '').trim();
+      const languageLevel = (document.getElementById('profLanguageLevel')?.value || '').trim();
       const address = (document.getElementById('profAddress')?.value || '').trim();
       const emergName = (document.getElementById('profEmergName')?.value || '').trim();
+      const emergRel = (document.getElementById('profEmergRelation')?.value || '').trim();
       const emergPhone = (document.getElementById('profEmergPhone')?.value || '').trim();
+      const notes = (document.getElementById('profNotes')?.value || '').trim().slice(0, 300);
 
       const { error: rpcErr } = await _sb.rpc('student_portal_update_profile', {
         p_student_id: sid, p_birth_date: dobIso, p_phone: phone, p_line_id: lineId, p_email: email, p_address: address
       });
-      if (rpcErr) {
-        const { error: updErr } = await _sb.from('students').update({
-          birth_date: dobIso, phone_number: phone, line_id: lineId, email, address, emergency_name: emergName, emergency_phone: emergPhone
-        }).eq('student_id', sid);
-        if (updErr) throw updErr;
-      } else if (emergName || emergPhone) {
-        const { error: emErr } = await _sb.from('students').update({
-          emergency_name: emergName, emergency_phone: emergPhone
-        }).eq('student_id', sid);
-        if (emErr) console.warn('[saveProfile emergency]', emErr.message || emErr);
-      }
+      const extendedFields = {
+        prefix,
+        full_name: fullName || _student.full_name,
+        citizen_id: citizenId,
+        passport_no: passportNo,
+        ethnicity,
+        nationality,
+        birth_date: dobIso,
+        phone_number: phone,
+        line_id: lineId,
+        email,
+        language_level: languageLevel,
+        address,
+        emergency_name: emergName,
+        emergency_relation: emergRel,
+        emergency_phone: emergPhone,
+        notes,
+        updated_at: new Date().toISOString()
+      };
+      const { error: updErr } = await _sb.from('students').update(extendedFields).eq('student_id', sid);
+      if (updErr && rpcErr) throw updErr;
+      if (updErr) console.warn('[saveProfile extended]', updErr.message || updErr);
 
-      _student.birth_date = dobIso;
-      _student.phone_number = phone;
-      _student.line_id = lineId;
-      _student.email = email;
-      _student.address = address;
-      _student.emergency_name = emergName;
-      _student.emergency_phone = emergPhone;
+      Object.assign(_student, extendedFields);
       _needsDobSetup = false;
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ student: _student, needsDobSetup: false }));
       renderHeaderAndProfile();
@@ -2016,6 +2117,7 @@
     onProfilePhotoSelected,
     saveAiPhoto,
     saveProfile,
+    updateAgeDisplay,
     enableNotifications,
     openNotifModal,
     closeNotifModal,
