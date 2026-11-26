@@ -562,8 +562,22 @@
     }, 180);
   }
 
+  function getFallbackNotice() {
+    return {
+      id: 'default',
+      title: _currentLang === 'en' ? 'Welcome to OCA Student Portal' : (_currentLang === 'zh' ? '欢迎使用东方文化书院学员在线系统' : 'ยินดีต้อนรับสู่ระบบนักศึกษา OCA'),
+      body: _currentLang === 'en'
+        ? 'Enroll in courses, upload payment slips, view schedules, and access your digital student ID card anytime.'
+        : (_currentLang === 'zh' ? '在线选课报名、上传转账凭证、查看课表与电子学生证，随时随地便捷使用。' : 'สามารถสมัครคอร์สเรียน แนบสลิปโอนเงิน ดูตารางเรียน บัตรนักศึกษา และรับใบเสร็จได้ตลอด 24 ชม.'),
+      category: 'GENERAL',
+      pinned: true,
+      isNew: false,
+      createdMs: Date.now()
+    };
+  }
+
   function hoverNotice(id, el) {
-    const n = _notices.find(x => String(x.id) === String(id));
+    const n = _notices.find(x => String(x.id) === String(id)) || (String(id) === 'default' ? getFallbackNotice() : null);
     if (!n) return;
     const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
     showHoverPopover(el,
@@ -1601,7 +1615,7 @@
   }
 
   function openNoticeDetail(id) {
-    const n = _notices.find(x => String(x.id) === String(id));
+    const n = _notices.find(x => String(x.id) === String(id)) || (String(id) === 'default' ? getFallbackNotice() : null);
     if (!n) return;
     document.getElementById('lblNoticeModalTitle').textContent = n.title || t('noticeBoardTitle');
     const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
