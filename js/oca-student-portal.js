@@ -210,7 +210,14 @@
       langLvlHsk12: 'ระดับเทียบเท่า HSK 1 - 2',
       langLvlHsk34: 'ระดับเทียบเท่า HSK 3 - 4',
       langLvlHsk5: 'ระดับเทียบเท่า HSK 5 ขึ้นไป',
-      ageYearsUnit: 'ปี'
+      ageYearsUnit: 'ปี',
+      mobTabHome: 'หน้าหลัก',
+      mobTabEnroll: 'เลือกคอร์ส',
+      mobTabCard: 'บัตร',
+      mobTabSchedule: 'ตาราง',
+      mobTabFinance: 'ใบเสร็จ',
+      mobTabProfile: 'โปรไฟล์',
+      btnReceiptQr: 'ใบเสร็จ & QR รับตำรา'
     },
     en: {
       hdrSub: 'Student Self-Service Portal (Enroll • Schedule • Digital ID)',
@@ -371,7 +378,14 @@
       langLvlHsk12: 'Equivalent to HSK 1 - 2',
       langLvlHsk34: 'Equivalent to HSK 3 - 4',
       langLvlHsk5: 'Equivalent to HSK 5 or Above',
-      ageYearsUnit: 'yrs'
+      ageYearsUnit: 'yrs',
+      mobTabHome: 'Home',
+      mobTabEnroll: 'Courses',
+      mobTabCard: 'ID Card',
+      mobTabSchedule: 'Schedule',
+      mobTabFinance: 'Receipts',
+      mobTabProfile: 'Profile',
+      btnReceiptQr: 'Receipt & Book QR'
     },
     zh: {
       hdrSub: '东方文化书院学员在线门户（在线报名 • 课表 • 电子学生证）',
@@ -532,7 +546,14 @@
       langLvlHsk12: '相当于 HSK 1 - 2 级',
       langLvlHsk34: '相当于 HSK 3 - 4 级',
       langLvlHsk5: '相当于 HSK 5 级及以上',
-      ageYearsUnit: '岁'
+      ageYearsUnit: '岁',
+      mobTabHome: '首页',
+      mobTabEnroll: '选课',
+      mobTabCard: '学生证',
+      mobTabSchedule: '课表',
+      mobTabFinance: '收据',
+      mobTabProfile: '资料',
+      btnReceiptQr: '收据与领书二维码'
     }
   };
 
@@ -909,6 +930,8 @@
     if (logoutBtn) logoutBtn.classList.toggle('st-hidden', viewId !== 'viewStudentApp');
     const bellBtn = document.getElementById('btnStudentNotifBell');
     if (bellBtn) bellBtn.classList.toggle('st-hidden', viewId !== 'viewStudentApp');
+    const mobNav = document.getElementById('stMobileBottomNav');
+    if (mobNav) mobNav.classList.toggle('st-hidden', viewId !== 'viewStudentApp');
   }
 
   function enterLoginFromWelcome() { showOnlyView('viewStudentAuth'); }
@@ -1141,8 +1164,12 @@
 
   function switchTab(tabName) {
     document.querySelectorAll('.st-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
+    document.querySelectorAll('.st-bottom-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
     document.querySelectorAll('.st-tab-panel').forEach(p => p.classList.toggle('st-hidden', p.id !== 'tabPanel_' + tabName));
     toggleSidebar(false);
+    if (global.innerWidth < 900) {
+      try { global.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) {}
+    }
   }
 
   function renderHeaderAndProfile() {
@@ -1178,17 +1205,10 @@
     document.getElementById('lblCardName').textContent = fullName;
     const cardNameEn = document.getElementById('lblCardNameEn');
     if (cardNameEn) cardNameEn.textContent = _student.full_name_en || _student.nickname || '';
-    document.getElementById('lblCardCourse').textContent = _student.current_course || 'Oriental Culture Academy';
     const issueEl = document.getElementById('lblCardIssueDate');
     if (issueEl) {
       const dt = _student.created_at ? new Date(_student.created_at) : new Date();
       issueEl.textContent = dt.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    }
-
-    const qrBox = document.getElementById('boxCardQr');
-    if (qrBox && global.QRCode) {
-      qrBox.innerHTML = '';
-      new global.QRCode(qrBox, { text: 'OCA-ST:' + _student.student_id, width: 88, height: 88 });
     }
 
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
@@ -1379,11 +1399,16 @@
       KIDS: 'fa-child-reaching', BEG: 'fa-seedling', INT: 'fa-user-graduate', ADV: 'fa-graduation-cap',
       CONVO: 'fa-comments', HSK: 'fa-award', ART: 'fa-paintbrush', MUSIC: 'fa-music', OTHER: 'fa-shapes'
     };
+    const dotColors = {
+      ALL: '#047857', LEARNED: '#0F766E', BOOKS: '#15803D', EXAM: '#A16207',
+      KIDS: '#D97706', BEG: '#059669', INT: '#2563EB', ADV: '#4F46E5',
+      CONVO: '#0891B2', HSK: '#DC2626', ART: '#DB2777', MUSIC: '#7C3AED', OTHER: '#475569'
+    };
     const l = labels[_currentLang] || labels.th;
     const ids = ['ALL', 'LEARNED', 'BOOKS', 'EXAM', 'KIDS', 'BEG', 'INT', 'ADV', 'CONVO', 'HSK', 'ART', 'MUSIC', 'OTHER'];
     box.innerHTML = ids.map(id =>
       `<button type="button" class="st-cat-btn ${_activeCat === id ? 'active' : ''}" onclick="OcaStudentPortal.selectCategory('${id}')">` +
-      `<span style="display:inline-flex;align-items:center;gap:8px;"><i class="fa-solid ${icons[id]}"></i><span>${esc(l[id])}</span></span>` +
+      `<span style="display:inline-flex;align-items:center;gap:7px;"><span class="oca-cat-dot" style="background:${_activeCat === id ? '#FDE68A' : (dotColors[id] || '#047857')};"></span><i class="fa-solid ${icons[id]}"></i><span>${esc(l[id])}</span></span>` +
       `<span style="font-size:11px;font-weight:800;padding:1px 7px;border-radius:999px;background:${_activeCat === id ? 'rgba(255,255,255,0.2)' : '#F1F5F9'};color:${_activeCat === id ? '#FFFFFF' : '#475569'};">${counts[id] || 0}</span>` +
       `</button>`
     ).join('');
@@ -1442,6 +1467,11 @@
             </div>
           </div>
           <div style="padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:10px;flex:1;">
+            <div class="oca-course-mob-meta">
+              <span data-i18n-locked="true" class="oca-course-mob-code">${esc(c.code)}</span>
+              <span class="oca-cat-pill">${esc(c.level || 'OCA')}</span>
+              ${rightBadge}
+            </div>
             <div data-i18n-locked="true" class="oca-course-title">${esc(c.name)}</div>
             <div class="oca-course-foot">
               <button type="button" class="st-btn-outline oca-course-enroll-btn" onclick="OcaStudentPortal.openCheckout('${esc(c.id || c.code)}')">${esc(t('enrollBtn'))}</button>
@@ -1602,7 +1632,7 @@
           </div>
         </div>
         <button type="button" class="st-btn-outline" style="font-size:12px;padding:6px 10px;" onclick="OcaStudentPortal.openReceiptDetail('${esc(r.receipt_no)}')">
-          <i class="fa-solid fa-qrcode"></i> QR / Details
+          <i class="fa-solid fa-qrcode"></i> ${esc(t('btnReceiptQr'))}
         </button>
       </div>
     `).join('');
