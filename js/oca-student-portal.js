@@ -18,6 +18,7 @@
   const LOGIN_GUARD_KEY = 'oca_st_login_guard';
   const MAX_LOGIN_FAILS = 5;
   const LOCKOUT_MS = 60 * 1000;
+  let _idleTimeoutMs = 30 * 60 * 1000;
   const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
   const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
   const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
@@ -36,7 +37,11 @@
   let _pendingSlips = [];
   let _shippingFee = 50;
   let _feeRules = {};
+  let _lockedCategories = new Set();
+  let _bankAccountInfo = 'ธนาคารกสิกรไทย • โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก';
   let _activeCat = 'ALL';
+  let _cart = [];
+  let _checkoutItems = [];
   let _checkoutCourse = null;
   let _pendingAiPhoto = null;
   let _pendingRegPhoto = null;
@@ -54,6 +59,7 @@
   let _termInfo = null;
   let _hoverHideTimer = null;
   let _idleTimer = null;
+  let _realtimeSyncTimer = null;
 
   const I18N = {
     th: {
@@ -225,9 +231,20 @@
       btnReceiptQr: 'ใบเสร็จ & QR รับตำรา',
       btnLookupSid: 'ตรวจสอบรหัสนักศึกษา',
       lookupModalTitle: 'ตรวจสอบรหัสนักศึกษา',
-      lookupSub: 'กรอกข้อมูลอย่างน้อย 1 ช่อง เพื่อค้นหารหัสนักศึกษาของคุณ',
+      lookupSub: 'ค้นหารหัสนักศึกษาด้วยช่องค้นหาเดียว (ชื่อ-นามสกุล, บัตรประชาชน, พาสปอร์ต หรือเบอร์โทร)',
+      lookupSingleLbl: 'ชื่อ-นามสกุล / เลขบัตรประชาชน / พาสปอร์ต / เบอร์โทรศัพท์',
+      lookupSinglePh: 'กรอกชื่อ-นามสกุล, เลขบัตรประชาชน, เลขพาสปอร์ต หรือเบอร์โทรศัพท์',
       btnSearchSid: 'ค้นหารหัสนักศึกษา',
-      lookupNeedInput: 'กรุณากรอกชื่อ (>=3 ตัวอักษร) หรือเลขบัตร/พาสปอร์ต/เบอร์โทร (>=6 หลัก)',
+      lookupNeedInput: 'กรุณากรอกข้อมูลอย่างน้อย 3 ตัวอักษร (หรือ 6 หลักสำหรับเลขบัตร/เบอร์โทร)',
+      btnAddCart: 'ใส่ตะกร้า',
+      btnInCart: 'อยู่ในตะกร้า',
+      btnClearCart: 'ล้างตะกร้า',
+      btnCheckoutCart: 'ชำระเงินในตะกร้า',
+      btnCopyBank: 'คัดลอกข้อมูลโอนเงิน',
+      bankCopiedToast: 'คัดลอกข้อมูลบัญชีธนาคารแล้ว',
+      errCategoryLocked: 'หมวดคอร์สนี้ถูกเจ้าหน้าที่ปิดรับสมัครชั่วคราว',
+      errMagicBytes: 'ไฟล์ภาพไม่ถูกต้องหรือเสียหาย (กรุณาใช้ JPG, PNG หรือ WEBP แท้)',
+      cartEmptyToast: 'กรุณาเลือกคอร์สลงตะกร้าอย่างน้อย 1 รายการ',
       lookupRateLimit: 'ค้นหาบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่',
       lookupNotFound: 'ไม่พบข้อมูลนักศึกษาที่ตรงกับเงื่อนไข',
       lookupUseSidBtn: 'ใช้รหัสนี้เข้าสู่ระบบ',
@@ -430,9 +447,20 @@
       btnReceiptQr: 'Receipt & Book QR',
       btnLookupSid: 'Find Student ID',
       lookupModalTitle: 'Check Student ID',
-      lookupSub: 'Enter at least 1 field to look up your Student ID.',
+      lookupSub: 'Search in one box by Full Name, Citizen ID, Passport No., or Phone Number.',
+      lookupSingleLbl: 'Full Name / Citizen ID / Passport No. / Phone Number',
+      lookupSinglePh: 'Enter Full Name, Citizen ID, Passport No., or Phone Number',
       btnSearchSid: 'Search Student ID',
-      lookupNeedInput: 'Please enter a name (>=3 chars) or ID/Passport/Phone (>=6 digits).',
+      lookupNeedInput: 'Please enter at least 3 characters (or 6 digits for ID/Phone).',
+      btnAddCart: 'Add to Cart',
+      btnInCart: 'In Cart',
+      btnClearCart: 'Clear Cart',
+      btnCheckoutCart: 'Checkout Cart',
+      btnCopyBank: 'Copy Bank Details',
+      bankCopiedToast: 'Bank details copied to clipboard',
+      errCategoryLocked: 'This course category is temporarily locked by staff.',
+      errMagicBytes: 'Invalid or corrupted image file signature (use valid JPG, PNG, or WEBP).',
+      cartEmptyToast: 'Please add at least 1 course to the cart.',
       lookupRateLimit: 'Too many lookup attempts. Please wait a moment.',
       lookupNotFound: 'No matching student record found.',
       lookupUseSidBtn: 'Use This ID to Sign In',
@@ -635,9 +663,20 @@
       btnReceiptQr: '收据与领书二维码',
       btnLookupSid: '查询学号',
       lookupModalTitle: '查询学号',
-      lookupSub: '请填写至少 1 项信息以查询您的学号',
+      lookupSub: '单一搜索框查询学号（支持姓名、身份证号、护照号或手机号）',
+      lookupSingleLbl: '姓名 / 身份证号 / 护照号 / 手机号',
+      lookupSinglePh: '输入姓名、身份证号、护照号或手机号',
       btnSearchSid: '查询学号',
-      lookupNeedInput: '请输入姓名（至少3个字符）或身份证/护照/手机号（至少6位）',
+      lookupNeedInput: '请输入至少 3 个字符（证件号/手机号至少 6 位）',
+      btnAddCart: '加入购物车',
+      btnInCart: '已在购物车',
+      btnClearCart: '清空购物车',
+      btnCheckoutCart: '结算购物车',
+      btnCopyBank: '复制收款账户',
+      bankCopiedToast: '已复制收款账户信息',
+      errCategoryLocked: '该课程分类已被教务暂时锁定报名',
+      errMagicBytes: '图片文件签名无效，请上传真实的 JPG/PNG/WEBP 图片',
+      cartEmptyToast: '请至少选择 1 门课程加入购物车',
       lookupRateLimit: '查询次数过多，请稍后再试',
       lookupNotFound: '未找到匹配的学员记录',
       lookupUseSidBtn: '使用此学号登录',
@@ -705,9 +744,31 @@
     if (s.startsWith('data:image/') || s.startsWith('./') || s.startsWith('/')) return s;
     const g1 = s.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
     if (g1 && g1[1]) return 'https://lh3.googleusercontent.com/d/' + g1[1];
-    const g2 = s.match(/drive\.google\.com\/open\?id=([^&]+)/i);
+    const g2 = s.match(/drive\.google\.com\/(?:open|uc)\?(?:[^#]*&)?id=([^&]+)/i);
     if (g2 && g2[1]) return 'https://lh3.googleusercontent.com/d/' + g2[1];
+    if (s.startsWith('http://') || s.startsWith('https://')) return s;
+    if (_sb && _sb.storage) {
+      const cleanPath = s.replace(/^\/+/, '').replace(/^student-photos\//i, '');
+      const pub = _sb.storage.from('student-photos').getPublicUrl(cleanPath);
+      if (pub && pub.data && pub.data.publicUrl) return pub.data.publicUrl;
+    }
     return s;
+  }
+
+  async function verifyImageMagicBytes(file) {
+    if (!file || typeof file.slice !== 'function') return false;
+    try {
+      const buf = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+      if (buf.length < 4) return false;
+      const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF;
+      const isPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47;
+      const isWebp = buf.length >= 12 &&
+        buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+        buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50;
+      return isJpeg || isPng || isWebp;
+    } catch (_) {
+      return false;
+    }
   }
 
   function validateImageFile(file) {
@@ -1419,8 +1480,9 @@
     return true;
   }
 
-  function computeCheckoutBreakdown(course, deliveryMethod) {
-    const base = Number((course && course.price) || 0);
+  function computeCheckoutBreakdown(itemsOrCourse, deliveryMethod) {
+    const items = Array.isArray(itemsOrCourse) ? itemsOrCourse : (itemsOrCourse ? [itemsOrCourse] : []);
+    const base = items.reduce((acc, c) => acc + Number((c && c.price) || 0), 0);
     const isNewStudent = _receipts.length === 0;
     const regFee = isNewStudent && isFeeRuleActive(_feeRules.regFee) ? Number(_feeRules.regFee.amount) : 0;
     const otherFee = isFeeRuleActive(_feeRules.otherRegFee) ? Number(_feeRules.otherRegFee.amount) : 0;
@@ -1428,9 +1490,9 @@
     const shipping = deliveryMethod === 'ส่งตำรา'
       ? (isFeeRuleActive(_feeRules.shippingFee) ? Number(_feeRules.shippingFee.amount) : _shippingFee)
       : 0;
-    const isKids = course ? detectCategory(course) === 'KIDS' : false;
+    const hasKids = items.some((c) => detectCategory(c) === 'KIDS');
     const kidsRow = _feeRules.discountKids || _feeRules.discount_kids;
-    const baseDisc = isKids && isFeeRuleActive(kidsRow)
+    const baseDisc = hasKids && isFeeRuleActive(kidsRow)
       ? Number(kidsRow.amount)
       : (isFeeRuleActive(_feeRules.discountNormal) ? Number(_feeRules.discountNormal.amount) : 0);
     const otherDisc = isFeeRuleActive(_feeRules.discountOther) ? Number(_feeRules.discountOther.amount) : 0;
@@ -1442,7 +1504,7 @@
   async function loadStudentAppData() {
     if (!_sb || !_student) return;
     const sid = String(_student.student_id || '').trim();
-    const [resSt, resC, resSc, resRc, resPend, resNotif, resFees] = await Promise.all([
+    const [resSt, resC, resSc, resRc, resPend, resNotif, resFees, resLocks] = await Promise.all([
       _sb.from('students').select('*').eq('student_id', sid).maybeSingle(),
       _sb.from('courses').select('*').eq('is_active', true).order('code', { ascending: true }),
       _sb.from('schedules').select('*').eq('is_active', true).order('id', { ascending: true }),
@@ -1450,8 +1512,9 @@
       _sb.from('fee_settings').select('key,name,amount,mode,updated_at').like('key', 'pending_slip%:' + sid),
       _sb.from('fee_settings').select('key,name,amount,mode,updated_at').eq('key', 'student_notif:' + sid).maybeSingle(),
       _sb.from('fee_settings').select('key,name,amount,mode,start_date,end_date').in('key', [
-        'regFee', 'otherRegFee', 'shippingFee', 'discountNormal', 'discountKids', 'discount_kids', 'discountOther', 'lateRegPenalty', 'shipping_fee', 'textbook_shipping'
-      ])
+        'regFee', 'otherRegFee', 'shippingFee', 'discountNormal', 'discountKids', 'discount_kids', 'discountOther', 'lateRegPenalty', 'shipping_fee', 'textbook_shipping', 'idle_timeout_minutes', 'cfg_cashier_payee'
+      ]),
+      _sb.from('fee_settings').select('key,amount,mode').like('key', 'kiosk_cat_lock:%')
     ]);
 
     if (!resSt.error && !resSt.data) {
@@ -1478,6 +1541,23 @@
     if (Array.isArray(resFees.data)) {
       resFees.data.forEach((r) => { if (r && r.key) _feeRules[r.key] = r; });
     }
+    _lockedCategories = new Set();
+    if (Array.isArray(resLocks.data)) {
+      resLocks.data.forEach((r) => {
+        if (r && r.key && (Number(r.amount) === 1 || String(r.mode || '').toUpperCase() === 'LOCKED')) {
+          _lockedCategories.add(r.key.replace('kiosk_cat_lock:', '').toUpperCase());
+        }
+      });
+    }
+    if (_feeRules.idle_timeout_minutes && Number(_feeRules.idle_timeout_minutes.amount) >= 5) {
+      const mins = Math.min(240, Math.max(5, Number(_feeRules.idle_timeout_minutes.amount)));
+      _idleTimeoutMs = mins * 60 * 1000;
+    }
+    if (_feeRules.cfg_cashier_payee && _feeRules.cfg_cashier_payee.name) {
+      _bankAccountInfo = String(_feeRules.cfg_cashier_payee.name).trim();
+    }
+    const bankEl = document.getElementById('lblCheckoutBankAccount');
+    if (bankEl) bankEl.textContent = _bankAccountInfo;
     const shipRow = _feeRules.shippingFee || _feeRules.shipping_fee || _feeRules.textbook_shipping;
     if (shipRow && isFeeRuleActive(shipRow)) {
       _shippingFee = Number(shipRow.amount);
@@ -1516,17 +1596,18 @@
   }
 
   function detectCategory(c) {
-    const txt = ((c.code || '') + ' ' + (c.name || '') + ' ' + (c.level || '')).toLowerCase();
-    if (txt.includes('ตำรา') || txt.includes('หนังสือ') || txt.includes('book')) return 'BOOKS';
-    if (txt.includes('สอบ') || txt.includes('exam') || txt.includes('test')) return 'EXAM';
-    if (txt.includes('เด็ก') || txt.includes('kid')) return 'KIDS';
+    const codeUp = String((c && c.code) || '').toUpperCase().trim();
+    const txt = ((c && c.code || '') + ' ' + (c && c.name || '') + ' ' + (c && c.level || '')).toLowerCase();
+    if (txt.includes('ตำรา') || txt.includes('หนังสือ') || txt.includes('book') || /^TB/.test(codeUp)) return 'BOOKS';
     if (txt.includes('hsk')) return 'HSK';
-    if (txt.includes('สนทนา') || txt.includes('convo')) return 'CONVO';
-    if (txt.includes('ศิลป') || txt.includes('วาด') || txt.includes('พู่กัน')) return 'ART';
-    if (txt.includes('ดนตรี') || txt.includes('กู่เจิง') || txt.includes('ขลุ่ย')) return 'MUSIC';
-    if (txt.includes('ขั้นสูง')) return 'ADV';
-    if (txt.includes('ขั้นกลาง')) return 'INT';
-    if (txt.includes('ขั้นต้น')) return 'BEG';
+    if (txt.includes('สอบ') || txt.includes('exam') || txt.includes('test')) return 'EXAM';
+    if (txt.includes('เด็ก') || txt.includes('kid') || txt.includes('เยาวชน') || /^K\d/.test(codeUp)) return 'KIDS';
+    if (txt.includes('สนทนา') || txt.includes('convo') || txt.includes('สื่อสาร')) return 'CONVO';
+    if (txt.includes('ศิลป') || txt.includes('วาด') || txt.includes('พู่กัน') || txt.includes('เขียนอักษร')) return 'ART';
+    if (txt.includes('ดนตรี') || txt.includes('กู่เจิง') || txt.includes('ขลุ่ย') || txt.includes('ผีผา')) return 'MUSIC';
+    if (txt.includes('ขั้นสูง') || txt.includes('ระดับสูง') || txt.includes('advanced') || /^OC3|^C3/.test(codeUp)) return 'ADV';
+    if (txt.includes('ขั้นกลาง') || txt.includes('ระดับกลาง') || txt.includes('intermediate') || /^OC2|^C2/.test(codeUp)) return 'INT';
+    if (txt.includes('ขั้นต้น') || txt.includes('ระดับต้น') || txt.includes('beginner') || txt.includes('พื้นฐาน') || txt.includes('พินอิน') || /^OC1|^C1/.test(codeUp)) return 'BEG';
     return 'OTHER';
   }
 
@@ -1556,18 +1637,74 @@
     };
     const l = labels[_currentLang] || labels.th;
     const ids = ['ALL', 'LEARNED', 'BOOKS', 'EXAM', 'KIDS', 'BEG', 'INT', 'ADV', 'CONVO', 'HSK', 'ART', 'MUSIC', 'OTHER'];
-    box.innerHTML = ids.map(id =>
-      `<button type="button" class="st-cat-btn ${_activeCat === id ? 'active' : ''}" onclick="OcaStudentPortal.selectCategory('${id}')">` +
-      `<span style="display:inline-flex;align-items:center;gap:7px;"><span class="oca-cat-dot" style="background:${_activeCat === id ? '#FDE68A' : (dotColors[id] || '#047857')};"></span><i class="fa-solid ${icons[id]}"></i><span>${esc(l[id])}</span></span>` +
+    box.innerHTML = ids.map(id => {
+      const isLocked = _lockedCategories.has(id);
+      return `<button type="button" class="st-cat-btn ${_activeCat === id ? 'active' : ''}" onclick="OcaStudentPortal.selectCategory('${id}')">` +
+      `<span style="display:inline-flex;align-items:center;gap:7px;"><span class="oca-cat-dot" style="background:${_activeCat === id ? '#FDE68A' : (dotColors[id] || '#047857')};"></span><i class="fa-solid ${isLocked ? 'fa-lock' : icons[id]}"></i><span>${esc(l[id])}</span></span>` +
       `<span style="font-size:11px;font-weight:800;padding:1px 7px;border-radius:999px;background:${_activeCat === id ? 'rgba(255,255,255,0.2)' : '#F1F5F9'};color:${_activeCat === id ? '#FFFFFF' : '#475569'};">${counts[id] || 0}</span>` +
-      `</button>`
-    ).join('');
+      `</button>`;
+    }).join('');
   }
 
   function selectCategory(catId) {
+    if (_lockedCategories.has(catId)) {
+      showToast(t('errCategoryLocked'));
+      return;
+    }
     _activeCat = catId;
     renderEnrollCategories();
     renderCoursesGrid();
+  }
+
+  function renderCartBar() {
+    const bar = document.getElementById('boxStudentCartBar');
+    if (!bar) return;
+    if (!_cart.length) {
+      bar.classList.add('st-hidden');
+      return;
+    }
+    const sum = _cart.reduce((acc, c) => acc + Number((c && c.price) || 0), 0);
+    const cntEl = document.getElementById('lblCartCount');
+    const totEl = document.getElementById('lblCartTotal');
+    if (cntEl) cntEl.textContent = String(_cart.length);
+    if (totEl) totEl.textContent = '฿' + sum.toLocaleString('en-US');
+    bar.classList.remove('st-hidden');
+  }
+
+  function toggleCartItem(courseId) {
+    const c = _courses.find(x => String(x.id || x.code) === String(courseId));
+    if (!c) return;
+    const cat = detectCategory(c);
+    if (_lockedCategories.has(cat)) {
+      showToast(t('errCategoryLocked'));
+      return;
+    }
+    const key = String(c.id || c.code);
+    const idx = _cart.findIndex(x => String(x.id || x.code) === key);
+    if (idx >= 0) _cart.splice(idx, 1);
+    else _cart.push(c);
+    renderCartBar();
+    renderCoursesGrid();
+  }
+
+  function clearCart() {
+    _cart = [];
+    renderCartBar();
+    renderCoursesGrid();
+  }
+
+  function openCartCheckout() {
+    if (!_cart.length) {
+      showToast(t('cartEmptyToast'));
+      return;
+    }
+    openCheckoutList(_cart.slice());
+  }
+
+  function copyBankAccount() {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      navigator.clipboard.writeText(_bankAccountInfo).then(() => showToast(t('bankCopiedToast'))).catch(() => {});
+    }
   }
 
   function getRecommendedCode() {
@@ -1588,8 +1725,10 @@
     const recCode = getRecommendedCode();
 
     const filtered = _courses.filter(c => {
+      const cat = detectCategory(c);
+      if (_lockedCategories.has(cat)) return false;
       if (_activeCat === 'LEARNED' && !learnedCodes.has(String(c.code || '').toUpperCase())) return false;
-      if (_activeCat !== 'ALL' && _activeCat !== 'LEARNED' && detectCategory(c) !== _activeCat) return false;
+      if (_activeCat !== 'ALL' && _activeCat !== 'LEARNED' && cat !== _activeCat) return false;
       if (q && !((c.code || '') + ' ' + (c.name || '')).toLowerCase().includes(q)) return false;
       return true;
     });
@@ -1598,6 +1737,8 @@
     grid.innerHTML = filtered.map(c => {
       const cat = detectCategory(c);
       const codeUp = String(c.code || '').toUpperCase();
+      const cKey = String(c.id || c.code);
+      const inCart = _cart.some(x => String(x.id || x.code) === cKey);
       const isLearned = learnedCodes.has(codeUp);
       const isRec = recCode && codeUp === recCode;
       const rightBadge = isRec
@@ -1606,7 +1747,7 @@
           ? `<span style="background:#022C22;color:#FFFFFF;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;"><i class="fa-solid fa-check"></i> ${esc(t('learnedBadge'))}</span>`
           : '');
       return `
-        <div class="oca-course-card oca-cat-theme-${esc(cat)}" onmouseenter="OcaStudentPortal.hoverCourse('${esc(c.id || c.code)}', this)" onmouseleave="OcaStudentPortal.scheduleHideHoverPopover()">
+        <div class="oca-course-card oca-cat-theme-${esc(cat)}" onmouseenter="OcaStudentPortal.hoverCourse('${esc(cKey)}', this)" onmouseleave="OcaStudentPortal.scheduleHideHoverPopover()">
           <div class="oca-course-hero">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:22px;">
               <span class="oca-cat-pill"><i class="fa-solid fa-book-open"></i> ${esc(c.level || 'OCA')}</span>
@@ -1623,20 +1764,34 @@
               ${rightBadge}
             </div>
             <div data-i18n-locked="true" class="oca-course-title">${esc(c.name)}</div>
-            <div class="oca-course-foot">
-              <button type="button" class="st-btn-outline oca-course-enroll-btn" onclick="OcaStudentPortal.openCheckout('${esc(c.id || c.code)}')">${esc(t('enrollBtn'))}</button>
+            <div class="oca-course-foot" style="gap:6px;flex-wrap:wrap;">
+              <div style="display:flex;gap:6px;align-items:center;">
+                <button type="button" class="${inCart ? 'st-btn-gold' : 'st-btn-info'}" style="padding:6px 10px;font-size:11.5px;border-radius:10px;" onclick="OcaStudentPortal.toggleCartItem('${esc(cKey)}')">
+                  <i class="fa-solid ${inCart ? 'fa-check' : 'fa-cart-plus'}"></i> ${esc(inCart ? t('btnInCart') : t('btnAddCart'))}
+                </button>
+                <button type="button" class="oca-course-enroll-btn" onclick="OcaStudentPortal.openCheckout('${esc(cKey)}')">${esc(t('enrollBtn'))}</button>
+              </div>
               <strong class="oca-course-price">฿${Number(c.price || 0).toLocaleString('en-US')}</strong>
             </div>
           </div>
         </div>`;
     }).join('');
+    renderCartBar();
   }
 
-  function openCheckout(courseId) {
-    const c = _courses.find(x => String(x.id || x.code) === String(courseId));
-    if (!c) return;
-    _checkoutCourse = c;
-    document.getElementById('lblCheckoutCourseTitle').textContent = `${c.code} — ${c.name}`;
+  function openCheckoutList(items) {
+    if (!items || !items.length) return;
+    _checkoutItems = items;
+    _checkoutCourse = items[0];
+    document.getElementById('lblCheckoutCourseTitle').textContent = items.length === 1
+      ? `${items[0].code} — ${items[0].name}`
+      : `${items.length} ${t('coursesUnit')} (${items.map(x => x.code).join(', ')})`;
+    const itemsBox = document.getElementById('boxCheckoutItemsList');
+    if (itemsBox) {
+      itemsBox.innerHTML = items.map(c =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span><strong>${esc(c.code)}</strong> — ${esc(c.name)}</span><span style="font-family:monospace;font-weight:700;">฿${Number(c.price || 0).toLocaleString('en-US')}</span></div>`
+      ).join('');
+    }
     const selSched = document.getElementById('selCheckoutSched');
     if (selSched) {
       selSched.innerHTML = _schedules.map(s => `<option value="${esc(s.name + ' ' + (s.day_time || ''))}">${esc(s.name)} (${esc(s.day_time || '')})</option>`).join('');
@@ -1649,15 +1804,27 @@
     document.getElementById('modalStudentCheckout')?.classList.remove('st-hidden');
   }
 
+  function openCheckout(courseId) {
+    const c = _courses.find(x => String(x.id || x.code) === String(courseId));
+    if (!c) return;
+    if (_lockedCategories.has(detectCategory(c))) {
+      showToast(t('errCategoryLocked'));
+      return;
+    }
+    openCheckoutList([c]);
+  }
+
   function closeCheckout() { document.getElementById('modalStudentCheckout')?.classList.add('st-hidden'); }
 
   function recalcCheckout() {
-    if (!_checkoutCourse) return;
+    if (!_checkoutItems.length && !_checkoutCourse) return;
+    const items = _checkoutItems.length ? _checkoutItems : [_checkoutCourse];
     const deliv = document.getElementById('selCheckoutDelivery')?.value || 'รับเอง';
-    const b = computeCheckoutBreakdown(_checkoutCourse, deliv);
+    const b = computeCheckoutBreakdown(items, deliv);
     const box = document.getElementById('boxCheckoutFeeBreakdown');
     if (box) {
-      const rows = [`<div style="display:flex;justify-content:space-between;"><span>${esc(t('feeTuition'))} (${esc(_checkoutCourse.code)})</span><span>฿${b.base.toLocaleString('en-US')}</span></div>`];
+      const codeLabel = items.map(c => c.code).join(', ');
+      const rows = [`<div style="display:flex;justify-content:space-between;"><span>${esc(t('feeTuition'))} (${esc(codeLabel)})</span><span>฿${b.base.toLocaleString('en-US')}</span></div>`];
       if (b.regFee > 0) rows.push(`<div style="display:flex;justify-content:space-between;"><span>${esc(t('feeReg'))}</span><span>+฿${b.regFee.toLocaleString('en-US')}</span></div>`);
       if (b.otherFee > 0) rows.push(`<div style="display:flex;justify-content:space-between;"><span>${esc(t('feeOther'))}</span><span>+฿${b.otherFee.toLocaleString('en-US')}</span></div>`);
       if (b.latePenalty > 0) rows.push(`<div style="display:flex;justify-content:space-between;color:#D97706;"><span>${esc(t('feeLatePenalty'))}</span><span>+฿${b.latePenalty.toLocaleString('en-US')}</span></div>`);
@@ -1669,11 +1836,13 @@
   }
 
   async function submitEnrollment() {
-    if (!_sb || !_student || !_checkoutCourse) return;
+    const items = _checkoutItems.length ? _checkoutItems : (_checkoutCourse ? [_checkoutCourse] : []);
+    if (!_sb || !_student || !items.length) return;
     const fileInput = document.getElementById('inpCheckoutSlipFile');
     const file = fileInput && fileInput.files && fileInput.files[0];
     const fileErr = validateImageFile(file);
     if (fileErr) { showToast(fileErr); return; }
+    if (!(await verifyImageMagicBytes(file))) { showToast(t('errMagicBytes')); return; }
 
     const btn = document.getElementById('btnSubmitCheckout');
     if (btn) btn.disabled = true;
@@ -1685,23 +1854,28 @@
       }
       const sid = String(_student.student_id).trim();
       const deliv = document.getElementById('selCheckoutDelivery')?.value || 'รับเอง';
-      const total = computeCheckoutBreakdown(_checkoutCourse, deliv).total;
+      const total = computeCheckoutBreakdown(items, deliv).total;
       const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
       const path = `student_slip_${sid}_${Date.now()}.${ext}`;
       const { error: upErr } = await _sb.storage.from('payment-slips').upload(path, file, { upsert: true });
       if (upErr) throw upErr;
 
-      const summaryName = (`${_checkoutCourse.code} ${deliv}`).slice(0, 90);
+      const codesStr = items.map(c => c.code).join('+');
+      const summaryName = (`${codesStr} ${deliv}`).slice(0, 90);
       const { error: pErr } = await _sb.from('fee_settings').upsert([
         { key: 'pending_slip:' + sid, name: summaryName, amount: total, mode: 'PENDING', updated_at: new Date().toISOString() },
         { key: 'pending_slip_url:' + sid, name: String('payment-slips/' + path).slice(0, 90), amount: 1, mode: 'SLIP_URL', updated_at: new Date().toISOString() }
       ], { onConflict: 'key' });
       if (pErr) throw pErr;
 
+      if (items.length > 1 || _cart.some(x => String(x.id || x.code) === String(items[0].id || items[0].code))) {
+        _cart = [];
+        renderCartBar();
+      }
       closeCheckout();
       await loadStudentAppData();
       switchTab('finance');
-      logStudentAudit('STUDENT_ENROLL_SLIP', `Submitted slip for ${_checkoutCourse.code} (${deliv}) ฿${total}`, 'SUCCESS');
+      logStudentAudit('STUDENT_ENROLL_SLIP', `Submitted slip for ${codesStr} (${deliv}) ฿${total}`, 'SUCCESS');
       showToast(t('slipSubmitSuccess'));
     } catch (err) {
       showToast(`${t('slipSubmitFail')} ${err.message || err}`);
@@ -1782,7 +1956,7 @@
             ${r.tracking_number ? ` • <strong class="st-link-accent">Tracking: ${esc(r.tracking_number)}</strong>` : ''}
           </div>
         </div>
-        <button type="button" class="st-btn-outline" style="font-size:12px;padding:6px 10px;" onclick="OcaStudentPortal.openReceiptDetail('${esc(r.receipt_no)}')">
+        <button type="button" class="st-btn-gold" style="font-size:12px;padding:6px 12px;" onclick="OcaStudentPortal.openReceiptDetail('${esc(r.receipt_no)}')">
           <i class="fa-solid fa-qrcode"></i> ${esc(t('btnReceiptQr'))}
         </button>
       </div>
@@ -1793,6 +1967,7 @@
     const file = input && input.files && input.files[0];
     const fileErr = validateImageFile(file);
     if (fileErr) { showToast(fileErr); return; }
+    if (!(await verifyImageMagicBytes(file))) { showToast(t('errMagicBytes')); return; }
     const statusEl = document.getElementById('lblAiPhotoStatus');
     const previewEl = document.getElementById('imgProfileAiPreview');
     const saveBtn = document.getElementById('btnSaveAiPhoto');
@@ -1918,6 +2093,24 @@
 
   let _activeStudentNotifSid = '';
 
+  function scheduleRealtimeRefresh(refreshOpenRc) {
+    if (_realtimeSyncTimer) clearTimeout(_realtimeSyncTimer);
+    _realtimeSyncTimer = setTimeout(async () => {
+      if (!_student) return;
+      await loadStudentAppData();
+      if (!document.getElementById('modalStudentCheckout')?.classList.contains('st-hidden')) {
+        recalcCheckout();
+      }
+      if (refreshOpenRc) {
+        const rcModal = document.getElementById('modalStudentReceiptDetail');
+        if (rcModal && !rcModal.classList.contains('st-hidden')) {
+          const rcNo = (document.getElementById('lblRcDetailTitle')?.textContent || '').replace(/^#/, '').trim();
+          if (rcNo) openReceiptDetail(rcNo);
+        }
+      }
+    }, 600);
+  }
+
   function subscribeStudentNotifications() {
     if (!_sb || !_student || typeof _sb.channel !== 'function') return;
     const sid = String(_student.student_id || '').trim();
@@ -1951,6 +2144,21 @@
           } catch (_) {}
         }
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fee_settings' }, () => scheduleRealtimeRefresh(false))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, () => scheduleRealtimeRefresh(false))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, () => scheduleRealtimeRefresh(false))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students', filter: 'student_id=eq.' + sid }, (payload) => {
+        const ev = String(payload && payload.eventType || '').toUpperCase();
+        const row = payload && payload.new;
+        const stStatus = row ? String(row.status || 'ACTIVE').toUpperCase() : 'DELETED';
+        if (ev === 'DELETE' || stStatus === 'SUSPENDED' || stStatus === 'DELETED' || stStatus === 'INACTIVE') {
+          logout();
+          showToast(t('errAccountSuspended'));
+          return;
+        }
+        scheduleRealtimeRefresh(false);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'receipts', filter: 'student_id=eq.' + sid }, () => scheduleRealtimeRefresh(true))
       .subscribe();
   }
 
@@ -2068,7 +2276,7 @@
     document.getElementById('lblRcDetailTitle').textContent = '#' + (r.receipt_no || '');
     document.getElementById('boxRcDetailBody').innerHTML = `
       <div style="text-align:center;border-bottom:1.5px dashed #94A3B8;padding-bottom:8px;margin-bottom:8px;">
-        <div style="font-size:15px;font-weight:800;color:#022C22;">東方文化書院 • Oriental Culture Academy</div>
+        <div style="font-size:15px;font-weight:800;color:#022C22;"><span class="oca-weibei-brand">東方文化書院</span> • Oriental Culture Academy</div>
         <div style="font-size:11.5px;font-weight:700;color:#334155;">${esc(t('rcPaperTitle'))}</div>
         <div style="font-size:10.5px;color:#475569;">64/28 ถ.รองเมือง ซ. 1 แขวงรองเมือง เขตปทุมวัน กทม. 10330 • โทร. 02-216-2826-8</div>
         <div style="display:inline-block;margin-top:5px;padding:2px 12px;border:1.5px solid #0F172A;border-radius:4px;font-size:12px;font-weight:800;">${esc(t('rcPaperSub'))}</div>
@@ -2216,7 +2424,7 @@
         parts.push(`<a href="${esc(n.imageUrl)}" target="_blank" rel="noopener noreferrer"><img src="${esc(n.imageUrl)}" alt="Notice Attachment" style="width:100%;max-height:260px;object-fit:contain;border-radius:10px;border:1px solid #E2E8F0;" /></a>`);
       }
       if (n.linkUrl && /^https?:\/\//i.test(n.linkUrl)) {
-        parts.push(`<a href="${esc(n.linkUrl)}" target="_blank" rel="noopener noreferrer" class="st-btn-outline" style="text-decoration:none;justify-content:center;"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('noticeOpenLink'))}</a>`);
+        parts.push(`<a href="${esc(n.linkUrl)}" target="_blank" rel="noopener noreferrer" class="st-btn-info" style="text-decoration:none;justify-content:center;"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('noticeOpenLink'))}</a>`);
       }
       if (n.docUrl) {
         parts.push(`<a href="${esc(n.docUrl)}" target="_blank" rel="noopener noreferrer" class="st-btn-primary" style="text-decoration:none;justify-content:center;"><i class="fa-solid fa-file-arrow-down"></i> ${esc(t('noticeDownloadDoc'))}: ${esc(n.docName || 'Document')}</a>`);
@@ -2360,6 +2568,7 @@
     const file = input && input.files && input.files[0];
     const fileErr = validateImageFile(file);
     if (fileErr) { showToast(fileErr); return; }
+    if (!(await verifyImageMagicBytes(file))) { showToast(t('errMagicBytes')); return; }
     await processPortraitInput(file, 'reg');
   }
 
@@ -2371,9 +2580,12 @@
 
   function openSidLookupModal() {
     document.getElementById('lblLookupErr')?.classList.add('st-hidden');
+    const qEl = document.getElementById('inpLookupQuery');
+    if (qEl) qEl.value = '';
     const resBox = document.getElementById('boxLookupResults');
     if (resBox) resBox.innerHTML = '';
     document.getElementById('modalStudentIdLookup')?.classList.remove('st-hidden');
+    setTimeout(() => qEl?.focus(), 60);
   }
 
   function closeSidLookupModal() {
@@ -2403,17 +2615,17 @@
       return;
     }
 
-    const qName = (document.getElementById('inpLookupName')?.value || '').trim();
-    const qCid = (document.getElementById('inpLookupCitizenId')?.value || '').trim();
-    const qPass = (document.getElementById('inpLookupPassport')?.value || '').trim();
-    const qPhone = (document.getElementById('inpLookupPhone')?.value || '').trim();
-    const qCidNorm = qCid.replace(/[\s-]/g, '');
-    const qPhoneNorm = qPhone.replace(/[\s-]/g, '');
+    const raw = (document.getElementById('inpLookupQuery')?.value || '').trim();
+    const safeRaw = raw.replace(/[,()%*\\]/g, '').trim();
+    const norm = safeRaw.replace(/[\s-]/g, '');
 
-    if (qName.length < 3 && qCidNorm.length < 6 && qPass.length < 6 && qPhoneNorm.length < 6) {
+    if (safeRaw.length < 3) {
       if (errEl) { errEl.textContent = t('lookupNeedInput'); errEl.classList.remove('st-hidden'); }
       return;
     }
+
+    const isDigits = /^\d{6,15}$/.test(norm);
+    const isAlnumPassport = !isDigits && /^[A-Za-z0-9]{6,15}$/.test(norm) && /\d/.test(norm);
 
     _lookupTimestamps.push(now);
     if (btn) btn.disabled = true;
@@ -2423,23 +2635,34 @@
         .select('student_id, prefix, full_name, citizen_id, passport_no, phone_number, status')
         .neq('status', 'DELETED')
         .limit(20);
-      if (qName.length >= 3) query = query.ilike('full_name', `%${qName}%`);
-      else if (qCidNorm.length >= 6) query = query.ilike('citizen_id', `%${qCidNorm.slice(-6)}%`);
-      else if (qPass.length >= 6) query = query.ilike('passport_no', `%${qPass}%`);
-      else if (qPhoneNorm.length >= 6) query = query.ilike('phone_number', `%${qPhoneNorm.slice(-4)}%`);
+      if (isDigits) {
+        query = query.or(`citizen_id.ilike.%${norm.slice(-6)}%,phone_number.ilike.%${norm.slice(-4)}%,passport_no.ilike.%${norm}%`);
+      } else if (isAlnumPassport) {
+        query = query.or(`passport_no.ilike.%${norm}%,full_name.ilike.%${safeRaw}%`);
+      } else {
+        query = query.ilike('full_name', `%${safeRaw}%`);
+      }
 
       const { data, error } = await query;
       if (error) throw error;
+      const qLow = safeRaw.toLowerCase();
+      const normLow = norm.toLowerCase();
       const rows = (Array.isArray(data) ? data : []).filter((r) => {
-        if (qName.length >= 3 && !String(r.full_name || '').toLowerCase().includes(qName.toLowerCase())) return false;
-        if (qCidNorm.length >= 6 && String(r.citizen_id || '').replace(/[\s-]/g, '') !== qCidNorm) return false;
-        if (qPass.length >= 6 && String(r.passport_no || '').trim().toLowerCase() !== qPass.toLowerCase()) return false;
-        if (qPhoneNorm.length >= 6 && String(r.phone_number || '').replace(/[\s-]/g, '') !== qPhoneNorm) return false;
-        return true;
+        const cidClean = String(r.citizen_id || '').replace(/[\s-]/g, '').toLowerCase();
+        const passClean = String(r.passport_no || '').trim().toLowerCase();
+        const phoneClean = String(r.phone_number || '').replace(/[\s-]/g, '').toLowerCase();
+        const nameLow = String(r.full_name || '').toLowerCase();
+        if (isDigits) {
+          return cidClean === normLow || phoneClean === normLow || passClean === normLow;
+        }
+        if (isAlnumPassport) {
+          return passClean === normLow || nameLow.includes(qLow);
+        }
+        return nameLow.includes(qLow);
       });
 
       if (!rows.length) {
-        logStudentAudit('STUDENT_ID_LOOKUP', `Lookup returned 0 matches`, 'FAILED', 'GUEST', qName || 'GUEST');
+        logStudentAudit('STUDENT_ID_LOOKUP', `Lookup returned 0 matches`, 'FAILED', 'GUEST', safeRaw || 'GUEST');
         if (errEl) { errEl.textContent = t('lookupNotFound'); errEl.classList.remove('st-hidden'); }
         return;
       }
@@ -2471,6 +2694,7 @@
     }
     stopCamera();
     if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; }
+    if (_realtimeSyncTimer) { clearTimeout(_realtimeSyncTimer); _realtimeSyncTimer = null; }
     const ch = global._activeStudentNotifChannel;
     if (ch) {
       try {
@@ -2485,6 +2709,16 @@
     _activeStudentNotifSid = '';
     _student = null;
     _needsDobSetup = false;
+    _courses = [];
+    _schedules = [];
+    _receipts = [];
+    _pendingSlips = [];
+    _notifs = [];
+    _cart = [];
+    _checkoutItems = [];
+    _checkoutCourse = null;
+    _feeRules = {};
+    _lockedCategories.clear();
     sessionStorage.removeItem(SESSION_KEY);
     showOnlyView('viewStudentAuth');
   }
@@ -2647,6 +2881,10 @@
     switchTab,
     selectCategory,
     renderCoursesGrid,
+    toggleCartItem,
+    clearCart,
+    openCartCheckout,
+    copyBankAccount,
     openCheckout,
     closeCheckout,
     recalcCheckout,
