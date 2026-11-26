@@ -1625,8 +1625,8 @@
         prefix,
         full_name: fullName,
         birth_date: dobIso,
-        citizen_id: citizenId,
-        passport_no: passportNo,
+        citizen_id: idType === 'passport' ? citizenId.replace(/[\s-]/g, '').slice(0, 13) : citizenId,
+        passport_no: idType === 'passport' ? (passportNo || citizenId).slice(0, 20) : passportNo,
         ethnicity,
         phone_number: phone,
         line_id: lineId,
@@ -2273,6 +2273,7 @@
       }
       closeCheckout();
       await loadStudentAppData();
+      renderHomeTab();
       switchTab('finance');
       logStudentAudit('STUDENT_ENROLL_SLIP', `Submitted slip for ${codesStr} (${deliv}) ฿${total}`, 'SUCCESS');
       showToast(t('slipSubmitSuccess'));
@@ -2468,8 +2469,8 @@
       const extendedFields = {
         prefix,
         full_name: fullName || _student.full_name,
-        citizen_id: citizenId,
-        passport_no: passportNo,
+        citizen_id: idType === 'passport' ? citizenId.replace(/[\s-]/g, '').slice(0, 13) : citizenId,
+        passport_no: idType === 'passport' ? (passportNo || citizenId).slice(0, 20) : passportNo,
         ethnicity,
         nationality,
         birth_date: dobIso,
