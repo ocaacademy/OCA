@@ -3272,23 +3272,7 @@
       setTimeout(() => { document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden'); }, 1200);
       return;
     }
-    if (isAndroid) {
-      global.__ocaStudentWaitingInstall = true;
-      if ('serviceWorker' in navigator) {
-        try { await navigator.serviceWorker.ready; } catch (_) {}
-      }
-      setTimeout(() => {
-        if (!global.__ocaStudentWaitingInstall) return;
-        global.__ocaStudentWaitingInstall = false;
-        const lateEvt = global.__ocaStudentDeferredPrompt || _deferredPwaPrompt;
-        if (lateEvt && typeof lateEvt.prompt === 'function') {
-          installPwa();
-        } else {
-          document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden');
-        }
-      }, 800);
-      return;
-    }
+    // Zero async await/setTimeout before prompt(): if Chrome hasn't fired beforeinstallprompt yet, show actionable guide immediately.
     document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden');
   }
 
