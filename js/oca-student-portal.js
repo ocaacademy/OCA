@@ -129,6 +129,7 @@
       aiTitle: 'รูปโปรไฟล์ & บัตรนักศึกษา (AI Studio)',
       aiDesc: 'ระบบจะใช้ AI (RMBG-1.4 / MODNet) ตัดพื้นหลังเป็นสีแดงเลือดหมู (#800000) มาตรฐานสถาบันให้อัตโนมัติ',
       aiReady: 'พร้อมอัปโหลดรูปหน้าตรง',
+      aiDone: 'ตัดพื้นหลัง AI สำเร็จ',
       btnPickPhoto: 'เลือกรูปภาพใหม่',
       btnSavePhoto: 'บันทึกรูปโปรไฟล์',
       profEditTitle: 'แก้ไขประวัติส่วนตัว & ตั้งวันเดือนปีเกิด',
@@ -381,6 +382,7 @@
       aiTitle: 'Profile Photo & ID Card (AI Studio)',
       aiDesc: 'AI (RMBG-1.4 / MODNet) automatically replaces background with OCA Crimson (#800000).',
       aiReady: 'Ready for portrait upload',
+      aiDone: 'AI Background Ready',
       btnPickPhoto: 'Choose New Photo',
       btnSavePhoto: 'Save Profile Photo',
       profEditTitle: 'Edit Profile & Date of Birth',
@@ -633,6 +635,7 @@
       aiTitle: '个人头像与学生证照片 (AI Studio)',
       aiDesc: '系统使用 AI (RMBG-1.4 / MODNet) 自动抠图并替换为书院标准暗红底色 (#800000)。',
       aiReady: '可上传正面免冠照片',
+      aiDone: 'AI 抠图完成',
       btnPickPhoto: '选择新照片',
       btnSavePhoto: '保存头像',
       profEditTitle: '修改个人资料与出生日期',
@@ -2363,10 +2366,15 @@
       });
       _pendingAiPhoto = res;
       if (previewEl) previewEl.src = res.dataUrl;
-      if (statusEl) statusEl.textContent = 'OK (' + res.engine.toUpperCase() + ')';
+      if (statusEl) {
+        statusEl.removeAttribute('data-i18n');
+        statusEl.textContent = (t('aiDone') || 'ตัดพื้นหลัง AI สำเร็จ') + ' (' + res.engine.toUpperCase() + ')';
+      }
       if (saveBtn) saveBtn.classList.remove('st-hidden');
     } catch (err) {
       if (statusEl) statusEl.textContent = 'Error: ' + (err.message || err);
+    } finally {
+      if (input) input.value = '';
     }
   }
 
@@ -3000,7 +3008,10 @@
         document.getElementById('btnSaveAiPhoto')?.classList.remove('st-hidden');
       }
       if (previewEl && res && res.dataUrl) previewEl.src = res.dataUrl;
-      if (statusEl) statusEl.textContent = 'OK';
+      if (statusEl) {
+        statusEl.removeAttribute('data-i18n');
+        statusEl.textContent = t('aiDone') || 'ตัดพื้นหลัง AI สำเร็จ';
+      }
     } catch (err) {
       if (statusEl) statusEl.textContent = 'Error: ' + (err.message || err);
     }
@@ -3027,10 +3038,14 @@
 
   async function onRegPhotoSelected(input) {
     const file = input && input.files && input.files[0];
-    const fileErr = validateImageFile(file);
-    if (fileErr) { showToast(fileErr); return; }
-    if (!(await verifyImageMagicBytes(file))) { showToast(t('errMagicBytes')); return; }
-    await processPortraitInput(file, 'reg');
+    try {
+      const fileErr = validateImageFile(file);
+      if (fileErr) { showToast(fileErr); return; }
+      if (!(await verifyImageMagicBytes(file))) { showToast(t('errMagicBytes')); return; }
+      await processPortraitInput(file, 'reg');
+    } finally {
+      if (input) input.value = '';
+    }
   }
 
   function maskPhone(p) {
