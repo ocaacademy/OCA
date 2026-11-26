@@ -37,6 +37,9 @@
   let _pendingSlips = [];
   let _shippingFee = 50;
   let _feeRules = {};
+  let _courseDiscounts = {};
+  let _courseAudiences = {};
+  let _enrollWindow = null;
   let _lockedCategories = new Set();
   let _bankAccountInfo = 'ธนาคารกสิกรไทย • โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก';
   let _activeCat = 'ALL';
@@ -277,6 +280,10 @@
       rcClaimRule1: 'ต้องสแกน QR Code ณ สถาบันก่อน จึงจะทราบและแสดงรายการอุปกรณ์ที่ได้รับ',
       rcClaimRule2: '(ระบบจะแสดงรายการตำราและอุปกรณ์ที่ได้รับบนหน้าจอเจ้าหน้าที่เมื่อสแกน QR Code นี้เท่านั้น)',
       rcClaimRule3: 'สแกนรับสิทธิ์ได้ 1 ครั้งเท่านั้น ผ่านระบบกล้อง OCA ภายในสถาบัน (ไม่สามารถใช้แอปภายนอกสแกนได้)',
+      loginSecNotice: 'ระบบความปลอดภัย: ออกจากระบบอัตโนมัติเมื่อไม่มีการใช้งาน และล้างข้อมูลการเข้าสู่ระบบทุกแท็บเมื่อออกจากระบบ',
+      errPendingSlipExists: 'คุณมีสลิปที่รอเจ้าหน้าที่ตรวจสอบอยู่แล้ว กรุณารอการอนุมัติก่อนส่งรายการใหม่',
+      errEnrollClosed: 'ขณะนี้อยู่นอกช่วงเวลาที่สถาบันเปิดรับสมัครออนไลน์',
+      errDupPassport: 'เลขพาสปอร์ตนี้มีอยู่ในระบบแล้ว (รหัสนักศึกษา:',
       lookupRateLimit: 'ค้นหาบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่',
       lookupNotFound: 'ไม่พบข้อมูลนักศึกษาที่ตรงกับเงื่อนไข',
       lookupUseSidBtn: 'ใช้รหัสนี้เข้าสู่ระบบ',
@@ -525,6 +532,10 @@
       rcClaimRule1: 'Present this QR Code at OCA counter to reveal & claim eligible textbooks/materials.',
       rcClaimRule2: '(Exact eligible textbook items appear on Staff terminal upon official QR verification only.)',
       rcClaimRule3: 'Valid for 1-time scan via OCA internal camera only (external QR apps are not supported).',
+      loginSecNotice: 'Security Policy: Sessions auto-sign out on inactivity and clear credentials across all tabs upon logout.',
+      errPendingSlipExists: 'You already have a payment slip awaiting staff approval. Please wait before submitting another.',
+      errEnrollClosed: 'Online enrollment is currently closed outside the scheduled window.',
+      errDupPassport: 'This Passport No. is already registered (Student ID:',
       lookupRateLimit: 'Too many lookup attempts. Please wait a moment.',
       lookupNotFound: 'No matching student record found.',
       lookupUseSidBtn: 'Use This ID to Sign In',
@@ -773,6 +784,10 @@
       rcClaimRule1: '请于书院现场出示此二维码，经系统核验后显示并领取教材与教具。',
       rcClaimRule2: '（具体教材清单仅在书院工作人员扫码核销时于终端显示）',
       rcClaimRule3: '仅限书院内部相机单次核销有效（不支持第三方外部扫码应用）',
+      loginSecNotice: '安全策略：长时间无操作将自动退出登录，退出时自动清除所有标签页登录凭证。',
+      errPendingSlipExists: '您已有一笔待审核的转账凭证，请等待财务审核后再提交新订单。',
+      errEnrollClosed: '当前不在书院开放网上报名时间范围内。',
+      errDupPassport: '该护照号已注册（学号：',
       lookupRateLimit: '查询次数过多，请稍后再试',
       lookupNotFound: '未找到匹配的学员记录',
       lookupUseSidBtn: '使用此学号登录',
@@ -1027,6 +1042,9 @@
     global.addEventListener('storage', (ev) => {
       if (ev.key === LANG_KEY && ev.newValue && ev.newValue !== _currentLang) {
         setLang(ev.newValue);
+      }
+      if (ev.key === 'oca_st_logout_signal' && _student) {
+        logout(true);
       }
     });
   }
@@ -1347,7 +1365,7 @@
         logout();
         showToast(t('idleLogoutToast'));
       }
-    }, IDLE_TIMEOUT_MS);
+    }, _idleTimeoutMs || IDLE_TIMEOUT_MS);
   }
 
   function initIdleMonitor() {
@@ -1551,6 +1569,16 @@
           .limit(1);
         if (!dupErr && Array.isArray(dupRows) && dupRows[0] && String(dupRows[0].status || '').toUpperCase() !== 'DELETED') {
           throw new Error(`${t('errDupCid1')} ${dupRows[0].student_id}${t('errDupCid2')}`);
+        }
+      }
+      if (passportNo.length >= 6) {
+        const { data: dupPassRows, error: dupPassErr } = await _sb
+          .from('students')
+          .select('student_id, status')
+          .eq('passport_no', passportNo)
+          .limit(1);
+        if (!dupPassErr && Array.isArray(dupPassRows) && dupPassRows[0] && String(dupPassRows[0].status || '').toUpperCase() !== 'DELETED') {
+          throw new Error(`${t('errDupPassport')} ${dupPassRows[0].student_id}${t('errDupCid2')}`);
         }
       }
 
@@ -1761,15 +1789,22 @@
     const isNewStudent = _receipts.length === 0;
     const regFee = isNewStudent && isFeeRuleActive(_feeRules.regFee) ? Number(_feeRules.regFee.amount) : 0;
     const otherFee = isFeeRuleActive(_feeRules.otherRegFee) ? Number(_feeRules.otherRegFee.amount) : 0;
-    const latePenalty = isFeeRuleActive(_feeRules.lateRegPenalty) ? Number(_feeRules.lateRegPenalty.amount) : 0;
+    const hasKids = items.some((c) => detectCategory(c) === 'KIDS');
+    const lateRule = (hasKids && _feeRules.lateRegPenaltyKids) ? _feeRules.lateRegPenaltyKids : _feeRules.lateRegPenalty;
+    const latePenalty = isFeeRuleActive(lateRule) ? Number(lateRule.amount) : 0;
     const shipping = deliveryMethod === 'ส่งตำรา'
       ? (isFeeRuleActive(_feeRules.shippingFee) ? Number(_feeRules.shippingFee.amount) : _shippingFee)
       : 0;
-    const hasKids = items.some((c) => detectCategory(c) === 'KIDS');
     const kidsRow = _feeRules.discountKids || _feeRules.discount_kids;
-    const baseDisc = hasKids && isFeeRuleActive(kidsRow)
-      ? Number(kidsRow.amount)
-      : (isFeeRuleActive(_feeRules.discountNormal) ? Number(_feeRules.discountNormal.amount) : 0);
+    const customCourseDisc = items.reduce((acc, c) => {
+      const cd = _courseDiscounts['course_disc_' + c.id] || _courseDiscounts['course_disc_' + c.code];
+      return acc + (cd && isFeeRuleActive(cd) ? Number(cd.amount) : 0);
+    }, 0);
+    const baseDisc = customCourseDisc > 0
+      ? customCourseDisc
+      : (hasKids && isFeeRuleActive(kidsRow)
+        ? Number(kidsRow.amount)
+        : (isFeeRuleActive(_feeRules.discountNormal) ? Number(_feeRules.discountNormal.amount) : 0));
     const otherDisc = isFeeRuleActive(_feeRules.discountOther) ? Number(_feeRules.discountOther.amount) : 0;
     const discount = baseDisc + otherDisc;
     const total = Math.max(0, base + regFee + otherFee + latePenalty + shipping - discount);
@@ -1779,7 +1814,7 @@
   async function loadStudentAppData() {
     if (!_sb || !_student) return;
     const sid = String(_student.student_id || '').trim();
-    const [resSt, resC, resSc, resRc, resPend, resNotif, resFees, resLocks] = await Promise.all([
+    const [resSt, resC, resSc, resRc, resPend, resNotif, resFees, resLocks, resCourseDisc, resAud] = await Promise.all([
       _sb.from('students').select('*').eq('student_id', sid).maybeSingle(),
       _sb.from('courses').select('*').eq('is_active', true).order('code', { ascending: true }),
       _sb.from('schedules').select('*').eq('is_active', true).order('id', { ascending: true }),
@@ -1787,9 +1822,11 @@
       _sb.from('fee_settings').select('key,name,amount,mode,updated_at').like('key', 'pending_slip%:' + sid),
       _sb.from('fee_settings').select('key,name,amount,mode,updated_at').eq('key', 'student_notif:' + sid).maybeSingle(),
       _sb.from('fee_settings').select('key,name,amount,mode,start_date,end_date').in('key', [
-        'regFee', 'otherRegFee', 'shippingFee', 'discountNormal', 'discountKids', 'discount_kids', 'discountOther', 'lateRegPenalty', 'shipping_fee', 'textbook_shipping', 'idle_timeout_minutes', 'cfg_cashier_payee'
+        'regFee', 'otherRegFee', 'shippingFee', 'discountNormal', 'discountKids', 'discount_kids', 'discountOther', 'lateRegPenalty', 'lateRegPenaltyKids', 'shipping_fee', 'textbook_shipping', 'idle_timeout_minutes', 'cfg_cashier_payee', 'online_enroll_schedule'
       ]),
-      _sb.from('fee_settings').select('key,amount,mode').like('key', 'kiosk_cat_lock:%')
+      _sb.from('fee_settings').select('key,amount,mode').like('key', 'kiosk_cat_lock:%'),
+      _sb.from('fee_settings').select('key,amount,mode,start_date,end_date').like('key', 'course_disc_%'),
+      _sb.from('fee_settings').select('key,name,amount,mode').like('key', 'course_audience_%')
     ]);
 
     if (!resSt.error && !resSt.data) {
@@ -1815,6 +1852,15 @@
     _feeRules = {};
     if (Array.isArray(resFees.data)) {
       resFees.data.forEach((r) => { if (r && r.key) _feeRules[r.key] = r; });
+    }
+    _enrollWindow = _feeRules.online_enroll_schedule || null;
+    _courseDiscounts = {};
+    if (Array.isArray(resCourseDisc.data)) {
+      resCourseDisc.data.forEach((r) => { if (r && r.key) _courseDiscounts[r.key] = r; });
+    }
+    _courseAudiences = {};
+    if (Array.isArray(resAud.data)) {
+      resAud.data.forEach((r) => { if (r && r.key) _courseAudiences[r.key] = r.name || ''; });
     }
     _lockedCategories = new Set();
     if (Array.isArray(resLocks.data)) {
@@ -2054,8 +2100,28 @@
     renderCartBar();
   }
 
+  function isEnrollmentWindowOpen() {
+    if (!_enrollWindow) return true;
+    const mode = String(_enrollWindow.mode || '').toUpperCase();
+    if (mode === 'OFF' || mode === 'CLOSED') return false;
+    if (mode === 'RANGE' || mode === 'DATE_RANGE') {
+      const nowIso = todayLocalIso();
+      if (_enrollWindow.start_date && nowIso < String(_enrollWindow.start_date)) return false;
+      if (_enrollWindow.end_date && nowIso > String(_enrollWindow.end_date)) return false;
+    }
+    return true;
+  }
+
   function openCheckoutList(items) {
     if (!items || !items.length) return;
+    if (!isEnrollmentWindowOpen()) {
+      showToast(t('errEnrollClosed'));
+      return;
+    }
+    if (_pendingSlips.length > 0) {
+      showToast(t('errPendingSlipExists'));
+      return;
+    }
     _checkoutItems = items;
     _checkoutCourse = items[0];
     document.getElementById('lblCheckoutCourseTitle').textContent = items.length === 1
@@ -2113,6 +2179,8 @@
   async function submitEnrollment() {
     const items = _checkoutItems.length ? _checkoutItems : (_checkoutCourse ? [_checkoutCourse] : []);
     if (!_sb || !_student || !items.length) return;
+    if (!isEnrollmentWindowOpen()) { showToast(t('errEnrollClosed')); return; }
+    if (_pendingSlips.length > 0) { showToast(t('errPendingSlipExists')); return; }
     const fileInput = document.getElementById('inpCheckoutSlipFile');
     const file = fileInput && fileInput.files && fileInput.files[0];
     const fileErr = validateImageFile(file);
@@ -2772,13 +2840,13 @@
     const mediaBox = document.getElementById('boxNoticeModalMedia');
     if (mediaBox) {
       const parts = [];
-      if (n.imageUrl) {
+      if (n.imageUrl && /^https?:\/\//i.test(n.imageUrl)) {
         parts.push(`<a href="${esc(n.imageUrl)}" target="_blank" rel="noopener noreferrer"><img src="${esc(n.imageUrl)}" alt="Notice Attachment" style="width:100%;max-height:260px;object-fit:contain;border-radius:10px;border:1px solid #E2E8F0;" /></a>`);
       }
       if (n.linkUrl && /^https?:\/\//i.test(n.linkUrl)) {
         parts.push(`<a href="${esc(n.linkUrl)}" target="_blank" rel="noopener noreferrer" class="st-btn-info" style="text-decoration:none;justify-content:center;"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('noticeOpenLink'))}</a>`);
       }
-      if (n.docUrl) {
+      if (n.docUrl && /^https?:\/\//i.test(n.docUrl)) {
         parts.push(`<a href="${esc(n.docUrl)}" target="_blank" rel="noopener noreferrer" class="st-btn-primary" style="text-decoration:none;justify-content:center;"><i class="fa-solid fa-file-arrow-down"></i> ${esc(t('noticeDownloadDoc'))}: ${esc(n.docName || 'Document')}</a>`);
       }
       mediaBox.innerHTML = parts.join('');
@@ -3040,7 +3108,7 @@
     }
   }
 
-  function logout() {
+  function logout(fromStorageSync) {
     if (_student) {
       logStudentAudit('STUDENT_LOGOUT', `Student ${_student.student_id} signed out`, 'SUCCESS');
     }
@@ -3070,8 +3138,20 @@
     _checkoutItems = [];
     _checkoutCourse = null;
     _feeRules = {};
+    _courseDiscounts = {};
+    _courseAudiences = {};
+    _enrollWindow = null;
     _lockedCategories.clear();
     sessionStorage.removeItem(SESSION_KEY);
+    const sidInp = document.getElementById('inpLoginSid');
+    const secInp = document.getElementById('inpLoginSecret');
+    const eyeIc = document.getElementById('iconLoginSecretEye');
+    if (sidInp) sidInp.value = '';
+    if (secInp) { secInp.value = ''; secInp.type = 'password'; }
+    if (eyeIc) eyeIc.className = 'fa-solid fa-eye';
+    if (!fromStorageSync) {
+      try { localStorage.setItem('oca_st_logout_signal', String(Date.now())); } catch (_) {}
+    }
     showOnlyView('viewStudentAuth');
   }
 
