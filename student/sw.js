@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oca-student-392';
+const CACHE_NAME = 'oca-student-393';
 const ASSETS_TO_CACHE = [
   './',
   './manifest.json',
