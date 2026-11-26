@@ -1787,7 +1787,7 @@
     setVal('profEmergName', _student.emergency_name || '');
     setVal('profEmergRelation', _student.emergency_relation || '');
     setVal('profEmergPhone', _student.emergency_phone || '');
-    setVal('profNotes', _student.notes || '');
+    setVal('profNotes', String(_student.notes || '').replace(/\s*\[EXT:\{[\s\S]*?\}\]\s*/g, '').trim());
 
     const sumBox = document.getElementById('boxProfileDbSummary');
     if (sumBox) {
@@ -1920,7 +1920,11 @@
       _idleTimeoutMs = mins * 60 * 1000;
     }
     if (_feeRules.cfg_cashier_payee && _feeRules.cfg_cashier_payee.name) {
-      _bankAccountInfo = String(_feeRules.cfg_cashier_payee.name).trim();
+      const payeeName = String(_feeRules.cfg_cashier_payee.name).trim();
+      const payeeMode = String(_feeRules.cfg_cashier_payee.mode || '').toLowerCase();
+      if (payeeName && payeeMode !== 'dynamic' && !payeeName.includes('ตามผู้ใช้ที่ล็อกอิน')) {
+        _bankAccountInfo = payeeName;
+      }
     }
     const bankEl = document.getElementById('lblCheckoutBankAccount');
     if (bankEl) bankEl.textContent = _bankAccountInfo;
@@ -3120,7 +3124,7 @@
         .neq('status', 'DELETED')
         .limit(20);
       if (isDigits) {
-        query = query.or(`citizen_id.ilike.%${norm.slice(-6)}%,phone_number.ilike.%${norm.slice(-4)}%,passport_no.ilike.%${norm}%`);
+        query = query.or(`student_id.eq.${norm},citizen_id.ilike.%${norm.slice(-6)}%,phone_number.ilike.%${norm.slice(-4)}%,passport_no.ilike.%${norm}%`);
       } else if (isAlnumPassport) {
         query = query.or(`passport_no.ilike.%${norm}%,full_name.ilike.%${safeRaw}%`);
       } else {
@@ -3132,12 +3136,13 @@
       const qLow = safeRaw.toLowerCase();
       const normLow = norm.toLowerCase();
       const rows = (Array.isArray(data) ? data : []).filter((r) => {
+        const sidClean = String(r.student_id || '').trim().toLowerCase();
         const cidClean = String(r.citizen_id || '').replace(/[\s-]/g, '').toLowerCase();
         const passClean = String(r.passport_no || '').trim().toLowerCase();
         const phoneClean = String(r.phone_number || '').replace(/[\s-]/g, '').toLowerCase();
         const nameLow = String(r.full_name || '').toLowerCase();
         if (isDigits) {
-          return cidClean === normLow || phoneClean === normLow || passClean === normLow;
+          return sidClean === normLow || cidClean === normLow || phoneClean === normLow || passClean === normLow;
         }
         if (isAlnumPassport) {
           return passClean === normLow || nameLow.includes(qLow);
