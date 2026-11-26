@@ -1113,22 +1113,8 @@
     }, 180);
   }
 
-  function getFallbackNotice() {
-    return {
-      id: 'default',
-      title: _currentLang === 'en' ? 'Welcome to OCA Student Portal' : (_currentLang === 'zh' ? '欢迎使用东方文化书院学员在线系统' : 'ยินดีต้อนรับสู่ระบบนักศึกษา OCA'),
-      body: _currentLang === 'en'
-        ? 'Enroll in courses, upload payment slips, view schedules, and access your digital student ID card anytime.'
-        : (_currentLang === 'zh' ? '在线选课报名、上传转账凭证、查看课表与电子学生证，随时随地便捷使用。' : 'สามารถสมัครคอร์สเรียน แนบสลิปโอนเงิน ดูตารางเรียน บัตรนักศึกษา และรับใบเสร็จได้ตลอด 24 ชม.'),
-      category: 'GENERAL',
-      pinned: true,
-      isNew: false,
-      createdMs: Date.now()
-    };
-  }
-
   function hoverNotice(id, el) {
-    const n = _notices.find(x => String(x.id) === String(id)) || (String(id) === 'default' ? getFallbackNotice() : null);
+    const n = _notices.find(x => String(x.id) === String(id));
     if (!n) return;
     const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
     showHoverPopover(el,
@@ -2837,19 +2823,15 @@
     const loginBox = document.getElementById('listStudentNotices');
     if (!loginBox) return;
     const cats = (global.OcaNoticeBoard && global.OcaNoticeBoard.CATEGORIES) || {};
-    const fallbackNotice = {
-      id: 'default',
-      title: _currentLang === 'en' ? 'Welcome to OCA Student Portal' : (_currentLang === 'zh' ? '欢迎使用东方文化书院学员在线系统' : 'ยินดีต้อนรับสู่ระบบนักศึกษา OCA'),
-      body: _currentLang === 'en'
-        ? 'Enroll in courses, upload payment slips, view schedules, and access your digital student ID card anytime.'
-        : (_currentLang === 'zh' ? '在线选课报名、上传转账凭证、查看课表与电子学生证，随时随地便捷使用。' : 'สามารถสมัครคอร์สเรียน แนบสลิปโอนเงิน ดูตารางเรียน บัตรนักศึกษา และรับใบเสร็จได้ตลอด 24 ชม.'),
-      category: 'GENERAL',
-      pinned: true,
-      isNew: false,
-      createdMs: Date.now()
-    };
     const activeList = getActiveNotices();
-    const items = activeList.length > 0 ? activeList : [fallbackNotice];
+    if (activeList.length === 0) {
+      const emptyMsg = _currentLang === 'en'
+        ? 'No official announcements at this time'
+        : (_currentLang === 'zh' ? '目前暂无学院公告' : 'ยังไม่มีประกาศจากสถาบันในขณะนี้');
+      loginBox.innerHTML = `<div style="padding:14px 12px;text-align:center;font-size:12.5px;color:#A7F3D0;opacity:0.85;border:1px dashed rgba(215,166,0,0.32);border-radius:12px;">${esc(emptyMsg)}</div>`;
+      return;
+    }
+    const items = activeList;
 
     loginBox.innerHTML = items.map((n) => {
       const cat = cats[n.category] || { th: 'ประกาศ', en: 'Notice', zh: '公告', bg: '#E0F2FE', fg: '#0369A1' };
@@ -2889,7 +2871,7 @@
   }
 
   function openNoticeDetail(id) {
-    const n = _notices.find(x => String(x.id) === String(id)) || (String(id) === 'default' ? getFallbackNotice() : null);
+    const n = _notices.find(x => String(x.id) === String(id));
     if (!n) return;
     document.getElementById('lblNoticeModalTitle').textContent = n.title || t('noticeBoardTitle');
     const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
