@@ -1058,7 +1058,7 @@
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 </style>
-<link rel="stylesheet" href="css/oca-core-part1.css?v=395">
+<link rel="stylesheet" href="css/oca-core-part1.css?v=396">
 <style>
     #oca-app-root .oca-input {
       width: 100%;
@@ -4775,7 +4775,7 @@ body.printing-report #printReportContainer {
       }
     }
 </style>
-<link rel="stylesheet" href="css/oca-core-part2.css?v=395">
+<link rel="stylesheet" href="css/oca-core-part2.css?v=396">
 <style>
     @media (max-width: 640px) {
       #tabReceipts .oca-receipt-ctrl-panel div[style*="grid-template-columns:1fr 1fr"],
@@ -10705,7 +10705,7 @@ body.printing-report #printReportContainer {
   <script>
     /* PWA Auto-Buster v152: Instantly purges stale disk caches on mobile devices */
     (function() {
-      var LATEST_VERSION = '395';
+      var LATEST_VERSION = '396';
       window.LATEST_VERSION = LATEST_VERSION;
       try {
         var active = localStorage.getItem('oca_pwa_build_id');
@@ -24236,7 +24236,12 @@ body.printing-report #printReportContainer {
       const s = String(relPathOrUrl).trim();
       if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:')) return s;
       if (typeof _supabase !== 'undefined' && _supabase && _supabase.storage) {
-        const pub = _supabase.storage.from('student-photos').getPublicUrl(s);
+        const clean = s.replace(/^\/+/, '');
+        if (/^payment-slips\//i.test(clean)) {
+          const pub = _supabase.storage.from('payment-slips').getPublicUrl(clean.replace(/^payment-slips\//i, ''));
+          if (pub && pub.data && pub.data.publicUrl) return pub.data.publicUrl;
+        }
+        const pub = _supabase.storage.from('student-photos').getPublicUrl(clean.replace(/^student-photos\//i, ''));
         if (pub && pub.data && pub.data.publicUrl) return pub.data.publicUrl;
       }
       return s;
@@ -75992,7 +75997,7 @@ function openPublicRegisterView() {
                   phone: s.phone_number || '',
                   emergencyPhone: s.emergency_phone || '',
                   enrolledAt: s.created_at || '',
-                  citizenId: s.citizen_id || s.passport_no || '',
+                  citizenId: (s.passport_no && String(s.passport_no).trim().length > String(s.citizen_id || '').trim().length) ? s.passport_no : (s.citizen_id || s.passport_no || ''),
                   nationality: s.nationality || ''
                 });
               }
@@ -76288,7 +76293,8 @@ function openPublicRegisterView() {
                   if (!s.phone && m.phone_number) s.phone = m.phone_number;
                   if (!s.emergencyPhone && m.emergency_phone) s.emergencyPhone = m.emergency_phone;
                   if (!s.enrolledAt && m.created_at) s.enrolledAt = m.created_at;
-                  if (!s.citizenId && (m.citizen_id || m.passport_no)) s.citizenId = m.citizen_id || m.passport_no;
+                  if (m.passport_no && String(m.passport_no).trim().length > String(s.citizenId || '').trim().length) s.citizenId = m.passport_no;
+                  else if (!s.citizenId && (m.citizen_id || m.passport_no)) s.citizenId = m.citizen_id || m.passport_no;
                   if (!s.nationality && m.nationality) s.nationality = m.nationality;
                 }
               });
@@ -91110,6 +91116,8 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
           }
         } else {
           item.slipRef = rawName;
+          if (!item.course) item.course = rawName;
+          if (!item.expectedFee && mainRow && mainRow.amount) item.expectedFee = Number(mainRow.amount) || 0;
         }
       }
       if (item.expectedFee === undefined && mainRow) item.expectedFee = Number(mainRow.amount || 0);
@@ -92575,7 +92583,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         : (window.location.pathname.endsWith('.html')
             ? window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)
             : window.location.pathname + '/');
-      const swPath = basePath + 'sw.js?v=395';
+      const swPath = basePath + 'sw.js?v=396';
       const swVerMatch = swPath.match(/\?v=(\d+)/);
       const swVer = swVerMatch ? swVerMatch[1] : '0';
       const hadSwController = Boolean(navigator.serviceWorker.controller);
@@ -92612,7 +92620,7 @@ window.OCA_MANUAL_DATA = OCA_MANUAL_DATA;
         }
       });
       navigator.serviceWorker.register(swPath, { updateViaCache: 'none' }).then(function(reg) {
-        console.log('OCA PWA ServiceWorker Active (395):', reg.scope);
+        console.log('OCA PWA ServiceWorker Active (396):', reg.scope);
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
