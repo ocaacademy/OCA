@@ -28,6 +28,7 @@
   let _checkoutCourse = null;
   let _pendingAiPhoto = null;
   let _deferredPwaPrompt = null;
+  let _notifs = [];
 
   const I18N = {
     th: {
@@ -167,6 +168,8 @@
     });
     const logoutBtn = document.getElementById('btnStudentLogout');
     if (logoutBtn) logoutBtn.classList.toggle('st-hidden', viewId !== 'viewStudentApp');
+    const bellBtn = document.getElementById('btnStudentNotifBell');
+    if (bellBtn) bellBtn.classList.toggle('st-hidden', viewId !== 'viewStudentApp');
   }
 
   function openRegisterView() {
@@ -312,7 +315,9 @@
     showOnlyView('viewStudentApp');
     renderHeaderAndProfile();
     await loadStudentAppData();
-    switchTab(initialTab || 'home');
+    subscribeStudentNotifications();
+    const urlTab = new URLSearchParams(global.location.search).get('tab');
+    switchTab(urlTab || initialTab || 'home');
   }
 
   function renderHeaderAndProfile() {
@@ -350,18 +355,31 @@
   async function loadStudentAppData() {
     if (!_sb || !_student) return;
     const sid = String(_student.student_id || '').trim();
-    const [resC, resSc, resRc, resPend, resCred] = await Promise.all([
+    const [resC, resSc, resRc, resPend, resCred, resNotif] = await Promise.all([
       _sb.from('courses').select('id,code,name,level,price,linked_book,is_active').eq('is_active', true).order('code'),
       _sb.from('schedules').select('id,name,day_time,learning_mode,is_active').eq('is_active', true).order('id'),
       _sb.from('receipts').select('receipt_no,item_code,item_name,grand_total,claim_status,delivery_method,tracking_number,created_at,edit_notes').eq('student_id', sid).order('created_at', { ascending: false }).limit(50),
       _sb.from('fee_settings').select('key,name,amount,mode,updated_at').like('key', 'pending_slip%:' + sid),
-      _sb.from('fee_settings').select('amount').eq('key', 'student_credit_' + sid).maybeSingle()
+      _sb.from('fee_settings').select('amount').eq('key', 'student_credit_' + sid).maybeSingle(),
+      _sb.from('fee_settings').select('key,name,amount,mode,updated_at').eq('key', 'student_notif:' + sid).maybeSingle()
     ]);
     _courses = Array.isArray(resC.data) ? resC.data : [];
     _schedules = Array.isArray(resSc.data) ? resSc.data : [];
     _receipts = Array.isArray(resRc.data) ? resRc.data.filter(r => String(r.claim_status || '').toUpperCase() !== 'VOIDED') : [];
     _pendingSlips = Array.isArray(resPend.data) ? resPend.data.filter(r => r.key && r.key.startsWith('pending_slip:')) : [];
     _creditAmount = Number(resCred?.data?.amount || 0);
+    _notifs = [];
+    if (resNotif && resNotif.data) _notifs.push(resNotif.data);
+    _receipts.slice(0, 5).forEach(r => {
+      _notifs.push({
+        key: 'rc_' + r.receipt_no,
+        name: 'ใบเสร็จ #' + r.receipt_no + ' • ' + (r.item_name || r.item_code || ''),
+        amount: r.grand_total,
+        mode: r.claim_status || 'PENDING',
+        updated_at: r.created_at
+      });
+    });
+    updateNotifBadge();
 
     document.getElementById('lblHomeCredit').textContent = '฿' + _creditAmount.toLocaleString('en-US', { minimumFractionDigits: 2 });
     document.getElementById('lblHomePending').textContent = _pendingSlips.length > 0
@@ -549,10 +567,10 @@
         rcBox.innerHTML = '<div style="color: #64748B; font-size: 13px;">ยังไม่มีประวัติใบเสร็จ</div>';
       } else {
         rcBox.innerHTML = _receipts.map(r => `
-          <div style="padding: 12px; border: 1px solid #E2E8F0; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div onclick="OcaStudentPortal.openReceiptDetail('${esc(r.receipt_no)}')" style="padding: 12px; border: 1px solid #E2E8F0; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; cursor: pointer;">
             <div>
-              <div style="font-weight: 800; font-size: 13.5px;">#${esc(r.receipt_no)} • ${esc(r.item_name || r.item_code || '-')}</div>
-              <div style="font-size: 12px; color: #475569; margin-top: 2px;">ตำรา: ${esc(r.claim_status || 'PENDING')}${r.tracking_number ? ' • Tracking: ' + esc(r.tracking_number) : ''}</div>
+              <div style="font-weight: 800; font-size: 13.5px; color: #0F172A;">#${esc(r.receipt_no)} • ${esc(r.item_name || r.item_code || '-')}</div>
+              <div style="font-size: 12px; color: #475569; margin-top: 2px;">ตำรา: ${esc(r.claim_status || 'PENDING')}${r.tracking_number ? ' • Tracking: ' + esc(r.tracking_number) : ''} • <span style="color:#0369A1; font-weight:700;">แตะเพื่อดูใบเสร็จ / QR</span></div>
             </div>
             <strong style="font-family: monospace; color: #047857;">฿${Number(r.grand_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
           </div>
@@ -660,7 +678,146 @@
     }
   }
 
+  function updateNotifBadge() {
+    if (!_student) return;
+    const badge = document.getElementById('badgeStudentNotifCount');
+    if (!badge) return;
+    const seenAt = Number(localStorage.getItem('oca_st_notif_seen_' + _student.student_id) || 0);
+    const unread = _notifs.filter(n => n.updated_at && Date.parse(n.updated_at) > seenAt).length;
+    badge.textContent = unread > 9 ? '9+' : String(unread);
+    badge.classList.toggle('st-hidden', unread === 0);
+  }
+
+  function subscribeStudentNotifications() {
+    if (!_sb || !_student || typeof _sb.channel !== 'function') return;
+    if (global._activeStudentNotifChannel && typeof _sb.removeChannel === 'function') {
+      _sb.removeChannel(global._activeStudentNotifChannel);
+      global._activeStudentNotifChannel = null;
+    }
+    const sid = String(_student.student_id || '').trim();
+    global._activeStudentNotifChannel = _sb
+      .channel('oca_student_notif_' + sid)
+      .on('broadcast', { event: 'student_receipt_issued' }, async (msg) => {
+        const p = (msg && msg.payload) ? msg.payload : msg;
+        if (!p || String(p.studentId || '') !== sid) return;
+        showToast('ออกใบเสร็จรับเงินแล้ว #' + (p.receiptNo || ''));
+        await loadStudentAppData();
+        if ('Notification' in global && Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+          try {
+            const reg = await navigator.serviceWorker.ready;
+            if (reg && typeof reg.showNotification === 'function') {
+              await reg.showNotification('ออกใบเสร็จรับเงินแล้ว #' + (p.receiptNo || ''), {
+                body: (p.itemName || 'คอร์สเรียน OCA') + ' • ฿' + Number(p.grandTotal || 0).toLocaleString('en-US'),
+                icon: './student-icon-192.png',
+                badge: './student-favicon.png',
+                data: { url: './student.html?tab=finance' }
+              });
+            }
+          } catch (_) {}
+        }
+      })
+      .subscribe();
+  }
+
+  function isIosNonStandalone() {
+    const isIos = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    const isStandalone = (global.matchMedia && global.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+    return isIos && !isStandalone;
+  }
+
+  async function enableNotifications() {
+    if (isIosNonStandalone()) {
+      openNotifModal();
+      return;
+    }
+    if (!('Notification' in global)) {
+      showToast('เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน');
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      showToast('กรุณากดอนุญาตการแจ้งเตือนในการตั้งค่าเบราว์เซอร์');
+      return;
+    }
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        if (reg && typeof reg.showNotification === 'function') {
+          await reg.showNotification('เปิดรับแจ้งเตือน OCA Student สำเร็จ', {
+            body: 'ระบบจะแจ้งเตือนเมื่อมีใบเสร็จใหม่หรืออัปเดตพัสดุ',
+            icon: './student-icon-192.png',
+            badge: './student-favicon.png',
+            data: { url: './student.html?tab=finance' }
+          });
+        }
+        if (_sb && _student && reg && reg.pushManager) {
+          const { data: vapidRow, error: vErr } = await _sb.from('fee_settings').select('name').eq('key', 'student_vapid_public_key').maybeSingle();
+          if (!vErr && vapidRow && vapidRow.name) {
+            const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidRow.name.trim() });
+            const { error: subErr } = await _sb.from('fee_settings').upsert([{
+              key: 'student_push_sub:' + _student.student_id,
+              name: JSON.stringify(sub).slice(0, 90),
+              amount: 1,
+              mode: 'PUSH_ACTIVE',
+              updated_at: new Date().toISOString()
+            }], { onConflict: 'key' });
+            if (subErr) console.warn('[Push subscribe] warning:', subErr.message);
+          }
+        }
+      } catch (_) {}
+    }
+    showToast('เปิดรับการแจ้งเตือนบนมือถือเรียบร้อยแล้ว');
+  }
+
+  function openNotifModal() {
+    const guide = document.getElementById('boxIosNotifGuide');
+    if (guide) guide.classList.toggle('st-hidden', !isIosNonStandalone());
+    const listBox = document.getElementById('boxStudentNotifList');
+    if (listBox) {
+      listBox.innerHTML = _notifs.length === 0
+        ? '<div style="color:#64748B; font-size:13px;">ยังไม่มีการแจ้งเตือน</div>'
+        : _notifs.map(n => `<div style="padding:10px 12px; border:1px solid #E2E8F0; border-radius:10px; background:#F8FAFC; font-size:12.5px;"><div style="font-weight:700; color:#0F172A;">${esc(n.name)}</div><div style="color:#047857; font-weight:700; margin-top:2px;">฿${Number(n.amount || 0).toLocaleString('en-US')}</div></div>`).join('');
+    }
+    document.getElementById('modalStudentNotif')?.classList.remove('st-hidden');
+  }
+
+  function closeNotifModal() {
+    document.getElementById('modalStudentNotif')?.classList.add('st-hidden');
+  }
+
+  function markAllNotifsRead() {
+    if (_student) localStorage.setItem('oca_st_notif_seen_' + _student.student_id, String(Date.now()));
+    updateNotifBadge();
+    closeNotifModal();
+  }
+
+  function openReceiptDetail(rcNo) {
+    const r = _receipts.find(x => String(x.receipt_no) === String(rcNo));
+    if (!r) return;
+    document.getElementById('lblRcDetailTitle').textContent = 'ใบเสร็จรับเงิน #' + (r.receipt_no || '');
+    document.getElementById('boxRcDetailBody').innerHTML =
+      `<div><strong>รายการ:</strong> ${esc(r.item_name || r.item_code || '-')}</div>` +
+      `<div><strong>ยอดชำระสุทธิ:</strong> <span style="color:#047857; font-weight:800;">฿${Number(r.grand_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>` +
+      `<div><strong>วิธีรับตำรา:</strong> ${esc(r.delivery_method || 'รับเองที่สถาบัน')}</div>` +
+      `<div><strong>สถานะตำรา:</strong> ${esc(r.claim_status || 'PENDING')}</div>` +
+      (r.tracking_number ? `<div><strong>เลขพัสดุ:</strong> <span style="font-family:monospace;">${esc(r.tracking_number)}</span></div>` : '');
+    const qrBox = document.getElementById('boxRcDetailQr');
+    if (qrBox && global.QRCode) {
+      qrBox.innerHTML = '';
+      new global.QRCode(qrBox, { text: 'OCA-RC:' + r.receipt_no, width: 110, height: 110 });
+    }
+    document.getElementById('modalStudentReceiptDetail')?.classList.remove('st-hidden');
+  }
+
+  function closeReceiptDetail() {
+    document.getElementById('modalStudentReceiptDetail')?.classList.add('st-hidden');
+  }
+
   function logout() {
+    if (_sb && global._activeStudentNotifChannel && typeof _sb.removeChannel === 'function') {
+      _sb.removeChannel(global._activeStudentNotifChannel);
+      global._activeStudentNotifChannel = null;
+    }
     _student = null;
     _needsDobSetup = false;
     sessionStorage.removeItem(SESSION_KEY);
@@ -715,6 +872,12 @@
     onProfilePhotoSelected,
     saveAiPhoto,
     saveProfile,
+    enableNotifications,
+    openNotifModal,
+    closeNotifModal,
+    markAllNotifsRead,
+    openReceiptDetail,
+    closeReceiptDetail,
     logout,
     installPwa
   };
