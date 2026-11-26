@@ -69,7 +69,7 @@
     th: {
       hdrSub: 'ระบบนักศึกษาออนไลน์ (สมัครเรียน • ตารางเรียน • บัตรนักศึกษา)',
       installPwa: 'ติดตั้งแอป',
-      installPwaFull: 'ติดตั้งแอปนักศึกษา OCA (PWA)',
+      installPwaFull: 'ติดตั้งแอป OCA Student',
       logout: 'ออกจากระบบ',
       notifBellTitle: 'การแจ้งเตือนและประกาศสถาบัน',
       noticeBoardTitle: 'บอร์ดประชาสัมพันธ์สถาบัน',
@@ -322,7 +322,7 @@
     en: {
       hdrSub: 'Student Self-Service Portal (Enroll • Schedule • Digital ID)',
       installPwa: 'Install App',
-      installPwaFull: 'Install OCA Student App (PWA)',
+      installPwaFull: 'Install OCA Student App',
       logout: 'Sign Out',
       notifBellTitle: 'Notifications & Academy Announcements',
       noticeBoardTitle: 'OCA Notice Board',
@@ -575,7 +575,7 @@
     zh: {
       hdrSub: '东方文化书院学员在线门户（在线报名 • 课表 • 电子学生证）',
       installPwa: '安装应用',
-      installPwaFull: '安装 OCA 学员应用 (PWA)',
+      installPwaFull: '安装 OCA Student 应用',
       logout: '退出登录',
       notifBellTitle: '通知与书院公告',
       noticeBoardTitle: '书院公告栏',
@@ -3225,14 +3225,39 @@
     showOnlyView('viewStudentAuth');
   }
 
+  function markPwaInstalled(installed) {
+    document.documentElement.classList.toggle('oca-pwa-installed', Boolean(installed));
+    try {
+      if (installed) localStorage.setItem('oca_student_pwa_installed', '1');
+      else localStorage.removeItem('oca_student_pwa_installed');
+    } catch (_) {}
+  }
+
+  async function syncPwaInstalledState() {
+    const isStandalone = (global.matchMedia && global.matchMedia('(display-mode: standalone)').matches) || global.navigator.standalone === true;
+    if (isStandalone) {
+      document.documentElement.classList.add('oca-standalone');
+      markPwaInstalled(true);
+      return;
+    }
+    if (navigator && typeof navigator.getInstalledRelatedApps === 'function') {
+      try {
+        const apps = await navigator.getInstalledRelatedApps();
+        markPwaInstalled(Array.isArray(apps) && apps.length > 0);
+      } catch (_) {}
+    }
+  }
+
   async function installPwa() {
+    const isAndroid = /android/i.test((navigator && navigator.userAgent) || '');
+    const isIos = isIosNonStandalone();
     const promptEvt = global.__ocaStudentDeferredPrompt || _deferredPwaPrompt;
-    if (promptEvt && typeof promptEvt.prompt === 'function') {
+    if (promptEvt && typeof promptEvt.prompt === 'function' && !isIos) {
       try {
         promptEvt.prompt();
         const choice = await promptEvt.userChoice;
         if (choice && choice.outcome === 'accepted') {
-          showToast(t('pwaInstalling'));
+          markPwaInstalled(true);
         }
       } catch (_) {}
       global.__ocaStudentDeferredPrompt = null;
@@ -3240,25 +3265,24 @@
       global.__ocaStudentWaitingInstall = false;
       return;
     }
-    if (isIosNonStandalone()) {
-      document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden');
+    if (isAndroid) {
+      global.__ocaStudentWaitingInstall = true;
+      if ('serviceWorker' in navigator) {
+        try { await navigator.serviceWorker.ready; } catch (_) {}
+      }
+      setTimeout(() => {
+        if (!global.__ocaStudentWaitingInstall) return;
+        global.__ocaStudentWaitingInstall = false;
+        const lateEvt = global.__ocaStudentDeferredPrompt || _deferredPwaPrompt;
+        if (lateEvt && typeof lateEvt.prompt === 'function') {
+          installPwa();
+        } else {
+          document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden');
+        }
+      }, 800);
       return;
     }
-    global.__ocaStudentWaitingInstall = true;
-    showToast(t('pwaPreparing'));
-    if ('serviceWorker' in navigator) {
-      try { await navigator.serviceWorker.ready; } catch (_) {}
-    }
-    setTimeout(() => {
-      if (!global.__ocaStudentWaitingInstall) return;
-      global.__ocaStudentWaitingInstall = false;
-      const lateEvt = global.__ocaStudentDeferredPrompt || _deferredPwaPrompt;
-      if (lateEvt && typeof lateEvt.prompt === 'function') {
-        installPwa();
-      } else {
-        document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden');
-      }
-    }, 3500);
+    document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden');
   }
 
   function closePwaGuide() { document.getElementById('modalStudentPwaGuide')?.classList.add('st-hidden'); }
@@ -3266,6 +3290,7 @@
   global.addEventListener('beforeinstallprompt', (e) => {
     _deferredPwaPrompt = e;
     global.__ocaStudentDeferredPrompt = e;
+    markPwaInstalled(false);
   });
 
   global.addEventListener('appinstalled', () => {
@@ -3273,8 +3298,13 @@
     global.__ocaStudentDeferredPrompt = null;
     global.__ocaStudentWaitingInstall = false;
     document.documentElement.classList.add('oca-standalone');
+    markPwaInstalled(true);
     showToast(t('pwaInstalled'));
   });
+
+  if (typeof global.addEventListener === 'function') {
+    global.addEventListener('load', () => { syncPwaInstalledState(); });
+  }
 
   if ('serviceWorker' in navigator) {
     global.addEventListener('load', () => {
