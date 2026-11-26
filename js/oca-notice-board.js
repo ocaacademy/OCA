@@ -650,6 +650,10 @@
       alert('กรุณาเข้าสู่ระบบเจ้าหน้าที่ก่อนจัดการประกาศ');
       return;
     }
+    if (typeof global.hasUserPermission === 'function' && !global.hasUserPermission('noticeBoard')) {
+      if (typeof global.showToast === 'function') global.showToast('คุณไม่มีสิทธิ์เข้าถึงเมนูประชาสัมพันธ์สถาบัน', 'error');
+      return;
+    }
     const modal = ensureStaffModal();
     modal.style.display = 'flex';
     if (!document.getElementById('inpNoticeEditId')?.value) applyDefaultNoticeDates();
