@@ -3249,7 +3249,9 @@
   }
 
   async function installPwa() {
-    const isAndroid = /android/i.test((navigator && navigator.userAgent) || '');
+    const ua = (navigator && navigator.userAgent) || '';
+    const isAndroid = /android/i.test(ua);
+    const isInAppWebView = isAndroid && /line\/|fban|fbav|instagram|micromessenger|\bwv\b/i.test(ua);
     const isIos = isIosNonStandalone();
     const promptEvt = global.__ocaStudentDeferredPrompt || _deferredPwaPrompt;
     if (promptEvt && typeof promptEvt.prompt === 'function' && !isIos) {
@@ -3263,6 +3265,11 @@
       global.__ocaStudentDeferredPrompt = null;
       _deferredPwaPrompt = null;
       global.__ocaStudentWaitingInstall = false;
+      return;
+    }
+    if (isInAppWebView) {
+      try { global.location.href = 'intent://ocaacademy.github.io/OCA/student/#Intent;scheme=https;package=com.android.chrome;end'; } catch (_) {}
+      setTimeout(() => { document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden'); }, 1200);
       return;
     }
     if (isAndroid) {
@@ -3288,6 +3295,7 @@
   function closePwaGuide() { document.getElementById('modalStudentPwaGuide')?.classList.add('st-hidden'); }
 
   global.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
     _deferredPwaPrompt = e;
     global.__ocaStudentDeferredPrompt = e;
     markPwaInstalled(false);
@@ -3309,9 +3317,9 @@
   if ('serviceWorker' in navigator) {
     global.addEventListener('load', () => {
       const inStudentDir = /\/student(\/|$)/i.test(global.location.pathname || '');
-      const swPath = inStudentDir ? new URL('./sw.js', global.location.href).href : './sw.js';
+      const swPath = inStudentDir ? (global.location.pathname.endsWith('/') ? new URL('./sw.js', global.location.href).href : (global.location.origin + global.location.pathname + '/sw.js')) : './sw.js';
       const swOpts = inStudentDir
-        ? { scope: new URL('./', global.location.href).href, updateViaCache: 'none' }
+        ? { scope: global.location.pathname.endsWith('/') ? new URL('./', global.location.href).href : (global.location.origin + global.location.pathname + '/'), updateViaCache: 'none' }
         : { updateViaCache: 'none' };
       navigator.serviceWorker.register(swPath, swOpts).catch(() => {});
     });
