@@ -116,9 +116,20 @@
     return list;
   }
 
+  let _onNoticeUpdateCb = null;
+
   async function broadcastNoticeChange(sb, id) {
     if (!sb || typeof sb.channel !== 'function') return;
     try {
+      const existing = global._activeOcaNoticeChannel;
+      if (existing && existing.state === 'joined' && typeof existing.send === 'function') {
+        await existing.send({
+          type: 'broadcast',
+          event: 'notices_updated',
+          payload: { id: String(id || ''), ts: Date.now() }
+        });
+        return;
+      }
       const ch = sb.channel(REALTIME_CHANNEL);
       ch.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
@@ -127,7 +138,11 @@
             event: 'notices_updated',
             payload: { id: String(id || ''), ts: Date.now() }
           }).finally(() => {
-            if (typeof sb.removeChannel === 'function') sb.removeChannel(ch);
+            setTimeout(() => {
+              if (typeof sb.removeChannel === 'function' && ch.state === 'joined') {
+                sb.removeChannel(ch);
+              }
+            }, 400);
           });
         }
       });
@@ -215,14 +230,15 @@
 
   function subscribeNotices(sb, onUpdate) {
     if (!sb || typeof sb.channel !== 'function' || typeof onUpdate !== 'function') return null;
-    if (global._activeOcaNoticeChannel && typeof sb.removeChannel === 'function') {
-      sb.removeChannel(global._activeOcaNoticeChannel);
-      global._activeOcaNoticeChannel = null;
+    _onNoticeUpdateCb = onUpdate;
+    const existing = global._activeOcaNoticeChannel;
+    if (existing && (existing.state === 'joined' || existing.state === 'joining')) {
+      return existing;
     }
     const ch = sb
       .channel(REALTIME_CHANNEL)
       .on('broadcast', { event: 'notices_updated' }, () => {
-        onUpdate();
+        if (typeof _onNoticeUpdateCb === 'function') _onNoticeUpdateCb();
       })
       .subscribe();
     global._activeOcaNoticeChannel = ch;
