@@ -2735,7 +2735,7 @@
     document.getElementById('boxRcDetailBody').innerHTML = `
       <div style="text-align:center;margin-bottom:10px;">
         <img src="./oca_logo.png" alt="OCA" style="width:42px;height:42px;object-fit:contain;display:block;margin:0 auto 4px auto;" />
-        <div class="oca-weibei-brand" style="font-size:21px;font-weight:800;color:#8A5A00;line-height:1.15;">東方文化書院</div>
+        <div class="oca-weibei-brand" style="font-size:21px;font-weight:800;color:#8A5A00;line-height:1.15;">东方文化书院</div>
         <div style="font-size:13px;font-weight:800;color:#0F172A;margin-top:2px;">วิทยสถานแห่งวัฒนธรรมตะวันออก</div>
         <div style="font-size:10.5px;font-weight:700;color:#334155;letter-spacing:0.6px;">ORIENTAL CULTURE ACADEMY (OCA)</div>
         <div style="font-size:10px;color:#475569;margin-top:2px;">64/28 ถ.รองเมือง ซอย 1 แขวงรองเมือง เขตปทุมวัน กรุงเทพมหานคร 10330</div>
