@@ -244,7 +244,22 @@
       sidCopiedToast: 'คัดลอกรหัสนักศึกษาแล้ว',
       regSuccessHint: 'กรุณาจดหรือบันทึกรหัสนักศึกษานี้ไว้ใช้เข้าสู่ระบบคู่กับวันเดือนปีเกิด 8 หลัก',
       btnAckRegSuccess: 'รับทราบและเข้าสู่หน้าเลือกคอร์สเรียน',
-      noticeValidRange: 'ระยะเวลาประชาสัมพันธ์'
+      noticeValidRange: 'ระยะเวลาประชาสัมพันธ์',
+      noticeOpenLink: 'เปิดลิงก์แนบ',
+      noticeDownloadDoc: 'ดาวน์โหลดเอกสารแนบ',
+      rcPaperTitle: 'โรงเรียนวิทยสถานแห่งวัฒนธรรมตะวันออก',
+      rcPaperSub: 'ใบเสร็จรับเงิน / RECEIPT',
+      rcColItem: 'รายการ',
+      rcColAmount: 'จำนวนเงิน (บาท)',
+      rcPaymentMethod: 'วิธีชำระเงิน',
+      rcDeliveryStatus: 'รับ/จัดส่งตำรา',
+      rcTotalLabel: 'ยอดชำระสุทธิ',
+      qrOneTimeNote: 'One-Time QR • ใช้สแกนรับตำราเรียนที่สถาบันได้เพียง 1 ครั้ง',
+      qrClaimedStamp: 'รับตำราเรียนเรียบร้อยแล้ว (CLAIMED)',
+      qrVoidedStamp: 'ใบเสร็จถูกยกเลิก (VOIDED)',
+      qrShippingNoCounter: 'จัดส่งพัสดุตามที่อยู่ (งดใช้ QR รับหน้าร้านเพื่อป้องกันการรับซ้ำ)',
+      qrNoBookRequired: 'รายการนี้ไม่มีการเบิกตำราเรียนที่เคาน์เตอร์',
+      qrNoTokenBlocked: 'ไม่พบรหัส Token ยืนยันตัวตน (กรุณาติดต่อเจ้าหน้าที่)'
     },
     en: {
       hdrSub: 'Student Self-Service Portal (Enroll • Schedule • Digital ID)',
@@ -434,7 +449,22 @@
       sidCopiedToast: 'Student ID copied to clipboard',
       regSuccessHint: 'Please save this 7-digit Student ID to sign in together with your 8-digit birth date.',
       btnAckRegSuccess: 'Acknowledge & Continue to Courses',
-      noticeValidRange: 'Display Period'
+      noticeValidRange: 'Display Period',
+      noticeOpenLink: 'Open Link',
+      noticeDownloadDoc: 'Download Attachment',
+      rcPaperTitle: 'Oriental Culture Academy',
+      rcPaperSub: 'OFFICIAL RECEIPT',
+      rcColItem: 'Description',
+      rcColAmount: 'Amount (THB)',
+      rcPaymentMethod: 'Payment Method',
+      rcDeliveryStatus: 'Textbook Delivery',
+      rcTotalLabel: 'Grand Total',
+      qrOneTimeNote: 'One-Time QR • Valid for 1-time textbook pickup only',
+      qrClaimedStamp: 'TEXTBOOK ALREADY CLAIMED',
+      qrVoidedStamp: 'RECEIPT VOIDED',
+      qrShippingNoCounter: 'Parcel Delivery Order (Counter QR disabled to prevent duplicate claim)',
+      qrNoBookRequired: 'No counter textbook pickup required for this receipt',
+      qrNoTokenBlocked: 'Verification token unavailable (Please contact Academy staff)'
     },
     zh: {
       hdrSub: '东方文化书院学员在线门户（在线报名 • 课表 • 电子学生证）',
@@ -624,7 +654,22 @@
       sidCopiedToast: '已复制学号',
       regSuccessHint: '请妥善保存此7位学号，用于搭配8位出生日期登录系统。',
       btnAckRegSuccess: '已知晓并前往选课页面',
-      noticeValidRange: '公告有效期'
+      noticeValidRange: '公告有效期',
+      noticeOpenLink: '打开附件链接',
+      noticeDownloadDoc: '下载附件文档',
+      rcPaperTitle: '东方文化书院 (Oriental Culture Academy)',
+      rcPaperSub: '正式收据 / RECEIPT',
+      rcColItem: '收费项目',
+      rcColAmount: '金额 (泰铢)',
+      rcPaymentMethod: '支付方式',
+      rcDeliveryStatus: '教材领取/物流',
+      rcTotalLabel: '实付总额',
+      qrOneTimeNote: '一次性核销二维码 • 仅限现场领取教材使用1次',
+      qrClaimedStamp: '教材已领取 (CLAIMED)',
+      qrVoidedStamp: '收据已作废 (VOIDED)',
+      qrShippingNoCounter: '快递邮寄订单（已关闭现场核销码以防重复领取）',
+      qrNoBookRequired: '此收据无需现场领取教材',
+      qrNoTokenBlocked: '未检测到有效核销令牌（请联系教务人员）'
     }
   };
 
@@ -683,6 +728,26 @@
     el.classList.remove('st-hidden');
     clearTimeout(el._t);
     el._t = setTimeout(() => el.classList.add('st-hidden'), 3800);
+  }
+
+  async function logStudentAudit(action, details, status, overrideSid, overrideName) {
+    if (!_sb) return;
+    try {
+      const sid = String(overrideSid || (_student && _student.student_id) || 'GUEST').slice(0, 60);
+      const name = String(overrideName || (_student && formatStudentDisplayName(_student)) || sid).slice(0, 80);
+      const { error } = await _sb.from('security_audit_logs').insert([{
+        action: String(action || 'STUDENT_ACTION').slice(0, 60),
+        username: sid,
+        full_name: name,
+        role: 'STUDENT',
+        device_id: 'STUDENT_WEBAPP',
+        device_info: String(navigator.userAgent || '').slice(0, 140),
+        details: String(details || '').slice(0, 240),
+        status: String(status || 'SUCCESS').slice(0, 24),
+        created_at: new Date().toISOString()
+      }]);
+      if (error) console.warn('[StudentAudit]', error.message || error);
+    } catch (_) {}
   }
 
   function normalizeDobIso(raw) {
@@ -1096,19 +1161,16 @@
       _student = studentRow;
       _needsDobSetup = needsSetup;
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ student: _student, needsDobSetup: _needsDobSetup }));
+      logStudentAudit('STUDENT_LOGIN_SUCCESS', `Student ${sid} signed in via Student WebApp`, 'SUCCESS', sid, formatStudentDisplayName(studentRow));
       await enterApp('home');
     } catch (err) {
       const nextFails = (guard.fails || 0) + 1;
       const nextLock = nextFails >= MAX_LOGIN_FAILS ? (Date.now() + LOCKOUT_MS) : 0;
       setLoginGuard({ fails: nextLock ? 0 : nextFails, lockedUntil: nextLock });
-      if (nextLock && _sb) {
-        const { error: logErr } = await _sb.from('security_audit_logs').insert([{
-          event_type: 'STUDENT_LOGIN_LOCKOUT',
-          username: sid.slice(0, 30),
-          details: 'Exceeded 5 failed login attempts',
-          created_at: new Date().toISOString()
-        }]);
-        if (logErr) console.warn('[audit]', logErr.message || logErr);
+      if (nextLock) {
+        await logStudentAudit('STUDENT_LOGIN_LOCKOUT', `Student ${sid} exceeded 5 failed login attempts`, 'BLOCKED', sid, sid);
+      } else {
+        await logStudentAudit('STUDENT_LOGIN_FAILED', `Failed login for ${sid}: ${err.message || err}`, 'FAILED', sid, sid);
       }
       if (errEl) {
         errEl.textContent = nextLock
@@ -1227,6 +1289,7 @@
       stopCamera();
       _needsDobSetup = false;
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ student: _student, needsDobSetup: false }));
+      logStudentAudit('STUDENT_REGISTER', `New student registered: ${newSid} (${fullName})`, 'SUCCESS', newSid, fullName);
       const sidLbl = document.getElementById('lblRegSuccessSid');
       if (sidLbl) sidLbl.textContent = newSid;
       document.getElementById('modalRegSuccessSid')?.classList.remove('st-hidden');
@@ -1638,6 +1701,7 @@
       closeCheckout();
       await loadStudentAppData();
       switchTab('finance');
+      logStudentAudit('STUDENT_ENROLL_SLIP', `Submitted slip for ${_checkoutCourse.code} (${deliv}) ฿${total}`, 'SUCCESS');
       showToast(t('slipSubmitSuccess'));
     } catch (err) {
       showToast(`${t('slipSubmitFail')} ${err.message || err}`);
@@ -1767,6 +1831,7 @@
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ student: _student, needsDobSetup: _needsDobSetup }));
       renderHeaderAndProfile();
       if (btn) btn.classList.add('st-hidden');
+      logStudentAudit('STUDENT_PHOTO_UPDATE', `Student ${sid} updated profile portrait`, 'SUCCESS');
       showToast(t('photoSaveSuccess'));
     } catch (err) {
       showToast(`${t('photoSaveFail')} ${err.message || err}`);
@@ -1830,6 +1895,7 @@
       _needsDobSetup = false;
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ student: _student, needsDobSetup: false }));
       renderHeaderAndProfile();
+      logStudentAudit('STUDENT_PROFILE_UPDATE', `Student ${sid} updated personal profile`, 'SUCCESS');
       showToast(t('profSaveSuccess'));
     } catch (err) {
       showToast(`${t('profSaveFail')} ${err.message || err}`);
@@ -1936,7 +2002,7 @@
       return `
         <div class="st-notif-notice" onclick="OcaStudentPortal.openNoticeDetail('${esc(n.id)}')">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
-            <span class="st-warn-label" style="font-size:11px;font-weight:800;"><i class="fa-solid fa-bullhorn"></i> ${esc(t('noticeBoardTitle'))}</span>
+            <span class="st-warn-label" style="font-size:11px;font-weight:800;display:inline-flex;align-items:center;gap:5px;"><i class="fa-solid fa-bullhorn"></i> ${esc(t('noticeBoardTitle'))} ${n.isNew ? '<span class="oca-notice-new-badge" style="background:#DC2626;color:#FFFFFF;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:999px;">NEW</span>' : ''}</span>
             <span class="st-muted-text" style="font-size:11px;">${esc(dtStr)}</span>
           </div>
           <div style="font-size:13.5px;font-weight:800;margin-top:3px;">${esc(n.title)}</div>
@@ -1971,20 +2037,94 @@
     closeNotifModal();
   }
 
-  function openReceiptDetail(rcNo) {
-    const r = _receipts.find(x => String(x.receipt_no) === String(rcNo));
+  async function openReceiptDetail(rcNo) {
+    let r = _receipts.find(x => String(x.receipt_no) === String(rcNo));
     if (!r) return;
-    document.getElementById('lblRcDetailTitle').textContent = '#' + (r.receipt_no || '');
-    document.getElementById('boxRcDetailBody').innerHTML =
-      `<div data-i18n-locked="true"><strong>${esc(r.item_name || r.item_code || '-')}</strong></div>` +
-      `<div><strong class="st-accent-text">฿${Number(r.grand_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>` +
-      `<div>${esc(r.delivery_method || t('delivPickupShort'))} • ${esc(r.claim_status || 'PENDING')}</div>` +
-      (r.tracking_number ? `<div>Tracking: <span style="font-family:monospace;">${esc(r.tracking_number)}</span></div>` : '');
-    const qrBox = document.getElementById('boxRcDetailQr');
-    if (qrBox && global.QRCode) {
-      qrBox.innerHTML = '';
-      new global.QRCode(qrBox, { text: 'OCA-RC:' + r.receipt_no, width: 110, height: 110 });
+    if (_sb) {
+      try {
+        const { data: liveRow, error: liveErr } = await _sb
+          .from('receipts')
+          .select('*')
+          .eq('receipt_no', rcNo)
+          .maybeSingle();
+        if (!liveErr && liveRow) r = liveRow;
+      } catch (_) {}
     }
+
+    const fmtAmt = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+    const dtStr = r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
+    const stName = r.buyer_name || (_student ? formatStudentDisplayName(_student) : '-');
+    const stSid = r.student_id || (_student ? _student.student_id : '-');
+    const feeRows = [
+      `<tr><td>${esc(r.item_name || r.item_code || '-')}</td><td style="text-align:right;font-family:monospace;">${fmtAmt(r.base_amount || r.grand_total)}</td></tr>`
+    ];
+    if (Number(r.reg_fee || 0) > 0) feeRows.push(`<tr><td>${esc(t('feeReg'))}</td><td style="text-align:right;font-family:monospace;">${fmtAmt(r.reg_fee)}</td></tr>`);
+    if (Number(r.card_fee || 0) > 0) feeRows.push(`<tr><td>Smart Card Fee</td><td style="text-align:right;font-family:monospace;">${fmtAmt(r.card_fee)}</td></tr>`);
+    if (Number(r.other_reg_fee || 0) > 0) feeRows.push(`<tr><td>${esc(t('feeOther'))}</td><td style="text-align:right;font-family:monospace;">${fmtAmt(r.other_reg_fee)}</td></tr>`);
+    if (Number(r.shipping_fee || 0) > 0) feeRows.push(`<tr><td>${esc(t('feeShipping'))}</td><td style="text-align:right;font-family:monospace;">${fmtAmt(r.shipping_fee)}</td></tr>`);
+    const discSum = Number(r.discount_normal || 0) + Number(r.discount_other || 0);
+    if (discSum > 0) feeRows.push(`<tr><td>${esc(t('feeDiscount'))}</td><td style="text-align:right;font-family:monospace;color:#047857;">-${fmtAmt(discSum)}</td></tr>`);
+
+    document.getElementById('lblRcDetailTitle').textContent = '#' + (r.receipt_no || '');
+    document.getElementById('boxRcDetailBody').innerHTML = `
+      <div style="text-align:center;border-bottom:1.5px dashed #94A3B8;padding-bottom:8px;margin-bottom:8px;">
+        <div style="font-size:15px;font-weight:800;color:#022C22;">東方文化書院 • Oriental Culture Academy</div>
+        <div style="font-size:11.5px;font-weight:700;color:#334155;">${esc(t('rcPaperTitle'))}</div>
+        <div style="font-size:10.5px;color:#475569;">64/28 ถ.รองเมือง ซ. 1 แขวงรองเมือง เขตปทุมวัน กทม. 10330 • โทร. 02-216-2826-8</div>
+        <div style="display:inline-block;margin-top:5px;padding:2px 12px;border:1.5px solid #0F172A;border-radius:4px;font-size:12px;font-weight:800;">${esc(t('rcPaperSub'))}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:11.5px;margin-bottom:8px;">
+        <div><strong>No.:</strong> <span style="font-family:monospace;font-weight:800;">#${esc(r.receipt_no)}</span></div>
+        <div style="text-align:right;"><strong>Date:</strong> ${esc(dtStr)}</div>
+        <div style="grid-column:1 / -1;"><strong>Student:</strong> <span data-i18n-locked="true">${esc(stName)}</span> (<span style="font-family:monospace;">${esc(stSid)}</span>)</div>
+        <div><strong>Schedule:</strong> ${esc(r.schedule || r.schedule_info || '-')}</div>
+        <div style="text-align:right;"><strong>Term:</strong> ${esc(r.term || '-')}/${esc(r.year_be || '-')}</div>
+        ${(r.class_group || r.teacher_name) ? `<div style="grid-column:1 / -1;">${r.class_group ? `<strong>Group:</strong> ${esc(r.class_group)} ` : ''}${r.teacher_name ? `• <strong>Lecturer:</strong> ${esc(r.teacher_name)}` : ''}</div>` : ''}
+      </div>
+      <table class="oca-dm-table">
+        <thead><tr><th style="text-align:left;">${esc(t('rcColItem'))}</th><th style="text-align:right;width:110px;">${esc(t('rcColAmount'))}</th></tr></thead>
+        <tbody>${feeRows.join('')}</tbody>
+        <tfoot>
+          <tr style="background:#F8FAFC;font-weight:800;font-size:13px;">
+            <td>${esc(t('rcTotalLabel'))}</td>
+            <td style="text-align:right;font-family:monospace;color:#047857;">฿${fmtAmt(r.grand_total)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:11.5px;color:#334155;">
+        <span><strong>${esc(t('rcPaymentMethod'))}:</strong> ${esc(r.payment_method || '-')}</span>
+        <span><strong>${esc(t('rcDeliveryStatus'))}:</strong> ${esc(r.delivery_method || t('delivPickupShort'))} (${esc(r.claim_status || 'PENDING')})</span>
+      </div>
+      ${r.tracking_number ? `<div style="font-size:12px;font-weight:800;color:#0369A1;margin-top:4px;">Tracking: <span style="font-family:monospace;">${esc(r.tracking_number)}</span></div>` : ''}
+    `;
+
+    const qrBox = document.getElementById('boxRcDetailQr');
+    const qrMsg = document.getElementById('lblRcQrStatusMsg');
+    const stUpper = String(r.claim_status || 'PENDING').toUpperCase();
+    const matStr = String(r.material_type || '');
+    const isShip = /ส่ง|ship|parcel|ems|flash|kerry|จัดส่ง/i.test(String(r.delivery_method || '') + ' ' + stUpper);
+    const noBook = stUpper === 'NO_BOOK_CLAIM' || stUpper === 'NOT_REQUIRED' || matStr.includes('ไม่มี') || matStr === 'NONE' || matStr === 'บัตรนักศึกษา';
+    const token = String(r.claim_token || '').trim();
+
+    if (qrBox) qrBox.innerHTML = '';
+    if (stUpper === 'VOIDED' || stUpper === 'CANCELLED') {
+      if (qrMsg) qrMsg.innerHTML = `<span class="oca-dm-stamp-void"><i class="fa-solid fa-ban"></i> ${esc(t('qrVoidedStamp'))}</span>`;
+    } else if (stUpper === 'CLAIMED') {
+      const claimMeta = [r.claimed_at ? new Date(r.claimed_at).toLocaleString('th-TH') : '', r.claimed_by || ''].filter(Boolean).join(' • ');
+      if (qrMsg) qrMsg.innerHTML = `<span class="oca-dm-stamp-claimed"><i class="fa-solid fa-circle-check"></i> ${esc(t('qrClaimedStamp'))}</span>${claimMeta ? `<div style="margin-top:4px;font-size:11px;color:#475569;">${esc(claimMeta)}</div>` : ''}`;
+    } else if (isShip) {
+      if (qrMsg) qrMsg.innerHTML = `<span class="oca-dm-stamp-warn"><i class="fa-solid fa-truck-fast"></i> ${esc(t('qrShippingNoCounter'))}</span>`;
+    } else if (noBook) {
+      if (qrMsg) qrMsg.innerHTML = `<span class="oca-dm-stamp-warn"><i class="fa-solid fa-circle-info"></i> ${esc(t('qrNoBookRequired'))}</span>`;
+    } else if (!token) {
+      if (qrMsg) qrMsg.innerHTML = `<span class="oca-dm-stamp-warn"><i class="fa-solid fa-shield-halved"></i> ${esc(t('qrNoTokenBlocked'))}</span>`;
+    } else {
+      if (qrBox && global.QRCode) {
+        new global.QRCode(qrBox, { text: token, width: 120, height: 120 });
+      }
+      if (qrMsg) qrMsg.textContent = `${t('qrOneTimeNote')} • #${r.receipt_no}`;
+    }
+
     document.getElementById('modalStudentReceiptDetail')?.classList.remove('st-hidden');
   }
 
@@ -2026,11 +2166,18 @@
       const cat = cats[n.category] || { th: 'ประกาศ', en: 'Notice', zh: '公告', bg: '#E0F2FE', fg: '#0369A1' };
       const catLabel = cat[_currentLang] || cat.th;
       const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
+      const mediaIcons = [
+        n.imageUrl ? '<i class="fa-regular fa-image" style="color:#6EE7B7;font-size:11px;"></i>' : '',
+        n.linkUrl ? '<i class="fa-solid fa-link" style="color:#93C5FD;font-size:11px;"></i>' : '',
+        n.docUrl ? '<i class="fa-regular fa-file-pdf" style="color:#FCD34D;font-size:11px;"></i>' : ''
+      ].filter(Boolean).join('');
       return `
         <div class="oca-notice-item" style="padding:8px 11px;display:flex;align-items:center;gap:7px;" onmouseenter="OcaStudentPortal.hoverNotice('${esc(n.id)}', this)" onmouseleave="OcaStudentPortal.scheduleHideHoverPopover()" onclick="OcaStudentPortal.openNoticeDetail('${esc(n.id)}')">
           ${n.pinned ? '<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px;flex-shrink:0;"><i class="fa-solid fa-thumbtack"></i></span>' : ''}
+          ${n.isNew ? '<span class="oca-notice-new-badge" style="background:#DC2626;color:#FFFFFF;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:999px;flex-shrink:0;">NEW</span>' : ''}
           <span style="background:${cat.bg};color:${cat.fg};font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;flex-shrink:0;">${esc(catLabel)}</span>
           <span style="font-size:13px;font-weight:700;color:#FFFFFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">${esc(n.title)}</span>
+          ${mediaIcons}
           <span style="font-size:11px;color:#A7F3D0;flex-shrink:0;">${esc(dtStr)}</span>
         </div>`;
     }).join('');
@@ -2062,6 +2209,20 @@
       : '';
     document.getElementById('boxNoticeModalMeta').textContent = dtStr + validStr;
     document.getElementById('boxNoticeModalBody').textContent = n.body || '-';
+    const mediaBox = document.getElementById('boxNoticeModalMedia');
+    if (mediaBox) {
+      const parts = [];
+      if (n.imageUrl) {
+        parts.push(`<a href="${esc(n.imageUrl)}" target="_blank" rel="noopener noreferrer"><img src="${esc(n.imageUrl)}" alt="Notice Attachment" style="width:100%;max-height:260px;object-fit:contain;border-radius:10px;border:1px solid #E2E8F0;" /></a>`);
+      }
+      if (n.linkUrl && /^https?:\/\//i.test(n.linkUrl)) {
+        parts.push(`<a href="${esc(n.linkUrl)}" target="_blank" rel="noopener noreferrer" class="st-btn-outline" style="text-decoration:none;justify-content:center;"><i class="fa-solid fa-arrow-up-right-from-square"></i> ${esc(t('noticeOpenLink'))}</a>`);
+      }
+      if (n.docUrl) {
+        parts.push(`<a href="${esc(n.docUrl)}" target="_blank" rel="noopener noreferrer" class="st-btn-primary" style="text-decoration:none;justify-content:center;"><i class="fa-solid fa-file-arrow-down"></i> ${esc(t('noticeDownloadDoc'))}: ${esc(n.docName || 'Document')}</a>`);
+      }
+      mediaBox.innerHTML = parts.join('');
+    }
     document.getElementById('modalStudentNoticeDetail')?.classList.remove('st-hidden');
   }
 
@@ -2278,9 +2439,11 @@
       });
 
       if (!rows.length) {
+        logStudentAudit('STUDENT_ID_LOOKUP', `Lookup returned 0 matches`, 'FAILED', 'GUEST', qName || 'GUEST');
         if (errEl) { errEl.textContent = t('lookupNotFound'); errEl.classList.remove('st-hidden'); }
         return;
       }
+      logStudentAudit('STUDENT_ID_LOOKUP', `Lookup matched ${rows.length} record(s)`, 'SUCCESS', rows[0].student_id, formatStudentDisplayName(rows[0]));
       if (resBox) {
         resBox.innerHTML = rows.slice(0, 5).map(r => `
           <div class="st-receipt-item" style="padding:10px 12px;">
@@ -2303,6 +2466,9 @@
   }
 
   function logout() {
+    if (_student) {
+      logStudentAudit('STUDENT_LOGOUT', `Student ${_student.student_id} signed out`, 'SUCCESS');
+    }
     stopCamera();
     if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; }
     const ch = global._activeStudentNotifChannel;
