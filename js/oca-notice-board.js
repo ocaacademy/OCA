@@ -198,12 +198,33 @@
     } catch (_) {}
   }
 
+  function getActiveStaffSession() {
+    try {
+      if (typeof global.getSavedCurrentUser === 'function') {
+        const u = global.getSavedCurrentUser();
+        if (u && (u.username || u.role)) return u;
+      }
+    } catch (_) {}
+    if (global.currentUser && (global.currentUser.username || global.currentUser.role)) {
+      return global.currentUser;
+    }
+    if (global.currentStaffUser || global.currentStaffRole) {
+      return {
+        username: global.currentStaffUser || '',
+        fullName: global.currentStaffName || global.currentStaffUser || '',
+        role: global.currentStaffRole || ''
+      };
+    }
+    return null;
+  }
+
   async function writeAudit(sb, action, detail) {
     if (!sb) return;
     try {
-      const actor = String(global.currentStaffUser || global.currentStaffName || 'STAFF').slice(0, 60);
-      const actorName = String(global.currentStaffName || actor).slice(0, 80);
-      const actorRole = String(global.currentStaffRole || 'STAFF').slice(0, 30);
+      const staff = getActiveStaffSession();
+      const actor = String((staff && (staff.username || staff.fullName || staff.full_name)) || 'STAFF').slice(0, 60);
+      const actorName = String((staff && (staff.fullName || staff.full_name || staff.username)) || actor).slice(0, 80);
+      const actorRole = String((staff && staff.role) || 'STAFF').slice(0, 30);
       const devId = (typeof global.getOrCreateDeviceId === 'function') ? global.getOrCreateDeviceId() : 'STAFF_WEBAPP';
       const { error } = await sb.from('security_audit_logs').insert([{
         action: action,
@@ -646,7 +667,8 @@
   }
 
   function openStaffManagerModal() {
-    if (!global.currentStaffUser && !global.currentStaffRole) {
+    const staff = getActiveStaffSession();
+    if (!staff) {
       alert('กรุณาเข้าสู่ระบบเจ้าหน้าที่ก่อนจัดการประกาศ');
       return;
     }
