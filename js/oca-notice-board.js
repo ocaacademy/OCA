@@ -1,0 +1,423 @@
+/**
+ * OCA Connected Notice Board Engine (v358)
+ * Shared Producer (Staff Portal) -> Consumer (Student Portal) module.
+ * Persists atomic rows in `fee_settings` (VARCHAR(100) safe) and broadcasts
+ * live updates over Supabase Realtime (`oca_student_notices`), sorted newest -> oldest.
+ */
+(function (global) {
+  'use strict';
+
+  const NOTICE_PREFIX = 'student_notice:';
+  const NOTICE_BODY_PREFIX = 'student_notice_b:';
+  const REALTIME_CHANNEL = 'oca_student_notices';
+  const MAX_CHUNKS = 6;
+  const CHUNK_LEN = 85;
+
+  const CATEGORIES = Object.freeze({
+    GENERAL: { th: 'ประกาศทั่วไป', en: 'General', zh: '综合公告', bg: '#E0F2FE', fg: '#0369A1' },
+    URGENT: { th: 'ประกาศด่วน', en: 'Urgent', zh: '紧急通知', bg: '#FEE2E2', fg: '#991B1B' },
+    ACADEMIC: { th: 'วิชาการ / สมัครเรียน', en: 'Academic', zh: '教务 / 报名', bg: '#DCFCE7', fg: '#166534' },
+    SCHEDULE: { th: 'ตารางเรียน / วันหยุด', en: 'Schedule', zh: '课表 / 假期', bg: '#FEF3C7', fg: '#92400E' }
+  });
+
+  function escHtml(v) {
+    if (typeof global.escapeHtml === 'function') return global.escapeHtml(v);
+    return String(v === undefined || v === null ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function todayIso() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function chunkBody(text) {
+    const clean = String(text || '').trim();
+    if (!clean) return [];
+    const out = [];
+    for (let i = 0; i < clean.length && out.length < MAX_CHUNKS; i += CHUNK_LEN) {
+      out.push(clean.slice(i, i + CHUNK_LEN));
+    }
+    return out;
+  }
+
+  async function fetchNotices(sb, opts) {
+    const options = opts || {};
+    if (!sb) return [];
+    const { data, error } = await sb
+      .from('fee_settings')
+      .select('key,name,amount,mode,start_date,end_date,updated_at')
+      .like('key', 'student_notice%');
+    if (error) throw error;
+
+    const rows = Array.isArray(data) ? data : [];
+    const map = new Map();
+    const bodyMap = new Map();
+
+    rows.forEach((r) => {
+      const k = String(r.key || '');
+      if (k.startsWith(NOTICE_PREFIX)) {
+        const id = k.slice(NOTICE_PREFIX.length);
+        if (!id) return;
+        map.set(id, {
+          id,
+          title: String(r.name || '').trim(),
+          pinned: Number(r.amount || 0) === 1,
+          category: CATEGORIES[String(r.mode || '').toUpperCase()] ? String(r.mode).toUpperCase() : 'GENERAL',
+          start_date: r.start_date || '',
+          end_date: r.end_date || '',
+          updated_at: r.updated_at || '',
+          body: ''
+        });
+      } else if (k.startsWith(NOTICE_BODY_PREFIX)) {
+        const rest = k.slice(NOTICE_BODY_PREFIX.length);
+        const parts = rest.split(':');
+        if (parts.length >= 2) {
+          const id = parts[0];
+          const idx = Number(parts[1] || 0);
+          if (!bodyMap.has(id)) bodyMap.set(id, []);
+          bodyMap.get(id).push({ idx, text: String(r.name || '') });
+        }
+      }
+    });
+
+    const today = todayIso();
+    const nowMs = Date.now();
+    const list = [];
+
+    map.forEach((item, id) => {
+      const chunks = (bodyMap.get(id) || []).sort((a, b) => a.idx - b.idx);
+      item.body = chunks.map((c) => c.text).join('');
+      const expired = Boolean(item.end_date && item.end_date < today);
+      const notStarted = Boolean(item.start_date && item.start_date > today);
+      item.isExpired = expired;
+      item.isScheduled = notStarted;
+      const numId = Number(id);
+      const createdMs = Number.isFinite(numId) && numId > 1e11 ? numId : (Date.parse(item.updated_at) || 0);
+      item.createdMs = createdMs;
+      item.isNew = createdMs > 0 && (nowMs - createdMs) <= (3 * 86400 * 1000);
+      if (!options.includeExpired && (expired || notStarted)) return;
+      list.push(item);
+    });
+
+    list.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      if (b.createdMs !== a.createdMs) return b.createdMs - a.createdMs;
+      return String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
+    });
+
+    return list;
+  }
+
+  async function broadcastNoticeChange(sb, id) {
+    if (!sb || typeof sb.channel !== 'function') return;
+    try {
+      const ch = sb.channel(REALTIME_CHANNEL);
+      ch.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          ch.send({
+            type: 'broadcast',
+            event: 'notices_updated',
+            payload: { id: String(id || ''), ts: Date.now() }
+          }).finally(() => {
+            if (typeof sb.removeChannel === 'function') sb.removeChannel(ch);
+          });
+        }
+      });
+    } catch (_) {}
+  }
+
+  async function writeAudit(sb, action, detail) {
+    if (!sb) return;
+    try {
+      const actor = String(global.currentStaffUser || global.currentStaffName || 'STAFF').slice(0, 60);
+      const { error } = await sb.from('security_audit_logs').insert([{
+        event_type: action,
+        username: actor,
+        details: String(detail || '').slice(0, 240),
+        created_at: new Date().toISOString()
+      }]);
+      if (error) console.warn('[OcaNoticeBoard] audit log warning:', error.message || error);
+    } catch (_) {}
+  }
+
+  async function saveNotice(sb, payload) {
+    if (!sb) throw new Error('Supabase client not initialized');
+    const title = String(payload?.title || '').trim().slice(0, 90);
+    if (!title) throw new Error('กรุณากรอกหัวข้อประกาศ');
+    const id = String(payload?.id || Date.now()).replace(/[^0-9A-Za-z_-]/g, '');
+    const category = CATEGORIES[String(payload?.category || '').toUpperCase()] ? String(payload.category).toUpperCase() : 'GENERAL';
+    const pinned = payload?.pinned ? 1 : 0;
+    const startDate = String(payload?.start_date || '').trim() || null;
+    const endDate = String(payload?.end_date || '').trim() || null;
+    const nowIso = new Date().toISOString();
+
+    const { error: delBodyErr } = await sb
+      .from('fee_settings')
+      .delete()
+      .like('key', NOTICE_BODY_PREFIX + id + ':%');
+    if (delBodyErr) throw delBodyErr;
+
+    const rows = [{
+      key: NOTICE_PREFIX + id,
+      name: title,
+      amount: pinned,
+      mode: category,
+      start_date: startDate,
+      end_date: endDate,
+      updated_at: nowIso
+    }];
+
+    const chunks = chunkBody(payload?.body || '');
+    chunks.forEach((text, idx) => {
+      rows.push({
+        key: `${NOTICE_BODY_PREFIX}${id}:${String(idx).padStart(2, '0')}`,
+        name: text.slice(0, 90),
+        amount: idx,
+        mode: 'BODY',
+        updated_at: nowIso
+      });
+    });
+
+    const { error: upErr } = await sb.from('fee_settings').upsert(rows, { onConflict: 'key' });
+    if (upErr) throw upErr;
+
+    await writeAudit(sb, 'NOTICE_BOARD_SAVE', `${id} | ${title}`);
+    await broadcastNoticeChange(sb, id);
+    return id;
+  }
+
+  async function deleteNotice(sb, id) {
+    if (!sb || !id) return;
+    const cleanId = String(id).trim();
+    const { error: delHeadErr } = await sb
+      .from('fee_settings')
+      .delete()
+      .eq('key', NOTICE_PREFIX + cleanId);
+    if (delHeadErr) throw delHeadErr;
+
+    const { error: delBodyErr } = await sb
+      .from('fee_settings')
+      .delete()
+      .like('key', NOTICE_BODY_PREFIX + cleanId + ':%');
+    if (delBodyErr) throw delBodyErr;
+
+    await writeAudit(sb, 'NOTICE_BOARD_DELETE', cleanId);
+    await broadcastNoticeChange(sb, cleanId);
+  }
+
+  function subscribeNotices(sb, onUpdate) {
+    if (!sb || typeof sb.channel !== 'function' || typeof onUpdate !== 'function') return null;
+    if (global._activeOcaNoticeChannel && typeof sb.removeChannel === 'function') {
+      sb.removeChannel(global._activeOcaNoticeChannel);
+      global._activeOcaNoticeChannel = null;
+    }
+    const ch = sb
+      .channel(REALTIME_CHANNEL)
+      .on('broadcast', { event: 'notices_updated' }, () => {
+        onUpdate();
+      })
+      .subscribe();
+    global._activeOcaNoticeChannel = ch;
+    return ch;
+  }
+
+  let _staffCache = [];
+
+  function ensureStaffModal() {
+    let modal = document.getElementById('modalOcaNoticeManager');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'modalOcaNoticeManager';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:100020;background:rgba(2,44,34,0.72);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;';
+    modal.innerHTML = `
+      <div style="width:100%;max-width:780px;max-height:92vh;overflow-y:auto;background:#FFFFFF;color:#0F172A;border-radius:18px;border:1.5px solid #D4AF37;box-shadow:0 24px 60px rgba(0,0,0,0.35);">
+        <div style="background:linear-gradient(135deg,#022C22 0%,#064E3B 100%);color:#FFFFFF;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #D4AF37;position:sticky;top:0;z-index:5;">
+          <div>
+            <div style="font-size:16px;font-weight:800;color:#FDE68A;"><i class="fa-solid fa-bullhorn"></i> จัดการบอร์ดประชาสัมพันธ์นักศึกษา</div>
+            <div style="font-size:12px;color:#A7F3D0;">ข่าวที่บันทึกจะซิงก์ไปหน้าแรก Student WebApp ทันที (เรียงใหม่ไปเก่า)</div>
+          </div>
+          <button type="button" onclick="OcaNoticeBoard.closeStaffManagerModal()" style="background:rgba(255,255,255,0.16);color:#FFFFFF;border:1px solid rgba(255,255,255,0.35);border-radius:8px;width:34px;height:34px;cursor:pointer;font-weight:800;">✕</button>
+        </div>
+        <div style="padding:18px 20px;display:flex;flex-direction:column;gap:16px;">
+          <form id="formOcaNoticeSave" onsubmit="OcaNoticeBoard.submitStaffNotice(event)" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:14px;padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
+            <input type="hidden" id="inpNoticeEditId" value="" />
+            <div style="grid-column:1 / -1;">
+              <label for="inpNoticeTitle" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;">หัวข้อประกาศ * (สูงสุด 90 ตัวอักษร)</label>
+              <input id="inpNoticeTitle" type="text" maxlength="90" required placeholder="เช่น เปิดรับสมัครเรียนภาคเรียนใหม่ หรือ แจ้งวันหยุดสถาบัน" style="width:100%;padding:9px 11px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13.5px;box-sizing:border-box;" />
+            </div>
+            <div>
+              <label for="selNoticeCategory" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;">หมวดหมู่</label>
+              <select id="selNoticeCategory" style="width:100%;padding:9px 11px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;">
+                <option value="GENERAL">ประกาศทั่วไป</option>
+                <option value="URGENT">ประกาศด่วน</option>
+                <option value="ACADEMIC">วิชาการ / สมัครเรียน</option>
+                <option value="SCHEDULE">ตารางเรียน / วันหยุด</option>
+              </select>
+            </div>
+            <div>
+              <label for="inpNoticeStart" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;">วันเริ่มแสดง (ไม่บังคับ)</label>
+              <input id="inpNoticeStart" type="date" style="width:100%;padding:8px 10px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;box-sizing:border-box;" />
+            </div>
+            <div>
+              <label for="inpNoticeEnd" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;">วันหมดอายุ (ไม่บังคับ)</label>
+              <input id="inpNoticeEnd" type="date" style="width:100%;padding:8px 10px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;box-sizing:border-box;" />
+            </div>
+            <div style="grid-column:1 / -1;">
+              <label for="inpNoticeBody" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;">รายละเอียดประกาศ (สูงสุด 500 ตัวอักษร)</label>
+              <textarea id="inpNoticeBody" rows="3" maxlength="500" placeholder="รายละเอียดเพิ่มเติมสำหรับนักศึกษา..." style="width:100%;padding:9px 11px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;box-sizing:border-box;"></textarea>
+            </div>
+            <div style="grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+              <label style="display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:#0F172A;cursor:pointer;">
+                <input id="chkNoticePinned" type="checkbox" style="width:16px;height:16px;" />
+                ปักหมุดไว้บนสุด (Pin to Top)
+              </label>
+              <div style="display:flex;gap:8px;">
+                <button type="button" onclick="OcaNoticeBoard.resetStaffForm()" style="padding:8px 14px;border-radius:9px;border:1px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-weight:700;font-size:13px;cursor:pointer;">ล้างฟอร์ม</button>
+                <button type="submit" id="btnSubmitOcaNotice" style="padding:9px 18px;border-radius:9px;border:none;background:#047857;color:#FFFFFF;font-weight:800;font-size:13.5px;cursor:pointer;"><i class="fa-solid fa-paper-plane"></i> เผยแพร่ประกาศ</button>
+              </div>
+            </div>
+          </form>
+          <div>
+            <div style="font-size:14px;font-weight:800;color:#0F172A;margin-bottom:8px;">รายการประกาศทั้งหมด (เรียงจากใหม่ไปเก่า)</div>
+            <div id="boxStaffNoticeList" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;"></div>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    return modal;
+  }
+
+  function resetStaffForm() {
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    setVal('inpNoticeEditId', '');
+    setVal('inpNoticeTitle', '');
+    setVal('selNoticeCategory', 'GENERAL');
+    setVal('inpNoticeStart', '');
+    setVal('inpNoticeEnd', '');
+    setVal('inpNoticeBody', '');
+    const chk = document.getElementById('chkNoticePinned');
+    if (chk) chk.checked = false;
+  }
+
+  function editStaffNotice(id) {
+    const item = _staffCache.find((x) => x.id === String(id));
+    if (!item) return;
+    document.getElementById('inpNoticeEditId').value = item.id;
+    document.getElementById('inpNoticeTitle').value = item.title;
+    document.getElementById('selNoticeCategory').value = item.category;
+    document.getElementById('inpNoticeStart').value = item.start_date || '';
+    document.getElementById('inpNoticeEnd').value = item.end_date || '';
+    document.getElementById('inpNoticeBody').value = item.body || '';
+    document.getElementById('chkNoticePinned').checked = Boolean(item.pinned);
+  }
+
+  async function refreshStaffNoticeList() {
+    const box = document.getElementById('boxStaffNoticeList');
+    if (!box) return;
+    box.innerHTML = '<div style="font-size:13px;color:#64748B;padding:10px;">กำลังโหลดประกาศ...</div>';
+    try {
+      _staffCache = await fetchNotices(global._supabase, { includeExpired: true });
+      if (!_staffCache.length) {
+        box.innerHTML = '<div style="font-size:13px;color:#64748B;padding:14px;text-align:center;border:1px dashed #CBD5E1;border-radius:10px;">ยังไม่มีประกาศในระบบ สามารถสร้างประกาศแรกด้านบนได้เลย</div>';
+        return;
+      }
+      box.innerHTML = _staffCache.map((n) => {
+        const cat = CATEGORIES[n.category] || CATEGORIES.GENERAL;
+        const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+        const statusBadge = n.isExpired
+          ? '<span style="background:#FEE2E2;color:#991B1B;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">หมดอายุ</span>'
+          : '<span style="background:#DCFCE7;color:#166534;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">กำลังแสดง</span>';
+        return `
+          <div style="border:1px solid #E2E8F0;border-radius:12px;padding:11px 13px;background:#FFFFFF;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+            <div style="min-width:0;flex:1;">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+                ${n.pinned ? '<span style="background:#FEF3C7;color:#92400E;font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;">📌 ปักหมุด</span>' : ''}
+                <span style="background:${cat.bg};color:${cat.fg};font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;">${escHtml(cat.th)}</span>
+                ${statusBadge}
+                <span style="font-size:11.5px;color:#64748B;">${escHtml(dtStr)}</span>
+              </div>
+              <div style="font-size:14px;font-weight:800;color:#0F172A;">${escHtml(n.title)}</div>
+              ${n.body ? `<div style="font-size:12.5px;color:#475569;margin-top:3px;white-space:pre-line;">${escHtml(n.body)}</div>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0;">
+              <button type="button" onclick="OcaNoticeBoard.editStaffNotice('${escHtml(n.id)}')" style="padding:6px 10px;border-radius:8px;border:1px solid #CBD5E1;background:#F8FAFC;color:#0F172A;font-size:12px;font-weight:700;cursor:pointer;">แก้ไข</button>
+              <button type="button" onclick="OcaNoticeBoard.removeStaffNotice('${escHtml(n.id)}')" style="padding:6px 10px;border-radius:8px;border:1px solid #FCA5A5;background:#FEF2F2;color:#991B1B;font-size:12px;font-weight:700;cursor:pointer;">ลบ</button>
+            </div>
+          </div>`;
+      }).join('');
+    } catch (err) {
+      box.innerHTML = `<div style="color:#991B1B;font-size:13px;padding:10px;">โหลดประกาศไม่สำเร็จ: ${escHtml(err.message || err)}</div>`;
+    }
+  }
+
+  async function submitStaffNotice(ev) {
+    ev.preventDefault();
+    const btn = document.getElementById('btnSubmitOcaNotice');
+    if (btn) btn.disabled = true;
+    try {
+      await saveNotice(global._supabase, {
+        id: document.getElementById('inpNoticeEditId')?.value || '',
+        title: document.getElementById('inpNoticeTitle')?.value || '',
+        category: document.getElementById('selNoticeCategory')?.value || 'GENERAL',
+        start_date: document.getElementById('inpNoticeStart')?.value || '',
+        end_date: document.getElementById('inpNoticeEnd')?.value || '',
+        body: document.getElementById('inpNoticeBody')?.value || '',
+        pinned: Boolean(document.getElementById('chkNoticePinned')?.checked)
+      });
+      resetStaffForm();
+      await refreshStaffNoticeList();
+      if (typeof global.showToast === 'function') global.showToast('เผยแพร่ประกาศไปยังแอปนักศึกษาแล้ว');
+    } catch (err) {
+      alert('บันทึกประกาศไม่สำเร็จ: ' + (err.message || err));
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function removeStaffNotice(id) {
+    if (!confirm('ยืนยันลบประกาศนี้ใช่หรือไม่?')) return;
+    try {
+      await deleteNotice(global._supabase, id);
+      await refreshStaffNoticeList();
+    } catch (err) {
+      alert('ลบประกาศไม่สำเร็จ: ' + (err.message || err));
+    }
+  }
+
+  function openStaffManagerModal() {
+    if (!global.currentStaffUser && !global.currentStaffRole) {
+      alert('กรุณาเข้าสู่ระบบเจ้าหน้าที่ก่อนจัดการประกาศ');
+      return;
+    }
+    const modal = ensureStaffModal();
+    modal.style.display = 'flex';
+    refreshStaffNoticeList();
+  }
+
+  function closeStaffManagerModal() {
+    const modal = document.getElementById('modalOcaNoticeManager');
+    if (modal) modal.style.display = 'none';
+  }
+
+  global.OcaNoticeBoard = {
+    CATEGORIES,
+    fetchNotices,
+    saveNotice,
+    deleteNotice,
+    subscribeNotices,
+    openStaffManagerModal,
+    closeStaffManagerModal,
+    submitStaffNotice,
+    editStaffNotice,
+    removeStaffNotice,
+    resetStaffForm
+  };
+})(window);
