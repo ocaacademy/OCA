@@ -39,6 +39,11 @@
   let _activeCat = 'ALL';
   let _checkoutCourse = null;
   let _pendingAiPhoto = null;
+  let _pendingRegPhoto = null;
+  let _camStream = null;
+  let _camMode = '';
+  let _camFacing = 'user';
+  let _lookupTimestamps = [];
   let _deferredPwaPrompt = global.__ocaStudentDeferredPrompt || null;
   let _notifs = [];
   let _notices = [];
@@ -217,7 +222,29 @@
       mobTabSchedule: 'ตาราง',
       mobTabFinance: 'ใบเสร็จ',
       mobTabProfile: 'โปรไฟล์',
-      btnReceiptQr: 'ใบเสร็จ & QR รับตำรา'
+      btnReceiptQr: 'ใบเสร็จ & QR รับตำรา',
+      btnLookupSid: 'ตรวจสอบรหัสนักศึกษา',
+      lookupModalTitle: 'ตรวจสอบรหัสนักศึกษา',
+      lookupSub: 'กรอกข้อมูลอย่างน้อย 1 ช่อง เพื่อค้นหารหัสนักศึกษาของคุณ',
+      btnSearchSid: 'ค้นหารหัสนักศึกษา',
+      lookupNeedInput: 'กรุณากรอกชื่อ (>=3 ตัวอักษร) หรือเลขบัตร/พาสปอร์ต/เบอร์โทร (>=6 หลัก)',
+      lookupRateLimit: 'ค้นหาบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่',
+      lookupNotFound: 'ไม่พบข้อมูลนักศึกษาที่ตรงกับเงื่อนไข',
+      lookupUseSidBtn: 'ใช้รหัสนี้เข้าสู่ระบบ',
+      btnOpenCam: 'เปิดกล้องสด',
+      btnSnapPhoto: 'กดถ่ายภาพ',
+      btnFlipCam: 'สลับกล้อง',
+      btnCloseCam: 'ปิดกล้อง',
+      camNotSupported: 'อุปกรณ์หรือเบราว์เซอร์นี้ไม่รองรับกล้องสด',
+      camDenied: 'ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้องหรือเลือกรูปภาพจากเครื่อง',
+      regPhotoReady: 'พร้อมถ่ายรูปหรือเลือกรูปหน้าตรง',
+      regSuccessTitle: 'ลงทะเบียนนักศึกษาใหม่สำเร็จ!',
+      regSuccessSidLbl: 'รหัสนักศึกษาของคุณคือ',
+      btnCopySid: 'คัดลอกรหัส',
+      sidCopiedToast: 'คัดลอกรหัสนักศึกษาแล้ว',
+      regSuccessHint: 'กรุณาจดหรือบันทึกรหัสนักศึกษานี้ไว้ใช้เข้าสู่ระบบคู่กับวันเดือนปีเกิด 8 หลัก',
+      btnAckRegSuccess: 'รับทราบและเข้าสู่หน้าเลือกคอร์สเรียน',
+      noticeValidRange: 'ระยะเวลาประชาสัมพันธ์'
     },
     en: {
       hdrSub: 'Student Self-Service Portal (Enroll • Schedule • Digital ID)',
@@ -385,7 +412,29 @@
       mobTabSchedule: 'Schedule',
       mobTabFinance: 'Receipts',
       mobTabProfile: 'Profile',
-      btnReceiptQr: 'Receipt & Book QR'
+      btnReceiptQr: 'Receipt & Book QR',
+      btnLookupSid: 'Find Student ID',
+      lookupModalTitle: 'Check Student ID',
+      lookupSub: 'Enter at least 1 field to look up your Student ID.',
+      btnSearchSid: 'Search Student ID',
+      lookupNeedInput: 'Please enter a name (>=3 chars) or ID/Passport/Phone (>=6 digits).',
+      lookupRateLimit: 'Too many lookup attempts. Please wait a moment.',
+      lookupNotFound: 'No matching student record found.',
+      lookupUseSidBtn: 'Use This ID to Sign In',
+      btnOpenCam: 'Open Camera',
+      btnSnapPhoto: 'Take Photo',
+      btnFlipCam: 'Flip Camera',
+      btnCloseCam: 'Close Camera',
+      camNotSupported: 'Live camera is not supported in this browser.',
+      camDenied: 'Camera access denied. Please allow camera permission or upload an image file.',
+      regPhotoReady: 'Ready to take or upload a portrait photo',
+      regSuccessTitle: 'Registration Successful!',
+      regSuccessSidLbl: 'Your Student ID is',
+      btnCopySid: 'Copy ID',
+      sidCopiedToast: 'Student ID copied to clipboard',
+      regSuccessHint: 'Please save this 7-digit Student ID to sign in together with your 8-digit birth date.',
+      btnAckRegSuccess: 'Acknowledge & Continue to Courses',
+      noticeValidRange: 'Display Period'
     },
     zh: {
       hdrSub: '东方文化书院学员在线门户（在线报名 • 课表 • 电子学生证）',
@@ -553,7 +602,29 @@
       mobTabSchedule: '课表',
       mobTabFinance: '收据',
       mobTabProfile: '资料',
-      btnReceiptQr: '收据与领书二维码'
+      btnReceiptQr: '收据与领书二维码',
+      btnLookupSid: '查询学号',
+      lookupModalTitle: '查询学号',
+      lookupSub: '请填写至少 1 项信息以查询您的学号',
+      btnSearchSid: '查询学号',
+      lookupNeedInput: '请输入姓名（至少3个字符）或身份证/护照/手机号（至少6位）',
+      lookupRateLimit: '查询次数过多，请稍后再试',
+      lookupNotFound: '未找到匹配的学员记录',
+      lookupUseSidBtn: '使用此学号登录',
+      btnOpenCam: '开启摄像头',
+      btnSnapPhoto: '拍照',
+      btnFlipCam: '切换镜头',
+      btnCloseCam: '关闭摄像头',
+      camNotSupported: '当前浏览器不支持实时摄像头',
+      camDenied: '无法访问摄像头，请授予权限或直接上传照片',
+      regPhotoReady: '可现场拍照或上传正面免冠照片',
+      regSuccessTitle: '新学员注册成功！',
+      regSuccessSidLbl: '您的学号为',
+      btnCopySid: '复制学号',
+      sidCopiedToast: '已复制学号',
+      regSuccessHint: '请妥善保存此7位学号，用于搭配8位出生日期登录系统。',
+      btnAckRegSuccess: '已知晓并前往选课页面',
+      noticeValidRange: '公告有效期'
     }
   };
 
@@ -1139,10 +1210,26 @@
       if (insErr) throw insErr;
 
       _student = (Array.isArray(insRows) && insRows[0]) ? insRows[0] : insertPayload;
+      if (_pendingRegPhoto && _pendingRegPhoto.blob) {
+        try {
+          const pPath = `student_ai_${newSid}_${Date.now()}.jpg`;
+          const { error: upErr } = await _sb.storage.from('student-photos').upload(pPath, _pendingRegPhoto.blob, { contentType: 'image/jpeg', upsert: true });
+          if (!upErr) {
+            const pubUrl = _sb.storage.from('student-photos').getPublicUrl(pPath)?.data?.publicUrl;
+            if (pubUrl) {
+              const { error: phErr } = await _sb.from('students').update({ photo_url: pubUrl }).eq('student_id', newSid);
+              if (!phErr) _student.photo_url = pubUrl;
+            }
+          }
+        } catch (_) {}
+        _pendingRegPhoto = null;
+      }
+      stopCamera();
       _needsDobSetup = false;
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ student: _student, needsDobSetup: false }));
-      showToast(`${t('regSuccessSid')} ${newSid}`);
-      await enterApp('enroll');
+      const sidLbl = document.getElementById('lblRegSuccessSid');
+      if (sidLbl) sidLbl.textContent = newSid;
+      document.getElementById('modalRegSuccessSid')?.classList.remove('st-hidden');
     } catch (err) {
       if (errEl) {
         errEl.textContent = err.message || String(err);
@@ -1844,7 +1931,7 @@
   function renderNotifModalList() {
     const list = document.getElementById('boxStudentNotifList');
     if (!list) return;
-    const noticeHtml = _notices.map((n) => {
+    const noticeHtml = getActiveNotices().map((n) => {
       const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
       return `
         <div class="st-notif-notice" onclick="OcaStudentPortal.openNoticeDetail('${esc(n.id)}')">
@@ -1903,6 +1990,20 @@
 
   function closeReceiptDetail() { document.getElementById('modalStudentReceiptDetail')?.classList.add('st-hidden'); }
 
+  function todayLocalIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function getActiveNotices() {
+    const today = todayLocalIso();
+    return _notices.filter((n) => {
+      if (n.end_date && n.end_date < today) return false;
+      if (n.start_date && n.start_date > today) return false;
+      return true;
+    });
+  }
+
   function renderNoticeCards() {
     const loginBox = document.getElementById('listStudentNotices');
     if (!loginBox) return;
@@ -1918,7 +2019,8 @@
       isNew: false,
       createdMs: Date.now()
     };
-    const items = _notices.length > 0 ? _notices : [fallbackNotice];
+    const activeList = getActiveNotices();
+    const items = activeList.length > 0 ? activeList : [fallbackNotice];
 
     loginBox.innerHTML = items.map((n) => {
       const cat = cats[n.category] || { th: 'ประกาศ', en: 'Notice', zh: '公告', bg: '#E0F2FE', fg: '#0369A1' };
@@ -1955,14 +2057,253 @@
     if (!n) return;
     document.getElementById('lblNoticeModalTitle').textContent = n.title || t('noticeBoardTitle');
     const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
-    document.getElementById('boxNoticeModalMeta').textContent = dtStr;
+    const validStr = (n.start_date || n.end_date)
+      ? ` • ${t('noticeValidRange')}: ${n.start_date || '-'} – ${n.end_date || '-'}`
+      : '';
+    document.getElementById('boxNoticeModalMeta').textContent = dtStr + validStr;
     document.getElementById('boxNoticeModalBody').textContent = n.body || '-';
     document.getElementById('modalStudentNoticeDetail')?.classList.remove('st-hidden');
   }
 
   function closeNoticeDetail() { document.getElementById('modalStudentNoticeDetail')?.classList.add('st-hidden'); }
 
+  function copyRegSuccessSid() {
+    const sid = (document.getElementById('lblRegSuccessSid')?.textContent || '').trim();
+    if (!sid || sid === '-') return;
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      navigator.clipboard.writeText(sid).then(() => showToast(t('sidCopiedToast'))).catch(() => {});
+    }
+  }
+
+  async function acknowledgeRegSuccess() {
+    document.getElementById('modalRegSuccessSid')?.classList.add('st-hidden');
+    await enterApp('enroll');
+  }
+
+  function camDomIds(mode) {
+    const isReg = mode === 'reg';
+    return {
+      vid: isReg ? 'vidRegCam' : 'vidProfCam',
+      img: isReg ? 'imgRegPhotoPreview' : 'imgProfileAiPreview',
+      status: isReg ? 'lblRegPhotoStatus' : 'lblAiPhotoStatus',
+      btnStart: isReg ? 'btnRegCamStart' : 'btnProfCamStart',
+      btnSnap: isReg ? 'btnRegCamSnap' : 'btnProfCamSnap',
+      btnFlip: isReg ? 'btnRegCamFlip' : 'btnProfCamFlip',
+      btnStop: isReg ? 'btnRegCamStop' : 'btnProfCamStop'
+    };
+  }
+
+  function stopCamera() {
+    if (_camStream) {
+      try { _camStream.getTracks().forEach(tr => tr.stop()); } catch (_) {}
+      _camStream = null;
+    }
+    ['reg', 'prof'].forEach((m) => {
+      const ids = camDomIds(m);
+      const v = document.getElementById(ids.vid);
+      if (v) { v.srcObject = null; v.classList.add('st-hidden'); }
+      document.getElementById(ids.img)?.classList.remove('st-hidden');
+      document.getElementById(ids.btnStart)?.classList.remove('st-hidden');
+      document.getElementById(ids.btnSnap)?.classList.add('st-hidden');
+      document.getElementById(ids.btnFlip)?.classList.add('st-hidden');
+      document.getElementById(ids.btnStop)?.classList.add('st-hidden');
+    });
+    _camMode = '';
+  }
+
+  async function startCamera(mode) {
+    stopCamera();
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+      showToast(t('camNotSupported'));
+      return;
+    }
+    _camMode = mode === 'reg' ? 'reg' : 'prof';
+    const ids = camDomIds(_camMode);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: _camFacing, width: { ideal: 640 }, height: { ideal: 800 } },
+        audio: false
+      });
+      _camStream = stream;
+      const vid = document.getElementById(ids.vid);
+      if (vid) {
+        vid.srcObject = stream;
+        vid.style.transform = _camFacing === 'user' ? 'scaleX(-1)' : 'none';
+        vid.classList.remove('st-hidden');
+      }
+      document.getElementById(ids.img)?.classList.add('st-hidden');
+      document.getElementById(ids.btnStart)?.classList.add('st-hidden');
+      document.getElementById(ids.btnSnap)?.classList.remove('st-hidden');
+      document.getElementById(ids.btnFlip)?.classList.remove('st-hidden');
+      document.getElementById(ids.btnStop)?.classList.remove('st-hidden');
+    } catch (_) {
+      stopCamera();
+      showToast(t('camDenied'));
+    }
+  }
+
+  async function flipCamera(mode) {
+    _camFacing = _camFacing === 'user' ? 'environment' : 'user';
+    await startCamera(mode);
+  }
+
+  async function processPortraitInput(sourceBlobOrFile, mode) {
+    const isReg = mode === 'reg';
+    const ids = camDomIds(isReg ? 'reg' : 'prof');
+    const statusEl = document.getElementById(ids.status);
+    const previewEl = document.getElementById(ids.img);
+    if (!isReg) document.getElementById('btnSaveAiPhoto')?.classList.add('st-hidden');
+    if (statusEl) statusEl.textContent = 'AI Processing...';
+    try {
+      let res = null;
+      if (global.OcaStudentAiPhoto && typeof global.OcaStudentAiPhoto.processPortraitToCrimson === 'function') {
+        res = await global.OcaStudentAiPhoto.processPortraitToCrimson(sourceBlobOrFile, (msg) => {
+          if (statusEl) statusEl.textContent = msg;
+        });
+      } else {
+        res = { blob: sourceBlobOrFile, dataUrl: URL.createObjectURL(sourceBlobOrFile) };
+      }
+      if (isReg) {
+        _pendingRegPhoto = res;
+      } else {
+        _pendingAiPhoto = res;
+        document.getElementById('btnSaveAiPhoto')?.classList.remove('st-hidden');
+      }
+      if (previewEl && res && res.dataUrl) previewEl.src = res.dataUrl;
+      if (statusEl) statusEl.textContent = 'OK';
+    } catch (err) {
+      if (statusEl) statusEl.textContent = 'Error: ' + (err.message || err);
+    }
+  }
+
+  async function snapCamera(mode) {
+    const m = mode === 'reg' ? 'reg' : 'prof';
+    const ids = camDomIds(m);
+    const vid = document.getElementById(ids.vid);
+    if (!vid || !vid.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = vid.videoWidth;
+    canvas.height = vid.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (_camFacing === 'user') {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+    stopCamera();
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if (blob) await processPortraitInput(blob, m);
+  }
+
+  async function onRegPhotoSelected(input) {
+    const file = input && input.files && input.files[0];
+    const fileErr = validateImageFile(file);
+    if (fileErr) { showToast(fileErr); return; }
+    await processPortraitInput(file, 'reg');
+  }
+
+  function maskPhone(p) {
+    const s = String(p || '').replace(/\s+/g, '');
+    if (s.length < 6) return '***';
+    return s.slice(0, 2) + 'x-xxx-' + s.slice(-4);
+  }
+
+  function openSidLookupModal() {
+    document.getElementById('lblLookupErr')?.classList.add('st-hidden');
+    const resBox = document.getElementById('boxLookupResults');
+    if (resBox) resBox.innerHTML = '';
+    document.getElementById('modalStudentIdLookup')?.classList.remove('st-hidden');
+  }
+
+  function closeSidLookupModal() {
+    document.getElementById('modalStudentIdLookup')?.classList.add('st-hidden');
+  }
+
+  function useLookupSid(sid) {
+    const inp = document.getElementById('inpLoginSid');
+    if (inp) inp.value = sid;
+    closeSidLookupModal();
+    document.getElementById('inpLoginSecret')?.focus();
+  }
+
+  async function runSidLookup(ev) {
+    ev.preventDefault();
+    const errEl = document.getElementById('lblLookupErr');
+    const resBox = document.getElementById('boxLookupResults');
+    const btn = document.getElementById('btnRunSidLookup');
+    if (errEl) errEl.classList.add('st-hidden');
+    if (resBox) resBox.innerHTML = '';
+    if (!_sb) return;
+
+    const now = Date.now();
+    _lookupTimestamps = _lookupTimestamps.filter(ts => (now - ts) < 60000);
+    if (_lookupTimestamps.length >= 10) {
+      if (errEl) { errEl.textContent = t('lookupRateLimit'); errEl.classList.remove('st-hidden'); }
+      return;
+    }
+
+    const qName = (document.getElementById('inpLookupName')?.value || '').trim();
+    const qCid = (document.getElementById('inpLookupCitizenId')?.value || '').trim();
+    const qPass = (document.getElementById('inpLookupPassport')?.value || '').trim();
+    const qPhone = (document.getElementById('inpLookupPhone')?.value || '').trim();
+    const qCidNorm = qCid.replace(/[\s-]/g, '');
+    const qPhoneNorm = qPhone.replace(/[\s-]/g, '');
+
+    if (qName.length < 3 && qCidNorm.length < 6 && qPass.length < 6 && qPhoneNorm.length < 6) {
+      if (errEl) { errEl.textContent = t('lookupNeedInput'); errEl.classList.remove('st-hidden'); }
+      return;
+    }
+
+    _lookupTimestamps.push(now);
+    if (btn) btn.disabled = true;
+    try {
+      let query = _sb
+        .from('students')
+        .select('student_id, prefix, full_name, citizen_id, passport_no, phone_number, status')
+        .neq('status', 'DELETED')
+        .limit(20);
+      if (qName.length >= 3) query = query.ilike('full_name', `%${qName}%`);
+      else if (qCidNorm.length >= 6) query = query.ilike('citizen_id', `%${qCidNorm.slice(-6)}%`);
+      else if (qPass.length >= 6) query = query.ilike('passport_no', `%${qPass}%`);
+      else if (qPhoneNorm.length >= 6) query = query.ilike('phone_number', `%${qPhoneNorm.slice(-4)}%`);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      const rows = (Array.isArray(data) ? data : []).filter((r) => {
+        if (qName.length >= 3 && !String(r.full_name || '').toLowerCase().includes(qName.toLowerCase())) return false;
+        if (qCidNorm.length >= 6 && String(r.citizen_id || '').replace(/[\s-]/g, '') !== qCidNorm) return false;
+        if (qPass.length >= 6 && String(r.passport_no || '').trim().toLowerCase() !== qPass.toLowerCase()) return false;
+        if (qPhoneNorm.length >= 6 && String(r.phone_number || '').replace(/[\s-]/g, '') !== qPhoneNorm) return false;
+        return true;
+      });
+
+      if (!rows.length) {
+        if (errEl) { errEl.textContent = t('lookupNotFound'); errEl.classList.remove('st-hidden'); }
+        return;
+      }
+      if (resBox) {
+        resBox.innerHTML = rows.slice(0, 5).map(r => `
+          <div class="st-receipt-item" style="padding:10px 12px;">
+            <div>
+              <div class="st-accent-text" style="font-size:16px;font-weight:800;font-family:monospace;">${esc(r.student_id)}</div>
+              <div style="font-size:13px;font-weight:700;">${esc(formatStudentDisplayName(r))}</div>
+              <div class="st-muted-text" style="font-size:11.5px;">${esc(maskPhone(r.phone_number))}</div>
+            </div>
+            <button type="button" class="st-btn-gold" style="padding:7px 12px;font-size:12px;" onclick="OcaStudentPortal.useLookupSid('${esc(r.student_id)}')">
+              ${esc(t('lookupUseSidBtn'))}
+            </button>
+          </div>
+        `).join('');
+      }
+    } catch (err) {
+      if (errEl) { errEl.textContent = err.message || String(err); errEl.classList.remove('st-hidden'); }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   function logout() {
+    stopCamera();
     if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; }
     const ch = global._activeStudentNotifChannel;
     if (ch) {
@@ -2145,6 +2486,17 @@
     recalcCheckout,
     submitEnrollment,
     onProfilePhotoSelected,
+    onRegPhotoSelected,
+    startCamera,
+    snapCamera,
+    flipCamera,
+    stopCamera,
+    copyRegSuccessSid,
+    acknowledgeRegSuccess,
+    openSidLookupModal,
+    closeSidLookupModal,
+    runSidLookup,
+    useLookupSid,
     saveAiPhoto,
     saveProfile,
     updateAgeDisplay,
