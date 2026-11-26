@@ -1,11 +1,15 @@
-const CACHE_NAME = '355';
+const CACHE_NAME = '356';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './portal.html',
+  './student.html',
   './manifest.json',
+  './student-manifest.json',
   './js/oca-slip-guard.js',
   './js/oca-hover-popover.js',
+  './js/oca-student-ai-photo.js',
+  './js/oca-student-portal.js',
   './js/oca-email-admin.js',
   './css/oca-modular-v261.css',
   './css/oca-core-part1.css',
@@ -18,6 +22,9 @@ const ASSETS_TO_CACHE = [
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js',
   './icon-192.png',
   './icon-512.png',
+  './student-icon-192.png',
+  './student-icon-512.png',
+  './student-favicon.png',
   './apple-touch-icon.png',
   './favicon.png',
   './favicon.ico',
