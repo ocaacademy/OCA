@@ -850,9 +850,11 @@
     return prefix + ' ' + full;
   }
 
+  const DEFAULT_STUDENT_AVATAR = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20160%20200%22%3E%3Crect%20width%3D%22160%22%20height%3D%22200%22%20fill%3D%22%23F1F5F9%22%2F%3E%3Ccircle%20cx%3D%2280%22%20cy%3D%2274%22%20r%3D%2232%22%20fill%3D%22%23CBD5E1%22%2F%3E%3Cpath%20d%3D%22M24%20188c0-34%2025-56%2056-56s56%2022%2056%2056%22%20fill%3D%22%23CBD5E1%22%2F%3E%3C%2Fsvg%3E';
+
   function resolveStudentPhotoUrl(raw) {
     const s = String(raw || '').trim();
-    if (!s) return './oca_logo.png';
+    if (!s) return DEFAULT_STUDENT_AVATAR;
     if (s.startsWith('data:image/') || s.startsWith('./') || s.startsWith('/')) return s;
     const g1 = s.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
     if (g1 && g1[1]) return 'https://lh3.googleusercontent.com/d/' + g1[1];
@@ -1717,7 +1719,7 @@
       if (!el) return;
       el.onerror = () => {
         el.onerror = null;
-        el.src = './oca_logo.png';
+        el.src = DEFAULT_STUDENT_AVATAR;
         trySidFallback();
       };
       el.src = photo;
@@ -1726,7 +1728,7 @@
     setImg('imgAppAvatarMob');
     setImg('imgCardPhoto');
     setImg('imgProfileAiPreview');
-    if (photo === './oca_logo.png') {
+    if (photo === DEFAULT_STUDENT_AVATAR) {
       trySidFallback();
     }
 
