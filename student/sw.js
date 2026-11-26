@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oca-student-371';
+const CACHE_NAME = 'oca-student-372';
 const ASSETS_TO_CACHE = [
   './',
   './manifest.json',
@@ -14,7 +14,8 @@ const ASSETS_TO_CACHE = [
   '../assets/images/oca_welcome_bg.jpg',
   '../assets/images/oca_mob_scene.jpg',
   '../assets/images/oca_student_card_front.jpg',
-  '../assets/images/oca_student_card_back.jpg'
+  '../assets/images/oca_student_card_back.jpg',
+  '../assets/images/oca_bank_payment_qr.png'
 ];
 
 self.addEventListener('message', (event) => {
@@ -44,7 +45,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME && key !== 'oca-ai-models-v1') {
+          if (key.startsWith('oca-student-') && key !== CACHE_NAME) {
             return caches.delete(key);
           }
         })
