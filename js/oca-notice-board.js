@@ -606,7 +606,7 @@
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0;">
               <button type="button" onclick="OcaNoticeBoard.editStaffNotice('${escHtml(n.id)}')" style="padding:6px 10px;border-radius:8px;border:1px solid #CBD5E1;background:#F8FAFC;color:#0F172A;font-size:12px;font-weight:700;cursor:pointer;">แก้ไข</button>
-              <button type="button" onclick="OcaNoticeBoard.removeStaffNotice('${escHtml(n.id)}')" style="padding:6px 10px;border-radius:8px;border:1px solid #FCA5A5;background:#FEF2F2;color:#991B1B;font-size:12px;font-weight:700;cursor:pointer;">ลบ</button>
+              <button type="button" onclick="OcaNoticeBoard.removeStaffNotice('${escHtml(n.id)}', this)" style="padding:6px 10px;border-radius:8px;border:1px solid #FCA5A5;background:#FEF2F2;color:#991B1B;font-size:12px;font-weight:700;cursor:pointer;">ลบ</button>
             </div>
           </div>`;
       }).join('');
@@ -727,13 +727,43 @@
     }
   }
 
-  async function removeStaffNotice(id) {
-    if (!confirm('ยืนยันลบประกาศนี้ใช่หรือไม่?')) return;
+  let _pendingDeleteId = '';
+  let _pendingDeleteTimer = null;
+  async function removeStaffNotice(id, btnEl) {
+    const cleanId = String(id || '').trim();
+    if (!cleanId) return;
+    if (_pendingDeleteId !== cleanId) {
+      _pendingDeleteId = cleanId;
+      if (_pendingDeleteTimer) clearTimeout(_pendingDeleteTimer);
+      if (btnEl) {
+        btnEl.textContent = 'ยืนยันลบ?';
+        btnEl.style.background = '#DC2626';
+        btnEl.style.color = '#FFFFFF';
+        btnEl.style.borderColor = '#B91C1C';
+      }
+      _pendingDeleteTimer = setTimeout(() => {
+        if (_pendingDeleteId === cleanId) {
+          _pendingDeleteId = '';
+          if (btnEl) {
+            btnEl.textContent = 'ลบ';
+            btnEl.style.background = '#FEF2F2';
+            btnEl.style.color = '#B91C1C';
+            btnEl.style.borderColor = '#FCA5A5';
+          }
+        }
+      }, 4000);
+      return;
+    }
+    _pendingDeleteId = '';
+    if (_pendingDeleteTimer) clearTimeout(_pendingDeleteTimer);
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'กำลังลบ...'; }
     try {
-      await deleteNotice(global._supabase, id);
+      await deleteNotice(global._supabase, cleanId);
       await refreshStaffNoticeList();
+      if (typeof global.showToast === 'function') global.showToast('ลบประกาศเรียบร้อยแล้ว', 'success');
     } catch (err) {
-      alert('ลบประกาศไม่สำเร็จ: ' + (err.message || err));
+      const box = document.getElementById('boxNoticeManagerList');
+      if (box) box.insertAdjacentHTML('afterbegin', `<div style="padding:8px 10px;border-radius:8px;background:#FEF2F2;color:#991B1B;font-size:12px;font-weight:700;">ลบประกาศไม่สำเร็จ: ${escHtml(err.message || err)}</div>`);
     }
   }
 
