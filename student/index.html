@@ -10,7 +10,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="OCA Student" />
-  <link rel="manifest" href="./student/manifest.json?v=366" />
+  <link rel="manifest" href="./student/manifest.json?v=367" />
   <link rel="icon" type="image/png" href="./student-favicon.png" />
   <link rel="apple-touch-icon" href="./student-icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -623,7 +623,7 @@
             <div style="display: flex; align-items: center; gap: 12px;">
               <img src="./oca_logo.png" alt="OCA Official Seal" style="width: 48px; height: 48px; object-fit: contain; border-radius: 50%; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.45));" />
               <div>
-                <div class="chinese-calligraphy" style="font-size: 23px; color: #FAF0D7; line-height: 1.15;">东方文化书院</div>
+                <div class="chinese-calligraphy" data-i18n-locked="zh" style="font-size: 23px; color: #FAF0D7; line-height: 1.15;">東方文化書院</div>
                 <div style="font-size: 10px; font-weight: 800; color: #D4AF37; letter-spacing: 1px;">ORIENTAL CULTURE ACADEMY</div>
               </div>
             </div>
@@ -708,13 +708,16 @@
           <button type="button" id="btnOpenNewReg" class="st-btn-primary" style="width: 100%; padding: 12px 16px; border-radius: 23px; font-size: 14px;" onclick="OcaStudentPortal.openRegisterView()">
             <i class="fa-solid fa-user-plus"></i> <span id="lblBtnNewReg" data-i18n="btnNewReg">ลงทะเบียนใหม่ (นักศึกษาใหม่)</span>
           </button>
+          <button type="button" id="btnOpenLookupSid" class="st-btn-outline" style="width: 100%; margin-top: 8px; padding: 10px 14px; border-radius: 23px; font-size: 13px;" onclick="OcaStudentPortal.openSidLookupModal()">
+            <i class="fa-solid fa-magnifying-glass"></i> <span data-i18n="btnLookupSid">ตรวจสอบรหัสนักศึกษา</span>
+          </button>
         </div>
       </section>
     </div>
   </main>
 
-  <!-- VIEW 2: NEW STUDENT REGISTRATION -->
-  <section id="viewStudentRegister" class="st-hidden" style="max-width: 720px; margin: 24px auto; padding: 0 16px;">
+  <!-- VIEW 2: NEW STUDENT REGISTRATION (STAFF-PARITY PHOTO STUDIO + FULL FORM) -->
+  <section id="viewStudentRegister" class="st-hidden" style="max-width: 960px; margin: 24px auto; padding: 0 16px;">
     <div class="st-card" style="padding: 24px;">
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid #E2E8F0; padding-bottom: 12px; flex-wrap: wrap;">
         <div>
@@ -723,7 +726,34 @@
         </div>
         <button type="button" class="st-btn-outline" onclick="OcaStudentPortal.backToLogin()"><i class="fa-solid fa-arrow-left"></i> <span data-i18n="backLogin">กลับหน้าเข้าสู่ระบบ</span></button>
       </div>
-      <form onsubmit="OcaStudentPortal.handleRegister(event)" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; align-items: start;">
+        <!-- LEFT: STUDENT PORTRAIT & LIVE WEBCAM -->
+        <div id="boxRegPhotoStudio" class="st-subtle-box" style="text-align: center; padding: 16px;">
+          <div style="font-size: 14px; font-weight: 800; margin-bottom: 10px;"><i class="fa-solid fa-camera"></i> <span data-i18n="aiTitle">รูปโปรไฟล์ &amp; บัตรนักศึกษา</span></div>
+          <video id="vidRegCam" autoplay playsinline muted class="st-hidden" style="width: 165px; height: 220px; object-fit: cover; border-radius: 14px; border: 2px solid #D4AF37; background: #022C22; transform: scaleX(-1); margin: 0 auto 10px auto; display: block;"></video>
+          <img id="imgRegPhotoPreview" src="./oca_logo.png" alt="Student Portrait Preview" style="width: 165px; height: 220px; object-fit: cover; border-radius: 14px; border: 2px solid #D4AF37; background: #800000; margin: 0 auto 10px auto; display: block;" />
+          <div id="lblRegPhotoStatus" data-i18n="regPhotoReady" class="st-accent-text" style="font-size: 12px; font-weight: 700; margin-bottom: 10px;">พร้อมถ่ายรูปหรือเลือกรูปหน้าตรง</div>
+          <input type="file" id="inpRegPhotoFile" accept="image/*" class="st-hidden" onchange="OcaStudentPortal.onRegPhotoSelected(this)" />
+          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+            <button type="button" id="btnRegCamStart" class="st-btn-primary" style="padding: 8px 12px; font-size: 12.5px;" onclick="OcaStudentPortal.startCamera('reg')">
+              <i class="fa-solid fa-video"></i> <span data-i18n="btnOpenCam">เปิดกล้องสด</span>
+            </button>
+            <button type="button" id="btnRegCamSnap" class="st-btn-gold st-hidden" style="padding: 8px 12px; font-size: 12.5px;" onclick="OcaStudentPortal.snapCamera('reg')">
+              <i class="fa-solid fa-camera"></i> <span data-i18n="btnSnapPhoto">กดถ่ายภาพ</span>
+            </button>
+            <button type="button" id="btnRegCamFlip" class="st-btn-outline st-hidden" style="padding: 8px 10px; font-size: 12px;" onclick="OcaStudentPortal.flipCamera('reg')">
+              <i class="fa-solid fa-camera-rotate"></i> <span data-i18n="btnFlipCam">สลับกล้อง</span>
+            </button>
+            <button type="button" id="btnRegCamStop" class="st-btn-outline st-hidden" style="padding: 8px 10px; font-size: 12px;" onclick="OcaStudentPortal.stopCamera('reg')">
+              <i class="fa-solid fa-xmark"></i> <span data-i18n="btnCloseCam">ปิดกล้อง</span>
+            </button>
+            <button type="button" class="st-btn-outline" style="padding: 8px 12px; font-size: 12.5px;" onclick="document.getElementById('inpRegPhotoFile').click()">
+              <i class="fa-solid fa-folder-open"></i> <span data-i18n="btnPickPhoto">เลือกรูปภาพ</span>
+            </button>
+          </div>
+        </div>
+        <!-- RIGHT: REGISTRATION FORM -->
+        <form onsubmit="OcaStudentPortal.handleRegister(event)" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px;">
         <div>
           <label data-i18n="fldPrefix" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">คำนำหน้า</label>
           <select id="regPrefix" class="st-input">
@@ -818,6 +848,7 @@
           </button>
         </div>
       </form>
+      </div>
     </div>
   </section>
 
@@ -970,11 +1001,16 @@
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; align-items: start;">
             <div class="st-card" style="padding: 18px; text-align: center;">
               <h3 data-i18n="aiTitle" style="margin: 0 0 12px 0; font-size: 16px; font-weight: 800;">รูปโปรไฟล์ &amp; บัตรนักศึกษา (AI Studio)</h3>
+              <video id="vidProfCam" autoplay playsinline muted class="st-hidden" style="width: 150px; height: 200px; object-fit: cover; border-radius: 14px; border: 2px solid #D4AF37; background: #022C22; transform: scaleX(-1); margin: 0 auto 12px auto; display: block;"></video>
               <img id="imgProfileAiPreview" src="./oca_logo.png" alt="AI Preview" style="width: 150px; height: 200px; object-fit: cover; border-radius: 14px; border: 2px solid #D4AF37; background: #800000; margin: 0 auto 12px auto; display: block;" />
               <div id="lblAiPhotoStatus" data-i18n="aiReady" style="font-size: 12px; font-weight: 700; color: #047857; margin-bottom: 10px;">พร้อมอัปโหลดรูปหน้าตรง</div>
               <input type="file" id="inpProfilePhotoFile" accept="image/*" class="st-hidden" onchange="OcaStudentPortal.onProfilePhotoSelected(this)" />
               <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                <button type="button" class="st-btn-outline" onclick="document.getElementById('inpProfilePhotoFile').click()"><i class="fa-solid fa-camera"></i> <span data-i18n="btnPickPhoto">เลือกรูปภาพใหม่</span></button>
+                <button type="button" id="btnProfCamStart" class="st-btn-outline" onclick="OcaStudentPortal.startCamera('prof')"><i class="fa-solid fa-video"></i> <span data-i18n="btnOpenCam">เปิดกล้องสด</span></button>
+                <button type="button" id="btnProfCamSnap" class="st-btn-gold st-hidden" onclick="OcaStudentPortal.snapCamera('prof')"><i class="fa-solid fa-camera"></i> <span data-i18n="btnSnapPhoto">กดถ่ายภาพ</span></button>
+                <button type="button" id="btnProfCamFlip" class="st-btn-outline st-hidden" onclick="OcaStudentPortal.flipCamera('prof')"><i class="fa-solid fa-camera-rotate"></i> <span data-i18n="btnFlipCam">สลับกล้อง</span></button>
+                <button type="button" id="btnProfCamStop" class="st-btn-outline st-hidden" onclick="OcaStudentPortal.stopCamera('prof')"><i class="fa-solid fa-xmark"></i> <span data-i18n="btnCloseCam">ปิดกล้อง</span></button>
+                <button type="button" class="st-btn-outline" onclick="document.getElementById('inpProfilePhotoFile').click()"><i class="fa-solid fa-folder-open"></i> <span data-i18n="btnPickPhoto">เลือกรูปภาพใหม่</span></button>
                 <button type="button" id="btnSaveAiPhoto" class="st-btn-primary st-hidden" onclick="OcaStudentPortal.saveAiPhoto()"><i class="fa-solid fa-cloud-arrow-up"></i> <span data-i18n="btnSavePhoto">บันทึกรูปโปรไฟล์</span></button>
               </div>
               <div id="boxProfileDbSummary" style="margin-top: 16px; text-align: left; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px; font-size: 12.5px; line-height: 1.65;"></div>
@@ -1230,6 +1266,61 @@
     </div>
   </div>
 
+  <!-- STUDENT ID LOOKUP MODAL -->
+  <div id="modalStudentIdLookup" class="st-modal-backdrop st-hidden">
+    <div class="st-modal-box" style="max-width: 500px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E2E8F0; padding-bottom: 10px; margin-bottom: 12px;">
+        <h3 style="margin: 0; font-size: 16px; font-weight: 800;"><i class="fa-solid fa-magnifying-glass st-accent-text"></i> <span data-i18n="lookupModalTitle">ตรวจสอบรหัสนักศึกษา</span></h3>
+        <button type="button" class="st-modal-close" onclick="OcaStudentPortal.closeSidLookupModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p data-i18n="lookupSub" class="st-muted-text" style="margin: 0 0 12px 0; font-size: 12.5px;">กรอกข้อมูลอย่างน้อย 1 ช่อง เพื่อค้นหารหัสนักศึกษาของคุณ</p>
+      <form onsubmit="OcaStudentPortal.runSidLookup(event)" style="display: flex; flex-direction: column; gap: 10px;">
+        <div>
+          <label data-i18n="fldFullName" style="display: block; font-size: 12px; font-weight: 700; margin-bottom: 3px;">ชื่อ-นามสกุล</label>
+          <input id="inpLookupName" class="st-input" type="text" data-i18n-placeholder="phFullName" placeholder="ชื่อ นามสกุล" />
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div>
+            <label data-i18n="fldCitizen" style="display: block; font-size: 12px; font-weight: 700; margin-bottom: 3px;">เลขบัตรประชาชน</label>
+            <input id="inpLookupCitizenId" class="st-input" type="text" maxlength="17" />
+          </div>
+          <div>
+            <label data-i18n="fldPassport" style="display: block; font-size: 12px; font-weight: 700; margin-bottom: 3px;">เลขพาสปอร์ต</label>
+            <input id="inpLookupPassport" class="st-input" type="text" />
+          </div>
+        </div>
+        <div>
+          <label data-i18n="fldPhone" style="display: block; font-size: 12px; font-weight: 700; margin-bottom: 3px;">เบอร์โทรศัพท์</label>
+          <input id="inpLookupPhone" class="st-input" type="tel" />
+        </div>
+        <div id="lblLookupErr" class="st-hidden" style="background: #FEE2E2; border: 1px solid #EF4444; color: #991B1B; border-radius: 10px; padding: 9px 11px; font-size: 12.5px; font-weight: 600;"></div>
+        <button type="submit" id="btnRunSidLookup" class="st-btn-primary" style="width: 100%;"><i class="fa-solid fa-magnifying-glass"></i> <span data-i18n="btnSearchSid">ค้นหารหัสนักศึกษา</span></button>
+      </form>
+      <div id="boxLookupResults" class="oca-custom-scrollbar" style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto;"></div>
+    </div>
+  </div>
+
+  <!-- REGISTRATION SUCCESS POPUP (WITH ACKNOWLEDGE BUTTON) -->
+  <div id="modalRegSuccessSid" class="st-modal-backdrop st-hidden">
+    <div class="st-modal-box" style="max-width: 440px; text-align: center;">
+      <div style="width: 56px; height: 56px; border-radius: 50%; background: #DCFCE7; color: #047857; display: flex; align-items: center; justify-content: center; font-size: 26px; margin: 0 auto 12px auto;">
+        <i class="fa-solid fa-circle-check"></i>
+      </div>
+      <h3 data-i18n="regSuccessTitle" style="margin: 0 0 8px 0; font-size: 18px; font-weight: 800;">ลงทะเบียนนักศึกษาใหม่สำเร็จ!</h3>
+      <div class="st-subtle-box" style="margin: 12px 0; padding: 14px;">
+        <div data-i18n="regSuccessSidLbl" class="st-muted-text" style="font-size: 12px; font-weight: 700;">รหัสนักศึกษาของคุณคือ</div>
+        <div id="lblRegSuccessSid" data-i18n-locked="true" class="st-accent-text" style="font-size: 32px; font-weight: 800; font-family: monospace; letter-spacing: 2px; margin: 4px 0 8px 0;">-</div>
+        <button type="button" class="st-btn-outline" style="font-size: 12px; padding: 5px 12px;" onclick="OcaStudentPortal.copyRegSuccessSid()">
+          <i class="fa-regular fa-copy"></i> <span data-i18n="btnCopySid">คัดลอกรหัส</span>
+        </button>
+      </div>
+      <p data-i18n="regSuccessHint" class="st-muted-text" style="font-size: 12.5px; line-height: 1.55; margin: 0 0 14px 0;">กรุณาจดหรือบันทึกรหัสนักศึกษานี้ไว้ใช้เข้าสู่ระบบคู่กับวันเดือนปีเกิด 8 หลัก</p>
+      <button type="button" id="btnAckRegSuccess" class="st-btn-gold" style="width: 100%; padding: 12px;" onclick="OcaStudentPortal.acknowledgeRegSuccess()">
+        <i class="fa-solid fa-check"></i> <span data-i18n="btnAckRegSuccess">รับทราบและเข้าสู่หน้าเลือกคอร์สเรียน</span>
+      </button>
+    </div>
+  </div>
+
   <!-- HOVER-PREVIEW POPOVER (NOTICE BOARD / COURSES / RECEIPTS) -->
   <div id="ocaStudentHoverPopover" class="oca-custom-scrollbar st-hidden" style="position: fixed; z-index: 99998; background: #FFFFFF; color: #0F172A; border: 1.5px solid #D4AF37; border-radius: 14px; box-shadow: 0 16px 40px rgba(2,44,34,0.22); min-width: 280px; max-width: 440px; max-height: 340px; overflow-y: auto; padding: 14px; text-align: left;"></div>
 
@@ -1237,9 +1328,9 @@
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="./js/oca-slip-guard.js?v=366"></script>
-  <script src="./js/oca-student-ai-photo.js?v=366"></script>
-  <script src="./js/oca-notice-board.js?v=366"></script>
-  <script src="./js/oca-student-portal.js?v=366"></script>
+  <script src="./js/oca-slip-guard.js?v=367"></script>
+  <script src="./js/oca-student-ai-photo.js?v=367"></script>
+  <script src="./js/oca-notice-board.js?v=367"></script>
+  <script src="./js/oca-student-portal.js?v=367"></script>
 </body>
 </html>
