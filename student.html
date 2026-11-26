@@ -11,7 +11,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="OCA Student" />
-  <link rel="manifest" href="/OCA/student/manifest.json?v=384" />
+  <link rel="manifest" href="/OCA/student/manifest.json?v=386" />
   <link rel="icon" type="image/png" href="./student-favicon.png" />
   <link rel="apple-touch-icon" href="./student-icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -26,16 +26,23 @@
       } catch (_) {}
       if ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true) {
         document.documentElement.classList.add('oca-standalone');
+        document.documentElement.classList.add('oca-pwa-installed');
+      } else if (localStorage.getItem('oca_student_pwa_installed') === '1') {
+        document.documentElement.classList.add('oca-pwa-installed');
       }
       window.__ocaStudentDeferredPrompt = null;
       window.__ocaStudentWaitingInstall = false;
       window.addEventListener('beforeinstallprompt', function (ev) {
         window.__ocaStudentDeferredPrompt = ev;
+        document.documentElement.classList.remove('oca-pwa-installed');
+        try { localStorage.removeItem('oca_student_pwa_installed'); } catch (_) {}
       });
       window.addEventListener('appinstalled', function () {
         window.__ocaStudentDeferredPrompt = null;
         window.__ocaStudentWaitingInstall = false;
         document.documentElement.classList.add('oca-standalone');
+        document.documentElement.classList.add('oca-pwa-installed');
+        try { localStorage.setItem('oca_student_pwa_installed', '1'); } catch (_) {}
       });
       window.__ocaPendingEnterLogin = false;
       window.__ocaSafeEnterLogin = function () {
@@ -603,12 +610,24 @@
       border-radius: 8px; font-weight: 700; font-size: 12.5px; background: #FFFBEB;
     }
     .oca-mobile-pwa-btn {
-      display: none; align-items: center; gap: 5px; background: #F59E0B; color: #0F172A;
-      border: 1px solid #D97706; border-radius: 999px; padding: 6px 11px;
-      font-size: 12px; font-weight: 800; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+      display: none; align-items: center; justify-content: space-between; gap: 10px;
+      background: rgba(255, 255, 255, 0.96); color: #022C22;
+      border: 1.5px solid #CBD5E1; border-radius: 999px;
+      padding: 6px 14px 6px 8px; min-height: 46px;
+      font-size: 13.5px; font-weight: 800; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+      box-shadow: 0 6px 18px rgba(2, 44, 34, 0.10); transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
+    .oca-mobile-pwa-btn:active { transform: scale(0.98); }
+    .oca-pwa-icon-badge {
+      width: 30px; height: 30px; border-radius: 50%; background: #ECFDF5; color: #047857;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;
+    }
+    .oca-pwa-chevron { color: #047857; font-size: 12px; opacity: 0.85; flex-shrink: 0; }
+    .oca-mobile-pwa-btn-compact { min-height: 34px; padding: 4px 10px 4px 6px; gap: 6px; font-size: 12px; }
+    .oca-mobile-pwa-btn-compact .oca-pwa-icon-badge { width: 22px; height: 22px; font-size: 11px; }
     @media (max-width: 768px) { .oca-mobile-pwa-btn { display: inline-flex; } }
-    html.oca-standalone .oca-mobile-pwa-btn { display: none !important; }
+    html.oca-standalone .oca-mobile-pwa-btn,
+    html.oca-pwa-installed .oca-mobile-pwa-btn { display: none !important; }
     body.oca-app-logged-in #btnMobilePwaInstall { display: none !important; }
   </style>
 </head>
@@ -640,7 +659,7 @@
           <i class="fa-solid fa-bell"></i>
           <span id="badgeStudentNotifCount" class="st-hidden" style="position: absolute; top: -5px; right: -5px; background: #DC2626; color: #FFFFFF; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 999px; border: 1.5px solid #022C22;">0</span>
         </button>
-        <button type="button" id="btnMobilePwaInstall" class="oca-mobile-pwa-btn" onclick="OcaStudentPortal.installPwa()"><i class="fa-solid fa-download"></i> <span data-i18n="installPwa">ติดตั้งแอป</span></button>
+        <button type="button" id="btnMobilePwaInstall" class="oca-mobile-pwa-btn oca-mobile-pwa-btn-compact" onclick="OcaStudentPortal.installPwa()"><span class="oca-pwa-icon-badge"><i class="fa-solid fa-download"></i></span><span data-i18n="installPwa">ติดตั้งแอป</span></button>
         <button type="button" id="btnStudentThemeToggle" onclick="OcaStudentPortal.toggleTheme()" data-i18n-title="toggleThemeTitle" title="สลับโหมดมืด/สว่าง" style="background: rgba(255,255,255,0.16); color: #FDE68A; border: 1px solid rgba(255,255,255,0.32); border-radius: 999px; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer;">
           <i class="fa-solid fa-moon st-theme-icon"></i>
         </button>
@@ -685,8 +704,10 @@
         <button type="button" class="oca-mob-cta" id="btnStudentWelcomeMob" onclick="window.__ocaSafeEnterLogin ? window.__ocaSafeEnterLogin() : (window.OcaStudentPortal && OcaStudentPortal.enterLoginFromWelcome())">
           <span>WELCOME</span><i class="fa-solid fa-arrow-right"></i>
         </button>
-        <button type="button" id="btnWelcomeInstallPwaMob" class="oca-mobile-pwa-btn" onclick="OcaStudentPortal.installPwa()" style="padding: 9px 18px; font-size: 13px; box-shadow: 0 6px 18px rgba(2,44,34,0.28);">
-          <i class="fa-solid fa-download"></i> <span data-i18n="installPwaFull">ติดตั้งแอปนักศึกษา OCA (PWA)</span>
+        <button type="button" id="btnWelcomeInstallPwaMob" class="oca-mobile-pwa-btn" onclick="OcaStudentPortal.installPwa()" style="width: min(320px, 86vw);">
+          <span class="oca-pwa-icon-badge"><i class="fa-solid fa-mobile-screen-button"></i></span>
+          <span data-i18n="installPwaFull" style="flex: 1; text-align: center;">ติดตั้งแอป OCA Student</span>
+          <i class="fa-solid fa-chevron-right oca-pwa-chevron"></i>
         </button>
       </div>
     </div>
@@ -779,8 +800,10 @@
             <button type="submit" id="btnStudentLoginSubmit" class="st-btn-gold" style="width: 100%; height: 46px; border-radius: 23px; font-size: 15px;">
               <span id="lblBtnLogin" data-i18n="btnLogin">เข้าสู่ระบบนักศึกษา</span> <i class="fa-solid fa-arrow-right"></i>
             </button>
-            <button type="button" id="btnAuthInstallPwaMob" class="oca-mobile-pwa-btn" onclick="OcaStudentPortal.installPwa()" style="width: 100%; justify-content: center; padding: 9px 14px; font-size: 13px;">
-              <i class="fa-solid fa-download"></i> <span data-i18n="installPwaFull">ติดตั้งแอปนักศึกษา OCA (PWA)</span>
+            <button type="button" id="btnAuthInstallPwaMob" class="oca-mobile-pwa-btn" onclick="OcaStudentPortal.installPwa()" style="width: 100%;">
+              <span class="oca-pwa-icon-badge"><i class="fa-solid fa-mobile-screen-button"></i></span>
+              <span data-i18n="installPwaFull" style="flex: 1; text-align: center;">ติดตั้งแอป OCA Student</span>
+              <i class="fa-solid fa-chevron-right oca-pwa-chevron"></i>
             </button>
           </form>
 
@@ -1047,7 +1070,7 @@
             <div class="st-muted-text" style="font-size: 11.5px; font-family: monospace;">ID: <span id="lblAppStudentIdMob" data-i18n-locked="true">-</span></div>
           </div>
         </div>
-        <button type="button" id="btnAppMobPwaInstall" class="oca-mobile-pwa-btn" onclick="OcaStudentPortal.installPwa()"><i class="fa-solid fa-download"></i> <span data-i18n="installPwa">ติดตั้งแอป</span></button>
+        <button type="button" id="btnAppMobPwaInstall" class="oca-mobile-pwa-btn oca-mobile-pwa-btn-compact" onclick="OcaStudentPortal.installPwa()"><span class="oca-pwa-icon-badge"><i class="fa-solid fa-download"></i></span><span data-i18n="installPwa">ติดตั้งแอป</span></button>
       </div>
 
       <!-- LEFT SIDEBAR -->
@@ -1639,6 +1662,6 @@
   <script src="./js/oca-slip-guard.js?v=374"></script>
   <script src="./js/oca-student-ai-photo.js?v=379"></script>
   <script src="./js/oca-notice-board.js?v=384"></script>
-  <script src="./js/oca-student-portal.js?v=383"></script>
+  <script src="./js/oca-student-portal.js?v=386"></script>
 </body>
 </html>
