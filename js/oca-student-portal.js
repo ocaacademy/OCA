@@ -35,6 +35,7 @@
   let _receipts = [];
   let _pendingSlips = [];
   let _shippingFee = 50;
+  let _feeRules = {};
   let _activeCat = 'ALL';
   let _checkoutCourse = null;
   let _pendingAiPhoto = null;
@@ -151,7 +152,10 @@
       itemsUnit: 'รายการ',
       noScheduleMsg: 'ยังไม่มีข้อมูลคอร์สปัจจุบัน กรุณาเลือกคอร์สในแท็บ "เลือกคอร์ส & แนบสลิป"',
       noReceiptsMsg: 'ยังไม่มีประวัติใบเสร็จรับเงิน',
-      noNotifsMsg: 'ยังไม่มีการแจ้งเตือนหรือประกาศใหม่'
+      noNotifsMsg: 'ยังไม่มีการแจ้งเตือนหรือประกาศใหม่',
+      btnDownloadCard: 'บันทึกรูปบัตร (PNG)',
+      btnDownloadReceipt: 'บันทึกรูปใบเสร็จ (PNG)',
+      toggleThemeTitle: 'สลับโหมดมืด/สว่าง'
     },
     en: {
       hdrSub: 'Student Self-Service Portal (Enroll • Schedule • Digital ID)',
@@ -254,7 +258,10 @@
       itemsUnit: 'items',
       noScheduleMsg: 'No current course found. Please select a course in Courses & Payment.',
       noReceiptsMsg: 'No receipt records yet.',
-      noNotifsMsg: 'No notifications or announcements yet.'
+      noNotifsMsg: 'No notifications or announcements yet.',
+      btnDownloadCard: 'Save Card (PNG)',
+      btnDownloadReceipt: 'Save Receipt (PNG)',
+      toggleThemeTitle: 'Toggle Dark/Light Mode'
     },
     zh: {
       hdrSub: '东方文化书院学员在线门户（在线报名 • 课表 • 电子学生证）',
@@ -357,7 +364,10 @@
       itemsUnit: '条',
       noScheduleMsg: '暂无当前课程信息，请前往“选课与缴费”报名课程。',
       noReceiptsMsg: '暂无收据记录',
-      noNotifsMsg: '暂无通知或公告'
+      noNotifsMsg: '暂无通知或公告',
+      btnDownloadCard: '保存学生证 (PNG)',
+      btnDownloadReceipt: '保存收据 (PNG)',
+      toggleThemeTitle: '切换深色/浅色模式'
     }
   };
 
@@ -1007,24 +1017,61 @@
         if (resL.ok) _lecturerMap = await resL.json();
       }
       if (!_termInfo) {
-        const yy = String(yearBE).slice(-2);
-        const resT = await fetch(`./assets/data/term_timetables/term_${yy}${term}.json`);
+        const knownTerms = ['700', '699', '698', '697', '696', '695'];
+        const cand = String(yearBE).slice(-2) + String(term);
+        const target = knownTerms.includes(cand) ? cand : '700';
+        const resT = await fetch(`./assets/data/term_timetables/term_${target}.json`);
         if (resT.ok) _termInfo = await resT.json();
       }
     } catch (_) {}
   }
 
+  function isFeeRuleActive(row) {
+    if (!row || Number(row.amount || 0) <= 0) return false;
+    const mode = String(row.mode || 'ALWAYS').toUpperCase();
+    if (mode === 'OFF' || mode === 'DISABLED') return false;
+    if (mode === 'RANGE' || mode === 'DATE_RANGE') {
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      if (row.start_date && today < String(row.start_date)) return false;
+      if (row.end_date && today > String(row.end_date)) return false;
+    }
+    return true;
+  }
+
+  function computeCheckoutBreakdown(course, deliveryMethod) {
+    const base = Number((course && course.price) || 0);
+    const isNewStudent = _receipts.length === 0;
+    const regFee = isNewStudent && isFeeRuleActive(_feeRules.regFee) ? Number(_feeRules.regFee.amount) : 0;
+    const otherFee = isFeeRuleActive(_feeRules.otherRegFee) ? Number(_feeRules.otherRegFee.amount) : 0;
+    const latePenalty = isFeeRuleActive(_feeRules.lateRegPenalty) ? Number(_feeRules.lateRegPenalty.amount) : 0;
+    const shipping = deliveryMethod === 'ส่งตำรา'
+      ? (isFeeRuleActive(_feeRules.shippingFee) ? Number(_feeRules.shippingFee.amount) : _shippingFee)
+      : 0;
+    const isKids = course ? detectCategory(course) === 'KIDS' : false;
+    const kidsRow = _feeRules.discountKids || _feeRules.discount_kids;
+    const baseDisc = isKids && isFeeRuleActive(kidsRow)
+      ? Number(kidsRow.amount)
+      : (isFeeRuleActive(_feeRules.discountNormal) ? Number(_feeRules.discountNormal.amount) : 0);
+    const otherDisc = isFeeRuleActive(_feeRules.discountOther) ? Number(_feeRules.discountOther.amount) : 0;
+    const discount = baseDisc + otherDisc;
+    const total = Math.max(0, base + regFee + otherFee + latePenalty + shipping - discount);
+    return { base, regFee, otherFee, latePenalty, shipping, discount, total };
+  }
+
   async function loadStudentAppData() {
     if (!_sb || !_student) return;
     const sid = String(_student.student_id || '').trim();
-    const [resSt, resC, resSc, resRc, resPend, resNotif, resShip] = await Promise.all([
+    const [resSt, resC, resSc, resRc, resPend, resNotif, resFees] = await Promise.all([
       _sb.from('students').select('*').eq('student_id', sid).maybeSingle(),
       _sb.from('courses').select('*').eq('is_active', true).order('code', { ascending: true }),
       _sb.from('schedules').select('*').eq('is_active', true).order('id', { ascending: true }),
       _sb.from('receipts').select('*').eq('student_id', sid).order('created_at', { ascending: false }),
       _sb.from('fee_settings').select('key,name,amount,mode,updated_at').like('key', 'pending_slip%:' + sid),
       _sb.from('fee_settings').select('key,name,amount,mode,updated_at').eq('key', 'student_notif:' + sid).maybeSingle(),
-      _sb.from('fee_settings').select('key,amount').in('key', ['shipping_fee', 'textbook_shipping'])
+      _sb.from('fee_settings').select('key,name,amount,mode,start_date,end_date').in('key', [
+        'regFee', 'otherRegFee', 'shippingFee', 'discountNormal', 'discountKids', 'discount_kids', 'discountOther', 'lateRegPenalty', 'shipping_fee', 'textbook_shipping'
+      ])
     ]);
 
     if (!resSt.error && !resSt.data) {
@@ -1047,8 +1094,13 @@
     _schedules = Array.isArray(resSc.data) ? resSc.data : [];
     _receipts = Array.isArray(resRc.data) ? resRc.data.filter(r => String(r.claim_status || '').toUpperCase() !== 'VOIDED') : [];
     _pendingSlips = Array.isArray(resPend.data) ? resPend.data.filter(r => r.key && r.key.startsWith('pending_slip:')) : [];
-    if (Array.isArray(resShip.data) && resShip.data[0] && Number(resShip.data[0].amount) > 0) {
-      _shippingFee = Number(resShip.data[0].amount);
+    _feeRules = {};
+    if (Array.isArray(resFees.data)) {
+      resFees.data.forEach((r) => { if (r && r.key) _feeRules[r.key] = r; });
+    }
+    const shipRow = _feeRules.shippingFee || _feeRules.shipping_fee || _feeRules.textbook_shipping;
+    if (shipRow && isFeeRuleActive(shipRow)) {
+      _shippingFee = Number(shipRow.amount);
     }
 
     const activeTerm = await resolveActiveYearTerm();
@@ -1210,10 +1262,19 @@
 
   function recalcCheckout() {
     if (!_checkoutCourse) return;
-    const base = Number(_checkoutCourse.price || 0);
     const deliv = document.getElementById('selCheckoutDelivery')?.value || 'รับเอง';
-    const ship = deliv === 'ส่งตำรา' ? _shippingFee : 0;
-    document.getElementById('lblCheckoutTotal').textContent = '฿' + (base + ship).toLocaleString('en-US', { minimumFractionDigits: 2 });
+    const b = computeCheckoutBreakdown(_checkoutCourse, deliv);
+    const box = document.getElementById('boxCheckoutFeeBreakdown');
+    if (box) {
+      const rows = [`<div style="display:flex;justify-content:space-between;"><span>ค่าเรียน (${esc(_checkoutCourse.code)})</span><span>฿${b.base.toLocaleString('en-US')}</span></div>`];
+      if (b.regFee > 0) rows.push(`<div style="display:flex;justify-content:space-between;"><span>ค่าแรกเข้า (นักศึกษาใหม่)</span><span>+฿${b.regFee.toLocaleString('en-US')}</span></div>`);
+      if (b.otherFee > 0) rows.push(`<div style="display:flex;justify-content:space-between;"><span>ค่าธรรมเนียมอื่นๆ</span><span>+฿${b.otherFee.toLocaleString('en-US')}</span></div>`);
+      if (b.latePenalty > 0) rows.push(`<div style="display:flex;justify-content:space-between;color:#B45309;"><span>ค่าปรับลงทะเบียนล่าช้า</span><span>+฿${b.latePenalty.toLocaleString('en-US')}</span></div>`);
+      if (b.shipping > 0) rows.push(`<div style="display:flex;justify-content:space-between;"><span>ค่าจัดส่งตำราเรียน</span><span>+฿${b.shipping.toLocaleString('en-US')}</span></div>`);
+      if (b.discount > 0) rows.push(`<div style="display:flex;justify-content:space-between;color:#047857;"><span>ส่วนลดตามสิทธิ์</span><span>-฿${b.discount.toLocaleString('en-US')}</span></div>`);
+      box.innerHTML = rows.join('');
+    }
+    document.getElementById('lblCheckoutTotal').textContent = '฿' + b.total.toLocaleString('en-US', { minimumFractionDigits: 2 });
   }
 
   async function submitEnrollment() {
@@ -1232,9 +1293,8 @@
         if (gRes && gRes.blocked) throw new Error(gRes.reason || 'ตรวจพบสลิปซ้ำหรือไม่ถูกต้อง');
       }
       const sid = String(_student.student_id).trim();
-      const base = Number(_checkoutCourse.price || 0);
       const deliv = document.getElementById('selCheckoutDelivery')?.value || 'รับเอง';
-      const total = base + (deliv === 'ส่งตำรา' ? _shippingFee : 0);
+      const total = computeCheckoutBreakdown(_checkoutCourse, deliv).total;
       const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
       const path = `student_slip_${sid}_${Date.now()}.${ext}`;
       const { error: upErr } = await _sb.storage.from('payment-slips').upload(path, file, { upsert: true });
@@ -1275,9 +1335,16 @@
     const displayMode = latestRc ? (latestRc.learning_mode || 'Onsite') : 'Onsite';
 
     let lecturerName = '';
-    if (_lecturerMap && Array.isArray(_lecturerMap.courses)) {
-      const hit = _lecturerMap.courses.find(x => displayCourse.includes(x.code) || displayCourse.includes(x.name));
-      if (hit && hit.lecturer) lecturerName = hit.lecturer;
+    if (_termInfo && Array.isArray(_termInfo.slots)) {
+      const codeToken = displayCourse.split(/[\s-]/)[0].toUpperCase();
+      for (const slot of _termInfo.slots) {
+        const hit = (slot.classes || []).find(cl => String(cl.courseCode || '').toUpperCase() === codeToken);
+        if (hit) {
+          const lecObj = _lecturerMap && _lecturerMap.lecturers && hit.lecturerId ? _lecturerMap.lecturers[String(hit.lecturerId)] : null;
+          lecturerName = hit.lecturerName || (lecObj && lecObj.name) || '';
+          break;
+        }
+      }
     }
     const termDates = (_termInfo && _termInfo.dateFrom && _termInfo.dateTo) ? `${_termInfo.dateFrom} - ${_termInfo.dateTo}` : '';
 
@@ -1596,15 +1663,11 @@
       const catLabel = cat[_currentLang] || cat.th;
       const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
       return `
-        <div class="oca-notice-item" onmouseenter="OcaStudentPortal.hoverNotice('${esc(n.id)}', this)" onmouseleave="OcaStudentPortal.scheduleHideHoverPopover()" onclick="OcaStudentPortal.openNoticeDetail('${esc(n.id)}')">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
-            ${n.pinned ? '<span style="background:#FEF3C7;color:#92400E;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;"><i class="fa-solid fa-thumbtack"></i></span>' : ''}
-            ${n.isNew ? '<span style="background:#EF4444;color:#FFFFFF;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;">NEW</span>' : ''}
-            <span style="background:${cat.bg};color:${cat.fg};font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;">${esc(catLabel)}</span>
-            <span style="font-size:11px;color:#A7F3D0;margin-left:auto;">${esc(dtStr)}</span>
-          </div>
-          <div style="font-size:13.5px;font-weight:700;color:#FFFFFF;line-height:1.4;">${esc(n.title)}</div>
-          ${n.body ? `<div style="font-size:12px;color:#D1FAE5;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${esc(n.body)}</div>` : ''}
+        <div class="oca-notice-item" style="padding:8px 11px;display:flex;align-items:center;gap:7px;" onmouseenter="OcaStudentPortal.hoverNotice('${esc(n.id)}', this)" onmouseleave="OcaStudentPortal.scheduleHideHoverPopover()" onclick="OcaStudentPortal.openNoticeDetail('${esc(n.id)}')">
+          ${n.pinned ? '<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px;flex-shrink:0;"><i class="fa-solid fa-thumbtack"></i></span>' : ''}
+          <span style="background:${cat.bg};color:${cat.fg};font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;flex-shrink:0;">${esc(catLabel)}</span>
+          <span style="font-size:13px;font-weight:700;color:#FFFFFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">${esc(n.title)}</span>
+          <span style="font-size:11px;color:#A7F3D0;flex-shrink:0;">${esc(dtStr)}</span>
         </div>`;
     }).join('');
   }
@@ -1715,7 +1778,54 @@
     });
   }
 
+  function syncThemeIcons() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.querySelectorAll('.st-theme-icon').forEach((ic) => {
+      ic.className = (isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon') + ' st-theme-icon';
+    });
+  }
+
+  function toggleTheme() {
+    const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    const next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('oca_student_theme', next); } catch (_) {}
+    syncThemeIcons();
+  }
+
+  async function downloadElAsPng(el, filename) {
+    if (!el || typeof global.html2canvas !== 'function') {
+      showToast('ระบบสร้างภาพยังไม่พร้อม กรุณาลองใหม่');
+      return;
+    }
+    try {
+      const canvas = await global.html2canvas(el, { useCORS: true, scale: 2, backgroundColor: null });
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('บันทึกรูปภาพเรียบร้อยแล้ว');
+    } catch (err) {
+      showToast('บันทึกรูปไม่สำเร็จ: ' + (err.message || err));
+    }
+  }
+
+  function downloadCardPng() {
+    const face = document.querySelector(_isCardFlipped ? '.oca-id-face-back' : '.oca-id-face-front');
+    const sid = (_student && _student.student_id) ? _student.student_id : 'student';
+    downloadElAsPng(face, `oca-student-card-${sid}.png`);
+  }
+
+  function downloadReceiptPng() {
+    const area = document.getElementById('boxReceiptCaptureArea');
+    const title = (document.getElementById('lblRcDetailTitle')?.textContent || 'receipt').replace(/[^0-9A-Za-z_-]/g, '');
+    downloadElAsPng(area, `oca-receipt-${title}.png`);
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    const isRedirectingHtml = /^https?:$/i.test(global.location.protocol) && /\/student\.html$/i.test(global.location.pathname || '');
+    if (isRedirectingHtml) return;
+    syncThemeIcons();
     initRealtimeI18nObserver();
     initIdleMonitor();
     setLang(_currentLang);
@@ -1739,6 +1849,9 @@
 
   global.OcaStudentPortal = {
     setLang,
+    toggleTheme,
+    downloadCardPng,
+    downloadReceiptPng,
     toggleLoginSecret,
     enterLoginFromWelcome,
     backToWelcome,
