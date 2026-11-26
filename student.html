@@ -37,6 +37,14 @@
         window.__ocaStudentWaitingInstall = false;
         document.documentElement.classList.add('oca-standalone');
       });
+      window.__ocaPendingEnterLogin = false;
+      window.__ocaSafeEnterLogin = function () {
+        if (window.OcaStudentPortal && typeof window.OcaStudentPortal.enterLoginFromWelcome === 'function') {
+          window.OcaStudentPortal.enterLoginFromWelcome();
+        } else {
+          window.__ocaPendingEnterLogin = true;
+        }
+      };
     })();
   </script>
   <style>
@@ -148,7 +156,7 @@
 
     /* LEFT SIDEBAR APP SHELL */
     .st-app-shell {
-      max-width: 1240px; margin: 16px auto 40px auto; padding: 0 14px;
+      width: 100%; max-width: none; margin: 12px 0 32px 0; padding: 0 20px;
       display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start;
     }
     @media (min-width: 900px) {
@@ -438,7 +446,7 @@
       background: radial-gradient(circle at top left, #DCFCE7 0%, #F4F7F6 45%, #FEF3C7 100%);
     }
     .oca-student-login-card {
-      max-width: 960px; width: 100%; border-radius: 20px; overflow: hidden;
+      max-width: none; width: 100%; border-radius: 20px; overflow: hidden;
       box-shadow: 0 26px 70px rgba(2, 44, 34, 0.22), 0 0 0 1.5px rgba(215, 166, 0, 0.42);
       background: #011E17; display: flex; flex-direction: row; flex-wrap: wrap; min-height: 550px;
     }
@@ -601,12 +609,13 @@
     }
     @media (max-width: 768px) { .oca-mobile-pwa-btn { display: inline-flex; } }
     html.oca-standalone .oca-mobile-pwa-btn { display: none !important; }
+    body.oca-app-logged-in #btnMobilePwaInstall { display: none !important; }
   </style>
 </head>
 <body>
   <!-- TOP HEADER: SINGLE NOTIFICATION BELL RIGHT NEXT TO LANGUAGE SWITCHER -->
-  <header id="stMainHeader" class="st-header st-hidden" style="padding: 11px 16px;">
-    <div style="max-width: 1240px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+  <header id="stMainHeader" class="st-header st-hidden" style="padding: 11px 20px;">
+    <div style="width: 100%; max-width: none; margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
       <div style="display: flex; align-items: center; gap: 10px;">
         <img src="./oca_logo.png" alt="OCA Logo" style="width: 40px; height: 40px; object-fit: contain; border-radius: 50%; background: rgba(255,255,255,0.1); padding: 2px;" />
         <div>
@@ -661,7 +670,7 @@
             </linearGradient>
           </defs>
           <image href="./assets/images/oca_welcome_bg.jpg" x="0" y="0" width="2752" height="1536" pointer-events="none" />
-          <g class="oca-svg-welcome-btn" id="btnStudentWelcomeSvg" onclick="OcaStudentPortal.enterLoginFromWelcome()" role="button" aria-label="Enter Student Portal">
+          <g class="oca-svg-welcome-btn" id="btnStudentWelcomeSvg" onclick="window.__ocaSafeEnterLogin ? window.__ocaSafeEnterLogin() : (window.OcaStudentPortal && OcaStudentPortal.enterLoginFromWelcome())" role="button" aria-label="Enter Student Portal">
             <rect x="150" y="890" width="570" height="200" rx="100" fill="transparent" />
             <rect x="188" y="934" width="492" height="117" rx="58.5" fill="none" stroke="#F7D24C" stroke-width="4" />
             <rect x="198" y="944" width="472" height="97" rx="48.5" fill="url(#ocaStudentBtnGrad)" stroke="#E2B34A" stroke-width="3.5" />
@@ -673,7 +682,7 @@
     <div class="oca-welcome-mobile-stage">
       <img class="oca-mob-scene-img" src="./assets/images/oca_mob_scene.jpg" alt="Oriental Culture Academy" />
       <div class="oca-mob-cta-wrap" style="bottom: calc(56px + env(safe-area-inset-bottom, 0px));">
-        <button type="button" class="oca-mob-cta" id="btnStudentWelcomeMob" onclick="OcaStudentPortal.enterLoginFromWelcome()">
+        <button type="button" class="oca-mob-cta" id="btnStudentWelcomeMob" onclick="window.__ocaSafeEnterLogin ? window.__ocaSafeEnterLogin() : (window.OcaStudentPortal && OcaStudentPortal.enterLoginFromWelcome())">
           <span>WELCOME</span><i class="fa-solid fa-arrow-right"></i>
         </button>
       </div>
@@ -1618,12 +1627,12 @@
   <div id="ocaStudentHoverPopover" class="oca-custom-scrollbar st-hidden" style="position: fixed; z-index: 99998; background: #FFFFFF; color: #0F172A; border: 1.5px solid #D4AF37; border-radius: 14px; box-shadow: 0 16px 40px rgba(2,44,34,0.22); min-width: 280px; max-width: 440px; max-height: 340px; overflow-y: auto; padding: 14px; text-align: left;"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js" integrity="sha384-2zrRDgDHSYB/GN3nFW3fsZXoxEhKIr3N2h63Tc6DEOB9JJdFIu8xMJT2Cph/gBil" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js" integrity="sha384-4uQjzVxVRlLf2zq2sqRNKh3IzetqQzu15fI6xgLQzhXYGJMtTZc/fvdszanED0Zp" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js" integrity="sha384-4uQjzVxVRlLf2zq2sqRNKh3IzetqQzu15fI6xgLQzhXYGJMtTZc/fvdszanED0Zp" crossorigin="anonymous"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
   <script src="./js/oca-slip-guard.js?v=374"></script>
   <script src="./js/oca-student-ai-photo.js?v=379"></script>
   <script src="./js/oca-notice-board.js?v=380"></script>
-  <script src="./js/oca-student-portal.js?v=380"></script>
+  <script src="./js/oca-student-portal.js?v=382"></script>
 </body>
 </html>
