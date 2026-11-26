@@ -438,13 +438,15 @@
             </div>
             <div>
               <label for="inpNoticeImageFile" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;"><i class="fa-regular fa-image"></i> แนบรูปภาพประกอบ (≤ 5MB)</label>
-              <input id="inpNoticeImageFile" type="file" accept="image/jpeg,image/png,image/webp" style="width:100%;font-size:12px;" />
+              <input id="inpNoticeImageFile" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif,.jfif" style="width:100%;font-size:12px;" />
+              <div style="font-size:11px;color:#475569;margin-top:3px;line-height:1.35;">หมายเหตุ: รองรับรูปภาพมาตรฐานทุกนามสกุล (JPG, PNG, WEBP, GIF, BMP, AVIF) ขนาด ≤ 5 MB (ปรับเป็น JPEG อัตโนมัติ)</div>
               <input type="hidden" id="inpNoticeImagePath" value="" />
               <div id="lblNoticeImageState" style="font-size:11px;color:#047857;margin-top:2px;"></div>
             </div>
             <div>
-              <label for="inpNoticeDocFile" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;"><i class="fa-regular fa-file-pdf"></i> แนบไฟล์เอกสาร PDF/Office (≤ 10MB)</label>
-              <input id="inpNoticeDocFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" style="width:100%;font-size:12px;" />
+              <label for="inpNoticeDocFile" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;"><i class="fa-regular fa-file-pdf"></i> แนบไฟล์เอกสารมาตรฐาน (≤ 10MB)</label>
+              <input id="inpNoticeDocFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.rtf,.odt,.ods,.odp,.zip" style="width:100%;font-size:12px;" />
+              <div style="font-size:11px;color:#475569;margin-top:3px;line-height:1.35;">หมายเหตุ: รองรับเอกสารมาตรฐาน (PDF, Word, Excel, PowerPoint, CSV, TXT, RTF, ODT/ODS/ODP, ZIP) ขนาด ≤ 10 MB</div>
               <input type="hidden" id="inpNoticeDocPath" value="" />
               <input type="hidden" id="inpNoticeDocName" value="" />
               <div id="lblNoticeDocState" style="font-size:11px;color:#0369A1;margin-top:2px;"></div>
@@ -673,10 +675,16 @@
       let docPath = document.getElementById('inpNoticeDocPath')?.value || '';
       let docName = document.getElementById('inpNoticeDocName')?.value || '';
 
+      const ALLOWED_IMG_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'jfif'];
+      const ALLOWED_DOC_EXTS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'txt', 'rtf', 'odt', 'ods', 'odp', 'zip'];
+
       const imgFile = document.getElementById('inpNoticeImageFile')?.files?.[0];
       if (imgFile) {
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(String(imgFile.type || '').toLowerCase())) {
-          throw new Error('รูปภาพรองรับเฉพาะ JPG, PNG หรือ WEBP');
+        const imgMime = String(imgFile.type || '').toLowerCase();
+        const imgExt = (imgFile.name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const isValidImg = (imgMime.startsWith('image/') && !imgMime.includes('svg')) || ALLOWED_IMG_EXTS.includes(imgExt);
+        if (!isValidImg) {
+          throw new Error('รองรับเฉพาะไฟล์รูปภาพมาตรฐาน (JPG, PNG, WEBP, GIF, BMP, AVIF)');
         }
         if (Number(imgFile.size || 0) > 5 * 1024 * 1024) throw new Error('ขนาดรูปภาพต้องไม่เกิน 5 MB');
         const jpegBlob = await convertImageFileToJpegBlob(imgFile, 1280);
@@ -687,7 +695,10 @@
       const docFile = document.getElementById('inpNoticeDocFile')?.files?.[0];
       if (docFile) {
         if (Number(docFile.size || 0) > 10 * 1024 * 1024) throw new Error('ขนาดไฟล์เอกสารต้องไม่เกิน 10 MB');
-        const ext = (docFile.name.split('.').pop() || 'pdf').replace(/[^a-zA-Z0-9]/g, '');
+        const ext = (docFile.name.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!ALLOWED_DOC_EXTS.includes(ext)) {
+          throw new Error('รองรับเฉพาะไฟล์เอกสารมาตรฐาน (PDF, Word, Excel, PowerPoint, CSV, TXT, RTF, ODT/ODS/ODP, ZIP)');
+        }
         const upPath = `notice_doc_${noticeId}_${Date.now()}.${ext}`;
         docPath = await uploadNoticeAttachment(sb, upPath, docFile, docFile.type || 'application/octet-stream');
         docName = String(docFile.name || '').slice(0, 90);
