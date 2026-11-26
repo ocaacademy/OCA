@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oca-student-359';
+const CACHE_NAME = 'oca-student-360';
 const ASSETS_TO_CACHE = [
   './',
   './manifest.json',
@@ -10,6 +10,7 @@ const ASSETS_TO_CACHE = [
   '../js/oca-student-ai-photo.js',
   '../js/oca-notice-board.js',
   '../js/oca-student-portal.js',
+  '../assets/data/thai_address_compact.json',
   '../assets/images/oca_welcome_bg.jpg',
   '../assets/images/oca_mob_scene.jpg',
   '../assets/images/oca_student_card_front.jpg',
