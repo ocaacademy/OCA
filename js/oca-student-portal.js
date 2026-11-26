@@ -3268,6 +3268,69 @@
     if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i><span>คัดลอกลิงก์แล้ว — เปิดใน Chrome เพื่อติดตั้ง</span>';
   }
 
+  function renderPwaGuideModal() {
+    const box = document.getElementById('boxStudentPwaGuideContent');
+    if (!box) return;
+    const ua = (navigator && navigator.userAgent) || '';
+    const isIos = isIosNonStandalone();
+    const isInApp = /line\/|fban|fbav|instagram|micromessenger/i.test(ua);
+    const kind = isIos ? 'ios' : (isInApp ? 'inapp' : (/android/i.test(ua) ? 'android' : 'pc'));
+    const content = {
+      ios: {
+        title: 'ติดตั้งแอป OCA Student บน iPhone / iPad',
+        sub: 'เลือกติดตั้งได้ 2 วิธี (ฟรี 100% ไม่ต้องผ่าน App Store)',
+        steps: [
+          '<b>วิธีที่ 1 (Safari — ง่ายที่สุด):</b> แตะปุ่ม <b>แชร์</b> (สี่เหลี่ยมมีลูกศรชี้ขึ้น) ด้านล่าง',
+          'เลื่อนลงเลือก <b>เพิ่มไปยังหน้าจอโฮม (Add to Home Screen)</b> แล้วแตะ <b>เพิ่ม</b>',
+          '<b>วิธีที่ 2 (โปรไฟล์แอป iOS):</b> กดปุ่ม <b>ติดตั้งโปรไฟล์แอป iOS</b> ด้านล่าง &rarr; แตะ <b>อนุญาต (Allow)</b> &rarr; เปิดแอป <b>การตั้งค่า (Settings)</b> &rarr; แตะ <b>โปรไฟล์ที่ดาวน์โหลดแล้ว</b> &rarr; กด <b>ติดตั้ง</b>'
+        ],
+        note: 'หากขึ้นว่า "ไม่ได้เซ็นชื่อ (Unsigned)" ใน Settings เป็นเรื่องปกติของโปรไฟล์เว็บแอปฟรี ปลอดภัย 100% หรือใช้วิธีที่ 1 ผ่าน Safari ได้ทันที'
+      },
+      android: {
+        title: 'ติดตั้งแอป OCA Student บน Android',
+        sub: 'เลือกดาวน์โหลดไฟล์แอป (.apk) หรือติดตั้งผ่าน Google Chrome',
+        steps: [
+          'กดปุ่ม <b>ดาวน์โหลดแอป Android (.apk)</b> ด้านล่าง (แนะนำ — ติดตั้งได้ทุกเครื่อง)',
+          'หรือเปิดใน Chrome แตะเมนู <b>⋮</b> มุมขวาบน &rarr; เลือก <b>ติดตั้งแอป</b>',
+          'หาก Android ถามสิทธิ์ครั้งแรก ให้กดอนุญาต <b>ติดตั้งแอปที่ไม่รู้จัก</b>'
+        ],
+        note: 'หากเปิดจาก LINE / Facebook สามารถกดปุ่มดาวน์โหลดไฟล์แอปด้านล่างได้ทันที'
+      },
+      inapp: {
+        title: 'กรุณาเปิดด้วยเบราว์เซอร์',
+        sub: 'การติดตั้งแอปอัตโนมัติทำไม่ได้ในเบราว์เซอร์ของ LINE / Facebook',
+        steps: [
+          'แตะเมนู <b>⋮</b> หรือ <b>แชร์</b> ของแอปนี้แล้วเลือก <b>เปิดในเบราว์เซอร์</b>',
+          'หรือกดปุ่มดาวน์โหลด/ติดตั้งโปรไฟล์ด้านล่างได้ทันที'
+        ],
+        note: 'หรือกดคัดลอกลิงก์ด้านล่างแล้วไปวางใน Chrome / Safari'
+      },
+      pc: {
+        title: 'ติดตั้งแอป OCA Student บนคอมพิวเตอร์',
+        sub: 'ติดตั้งผ่านเบราว์เซอร์ Google Chrome หรือ Microsoft Edge',
+        steps: [
+          'คลิกไอคอนติดตั้ง (รูปคอมพิวเตอร์/ลูกศรลง) ที่มุมขวาของแถบที่อยู่ (Address Bar)',
+          'คลิกปุ่ม <b>ติดตั้ง (Install)</b> เพื่อสร้างไอคอนแอปบนหน้าจอ'
+        ],
+        note: ''
+      }
+    }[kind];
+    const isAndroidGuide = kind === 'android' || (kind === 'inapp' && !isIos);
+    const isIosGuide = kind === 'ios' || (kind === 'inapp' && isIos);
+    box.innerHTML =
+      '<h3>' + content.title + '</h3>' +
+      '<p class="sub">' + content.sub + '</p>' +
+      '<ol>' + content.steps.map((s) => '<li>' + s + '</li>').join('') + '</ol>' +
+      (content.note ? '<div class="note">' + content.note + '</div>' : '') +
+      '<div class="row">' +
+        (isAndroidGuide ? '<a id="btnDownloadAndroidApkStudent" href="https://github.com/ocaacademy/OCA/releases/latest/download/OCA-Student.apk" class="oca-pwa-action-btn primary" style="flex: 1 1 100%;"><i class="fa-brands fa-android"></i><span>ดาวน์โหลดแอป Android (.apk)</span></a>' : '') +
+        (isAndroidGuide ? '<a id="btnOpenAndroidChromePwa" href="https://ocaacademy.github.io/OCA/student/" onclick="OcaStudentPortal.openAndroidChromeIntent(event)" class="oca-pwa-action-btn ghost" style="flex: 1 1 100%;"><i class="fa-brands fa-chrome"></i><span>เปิดใน Google Chrome เพื่อติดตั้ง</span></a>' : '') +
+        (isIosGuide ? '<a id="btnInstallIosProfileStudent" href="./downloads/OCA-Student.mobileconfig" download="OCA-Student.mobileconfig" class="oca-pwa-action-btn primary" style="flex: 1 1 100%;"><i class="fa-brands fa-apple"></i><span>ติดตั้งโปรไฟล์แอป iOS (.mobileconfig)</span></a>' : '') +
+        (kind === 'inapp' ? '<button type="button" class="ghost" onclick="navigator.clipboard&&navigator.clipboard.writeText(location.href).catch(()=>{});this.textContent=\'คัดลอกแล้ว\'">คัดลอกลิงก์</button>' : '') +
+        '<button type="button" class="' + ((isAndroidGuide || isIosGuide) ? 'ghost' : 'primary') + '" onclick="OcaStudentPortal.closePwaGuide()">เข้าใจแล้ว</button>' +
+      '</div>';
+  }
+
   async function installPwa() {
     const ua = (navigator && navigator.userAgent) || '';
     const isAndroid = /android/i.test(ua);
@@ -3289,10 +3352,13 @@
     }
     if (isInAppWebView && isRealAndroidDevice()) {
       try { global.location.href = 'intent://ocaacademy.github.io/OCA/student/#Intent;scheme=https;package=com.android.chrome;end'; } catch (_) {}
-      setTimeout(() => { document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden'); }, 1200);
+      setTimeout(() => {
+        renderPwaGuideModal();
+        document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden');
+      }, 1200);
       return;
     }
-    // Zero async await/setTimeout before prompt(): if Chrome hasn't fired beforeinstallprompt yet, show actionable guide immediately.
+    renderPwaGuideModal();
     document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden');
   }
 
