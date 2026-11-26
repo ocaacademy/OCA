@@ -3,13 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <script>
+    (function () {
+      var isStd = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+      if (!isStd && /^https?:$/i.test(window.location.protocol) && /\/student\.html$/i.test(window.location.pathname)) {
+        window.location.replace('./student/' + window.location.search + window.location.hash);
+      }
+    })();
+  </script>
   <title>OCA Student Portal — Oriental Culture Academy</title>
   <meta name="theme-color" content="#022C22" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="OCA Student" />
-  <link rel="manifest" href="./student-manifest.json?v=358" />
+  <link rel="manifest" href="./student/manifest.json?v=359" />
   <link rel="icon" type="image/png" href="./student-favicon.png" />
   <link rel="apple-touch-icon" href="./student-icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -21,6 +29,13 @@
       if ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true) {
         document.documentElement.classList.add('oca-standalone');
       }
+      window.__ocaStudentDeferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (ev) {
+        ev.preventDefault();
+        window.__ocaStudentDeferredPrompt = ev;
+        var b = document.getElementById('btnStudentPwaInstall');
+        if (b) b.classList.remove('st-hidden');
+      });
     })();
   </script>
   <style>
@@ -77,12 +92,35 @@
     }
     .st-lang-btn.active { background: #FEF3C7; border-color: #D4AF37; }
     .st-flag-svg { width: 22px; height: 15px; border-radius: 2px; display: block; box-shadow: 0 0 0 1px rgba(15,23,42,0.12); }
-    .st-tab-btn {
-      padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700;
-      border: 1px solid #CBD5E1; background: #FFFFFF; color: #0F172A;
-      white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+
+    /* LEFT SIDEBAR APP SHELL */
+    .st-app-shell {
+      max-width: 1240px; margin: 16px auto 40px auto; padding: 0 14px;
+      display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start;
     }
-    .st-tab-btn.active { background: #047857; color: #FFFFFF; border-color: #047857; }
+    @media (min-width: 900px) {
+      .st-app-shell { grid-template-columns: 260px 1fr; }
+      .st-mobile-nav-bar { display: none !important; }
+    }
+    .st-sidebar {
+      background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px;
+      padding: 14px; box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+      position: sticky; top: 14px;
+    }
+    @media (max-width: 899px) {
+      .st-sidebar { display: none; position: static; }
+      .st-sidebar.open { display: block; }
+    }
+    .st-tab-btn {
+      width: 100%; padding: 10px 12px; border-radius: 10px; font-size: 13.5px; font-weight: 700;
+      border: 1px solid transparent; background: transparent; color: #0F172A;
+      cursor: pointer; display: flex; align-items: center; gap: 10px; text-align: left;
+      transition: background 0.15s, color 0.15s;
+    }
+    .st-tab-btn:hover { background: #F1F5F9; }
+    .st-tab-btn.active { background: #022C22; color: #FFFFFF; border-color: #D4AF37; }
+    .st-tab-btn i { width: 18px; text-align: center; }
+
     .st-cat-btn {
       width: 100%; text-align: left; padding: 9px 12px; border-radius: 10px;
       font-size: 13px; font-weight: 600; border: 1px solid #E2E8F0;
@@ -91,7 +129,25 @@
     }
     .st-cat-btn.active { background: #022C22; color: #FFFFFF; border-color: #022C22; }
 
-    /* WELCOME OVERLAY (Matched to Staff Welcome Screen) */
+    /* 3D FLIPPABLE OFFICIAL STUDENT ID CARD */
+    .oca-id-flip-wrap {
+      max-width: 480px; width: 100%; aspect-ratio: 1.586 / 1;
+      margin: 0 auto; perspective: 1200px; cursor: pointer;
+    }
+    .oca-id-flip-inner {
+      position: relative; width: 100%; height: 100%;
+      transform-style: preserve-3d; transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .oca-id-flip-inner.flipped { transform: rotateY(180deg); }
+    .oca-id-face {
+      position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+      border-radius: 16px; overflow: hidden; box-shadow: 0 16px 38px rgba(2, 44, 34, 0.28);
+      border: 1.5px solid #D4AF37;
+    }
+    .oca-id-face-back { transform: rotateY(180deg); }
+    .oca-id-bg-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* WELCOME OVERLAY */
     .oca-welcome-overlay {
       position: fixed; inset: 0; width: 100%; height: 100%; z-index: 99990;
       background: linear-gradient(180deg, #EBF3FA 0%, #D4E4DE 60%, #01231C 100%);
@@ -118,9 +174,7 @@
     .oca-welcome-svg { width: 100%; height: 100%; display: block; user-select: none; }
     .oca-svg-welcome-btn { cursor: pointer; transition: transform 0.22s ease, filter 0.22s ease; transform-origin: 434px 992.5px; }
     .oca-svg-welcome-btn:hover { transform: scale(1.03); filter: drop-shadow(0 0 25px rgba(247, 210, 76, 0.95)); }
-    .oca-welcome-pwa-bar {
-      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 25;
-    }
+    .oca-welcome-pwa-bar { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 25; }
     .oca-welcome-pwa-btn {
       display: inline-flex; align-items: center; gap: 9px; padding: 10px 18px;
       border-radius: 999px; background: rgba(2, 44, 34, 0.88); color: #FDE68A;
@@ -189,7 +243,7 @@
     .oca-notice-item:hover { background: rgba(255, 255, 255, 0.14); }
 
     .st-enroll-layout { display: grid; grid-template-columns: 1fr; gap: 16px; }
-    @media (min-width: 900px) { .st-enroll-layout { grid-template-columns: 240px 1fr; align-items: start; } }
+    @media (min-width: 900px) { .st-enroll-layout { grid-template-columns: 220px 1fr; align-items: start; } }
     .st-course-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
     @media (min-width: 640px) { .st-course-grid { grid-template-columns: repeat(2, 1fr); } }
     @media (min-width: 1100px) { .st-course-grid { grid-template-columns: repeat(3, 1fr); } }
@@ -209,14 +263,14 @@
   </style>
 </head>
 <body>
-  <!-- TOP HEADER (Visible when inside Register or Logged-In App) -->
-  <header id="stMainHeader" class="st-header st-hidden" style="padding: 12px 16px;">
-    <div style="max-width: 1180px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+  <!-- TOP HEADER: SINGLE NOTIFICATION BELL RIGHT NEXT TO LANGUAGE SWITCHER -->
+  <header id="stMainHeader" class="st-header st-hidden" style="padding: 11px 16px;">
+    <div style="max-width: 1240px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
       <div style="display: flex; align-items: center; gap: 10px;">
-        <img src="./oca_logo.png" alt="OCA Logo" style="width: 42px; height: 42px; object-fit: contain; border-radius: 50%; background: rgba(255,255,255,0.1); padding: 2px;" />
+        <img src="./oca_logo.png" alt="OCA Logo" style="width: 40px; height: 40px; object-fit: contain; border-radius: 50%; background: rgba(255,255,255,0.1); padding: 2px;" />
         <div>
           <div style="font-size: 15px; font-weight: 800; color: #FDE68A;">东方文化书院 • OCA Student</div>
-          <div id="txtHdrSub" style="font-size: 11.5px; color: #A7F3D0;">ระบบนักศึกษาออนไลน์ (สมัครเรียน • ตารางเรียน • บัตรนักศึกษา)</div>
+          <div id="txtHdrSub" data-i18n="hdrSub" style="font-size: 11.5px; color: #A7F3D0;">ระบบนักศึกษาออนไลน์ (สมัครเรียน • ตารางเรียน • บัตรนักศึกษา)</div>
         </div>
       </div>
       <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -231,15 +285,16 @@
             <svg class="st-flag-svg" viewBox="0 0 30 20"><rect width="30" height="20" fill="#DE2910"/><polygon points="5,2.5 5.9,5.3 3.5,3.6 6.5,3.6 4.1,5.3" fill="#FFDE00"/><circle cx="9" cy="2.5" r="0.8" fill="#FFDE00"/><circle cx="10.5" cy="4.2" r="0.8" fill="#FFDE00"/><circle cx="10.5" cy="6.5" r="0.8" fill="#FFDE00"/><circle cx="9" cy="8.2" r="0.8" fill="#FFDE00"/></svg>
           </button>
         </div>
-        <button type="button" id="btnStudentNotifBell" class="st-hidden" onclick="OcaStudentPortal.openNotifModal()" style="position: relative; background: rgba(255,255,255,0.14); color: #FFFFFF; border: 1px solid rgba(255,255,255,0.28); border-radius: 10px; padding: 7px 11px; font-size: 13px; font-weight: 700; cursor: pointer;" title="การแจ้งเตือน">
+        <!-- ONLY Notification Bell (directly next to Language Switcher) -->
+        <button type="button" id="btnStudentNotifBell" class="st-hidden" onclick="OcaStudentPortal.openNotifModal()" data-i18n-title="notifBellTitle" title="การแจ้งเตือนและประกาศสถาบัน" style="position: relative; background: rgba(255,255,255,0.16); color: #FFFFFF; border: 1px solid rgba(255,255,255,0.32); border-radius: 999px; width: 38px; height: 34px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer;">
           <i class="fa-solid fa-bell"></i>
-          <span id="badgeStudentNotifCount" class="st-hidden" style="position: absolute; top: -6px; right: -6px; background: #DC2626; color: #FFFFFF; font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 999px; border: 1.5px solid #022C22;">0</span>
+          <span id="badgeStudentNotifCount" class="st-hidden" style="position: absolute; top: -5px; right: -5px; background: #DC2626; color: #FFFFFF; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 999px; border: 1.5px solid #022C22;">0</span>
         </button>
         <button type="button" id="btnStudentPwaInstall" class="st-btn-gold" style="padding: 6px 12px; font-size: 12px;" onclick="OcaStudentPortal.installPwa()">
-          <i class="fa-solid fa-mobile-screen-button"></i> <span id="lblInstallPwa">ติดตั้งแอป</span>
+          <i class="fa-solid fa-download"></i> <span id="lblInstallPwa" data-i18n="installPwa">ติดตั้งแอป</span>
         </button>
-        <button type="button" id="btnStudentLogout" class="st-hidden" onclick="OcaStudentPortal.logout()" style="background: #B91C1C; color: #FFFFFF; border: none; border-radius: 10px; padding: 7px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer;">
-          <i class="fa-solid fa-right-from-bracket"></i> <span id="lblLogout">ออกจากระบบ</span>
+        <button type="button" id="btnStudentLogout" class="st-hidden" onclick="OcaStudentPortal.logout()" style="background: #B91C1C; color: #FFFFFF; border: none; border-radius: 10px; padding: 7px 12px; font-size: 12.5px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-right-from-bracket"></i> <span id="lblLogout" data-i18n="logout">ออกจากระบบ</span>
         </button>
       </div>
     </div>
@@ -248,7 +303,7 @@
   <!-- TOAST -->
   <div id="stToast" class="st-hidden" style="position: fixed; bottom: 20px; right: 16px; z-index: 100000; max-width: 340px; background: #022C22; color: #FFFFFF; border: 1.5px solid #D4AF37; border-radius: 12px; padding: 12px 16px; font-size: 13px; font-weight: 600; box-shadow: 0 12px 30px rgba(0,0,0,0.25);"></div>
 
-  <!-- VIEW 0: WELCOME SCREEN (Matched to Staff Portal Welcome) -->
+  <!-- VIEW 0: WELCOME SCREEN -->
   <section id="viewStudentWelcome" class="oca-welcome-overlay">
     <div class="oca-welcome-stage">
       <div class="oca-welcome-ambient-bg" aria-hidden="true">
@@ -264,7 +319,7 @@
             </linearGradient>
           </defs>
           <image href="./assets/images/oca_welcome_bg.jpg" x="0" y="0" width="2752" height="1536" pointer-events="none" />
-          <g class="oca-svg-welcome-btn" id="btnStudentWelcomeSvg" onclick="OcaStudentPortal.enterLoginFromWelcome()" role="button" aria-label="เข้าสู่ระบบนักศึกษา">
+          <g class="oca-svg-welcome-btn" id="btnStudentWelcomeSvg" onclick="OcaStudentPortal.enterLoginFromWelcome()" role="button" aria-label="Enter Student Portal">
             <rect x="150" y="890" width="570" height="200" rx="100" fill="transparent" />
             <rect x="188" y="934" width="492" height="117" rx="58.5" fill="none" stroke="#F7D24C" stroke-width="4" />
             <rect x="198" y="944" width="472" height="97" rx="48.5" fill="url(#ocaStudentBtnGrad)" stroke="#E2B34A" stroke-width="3.5" />
@@ -273,9 +328,9 @@
         </svg>
       </div>
       <div class="oca-welcome-pwa-bar">
-        <button type="button" class="oca-welcome-pwa-btn" onclick="OcaStudentPortal.installPwa()">
-          <i class="fa-solid fa-mobile-screen-button"></i>
-          <span>ติดตั้งแอปนักศึกษา OCA (PWA)</span>
+        <button type="button" id="btnWelcomePwa" class="oca-welcome-pwa-btn" onclick="OcaStudentPortal.installPwa()">
+          <i class="fa-solid fa-download"></i>
+          <span data-i18n="installPwaFull">ติดตั้งแอปนักศึกษา OCA (PWA)</span>
           <span class="oca-welcome-pwa-badge">PWA</span>
         </button>
       </div>
@@ -284,23 +339,23 @@
       <img class="oca-mob-scene-img" src="./assets/images/oca_mob_scene.jpg" alt="Oriental Culture Academy" />
       <div class="oca-mob-cta-wrap">
         <button type="button" class="oca-mob-cta" id="btnStudentWelcomeMob" onclick="OcaStudentPortal.enterLoginFromWelcome()">
-          <span>WELCOME</span><span>&rarr;</span>
+          <span>WELCOME</span><i class="fa-solid fa-arrow-right"></i>
         </button>
       </div>
       <div class="oca-mob-pwa-wrap">
-        <button type="button" class="oca-mob-pwa" onclick="OcaStudentPortal.installPwa()">
-          <i class="fa-solid fa-mobile-screen-button"></i>
-          <span>ติดตั้งแอป OCA Student ลงในโทรศัพท์</span>
+        <button type="button" id="btnWelcomePwaMob" class="oca-mob-pwa" onclick="OcaStudentPortal.installPwa()">
+          <i class="fa-solid fa-download"></i>
+          <span data-i18n="installPwaFull">ติดตั้งแอปนักศึกษา OCA (PWA)</span>
           <span class="oca-mob-pwa-badge">PWA</span>
         </button>
       </div>
     </div>
   </section>
 
-  <!-- VIEW 1: TWO-COLUMN LOGIN LAYOUT (Left: Notice Board, Right: Student Login + Register) -->
+  <!-- VIEW 1: TWO-COLUMN LOGIN LAYOUT -->
   <main id="viewStudentAuth" class="oca-login-viewport st-hidden">
     <div class="oca-student-login-card">
-      <!-- LEFT COLUMN: OCA NOTICE BOARD -->
+      <!-- LEFT: NOTICE BOARD -->
       <section id="boxStudentNoticeBoard" class="oca-login-left">
         <div>
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;">
@@ -311,17 +366,15 @@
                 <div style="font-size: 10px; font-weight: 800; color: #D4AF37; letter-spacing: 1px;">ORIENTAL CULTURE ACADEMY</div>
               </div>
             </div>
-            <span id="lblLoginActiveTerm" style="background: rgba(212, 175, 55, 0.2); border: 1px solid #D4AF37; color: #FDE68A; font-size: 11.5px; font-weight: 800; padding: 4px 10px; border-radius: 999px;">ภาคเรียนปัจจุบัน</span>
+            <span id="lblLoginActiveTerm" style="background: rgba(212, 175, 55, 0.2); border: 1px solid #D4AF37; color: #FDE68A; font-size: 11.5px; font-weight: 800; padding: 4px 10px; border-radius: 999px;">-</span>
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-            <h2 id="lblNoticeBoardTitle" style="margin: 0; font-size: 15px; font-weight: 800; color: #FDE68A;">
-              <i class="fa-solid fa-bullhorn"></i> บอร์ดประชาสัมพันธ์สถาบัน
+            <h2 style="margin: 0; font-size: 15px; font-weight: 800; color: #FDE68A; display: flex; align-items: center; gap: 7px;">
+              <i class="fa-solid fa-bullhorn"></i> <span id="lblNoticeBoardTitle" data-i18n="noticeBoardTitle">บอร์ดประชาสัมพันธ์สถาบัน</span>
             </h2>
-            <span style="font-size: 11px; color: #A7F3D0;">เรียงข่าวใหม่ → เก่า</span>
+            <span data-i18n="noticeNewestFirst" style="font-size: 11px; color: #A7F3D0;">เรียงข่าวใหม่ไปเก่า</span>
           </div>
-          <div id="listStudentNotices" class="oca-notice-scroll">
-            <div class="oca-notice-item" style="font-size: 13px; color: #D1FAE5;">กำลังโหลดข่าวประชาสัมพันธ์...</div>
-          </div>
+          <div id="listStudentNotices" class="oca-notice-scroll"></div>
         </div>
         <div style="padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.16); font-size: 12px; color: #A7F3D0; display: flex; flex-wrap: wrap; gap: 14px;">
           <span><i class="fa-solid fa-phone"></i> 02-216-2826..8</span>
@@ -329,9 +382,8 @@
         </div>
       </section>
 
-      <!-- RIGHT COLUMN: STUDENT LOGIN CARD -->
+      <!-- RIGHT: LOGIN CARD -->
       <section class="oca-login-right">
-        <!-- SVG Flag Switcher Top-Left -->
         <div class="st-lang-pill" style="position: absolute; top: 14px; left: 18px; z-index: 10;" role="group" aria-label="Language">
           <button type="button" class="st-lang-btn active" data-lang="th" onclick="OcaStudentPortal.setLang('th')" title="ภาษาไทย">
             <svg class="st-flag-svg" viewBox="0 0 30 20"><rect width="30" height="20" fill="#A51931"/><rect y="3.33" width="30" height="13.34" fill="#F4F5F8"/><rect y="6.66" width="30" height="6.68" fill="#2D2A4A"/></svg>
@@ -343,43 +395,42 @@
             <svg class="st-flag-svg" viewBox="0 0 30 20"><rect width="30" height="20" fill="#DE2910"/><polygon points="5,2.5 5.9,5.3 3.5,3.6 6.5,3.6 4.1,5.3" fill="#FFDE00"/><circle cx="9" cy="2.5" r="0.8" fill="#FFDE00"/><circle cx="10.5" cy="4.2" r="0.8" fill="#FFDE00"/><circle cx="10.5" cy="6.5" r="0.8" fill="#FFDE00"/><circle cx="9" cy="8.2" r="0.8" fill="#FFDE00"/></svg>
           </button>
         </div>
-        <button type="button" onclick="OcaStudentPortal.backToWelcome()" title="กลับหน้าต้อนรับ" style="position: absolute; top: 14px; right: 16px; background: transparent; border: none; color: #64748B; font-size: 18px; cursor: pointer; padding: 6px; line-height: 1;">
+        <button type="button" onclick="OcaStudentPortal.backToWelcome()" data-i18n-title="backWelcome" title="กลับหน้าต้อนรับ" style="position: absolute; top: 14px; right: 16px; background: transparent; border: none; color: #64748B; font-size: 18px; cursor: pointer; padding: 6px; line-height: 1;">
           <i class="fa-solid fa-xmark"></i>
         </button>
 
         <div style="background: #FFFFFF; border-radius: 18px; padding: 24px 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); border: 1px solid rgba(229,204,162,0.55);">
           <div style="text-align: center; margin-bottom: 16px;">
             <span style="display: inline-block; background: #DCFCE7; color: #166534; font-size: 11px; font-weight: 800; padding: 3px 11px; border-radius: 999px; letter-spacing: 0.6px;">STUDENT PORTAL</span>
-            <h1 id="lblLoginTitle" style="font-size: 22px; font-weight: 800; color: #111827; margin: 8px 0 3px 0;">เข้าสู่ระบบนักศึกษา</h1>
-            <p id="lblLoginSub" style="font-size: 12.5px; color: #475569; margin: 0;">สำหรับนักศึกษาปัจจุบัน: ต่อคอร์ส, ดูตารางเรียน, บัตรนักศึกษา</p>
+            <h1 id="lblLoginTitle" data-i18n="loginTitle" style="font-size: 22px; font-weight: 800; color: #111827; margin: 8px 0 3px 0;">เข้าสู่ระบบนักศึกษา</h1>
+            <p id="lblLoginSub" data-i18n="loginSub" style="font-size: 12.5px; color: #475569; margin: 0;">สำหรับนักศึกษาปัจจุบัน: ต่อคอร์ส, ดูตารางเรียน, บัตรนักศึกษา</p>
           </div>
           <form onsubmit="OcaStudentPortal.handleLogin(event)" style="display: flex; flex-direction: column; gap: 12px;">
             <div>
-              <label for="inpLoginSid" id="lblLoginSid" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">รหัสนักศึกษา (7 หลัก)</label>
-              <input id="inpLoginSid" class="st-input" type="text" inputmode="numeric" maxlength="10" placeholder="เช่น 6950001" required />
+              <label for="inpLoginSid" id="lblLoginSid" data-i18n="loginSid" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">รหัสนักศึกษา (7 หลัก)</label>
+              <input id="inpLoginSid" class="st-input" type="text" inputmode="numeric" maxlength="10" data-i18n-placeholder="phSid" placeholder="เช่น 6950001" required />
             </div>
             <div>
-              <label for="inpLoginSecret" id="lblLoginSecret" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">วันเดือนปีเกิด (เช่น 15/05/2540) หรือรหัส 123456</label>
-              <input id="inpLoginSecret" class="st-input" type="text" placeholder="DD/MM/พ.ศ. หรือ 123456" required />
+              <label for="inpLoginSecret" id="lblLoginSecret" data-i18n="loginSecret" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">วันเดือนปีเกิด (เช่น 15/05/2540) หรือรหัส 123456</label>
+              <input id="inpLoginSecret" class="st-input" type="text" data-i18n-placeholder="phSecret" placeholder="DD/MM/พ.ศ. หรือ 123456" required />
             </div>
-            <div id="lblLegacyHint" style="background: #FEF3C7; border: 1px solid #F59E0B; color: #0F172A; border-radius: 10px; padding: 9px 11px; font-size: 12px; line-height: 1.45;">
-              <strong>นักศึกษาเก่าที่ยังไม่มีวันเกิดในระบบ:</strong> กรอก <strong style="font-family: monospace;">123456</strong> เพื่อเข้าสู่ระบบแล้วตั้งวันเกิดจริง
+            <div id="lblLegacyHint" data-i18n="legacyHint" style="background: #FEF3C7; border: 1px solid #F59E0B; color: #0F172A; border-radius: 10px; padding: 9px 11px; font-size: 12px; line-height: 1.45;">
+              นักศึกษาเก่าที่ยังไม่มีวันเกิดในระบบ: กรอก 123456 เพื่อเข้าสู่ระบบแล้วตั้งวันเกิดจริง
             </div>
             <div id="lblLoginErr" class="st-hidden" style="background: #FEE2E2; border: 1px solid #EF4444; color: #991B1B; border-radius: 10px; padding: 9px 11px; font-size: 12.5px; font-weight: 600;"></div>
             <button type="submit" id="btnStudentLoginSubmit" class="st-btn-gold" style="width: 100%; height: 46px; border-radius: 23px; font-size: 15px;">
-              <span id="lblBtnLogin">เข้าสู่ระบบนักศึกษา</span> <i class="fa-solid fa-arrow-right"></i>
+              <span id="lblBtnLogin" data-i18n="btnLogin">เข้าสู่ระบบนักศึกษา</span> <i class="fa-solid fa-arrow-right"></i>
             </button>
           </form>
 
-          <div style="display: flex; align-items: center; gap: 10px; margin: 14px 0 12px 0; color: #94A3B8; font-size: 12px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin: 14px 0 12px 0; color: #64748B; font-size: 12px;">
             <span style="flex: 1; height: 1px; background: #E2E8F0;"></span>
-            <span id="lblNewOrDivider">สำหรับผู้ที่ยังไม่มีรหัสนักศึกษา</span>
+            <span id="lblNewOrDivider" data-i18n="newOrDivider">สำหรับผู้ที่ยังไม่มีรหัสนักศึกษา</span>
             <span style="flex: 1; height: 1px; background: #E2E8F0;"></span>
           </div>
 
-          <!-- Register Button Placed Directly Below Sign-In -->
           <button type="button" id="btnOpenNewReg" class="st-btn-primary" style="width: 100%; padding: 12px 16px; border-radius: 23px; font-size: 14px;" onclick="OcaStudentPortal.openRegisterView()">
-            <i class="fa-solid fa-user-plus"></i> <span id="lblBtnNewReg">ลงทะเบียนใหม่ (นักศึกษาใหม่)</span>
+            <i class="fa-solid fa-user-plus"></i> <span id="lblBtnNewReg" data-i18n="btnNewReg">ลงทะเบียนใหม่ (นักศึกษาใหม่)</span>
           </button>
         </div>
       </section>
@@ -389,16 +440,16 @@
   <!-- VIEW 2: NEW STUDENT REGISTRATION -->
   <section id="viewStudentRegister" class="st-hidden" style="max-width: 720px; margin: 24px auto; padding: 0 16px;">
     <div class="st-card" style="padding: 24px;">
-      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid #E2E8F0; padding-bottom: 12px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid #E2E8F0; padding-bottom: 12px; flex-wrap: wrap;">
         <div>
-          <h2 id="lblRegTitle" style="margin: 0; font-size: 20px; font-weight: 800;">ลงทะเบียนนักศึกษาใหม่</h2>
-          <p id="lblRegSub" style="margin: 3px 0 0 0; font-size: 12.5px; color: #475569;">สมัครเสร็จแล้วระบบจะพาท่านเข้าสู่หน้าเลือกคอร์สเรียนอัตโนมัติ</p>
+          <h2 id="lblRegTitle" data-i18n="regTitle" style="margin: 0; font-size: 20px; font-weight: 800;">ลงทะเบียนนักศึกษาใหม่</h2>
+          <p id="lblRegSub" data-i18n="regSub" style="margin: 3px 0 0 0; font-size: 12.5px; color: #475569;">สมัครเสร็จแล้วระบบจะพาท่านเข้าสู่หน้าเลือกคอร์สเรียนอัตโนมัติ</p>
         </div>
-        <button type="button" class="st-btn-outline" onclick="OcaStudentPortal.backToLogin()"><i class="fa-solid fa-arrow-left"></i> กลับหน้าเข้าสู่ระบบ</button>
+        <button type="button" class="st-btn-outline" onclick="OcaStudentPortal.backToLogin()"><i class="fa-solid fa-arrow-left"></i> <span data-i18n="backLogin">กลับหน้าเข้าสู่ระบบ</span></button>
       </div>
       <form onsubmit="OcaStudentPortal.handleRegister(event)" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
         <div>
-          <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">คำนำหน้า</label>
+          <label data-i18n="fldPrefix" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">คำนำหน้า</label>
           <select id="regPrefix" class="st-input">
             <option value="นาย">นาย</option>
             <option value="นางสาว">นางสาว</option>
@@ -408,282 +459,320 @@
           </select>
         </div>
         <div>
-          <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">ชื่อ-นามสกุล *</label>
-          <input id="regFullName" class="st-input" type="text" placeholder="ชื่อ นามสกุล" required />
+          <label data-i18n="fldFullName" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">ชื่อ-นามสกุล *</label>
+          <input id="regFullName" class="st-input" type="text" data-i18n-placeholder="phFullName" placeholder="ชื่อ นามสกุล" required />
         </div>
         <div>
-          <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">วันเดือนปีเกิด (วัน/เดือน/ปี พ.ศ.) *</label>
-          <input id="regDob" class="st-input" type="text" placeholder="เช่น 15/05/2540" required />
+          <label data-i18n="fldDob" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">วันเดือนปีเกิด (วัน/เดือน/ปี พ.ศ.) *</label>
+          <input id="regDob" class="st-input" type="text" placeholder="15/05/2540" required />
         </div>
         <div>
-          <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">เลขบัตรประชาชน / พาสปอร์ต *</label>
-          <input id="regCitizenId" class="st-input" type="text" placeholder="13 หลัก หรือเลขพาสปอร์ต" required />
+          <label data-i18n="fldCitizen" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">เลขบัตรประชาชน / พาสปอร์ต *</label>
+          <input id="regCitizenId" class="st-input" type="text" data-i18n-placeholder="phCitizen" placeholder="13 หลัก หรือเลขพาสปอร์ต" required />
         </div>
         <div>
-          <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">เบอร์โทรศัพท์ *</label>
+          <label data-i18n="fldPhone" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">เบอร์โทรศัพท์ *</label>
           <input id="regPhone" class="st-input" type="tel" placeholder="08xxxxxxxx" required />
         </div>
         <div>
-          <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">LINE ID</label>
+          <label data-i18n="fldLine" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">LINE ID</label>
           <input id="regLine" class="st-input" type="text" placeholder="@line_id" />
         </div>
         <div>
-          <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">อีเมล (สำหรับรับใบเสร็จ)</label>
+          <label data-i18n="fldEmail" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">อีเมล (สำหรับรับใบเสร็จ)</label>
           <input id="regEmail" class="st-input" type="email" placeholder="name@example.com" />
         </div>
         <div>
-          <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">สัญชาติ</label>
+          <label data-i18n="fldNationality" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">สัญชาติ</label>
           <input id="regNationality" class="st-input" type="text" value="ไทย" />
         </div>
         <div style="grid-column: 1 / -1;">
-          <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">ที่อยู่ปัจจุบัน (สำหรับจัดส่งตำราเรียน)</label>
-          <textarea id="regAddress" class="st-input" rows="2" placeholder="บ้านเลขที่ ซอย ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด รหัสไปรษณีย์"></textarea>
+          <label data-i18n="fldAddress" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">ที่อยู่ปัจจุบัน (สำหรับจัดส่งตำราเรียน)</label>
+          <textarea id="regAddress" class="st-input" rows="2"></textarea>
         </div>
         <div id="lblRegErr" class="st-hidden" style="grid-column: 1 / -1; background: #FEE2E2; border: 1px solid #EF4444; color: #991B1B; border-radius: 10px; padding: 10px; font-size: 13px; font-weight: 600;"></div>
-        <div style="grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px;">
+        <div style="grid-column: 1 / -1; margin-top: 4px;">
           <button type="submit" id="btnRegSubmit" class="st-btn-primary" style="width: 100%; padding: 13px;">
-            <i class="fa-solid fa-check-circle"></i> ยืนยันลงทะเบียนและไปเลือกคอร์สเรียน →
+            <i class="fa-solid fa-circle-check"></i> <span data-i18n="btnRegSubmit">ยืนยันลงทะเบียนและไปเลือกคอร์สเรียน</span>
           </button>
         </div>
       </form>
     </div>
   </section>
 
-  <!-- VIEW 3: LOGGED-IN STUDENT PORTAL -->
-  <section id="viewStudentApp" class="st-hidden" style="max-width: 1180px; margin: 18px auto 40px auto; padding: 0 14px;">
-    <div id="bannerLegacyDob" class="st-hidden" style="background: #FEF3C7; border: 1.5px solid #F59E0B; color: #0F172A; border-radius: 14px; padding: 12px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-      <div style="font-size: 13px; font-weight: 600;">
-        <i class="fa-solid fa-triangle-exclamation" style="color: #B45309;"></i>
-        <span>คุณเข้าสู่ระบบด้วยรหัสเริ่มต้น 123456 กรุณาตั้งวันเดือนปีเกิดจริงของคุณในหน้าประวัติส่วนตัวเพื่อความปลอดภัย</span>
-      </div>
-      <button type="button" class="st-btn-primary" style="padding: 7px 14px; font-size: 12.5px;" onclick="OcaStudentPortal.switchTab('profile')">ตั้งวันเดือนปีเกิดเลย →</button>
-    </div>
-
-    <div class="st-card" style="padding: 14px 16px; margin-bottom: 16px;">
-      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <img id="imgAppAvatar" src="./oca_logo.png" alt="Student" style="width: 52px; height: 52px; border-radius: 12px; object-fit: cover; border: 2px solid #D4AF37; background: #022C22;" />
-          <div>
-            <div id="lblAppStudentName" style="font-size: 16px; font-weight: 800; color: #0F172A;">-</div>
-            <div style="font-size: 12.5px; color: #475569; font-family: monospace;">ID: <strong id="lblAppStudentId">-</strong> • <span id="lblAppStatus" style="color: #047857; font-weight: 700;">-</span></div>
-          </div>
-        </div>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button type="button" id="btnEnableStudentNotif" class="st-btn-outline" style="padding: 8px 12px; font-size: 12.5px;" onclick="OcaStudentPortal.enableNotifications()">
-            <i class="fa-solid fa-bell"></i> <span id="lblEnableNotif">เปิดรับแจ้งเตือนบนมือถือ</span>
-          </button>
-          <button type="button" class="st-btn-gold" style="padding: 8px 14px; font-size: 13px;" onclick="OcaStudentPortal.switchTab('enroll')">
-            <i class="fa-solid fa-plus"></i> <span id="lblQuickEnroll">เลือกคอร์ส / ต่อคอร์ส</span>
-          </button>
-        </div>
-      </div>
-      <nav style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px;">
-        <button type="button" class="st-tab-btn active" data-tab="home" onclick="OcaStudentPortal.switchTab('home')"><i class="fa-solid fa-house"></i> <span data-i18n="tabHome">หน้าหลัก</span></button>
-        <button type="button" class="st-tab-btn" data-tab="enroll" onclick="OcaStudentPortal.switchTab('enroll')"><i class="fa-solid fa-book-open"></i> <span data-i18n="tabEnroll">เลือกคอร์ส &amp; แนบสลิป</span></button>
-        <button type="button" class="st-tab-btn" data-tab="card" onclick="OcaStudentPortal.switchTab('card')"><i class="fa-solid fa-id-card"></i> <span data-i18n="tabCard">บัตรนักศึกษา</span></button>
-        <button type="button" class="st-tab-btn" data-tab="schedule" onclick="OcaStudentPortal.switchTab('schedule')"><i class="fa-solid fa-calendar-days"></i> <span data-i18n="tabSchedule">ตารางเรียน</span></button>
-        <button type="button" class="st-tab-btn" data-tab="finance" onclick="OcaStudentPortal.switchTab('finance')"><i class="fa-solid fa-receipt"></i> <span data-i18n="tabFinance">การเงิน &amp; พัสดุ</span></button>
-        <button type="button" class="st-tab-btn" data-tab="profile" onclick="OcaStudentPortal.switchTab('profile')"><i class="fa-solid fa-user-pen"></i> <span data-i18n="tabProfile">ประวัติส่วนตัว &amp; รูปโปรไฟล์</span></button>
-      </nav>
-    </div>
-
-    <!-- TAB 1: HOME -->
-    <div id="tabPanel_home" class="st-tab-panel" style="display: flex; flex-direction: column; gap: 14px;">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px;">
-        <div class="st-card" style="padding: 16px;">
-          <div style="font-size: 12px; color: #64748B; font-weight: 700;">คอร์สปัจจุบัน</div>
-          <div id="lblHomeCourse" style="font-size: 15px; font-weight: 800; margin-top: 6px;">-</div>
-          <div id="lblHomeSched" style="font-size: 12.5px; color: #047857; font-weight: 600; margin-top: 4px;">-</div>
-        </div>
-        <div class="st-card" style="padding: 16px;">
-          <div style="font-size: 12px; color: #64748B; font-weight: 700;">เครดิตสะสม</div>
-          <div id="lblHomeCredit" style="font-size: 22px; font-weight: 800; color: #047857; font-family: monospace; margin-top: 4px;">฿0.00</div>
-          <div style="font-size: 12px; color: #64748B; margin-top: 4px;">สามารถนำไปหักค่าเรียนในคอร์สถัดไปได้</div>
-        </div>
-        <div class="st-card" style="padding: 16px; background: #FEF3C7; border-color: #F59E0B;">
-          <div style="font-size: 12px; color: #92400E; font-weight: 800;">สถานะสลิปล่าสุด</div>
-          <div id="lblHomePending" style="font-size: 14px; font-weight: 700; color: #0F172A; margin-top: 6px;">ไม่มีสลิปรอตรวจสอบ</div>
-        </div>
-      </div>
-      <div class="st-card" style="padding: 16px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-          <h3 style="margin: 0; font-size: 15px; font-weight: 800;"><i class="fa-solid fa-bullhorn" style="color: #D97706;"></i> ประกาศล่าสุดจากสถาบัน</h3>
-          <span style="font-size: 11.5px; color: #64748B;">เรียงจากข่าวใหม่ไปเก่า</span>
-        </div>
-        <div id="boxHomeNotices" style="display: flex; flex-direction: column; gap: 8px;"></div>
-      </div>
-    </div>
-
-    <!-- TAB 2: ENROLL & UPLOAD SLIP -->
-    <div id="tabPanel_enroll" class="st-tab-panel st-hidden">
-      <div class="st-enroll-layout">
-        <aside class="st-card" style="padding: 10px;">
-          <div id="boxEnrollCategories" class="st-cat-rail"></div>
-        </aside>
-        <div>
-          <div class="st-card" style="padding: 12px 14px; margin-bottom: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <input id="inpCourseSearch" class="st-input" type="text" placeholder="ค้นหารหัสคอร์ส หรือชื่อคอร์ส..." oninput="OcaStudentPortal.renderCoursesGrid()" style="flex: 1; min-width: 200px;" />
-            <span id="lblCourseCount" style="font-size: 12.5px; font-weight: 700; color: #475569;">0 คอร์ส</span>
-          </div>
-          <div id="boxEnrollCoursesGrid" class="st-course-grid"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 3: DIGITAL ID CARD (PDPA SAFE - NO CITIZEN ID) -->
-    <div id="tabPanel_card" class="st-tab-panel st-hidden">
-      <div style="max-width: 440px; margin: 0 auto; background: linear-gradient(145deg, #022C22 0%, #064E3B 100%); color: #FFFFFF; border: 2px solid #D4AF37; border-radius: 20px; padding: 22px; box-shadow: 0 14px 35px rgba(2,44,34,0.28);">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <img src="./oca_logo.png" alt="OCA Logo" style="width: 30px; height: 30px; object-fit: contain;" />
-            <span style="font-size: 13px; font-weight: 800; color: #FDE68A;">ORIENTAL CULTURE ACADEMY</span>
-          </div>
-          <span style="background: #D4AF37; color: #0F172A; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 6px;">STUDENT ID</span>
-        </div>
-        <div style="display: flex; gap: 16px; align-items: center;">
-          <img id="imgCardPhoto" src="./oca_logo.png" alt="Profile" style="width: 86px; height: 114px; object-fit: cover; border-radius: 12px; border: 2px solid #D4AF37; background: #800000; flex-shrink: 0;" />
+  <!-- VIEW 3: LOGGED-IN STUDENT PORTAL (LEFT SIDEBAR + MAIN CONTENT) -->
+  <section id="viewStudentApp" class="st-hidden">
+    <div class="st-app-shell">
+      <!-- Mobile Bar for Sidebar Toggle -->
+      <div class="st-mobile-nav-bar st-card" style="padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+          <img id="imgAppAvatarMob" src="./oca_logo.png" alt="Student" style="width: 40px; height: 40px; border-radius: 10px; object-fit: cover; border: 1.5px solid #D4AF37; background: #022C22; flex-shrink: 0;" />
           <div style="min-width: 0;">
-            <div style="font-size: 12px; color: #A7F3D0;">รหัสนักศึกษา</div>
-            <div id="lblCardSid" style="font-size: 20px; font-weight: 800; font-family: monospace; color: #FFFFFF;">-</div>
-            <div id="lblCardName" style="font-size: 16px; font-weight: 700; color: #FDE68A; margin-top: 4px; word-break: break-word;">-</div>
-            <div id="lblCardCourse" style="font-size: 12px; color: #E2E8F0; margin-top: 4px;">-</div>
+            <div id="lblAppStudentNameMob" data-i18n-locked="true" style="font-size: 14px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</div>
+            <div style="font-size: 11.5px; color: #475569; font-family: monospace;">ID: <span id="lblAppStudentIdMob" data-i18n-locked="true">-</span></div>
           </div>
         </div>
-        <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-          <div style="font-size: 11.5px; color: #A7F3D0; line-height: 1.5;">
-            ใช้สแกนยืนยันตัวตนรับตำราเรียน<br/>และตรวจสอบสิทธิ์เข้าเรียน (PDPA Safe)
-          </div>
-          <div id="boxCardQr" style="background: #FFFFFF; padding: 6px; border-radius: 8px;"></div>
-        </div>
+        <button type="button" id="btnStudentSidebarToggle" class="st-btn-outline" onclick="OcaStudentPortal.toggleSidebar()">
+          <i class="fa-solid fa-bars"></i> <span data-i18n="menuBtn">เมนู</span>
+        </button>
       </div>
-    </div>
 
-    <!-- TAB 4: SCHEDULE -->
-    <div id="tabPanel_schedule" class="st-tab-panel st-hidden">
-      <div class="st-card" style="padding: 18px;">
-        <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 800;">ตารางเรียนและคอร์สที่ลงทะเบียน</h3>
-        <div id="boxStudentScheduleList" style="display: flex; flex-direction: column; gap: 10px;"></div>
-      </div>
-    </div>
-
-    <!-- TAB 5: FINANCE & SHIPPING -->
-    <div id="tabPanel_finance" class="st-tab-panel st-hidden">
-      <div style="display: flex; flex-direction: column; gap: 14px;">
-        <div id="boxStudentPendingSlips"></div>
-        <div class="st-card" style="padding: 18px;">
-          <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 800;">ประวัติใบเสร็จรับเงิน &amp; สถานะรับ/จัดส่งตำรา</h3>
-          <div id="boxStudentReceiptsList" style="display: flex; flex-direction: column; gap: 10px;"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 6: PROFILE & AI PHOTO -->
-    <div id="tabPanel_profile" class="st-tab-panel st-hidden">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; align-items: start;">
-        <div class="st-card" style="padding: 18px; text-align: center;">
-          <h3 style="margin: 0 0 6px 0; font-size: 16px; font-weight: 800;">รูปโปรไฟล์ &amp; บัตรนักศึกษา (AI Studio)</h3>
-          <p style="margin: 0 0 12px 0; font-size: 12.5px; color: #475569;">ระบบจะใช้ AI (RMBG-1.4 / MODNet) ตัดพื้นหลังเป็นสีแดงเลือดหมู (#800000) มาตรฐานสถาบันให้อัตโนมัติ</p>
-          <img id="imgProfileAiPreview" src="./oca_logo.png" alt="AI Preview" style="width: 150px; height: 200px; object-fit: cover; border-radius: 14px; border: 2px solid #D4AF37; background: #800000; margin: 0 auto 12px auto; display: block;" />
-          <div id="lblAiPhotoStatus" style="font-size: 12px; font-weight: 700; color: #047857; margin-bottom: 10px;">พร้อมอัปโหลดรูปหน้าตรง</div>
-          <input type="file" id="inpProfilePhotoFile" accept="image/*" class="st-hidden" onchange="OcaStudentPortal.onProfilePhotoSelected(this)" />
-          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-            <button type="button" class="st-btn-outline" onclick="document.getElementById('inpProfilePhotoFile').click()"><i class="fa-solid fa-camera"></i> เลือกรูปภาพใหม่</button>
-            <button type="button" id="btnSaveAiPhoto" class="st-btn-primary st-hidden" onclick="OcaStudentPortal.saveAiPhoto()"><i class="fa-solid fa-cloud-arrow-up"></i> บันทึกรูปโปรไฟล์</button>
+      <!-- LEFT SIDEBAR -->
+      <aside id="stAppSidebar" class="st-sidebar">
+        <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 14px; margin-bottom: 12px; border-bottom: 1px solid #E2E8F0;">
+          <img id="imgAppAvatar" src="./oca_logo.png" alt="Student" style="width: 56px; height: 56px; border-radius: 14px; object-fit: cover; border: 2px solid #D4AF37; background: #022C22; flex-shrink: 0;" />
+          <div style="min-width: 0;">
+            <div id="lblAppStudentName" data-i18n-locked="true" style="font-size: 14.5px; font-weight: 800; color: #0F172A; word-break: break-word;">-</div>
+            <div style="font-size: 12px; color: #475569; font-family: monospace; margin-top: 2px;">ID: <strong id="lblAppStudentId" data-i18n-locked="true">-</strong></div>
+            <div id="lblAppStatus" style="font-size: 11.5px; color: #047857; font-weight: 700; margin-top: 2px;">-</div>
           </div>
         </div>
-        <div class="st-card" style="padding: 18px;">
-          <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 800;">แก้ไขประวัติส่วนตัว &amp; ตั้งวันเดือนปีเกิด</h3>
-          <form onsubmit="OcaStudentPortal.saveProfile(event)" style="display: flex; flex-direction: column; gap: 11px;">
+
+        <nav style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px;">
+          <button type="button" class="st-tab-btn active" data-tab="home" onclick="OcaStudentPortal.switchTab('home')"><i class="fa-solid fa-house"></i> <span data-i18n="tabHome">หน้าหลัก</span></button>
+          <button type="button" class="st-tab-btn" data-tab="enroll" onclick="OcaStudentPortal.switchTab('enroll')"><i class="fa-solid fa-book-open"></i> <span data-i18n="tabEnroll">เลือกคอร์ส &amp; แนบสลิป</span></button>
+          <button type="button" class="st-tab-btn" data-tab="card" onclick="OcaStudentPortal.switchTab('card')"><i class="fa-solid fa-id-card"></i> <span data-i18n="tabCard">บัตรนักศึกษา</span></button>
+          <button type="button" class="st-tab-btn" data-tab="schedule" onclick="OcaStudentPortal.switchTab('schedule')"><i class="fa-solid fa-calendar-days"></i> <span data-i18n="tabSchedule">ตารางเรียน</span></button>
+          <button type="button" class="st-tab-btn" data-tab="finance" onclick="OcaStudentPortal.switchTab('finance')"><i class="fa-solid fa-receipt"></i> <span data-i18n="tabFinance">การเงิน &amp; พัสดุ</span></button>
+          <button type="button" class="st-tab-btn" data-tab="profile" onclick="OcaStudentPortal.switchTab('profile')"><i class="fa-solid fa-user-pen"></i> <span data-i18n="tabProfile">ประวัติส่วนตัว &amp; รูปโปรไฟล์</span></button>
+        </nav>
+
+        <button type="button" class="st-btn-gold" style="width: 100%; font-size: 13px;" onclick="OcaStudentPortal.switchTab('enroll')">
+          <i class="fa-solid fa-plus"></i> <span id="lblQuickEnroll" data-i18n="quickEnroll">เลือกคอร์ส / ต่อคอร์ส</span>
+        </button>
+      </aside>
+
+      <!-- MAIN WORKSPACE -->
+      <div style="min-width: 0;">
+        <div id="bannerLegacyDob" class="st-hidden" style="background: #FEF3C7; border: 1.5px solid #F59E0B; color: #0F172A; border-radius: 14px; padding: 12px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+          <div style="font-size: 13px; font-weight: 600;">
+            <i class="fa-solid fa-triangle-exclamation" style="color: #B45309;"></i>
+            <span data-i18n="legacyBanner">คุณเข้าสู่ระบบด้วยรหัสเริ่มต้น 123456 กรุณาตั้งวันเดือนปีเกิดจริงของคุณในหน้าประวัติส่วนตัวเพื่อความปลอดภัย</span>
+          </div>
+          <button type="button" class="st-btn-primary" style="padding: 7px 14px; font-size: 12.5px;" onclick="OcaStudentPortal.switchTab('profile')">
+            <span data-i18n="setupDobNow">ตั้งวันเดือนปีเกิดเลย</span> <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+
+        <!-- TAB 1: HOME (NO CREDIT SYSTEM, NO DUPLICATE NOTICE BOX) -->
+        <div id="tabPanel_home" class="st-tab-panel" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+          <div class="st-card" style="padding: 16px;">
+            <div data-i18n="homeCourseLbl" style="font-size: 12px; color: #64748B; font-weight: 700;">คอร์สปัจจุบัน</div>
+            <div id="lblHomeCourse" data-i18n-locked="true" style="font-size: 15px; font-weight: 800; margin-top: 6px;">-</div>
+            <div id="lblHomeSched" data-i18n-locked="true" style="font-size: 12.5px; color: #047857; font-weight: 600; margin-top: 4px;">-</div>
+          </div>
+          <div class="st-card" style="padding: 16px;">
+            <div data-i18n="homeTotalCoursesLbl" style="font-size: 12px; color: #64748B; font-weight: 700;">คอร์สที่ลงทะเบียนแล้ว</div>
+            <div id="lblHomeCoursesCount" style="font-size: 24px; font-weight: 800; color: #047857; font-family: monospace; margin-top: 4px;">0</div>
+            <div data-i18n="homeTotalCoursesSub" style="font-size: 12px; color: #64748B; margin-top: 4px;">ดึงข้อมูลจริงจากประวัติใบเสร็จสถาบัน</div>
+          </div>
+          <div class="st-card" style="padding: 16px; background: #FEF3C7; border-color: #F59E0B;">
+            <div data-i18n="homeSlipLbl" style="font-size: 12px; color: #92400E; font-weight: 800;">สถานะสลิปล่าสุด</div>
+            <div id="lblHomePending" style="font-size: 14px; font-weight: 700; color: #0F172A; margin-top: 6px;">-</div>
+          </div>
+        </div>
+
+        <!-- TAB 2: ENROLL & UPLOAD SLIP -->
+        <div id="tabPanel_enroll" class="st-tab-panel st-hidden">
+          <div class="st-enroll-layout">
+            <aside class="st-card" style="padding: 10px;">
+              <div id="boxEnrollCategories" class="st-cat-rail"></div>
+            </aside>
             <div>
-              <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">วันเดือนปีเกิด (วัน/เดือน/ปี พ.ศ.) *</label>
-              <input id="profDob" class="st-input" type="text" placeholder="เช่น 15/05/2540" required />
-            </div>
-            <div>
-              <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">เบอร์โทรศัพท์ *</label>
-              <input id="profPhone" class="st-input" type="tel" required />
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-              <div>
-                <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">LINE ID</label>
-                <input id="profLine" class="st-input" type="text" />
+              <div class="st-card" style="padding: 12px 14px; margin-bottom: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input id="inpCourseSearch" class="st-input" type="text" data-i18n-placeholder="phCourseSearch" placeholder="ค้นหารหัสคอร์ส หรือชื่อคอร์ส..." oninput="OcaStudentPortal.renderCoursesGrid()" style="flex: 1; min-width: 200px;" />
+                <span id="lblCourseCount" style="font-size: 12.5px; font-weight: 700; color: #475569;">0</span>
               </div>
-              <div>
-                <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">อีเมล</label>
-                <input id="profEmail" class="st-input" type="email" />
+              <div id="boxEnrollCoursesGrid" class="st-course-grid"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: 3D FLIPPABLE OFFICIAL STUDENT ID CARD -->
+        <div id="tabPanel_card" class="st-tab-panel st-hidden">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 14px;">
+            <div class="oca-id-flip-wrap" onclick="OcaStudentPortal.flipIdCard()" title="Click to flip Student ID Card">
+              <div id="ocaStudentCardInner" class="oca-id-flip-inner">
+                <!-- FRONT -->
+                <div class="oca-id-face oca-id-face-front">
+                  <img class="oca-id-bg-img" src="./assets/images/oca_student_card_front.jpg" alt="OCA Student Card Front" />
+                  <img id="imgCardPhoto" src="./oca_logo.png" alt="Student Photo" style="position: absolute; right: 5.2%; top: 27.5%; width: 28.2%; height: 55.5%; object-fit: cover; border-radius: 6px; border: 1.5px solid #B45309; background: #800000;" />
+                  <div style="position: absolute; left: 17.5%; top: 28%; width: 45%; color: #1F2937; text-align: left;">
+                    <div data-i18n="cardSidLbl" style="font-size: clamp(9px, 1.8vw, 11px); font-weight: 700; color: #78350F;">รหัสนักศึกษา</div>
+                    <div id="lblCardSid" data-i18n-locked="true" style="font-size: clamp(14px, 3vw, 20px); font-weight: 800; font-family: monospace; color: #022C22; line-height: 1.15;">-</div>
+                    <div id="lblCardName" data-i18n-locked="true" style="font-size: clamp(12px, 2.5vw, 16px); font-weight: 800; color: #111827; margin-top: 6px; line-height: 1.25; word-break: break-word;">-</div>
+                    <div id="lblCardNameEn" data-i18n-locked="true" style="font-size: clamp(10px, 2vw, 12.5px); font-weight: 600; color: #374151; margin-top: 2px;"></div>
+                    <div id="lblCardCourse" data-i18n-locked="true" style="font-size: clamp(9.5px, 1.9vw, 11.5px); font-weight: 700; color: #064E3B; margin-top: 6px;">-</div>
+                  </div>
+                  <div id="lblCardIssueDate" data-i18n-locked="true" style="position: absolute; left: 74%; bottom: 6.8%; font-size: clamp(9.5px, 1.8vw, 11.5px); font-weight: 700; color: #1F2937;">-</div>
+                </div>
+                <!-- BACK -->
+                <div class="oca-id-face oca-id-face-back">
+                  <img class="oca-id-bg-img" src="./assets/images/oca_student_card_back.jpg" alt="OCA Student Card Back" />
+                </div>
               </div>
             </div>
-            <div>
-              <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">ที่อยู่จัดส่งตำราเรียน</label>
-              <textarea id="profAddress" class="st-input" rows="2"></textarea>
+
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
+              <button type="button" id="btnFlipStudentCard" class="st-btn-gold" onclick="OcaStudentPortal.flipIdCard()">
+                <i class="fa-solid fa-rotate"></i> <span id="lblFlipCardBtn" data-i18n="flipCardBack">พลิกดูด้านหลังบัตร</span>
+              </button>
             </div>
-            <button type="submit" id="btnSaveProfile" class="st-btn-primary" style="width: 100%;"><i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลส่วนตัว</button>
-          </form>
+
+            <div class="st-card" style="max-width: 480px; width: 100%; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 14px;">
+              <div style="font-size: 12.5px; color: #334155; line-height: 1.55;">
+                <strong data-i18n="cardQrTitle" style="color: #022C22; display: block;">QR ยืนยันตัวตนรับตำราเรียน</strong>
+                <span data-i18n="cardQrSub">สแกนเพื่อตรวจสอบสิทธิ์เข้าเรียนและรับหนังสือ (PDPA Safe)</span>
+              </div>
+              <div id="boxCardQr" style="background: #FFFFFF; padding: 6px; border: 1px solid #E2E8F0; border-radius: 8px; flex-shrink: 0;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: SCHEDULE -->
+        <div id="tabPanel_schedule" class="st-tab-panel st-hidden">
+          <div class="st-card" style="padding: 18px;">
+            <h3 data-i18n="schedTitle" style="margin: 0 0 12px 0; font-size: 16px; font-weight: 800;">ตารางเรียนและคอร์สที่ลงทะเบียน</h3>
+            <div id="boxStudentScheduleList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+          </div>
+        </div>
+
+        <!-- TAB 5: FINANCE & SHIPPING -->
+        <div id="tabPanel_finance" class="st-tab-panel st-hidden">
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div id="boxStudentPendingSlips"></div>
+            <div class="st-card" style="padding: 18px;">
+              <h3 data-i18n="finTitle" style="margin: 0 0 12px 0; font-size: 16px; font-weight: 800;">ประวัติใบเสร็จรับเงิน &amp; สถานะรับ/จัดส่งตำรา</h3>
+              <div id="boxStudentReceiptsList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 6: FULL MULTI-TABLE PROFILE & AI PHOTO -->
+        <div id="tabPanel_profile" class="st-tab-panel st-hidden">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; align-items: start;">
+            <div class="st-card" style="padding: 18px; text-align: center;">
+              <h3 data-i18n="aiTitle" style="margin: 0 0 6px 0; font-size: 16px; font-weight: 800;">รูปโปรไฟล์ &amp; บัตรนักศึกษา (AI Studio)</h3>
+              <p data-i18n="aiDesc" style="margin: 0 0 12px 0; font-size: 12.5px; color: #475569;">ระบบจะใช้ AI (RMBG-1.4 / MODNet) ตัดพื้นหลังเป็นสีแดงเลือดหมู (#800000) มาตรฐานสถาบันให้อัตโนมัติ</p>
+              <img id="imgProfileAiPreview" src="./oca_logo.png" alt="AI Preview" style="width: 150px; height: 200px; object-fit: cover; border-radius: 14px; border: 2px solid #D4AF37; background: #800000; margin: 0 auto 12px auto; display: block;" />
+              <div id="lblAiPhotoStatus" data-i18n="aiReady" style="font-size: 12px; font-weight: 700; color: #047857; margin-bottom: 10px;">พร้อมอัปโหลดรูปหน้าตรง</div>
+              <input type="file" id="inpProfilePhotoFile" accept="image/*" class="st-hidden" onchange="OcaStudentPortal.onProfilePhotoSelected(this)" />
+              <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                <button type="button" class="st-btn-outline" onclick="document.getElementById('inpProfilePhotoFile').click()"><i class="fa-solid fa-camera"></i> <span data-i18n="btnPickPhoto">เลือกรูปภาพใหม่</span></button>
+                <button type="button" id="btnSaveAiPhoto" class="st-btn-primary st-hidden" onclick="OcaStudentPortal.saveAiPhoto()"><i class="fa-solid fa-cloud-arrow-up"></i> <span data-i18n="btnSavePhoto">บันทึกรูปโปรไฟล์</span></button>
+              </div>
+              <div id="boxProfileDbSummary" style="margin-top: 16px; text-align: left; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px; font-size: 12.5px; line-height: 1.65;"></div>
+            </div>
+
+            <div class="st-card" style="padding: 18px;">
+              <h3 data-i18n="profEditTitle" style="margin: 0 0 12px 0; font-size: 16px; font-weight: 800;">แก้ไขประวัติส่วนตัว &amp; ตั้งวันเดือนปีเกิด</h3>
+              <form onsubmit="OcaStudentPortal.saveProfile(event)" style="display: flex; flex-direction: column; gap: 11px;">
+                <div>
+                  <label data-i18n="fldDob" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">วันเดือนปีเกิด (วัน/เดือน/ปี พ.ศ.) *</label>
+                  <input id="profDob" class="st-input" type="text" placeholder="15/05/2540" required />
+                </div>
+                <div>
+                  <label data-i18n="fldPhone" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">เบอร์โทรศัพท์ *</label>
+                  <input id="profPhone" class="st-input" type="tel" required />
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div>
+                    <label data-i18n="fldLine" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">LINE ID</label>
+                    <input id="profLine" class="st-input" type="text" />
+                  </div>
+                  <div>
+                    <label data-i18n="fldEmail" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">อีเมล</label>
+                    <input id="profEmail" class="st-input" type="email" />
+                  </div>
+                </div>
+                <div>
+                  <label data-i18n="fldAddress" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">ที่อยู่จัดส่งตำราเรียน</label>
+                  <textarea id="profAddress" class="st-input" rows="2"></textarea>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div>
+                    <label data-i18n="fldEmergName" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">ผู้ติดต่อฉุกเฉิน</label>
+                    <input id="profEmergName" class="st-input" type="text" />
+                  </div>
+                  <div>
+                    <label data-i18n="fldEmergPhone" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">เบอร์ผู้ติดต่อฉุกเฉิน</label>
+                    <input id="profEmergPhone" class="st-input" type="tel" />
+                  </div>
+                </div>
+                <button type="submit" id="btnSaveProfile" class="st-btn-primary" style="width: 100%;"><i class="fa-solid fa-floppy-disk"></i> <span data-i18n="btnSaveProf">บันทึกข้อมูลส่วนตัว</span></button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- CHECKOUT / UPLOAD SLIP MODAL -->
+  <!-- CHECKOUT MODAL -->
   <div id="modalStudentCheckout" class="st-modal-backdrop st-hidden">
     <div class="st-modal-box">
       <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E2E8F0; padding-bottom: 10px; margin-bottom: 14px;">
-        <h3 id="lblCheckoutCourseTitle" style="margin: 0; font-size: 16px; font-weight: 800;">เลือกคอร์สและชำระเงิน</h3>
-        <button type="button" onclick="OcaStudentPortal.closeCheckout()" style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-weight: 700;">✕</button>
+        <h3 id="lblCheckoutCourseTitle" style="margin: 0; font-size: 16px; font-weight: 800;">-</h3>
+        <button type="button" onclick="OcaStudentPortal.closeCheckout()" style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-weight: 700;"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div style="display: flex; flex-direction: column; gap: 12px;">
         <div>
-          <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">เลือกรอบเวลาเรียน</label>
+          <label data-i18n="chkSched" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">เลือกรอบเวลาเรียน</label>
           <select id="selCheckoutSched" class="st-input"></select>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
           <div>
-            <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">รูปแบบเรียน</label>
+            <label data-i18n="chkMode" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">รูปแบบเรียน</label>
             <select id="selCheckoutMode" class="st-input">
-              <option value="Onsite">Onsite (เรียนที่สถาบัน)</option>
-              <option value="Online">Online (เรียนออนไลน์)</option>
-              <option value="Hybrid">Hybrid (ผสมผสาน)</option>
+              <option value="Onsite">Onsite</option>
+              <option value="Online">Online</option>
+              <option value="Hybrid">Hybrid</option>
             </select>
           </div>
           <div>
-            <label style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">วิธีรับตำราเรียน</label>
+            <label data-i18n="chkDelivery" style="display: block; font-size: 12.5px; font-weight: 700; margin-bottom: 4px;">วิธีรับตำราเรียน</label>
             <select id="selCheckoutDelivery" class="st-input" onchange="OcaStudentPortal.recalcCheckout()">
-              <option value="รับเอง">รับเองที่สถาบัน (ฟรี)</option>
-              <option value="ส่งตำรา">จัดส่งพัสดุตามที่อยู่ (+฿50)</option>
+              <option value="รับเอง" data-i18n="delivPickup">รับเองที่สถาบัน (ฟรี)</option>
+              <option value="ส่งตำรา" data-i18n="delivShip">จัดส่งพัสดุตามที่อยู่ (+฿50)</option>
             </select>
           </div>
         </div>
         <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 12px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 13px; font-weight: 700;">ยอดชำระสุทธิ</span>
+          <span data-i18n="chkTotal" style="font-size: 13px; font-weight: 700;">ยอดชำระสุทธิ</span>
           <strong id="lblCheckoutTotal" style="font-size: 20px; font-family: monospace; color: #047857;">฿0.00</strong>
         </div>
         <div style="text-align: center; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px;">
           <img src="./assets/images/oca_bank_payment_qr.png" alt="QR Payment" style="max-width: 170px; margin: 0 auto 8px auto; display: block; border-radius: 8px;" />
-          <div style="font-size: 12px; color: #475569; margin-bottom: 8px;">สแกนโอนเงินแล้วแนบสลิปด้านล่าง (ระบบจะส่งให้เจ้าหน้าที่อนุมัติ)</div>
+          <div data-i18n="chkSlipHint" style="font-size: 12px; color: #475569; margin-bottom: 8px;">สแกนโอนเงินแล้วแนบสลิปด้านล่าง (ระบบจะส่งให้เจ้าหน้าที่อนุมัติ)</div>
           <input type="file" id="inpCheckoutSlipFile" accept="image/*" class="st-input" />
         </div>
         <button type="button" id="btnSubmitCheckout" class="st-btn-primary" style="width: 100%; padding: 12px;" onclick="OcaStudentPortal.submitEnrollment()">
-          <i class="fa-solid fa-paper-plane"></i> ยืนยันส่งใบสมัคร &amp; สลิปโอนเงิน
+          <i class="fa-solid fa-paper-plane"></i> <span data-i18n="btnSubmitCheckout">ยืนยันส่งใบสมัคร &amp; สลิปโอนเงิน</span>
         </button>
       </div>
     </div>
   </div>
 
-  <!-- NOTIFICATION INBOX MODAL -->
+  <!-- UNIFIED NOTIFICATION BELL MODAL (RECEIPTS + ACADEMY NOTICES) -->
   <div id="modalStudentNotif" class="st-modal-backdrop st-hidden">
     <div class="st-modal-box">
       <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E2E8F0; padding-bottom: 10px; margin-bottom: 12px;">
-        <h3 style="margin: 0; font-size: 16px; font-weight: 800;"><i class="fa-solid fa-bell" style="color: #D97706;"></i> การแจ้งเตือนใบเสร็จ &amp; สถานะเรียน</h3>
-        <button type="button" onclick="OcaStudentPortal.closeNotifModal()" style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-weight: 700;">✕</button>
+        <h3 style="margin: 0; font-size: 16px; font-weight: 800;"><i class="fa-solid fa-bell" style="color: #D97706;"></i> <span data-i18n="notifModalTitle">การแจ้งเตือนและประกาศสถาบัน</span></h3>
+        <button type="button" onclick="OcaStudentPortal.closeNotifModal()" style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-weight: 700;"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div id="boxIosNotifGuide" class="st-hidden" style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 12px; padding: 12px; font-size: 12.5px; color: #0F172A; margin-bottom: 12px; line-height: 1.55;">
-        <strong>📱 สำหรับ iPhone / iPad (iOS 16.4+):</strong><br/>
-        1. แตะปุ่ม <strong>แชร์ (Share)</strong> ด้านล่างของ Safari แล้วเลือก <strong>"เพิ่มไปยังหน้าจอโฮม (Add to Home Screen)"</strong><br/>
-        2. เปิดแอป <strong>OCA Student</strong> จากหน้าจอหลัก แล้วกดปุ่ม <strong>"เปิดรับแจ้งเตือนบนมือถือ"</strong> อีกครั้ง
+        <strong><i class="fa-brands fa-apple"></i> <span data-i18n="iosGuideTitle">สำหรับ iPhone / iPad (iOS 16.4+):</span></strong><br/>
+        <span data-i18n="iosGuideBody">1. แตะปุ่ม แชร์ (Share) ด้านล่างของ Safari แล้วเลือก "เพิ่มไปยังหน้าจอโฮม" 2. เปิดแอป OCA Student จากหน้าจอหลัก แล้วกดเปิดรับแจ้งเตือน</span>
       </div>
-      <div id="boxStudentNotifList" style="display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto;"></div>
-      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
-        <button type="button" class="st-btn-outline" onclick="OcaStudentPortal.markAllNotifsRead()">ทำเครื่องหมายอ่านแล้วทั้งหมด</button>
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+        <button type="button" id="btnEnableStudentNotif" class="st-btn-outline" style="font-size: 12px;" onclick="OcaStudentPortal.enableNotifications()">
+          <i class="fa-solid fa-mobile-screen-button"></i> <span id="lblEnableNotif" data-i18n="enableNotifBtn">เปิดรับแจ้งเตือนบนมือถือ</span>
+        </button>
+        <button type="button" class="st-btn-outline" style="font-size: 12px;" onclick="OcaStudentPortal.markAllNotifsRead()">
+          <i class="fa-solid fa-check-double"></i> <span data-i18n="markAllRead">ทำเครื่องหมายอ่านแล้วทั้งหมด</span>
+        </button>
       </div>
+      <div id="boxStudentNotifList" style="display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto;"></div>
     </div>
   </div>
 
@@ -691,13 +780,13 @@
   <div id="modalStudentReceiptDetail" class="st-modal-backdrop st-hidden">
     <div class="st-modal-box" style="max-width: 460px;">
       <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E2E8F0; padding-bottom: 10px; margin-bottom: 12px;">
-        <h3 id="lblRcDetailTitle" style="margin: 0; font-size: 16px; font-weight: 800;">รายละเอียดใบเสร็จรับเงิน</h3>
-        <button type="button" onclick="OcaStudentPortal.closeReceiptDetail()" style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-weight: 700;">✕</button>
+        <h3 id="lblRcDetailTitle" style="margin: 0; font-size: 16px; font-weight: 800;">-</h3>
+        <button type="button" onclick="OcaStudentPortal.closeReceiptDetail()" style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-weight: 700;"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div id="boxRcDetailBody" style="font-size: 13px; line-height: 1.65;"></div>
       <div style="margin-top: 14px; text-align: center; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px;">
         <div id="boxRcDetailQr" style="display: inline-block; background: #FFFFFF; padding: 8px; border-radius: 8px;"></div>
-        <div style="font-size: 12px; color: #475569; margin-top: 6px;">QR ยืนยันตัวตนรับตำราเรียนที่สถาบัน</div>
+        <div data-i18n="rcQrHint" style="font-size: 12px; color: #475569; margin-top: 6px;">QR ยืนยันตัวตนรับตำราเรียนที่สถาบัน</div>
       </div>
     </div>
   </div>
@@ -706,29 +795,33 @@
   <div id="modalStudentNoticeDetail" class="st-modal-backdrop st-hidden">
     <div class="st-modal-box" style="max-width: 520px;">
       <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E2E8F0; padding-bottom: 10px; margin-bottom: 12px;">
-        <h3 id="lblNoticeModalTitle" style="margin: 0; font-size: 16px; font-weight: 800;">ประกาศจากสถาบัน</h3>
-        <button type="button" onclick="OcaStudentPortal.closeNoticeDetail()" style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-weight: 700;">✕</button>
+        <h3 id="lblNoticeModalTitle" style="margin: 0; font-size: 16px; font-weight: 800;">-</h3>
+        <button type="button" onclick="OcaStudentPortal.closeNoticeDetail()" style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-weight: 700;"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div id="boxNoticeModalMeta" style="font-size: 12px; color: #64748B; margin-bottom: 10px;"></div>
       <div id="boxNoticeModalBody" style="font-size: 13.5px; line-height: 1.65; color: #0F172A; white-space: pre-line;"></div>
     </div>
   </div>
 
-  <!-- PWA INSTALL GUIDE MODAL (iOS / Android Fallback) -->
+  <!-- PWA-ONLY NATIVE INSTALL GUIDE MODAL (ZERO EMOJIS) -->
   <div id="modalStudentPwaGuide" class="st-modal-backdrop st-hidden">
-    <div class="st-modal-box" style="max-width: 460px;">
+    <div class="st-modal-box" style="max-width: 480px;">
       <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E2E8F0; padding-bottom: 10px; margin-bottom: 12px;">
-        <h3 style="margin: 0; font-size: 16px; font-weight: 800;"><i class="fa-solid fa-mobile-screen-button" style="color: #047857;"></i> ติดตั้งแอป OCA Student ลงมือถือ</h3>
-        <button type="button" onclick="OcaStudentPortal.closePwaGuide()" style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-weight: 700;">✕</button>
+        <h3 style="margin: 0; font-size: 16px; font-weight: 800;"><i class="fa-solid fa-mobile-screen-button" style="color: #047857;"></i> <span data-i18n="pwaModalTitle">ติดตั้งแอป OCA Student (PWA)</span></h3>
+        <button type="button" onclick="OcaStudentPortal.closePwaGuide()" style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-weight: 700;"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 1.6;">
         <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 11px;">
-          <strong>🍎 iPhone / iPad (Safari):</strong><br/>
-          แตะปุ่ม <strong>แชร์ (Share)</strong> ด้านล่าง แล้วเลือก <strong>"เพิ่มไปยังหน้าจอโฮม (Add to Home Screen)"</strong> จากนั้นกด <strong>เพิ่ม (Add)</strong>
+          <strong><i class="fa-solid fa-desktop" style="color: #022C22;"></i> <span data-i18n="pwaPcTitle">คอมพิวเตอร์ (Chrome / Edge):</span></strong><br/>
+          <span data-i18n="pwaPcBody">คลิกไอคอนติดตั้งรูปคอมพิวเตอร์/ลูกศรลง ที่มุมขวาของแถบที่อยู่ (Address Bar) แล้วกด "ติดตั้ง (Install)"</span>
+        </div>
+        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 11px;">
+          <strong><i class="fa-brands fa-apple" style="color: #0F172A;"></i> <span data-i18n="pwaIosTitle">iPhone / iPad (Safari):</span></strong><br/>
+          <span data-i18n="pwaIosBody">แตะปุ่ม แชร์ (Share) ด้านล่าง แล้วเลือก "เพิ่มไปยังหน้าจอโฮม (Add to Home Screen)" จากนั้นกด เพิ่ม</span>
         </div>
         <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 10px; padding: 11px;">
-          <strong>🤖 Android (Chrome):</strong><br/>
-          แตะเมนู <strong>⋮ (จุด 3 จุดมุมขวาบน)</strong> แล้วเลือก <strong>"ติดตั้งแอป" (Install app)</strong> หรือ <strong>"เพิ่มลงในหน้าจอหลัก"</strong>
+          <strong><i class="fa-brands fa-android" style="color: #047857;"></i> <span data-i18n="pwaAndroidTitle">Android (Chrome):</span></strong><br/>
+          <span data-i18n="pwaAndroidBody">แตะเมนูจุด 3 จุดมุมขวาบน แล้วเลือก "ติดตั้งแอป" (Install app)</span>
         </div>
       </div>
     </div>
@@ -737,9 +830,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="./js/oca-slip-guard.js?v=358"></script>
-  <script src="./js/oca-student-ai-photo.js?v=358"></script>
-  <script src="./js/oca-notice-board.js?v=358"></script>
-  <script src="./js/oca-student-portal.js?v=358"></script>
+  <script src="./js/oca-slip-guard.js?v=359"></script>
+  <script src="./js/oca-student-ai-photo.js?v=359"></script>
+  <script src="./js/oca-notice-board.js?v=359"></script>
+  <script src="./js/oca-student-portal.js?v=359"></script>
 </body>
 </html>
