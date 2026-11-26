@@ -598,7 +598,7 @@
   }
 
   function hoverCourse(courseId, el) {
-    const c = _courses.find(x => Number(x.id) === Number(courseId));
+    const c = _courses.find(x => String(x.id || x.code) === String(courseId));
     if (!c) return;
     showHoverPopover(el,
       `<div style="font-size:12px;font-weight:800;color:#0369A1;font-family:monospace;">${esc(c.code)} • ${esc(c.level || 'OCA')}</div>` +
@@ -1220,7 +1220,7 @@
           ? `<span style="background:#022C22;color:#FFFFFF;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;"><i class="fa-solid fa-check"></i> ${esc(t('learnedBadge'))}</span>`
           : '');
       return `
-        <div class="oca-course-card" onmouseenter="OcaStudentPortal.hoverCourse(${Number(c.id)}, this)" onmouseleave="OcaStudentPortal.scheduleHideHoverPopover()">
+        <div class="oca-course-card" onmouseenter="OcaStudentPortal.hoverCourse('${esc(c.id || c.code)}', this)" onmouseleave="OcaStudentPortal.scheduleHideHoverPopover()">
           <div class="oca-course-hero">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:22px;">
               <span style="background:#FFFFFF;color:#0369A1;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid #BAE6FD;"><i class="fa-solid fa-book-open"></i> ${esc(c.level || 'OCA')}</span>
@@ -1233,7 +1233,7 @@
           <div style="padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:10px;flex:1;">
             <div data-i18n-locked="true" style="font-size:13.5px;font-weight:700;color:#0F172A;line-height:1.45;">${esc(c.name)}</div>
             <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid #F1F5F9;">
-              <button type="button" class="st-btn-outline" style="padding:6px 11px;font-size:12px;border-color:#047857;color:#047857;" onclick="OcaStudentPortal.openCheckout(${Number(c.id)})">${esc(t('enrollBtn'))}</button>
+              <button type="button" class="st-btn-outline" style="padding:6px 11px;font-size:12px;border-color:#047857;color:#047857;" onclick="OcaStudentPortal.openCheckout('${esc(c.id || c.code)}')">${esc(t('enrollBtn'))}</button>
               <strong style="font-size:17px;font-family:monospace;color:#047857;">฿${Number(c.price || 0).toLocaleString('en-US')}</strong>
             </div>
           </div>
@@ -1242,7 +1242,7 @@
   }
 
   function openCheckout(courseId) {
-    const c = _courses.find(x => Number(x.id) === Number(courseId));
+    const c = _courses.find(x => String(x.id || x.code) === String(courseId));
     if (!c) return;
     _checkoutCourse = c;
     document.getElementById('lblCheckoutCourseTitle').textContent = `${c.code} — ${c.name}`;
