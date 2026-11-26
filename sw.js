@@ -1,4 +1,4 @@
-const CACHE_NAME = '358';
+const CACHE_NAME = '359';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -35,6 +35,8 @@ const ASSETS_TO_CACHE = [
   './assets/images/oca_login_showcase.jpg',
   './assets/images/oca_welcome_bg.jpg',
   './assets/images/oca_mob_scene.jpg',
+  './assets/images/oca_student_card_front.jpg',
+  './assets/images/oca_student_card_back.jpg',
   './assets/images/oca_gold_card_template.jpg',
   './assets/images/oca_gold_card_template.png',
   './assets/images/kiosk_cat_kids.jpg',
