@@ -613,12 +613,51 @@
     }
   }
 
-  async function uploadNoticeAttachment(sb, upPath, file) {
-    const opts = { contentType: file.type || 'application/octet-stream', upsert: true };
-    const { error: mainErr } = await sb.storage.from('student-photos').upload(upPath, file, opts);
+  function convertImageFileToJpegBlob(file, maxDim = 1280) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let w = img.naturalWidth || 1, h = img.naturalHeight || 1;
+          if (w > maxDim || h > maxDim) {
+            const scale = maxDim / Math.max(w, h);
+            w = Math.max(1, Math.round(w * scale));
+            h = Math.max(1, Math.round(h * scale));
+          }
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          c.toBlob((blob) => {
+            URL.revokeObjectURL(url);
+            c.width = 0; c.height = 0;
+            if (!blob) return reject(new Error('แปลงรูปภาพเป็น JPEG ไม่สำเร็จ'));
+            resolve(blob);
+          }, 'image/jpeg', 0.88);
+        } catch (err) {
+          URL.revokeObjectURL(url);
+          reject(err);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('ไม่สามารถอ่านไฟล์รูปภาพที่เลือกได้'));
+      };
+      img.src = url;
+    });
+  }
+
+  async function uploadNoticeAttachment(sb, upPath, fileOrBlob, contentType) {
+    const opts = { contentType: contentType || fileOrBlob?.type || 'image/jpeg', upsert: true };
+    const { error: mainErr } = await sb.storage.from('student-photos').upload(upPath, fileOrBlob, opts);
     if (!mainErr) return 'student-photos/' + upPath;
-    const { error: fbErr } = await sb.storage.from('payment-slips').upload(upPath, file, opts);
-    if (!fbErr) return 'payment-slips/' + upPath;
+    const msg = String(mainErr.message || mainErr.error || '');
+    if (opts.contentType !== 'image/jpeg' && (msg.toLowerCase().includes('mime') || String(mainErr.statusCode || '') === '400')) {
+      throw new Error('Bucket student-photos รองรับเฉพาะไฟล์ภาพ JPEG (สำหรับไฟล์ PDF/Office กรุณาอัปโหลดขึ้น Google Drive แล้วนำลิงก์มาวางในช่อง "แนบลิงก์ภายนอก")');
+    }
     throw mainErr;
   }
 
@@ -640,17 +679,17 @@
           throw new Error('รูปภาพรองรับเฉพาะ JPG, PNG หรือ WEBP');
         }
         if (Number(imgFile.size || 0) > 5 * 1024 * 1024) throw new Error('ขนาดรูปภาพต้องไม่เกิน 5 MB');
-        const ext = (imgFile.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
-        const upPath = `notices/img_${noticeId}_${Date.now()}.${ext}`;
-        imagePath = await uploadNoticeAttachment(sb, upPath, imgFile);
+        const jpegBlob = await convertImageFileToJpegBlob(imgFile, 1280);
+        const upPath = `notice_img_${noticeId}_${Date.now()}.jpg`;
+        imagePath = await uploadNoticeAttachment(sb, upPath, jpegBlob, 'image/jpeg');
       }
 
       const docFile = document.getElementById('inpNoticeDocFile')?.files?.[0];
       if (docFile) {
         if (Number(docFile.size || 0) > 10 * 1024 * 1024) throw new Error('ขนาดไฟล์เอกสารต้องไม่เกิน 10 MB');
         const ext = (docFile.name.split('.').pop() || 'pdf').replace(/[^a-zA-Z0-9]/g, '');
-        const upPath = `notices/doc_${noticeId}_${Date.now()}.${ext}`;
-        docPath = await uploadNoticeAttachment(sb, upPath, docFile);
+        const upPath = `notice_doc_${noticeId}_${Date.now()}.${ext}`;
+        docPath = await uploadNoticeAttachment(sb, upPath, docFile, docFile.type || 'application/octet-stream');
         docName = String(docFile.name || '').slice(0, 90);
       }
 
