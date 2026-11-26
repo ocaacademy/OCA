@@ -2243,15 +2243,22 @@
       const deliv = document.getElementById('selCheckoutDelivery')?.value || 'รับเอง';
       const total = computeCheckoutBreakdown(items, deliv).total;
       const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
-      const path = `student_slip_${sid}_${Date.now()}.${ext}`;
-      const { error: upErr } = await _sb.storage.from('payment-slips').upload(path, file, { upsert: true });
-      if (upErr) throw upErr;
+      const path = `slips/student_slip_${sid}_${Date.now()}.${ext}`;
+      const upOpts = { contentType: file.type || 'image/jpeg', upsert: true };
+      let storedPath = 'student-photos/' + path;
+      const { error: upErr } = await _sb.storage.from('student-photos').upload(path, file, upOpts);
+      if (upErr) {
+        const fbPath = `student_slip_${sid}_${Date.now()}.${ext}`;
+        const { error: fbErr } = await _sb.storage.from('payment-slips').upload(fbPath, file, upOpts);
+        if (fbErr) throw upErr;
+        storedPath = 'payment-slips/' + fbPath;
+      }
 
       const codesStr = items.map(c => c.code).join('+');
       const summaryName = (`${codesStr} ${deliv}`).slice(0, 90);
       const { error: pErr } = await _sb.from('fee_settings').upsert([
         { key: 'pending_slip:' + sid, name: summaryName, amount: total, mode: 'PENDING', updated_at: new Date().toISOString() },
-        { key: 'pending_slip_url:' + sid, name: String('payment-slips/' + path).slice(0, 90), amount: 1, mode: 'SLIP_URL', updated_at: new Date().toISOString() }
+        { key: 'pending_slip_url:' + sid, name: String(storedPath).slice(0, 90), amount: 1, mode: 'SLIP_URL', updated_at: new Date().toISOString() }
       ], { onConflict: 'key' });
       if (pErr) throw pErr;
 
