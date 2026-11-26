@@ -9,9 +9,28 @@
 
   const NOTICE_PREFIX = 'student_notice:';
   const NOTICE_BODY_PREFIX = 'student_notice_b:';
+  const NOTICE_META_PREFIX = 'student_notice_m:';
   const REALTIME_CHANNEL = 'oca_student_notices';
   const MAX_CHUNKS = 6;
   const CHUNK_LEN = 85;
+
+  function sanitizeHttpUrl(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return '';
+    return /^https?:\/\/[^\s"'<>]+$/i.test(s) ? s : '';
+  }
+
+  function resolveNoticeStorageUrl(sb, relPath) {
+    const p = String(relPath || '').trim();
+    if (!p) return '';
+    if (/^https?:\/\//i.test(p)) return p;
+    const clean = p.replace(/^payment-slips\//i, '');
+    if (sb && sb.storage && typeof sb.storage.from === 'function') {
+      const pub = sb.storage.from('payment-slips').getPublicUrl(clean);
+      if (pub && pub.data && pub.data.publicUrl) return pub.data.publicUrl;
+    }
+    return '';
+  }
 
   const CATEGORIES = Object.freeze({
     GENERAL: { th: 'ประกาศทั่วไป', en: 'General', zh: '综合公告', bg: '#E0F2FE', fg: '#0369A1' },
@@ -60,6 +79,7 @@
     const rows = Array.isArray(data) ? data : [];
     const map = new Map();
     const bodyMap = new Map();
+    const metaMap = new Map();
 
     rows.forEach((r) => {
       const k = String(r.key || '');
@@ -74,7 +94,13 @@
           start_date: r.start_date || '',
           end_date: r.end_date || '',
           updated_at: r.updated_at || '',
-          body: ''
+          body: '',
+          imagePath: '',
+          imageUrl: '',
+          docPath: '',
+          docName: '',
+          docUrl: '',
+          linkUrl: ''
         });
       } else if (k.startsWith(NOTICE_BODY_PREFIX)) {
         const rest = k.slice(NOTICE_BODY_PREFIX.length);
@@ -84,6 +110,19 @@
           const idx = Number(parts[1] || 0);
           if (!bodyMap.has(id)) bodyMap.set(id, []);
           bodyMap.get(id).push({ idx, text: String(r.name || '') });
+        }
+      } else if (k.startsWith(NOTICE_META_PREFIX)) {
+        const rest = k.slice(NOTICE_META_PREFIX.length);
+        const parts = rest.split(':');
+        if (parts.length >= 2) {
+          const id = parts[0];
+          if (!metaMap.has(id)) metaMap.set(id, { img: '', doc: '', docn: '', urls: [] });
+          const entry = metaMap.get(id);
+          const kind = parts[1];
+          if (kind === 'img') entry.img = String(r.name || '');
+          else if (kind === 'doc') entry.doc = String(r.name || '');
+          else if (kind === 'docn') entry.docn = String(r.name || '');
+          else if (kind === 'url') entry.urls.push({ idx: Number(parts[2] || 0), text: String(r.name || '') });
         }
       }
     });
@@ -95,6 +134,16 @@
     map.forEach((item, id) => {
       const chunks = (bodyMap.get(id) || []).sort((a, b) => a.idx - b.idx);
       item.body = chunks.map((c) => c.text).join('');
+      const meta = metaMap.get(id);
+      if (meta) {
+        item.imagePath = meta.img || '';
+        item.imageUrl = resolveNoticeStorageUrl(sb, meta.img);
+        item.docPath = meta.doc || '';
+        item.docName = meta.docn || (meta.doc ? meta.doc.split('/').pop() : '');
+        item.docUrl = resolveNoticeStorageUrl(sb, meta.doc);
+        const rawUrl = (meta.urls || []).sort((a, b) => a.idx - b.idx).map(u => u.text).join('');
+        item.linkUrl = sanitizeHttpUrl(rawUrl);
+      }
       const expired = Boolean(item.end_date && item.end_date < today);
       const notStarted = Boolean(item.start_date && item.start_date > today);
       item.isExpired = expired;
@@ -153,10 +202,17 @@
     if (!sb) return;
     try {
       const actor = String(global.currentStaffUser || global.currentStaffName || 'STAFF').slice(0, 60);
+      const actorName = String(global.currentStaffName || actor).slice(0, 80);
+      const actorRole = String(global.currentStaffRole || 'STAFF').slice(0, 30);
+      const devId = (typeof global.getOrCreateDeviceId === 'function') ? global.getOrCreateDeviceId() : 'STAFF_WEBAPP';
       const { error } = await sb.from('security_audit_logs').insert([{
-        event_type: action,
+        action: action,
         username: actor,
+        full_name: actorName,
+        role: actorRole,
+        device_id: devId,
         details: String(detail || '').slice(0, 240),
+        status: 'SUCCESS',
         created_at: new Date().toISOString()
       }]);
       if (error) console.warn('[OcaNoticeBoard] audit log warning:', error.message || error);
@@ -183,6 +239,12 @@
       .like('key', NOTICE_BODY_PREFIX + id + ':%');
     if (delBodyErr) throw delBodyErr;
 
+    const { error: delMetaErr } = await sb
+      .from('fee_settings')
+      .delete()
+      .like('key', NOTICE_META_PREFIX + id + ':%');
+    if (delMetaErr) throw delMetaErr;
+
     const rows = [{
       key: NOTICE_PREFIX + id,
       name: title,
@@ -203,6 +265,29 @@
         updated_at: nowIso
       });
     });
+
+    const imgPath = String(payload?.image_path || '').trim().slice(0, 90);
+    if (imgPath) {
+      rows.push({ key: `${NOTICE_META_PREFIX}${id}:img`, name: imgPath, amount: 1, mode: 'META_IMG', updated_at: nowIso });
+    }
+    const docPath = String(payload?.doc_path || '').trim().slice(0, 90);
+    if (docPath) {
+      rows.push({ key: `${NOTICE_META_PREFIX}${id}:doc`, name: docPath, amount: 1, mode: 'META_DOC', updated_at: nowIso });
+      const docName = String(payload?.doc_name || '').trim().slice(0, 90);
+      if (docName) rows.push({ key: `${NOTICE_META_PREFIX}${id}:docn`, name: docName, amount: 1, mode: 'META_DOCN', updated_at: nowIso });
+    }
+    const safeUrl = sanitizeHttpUrl(payload?.link_url || '');
+    if (safeUrl) {
+      for (let i = 0, uIdx = 0; i < safeUrl.length && uIdx < 6; i += CHUNK_LEN, uIdx++) {
+        rows.push({
+          key: `${NOTICE_META_PREFIX}${id}:url:${String(uIdx).padStart(2, '0')}`,
+          name: safeUrl.slice(i, i + CHUNK_LEN),
+          amount: uIdx,
+          mode: 'META_URL',
+          updated_at: nowIso
+        });
+      }
+    }
 
     const { error: upErr } = await sb.from('fee_settings').upsert(rows, { onConflict: 'key' });
     if (upErr) throw upErr;
@@ -226,6 +311,12 @@
       .delete()
       .like('key', NOTICE_BODY_PREFIX + cleanId + ':%');
     if (delBodyErr) throw delBodyErr;
+
+    const { error: delMetaErr } = await sb
+      .from('fee_settings')
+      .delete()
+      .like('key', NOTICE_META_PREFIX + cleanId + ':%');
+    if (delMetaErr) throw delMetaErr;
 
     await writeAudit(sb, 'NOTICE_BOARD_DELETE', cleanId);
     await broadcastNoticeChange(sb, cleanId);
@@ -261,7 +352,7 @@
         <div style="background:linear-gradient(135deg,#022C22 0%,#064E3B 100%);color:#FFFFFF;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #D4AF37;position:sticky;top:0;z-index:5;">
           <div>
             <div style="font-size:16px;font-weight:800;color:#FDE68A;"><i class="fa-solid fa-bullhorn"></i> จัดการบอร์ดประชาสัมพันธ์นักศึกษา</div>
-            <div style="font-size:12px;color:#A7F3D0;">ข่าวที่บันทึกจะซิงก์ไปหน้าแรก Student WebApp ทันที (เรียงใหม่ไปเก่า)</div>
+            <div style="font-size:12px;color:#A7F3D0;">ข่าวที่บันทึกจะซิงก์ไปหน้าแรก Student WebApp ทันที</div>
           </div>
           <button type="button" onclick="OcaNoticeBoard.closeStaffManagerModal()" style="background:rgba(255,255,255,0.16);color:#FFFFFF;border:1px solid rgba(255,255,255,0.35);border-radius:8px;width:34px;height:34px;cursor:pointer;font-weight:800;"><i class="fa-solid fa-xmark"></i></button>
         </div>
@@ -304,6 +395,23 @@
               <label for="inpNoticeBody" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;">รายละเอียดประกาศ (สูงสุด 500 ตัวอักษร)</label>
               <textarea id="inpNoticeBody" rows="3" maxlength="500" placeholder="รายละเอียดเพิ่มเติมสำหรับนักศึกษา..." style="width:100%;padding:9px 11px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;box-sizing:border-box;"></textarea>
             </div>
+            <div style="grid-column:1 / -1;">
+              <label for="inpNoticeLink" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;"><i class="fa-solid fa-link"></i> แนบลิงก์ภายนอก (ไม่บังคับ)</label>
+              <input id="inpNoticeLink" type="url" placeholder="https://..." style="width:100%;padding:8px 10px;border-radius:9px;border:1.5px solid #CBD5E1;background:#FFFFFF;color:#0F172A;font-size:13px;box-sizing:border-box;" />
+            </div>
+            <div>
+              <label for="inpNoticeImageFile" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;"><i class="fa-regular fa-image"></i> แนบรูปภาพประกอบ (≤ 5MB)</label>
+              <input id="inpNoticeImageFile" type="file" accept="image/jpeg,image/png,image/webp" style="width:100%;font-size:12px;" />
+              <input type="hidden" id="inpNoticeImagePath" value="" />
+              <div id="lblNoticeImageState" style="font-size:11px;color:#047857;margin-top:2px;"></div>
+            </div>
+            <div>
+              <label for="inpNoticeDocFile" style="display:block;font-size:12.5px;font-weight:700;color:#0F172A;margin-bottom:4px;"><i class="fa-regular fa-file-pdf"></i> แนบไฟล์เอกสาร PDF/Office (≤ 10MB)</label>
+              <input id="inpNoticeDocFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" style="width:100%;font-size:12px;" />
+              <input type="hidden" id="inpNoticeDocPath" value="" />
+              <input type="hidden" id="inpNoticeDocName" value="" />
+              <div id="lblNoticeDocState" style="font-size:11px;color:#0369A1;margin-top:2px;"></div>
+            </div>
             <div style="grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
               <label style="display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:#0F172A;cursor:pointer;">
                 <input id="chkNoticePinned" type="checkbox" style="width:16px;height:16px;" />
@@ -316,7 +424,7 @@
             </div>
           </form>
           <div>
-            <div style="font-size:14px;font-weight:800;color:#0F172A;margin-bottom:8px;">รายการประกาศทั้งหมด (เรียงจากใหม่ไปเก่า)</div>
+            <div style="font-size:14px;font-weight:800;color:#0F172A;margin-bottom:8px;">รายการประกาศทั้งหมด</div>
             <div id="boxStaffNoticeList" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;"></div>
           </div>
         </div>
@@ -377,6 +485,14 @@
     setVal('inpNoticeTitle', '');
     setVal('selNoticeCategory', 'GENERAL');
     setVal('inpNoticeBody', '');
+    setVal('inpNoticeLink', '');
+    setVal('inpNoticeImageFile', '');
+    setVal('inpNoticeImagePath', '');
+    setVal('inpNoticeDocFile', '');
+    setVal('inpNoticeDocPath', '');
+    setVal('inpNoticeDocName', '');
+    const imgLbl = document.getElementById('lblNoticeImageState'); if (imgLbl) imgLbl.textContent = '';
+    const docLbl = document.getElementById('lblNoticeDocState'); if (docLbl) docLbl.textContent = '';
     const chk = document.getElementById('chkNoticePinned');
     if (chk) chk.checked = false;
     applyDefaultNoticeDates();
@@ -393,6 +509,14 @@
     const sel = document.getElementById('selNoticeDuration');
     if (sel) sel.value = item.end_date ? 'custom' : 'forever';
     document.getElementById('inpNoticeBody').value = item.body || '';
+    document.getElementById('inpNoticeLink').value = item.linkUrl || '';
+    document.getElementById('inpNoticeImagePath').value = item.imagePath || '';
+    document.getElementById('inpNoticeDocPath').value = item.docPath || '';
+    document.getElementById('inpNoticeDocName').value = item.docName || '';
+    const imgLbl = document.getElementById('lblNoticeImageState');
+    if (imgLbl) imgLbl.textContent = item.imagePath ? 'มีรูปภาพแนบแล้ว' : '';
+    const docLbl = document.getElementById('lblNoticeDocState');
+    if (docLbl) docLbl.textContent = item.docName ? ('ไฟล์เดิม: ' + item.docName) : '';
     document.getElementById('chkNoticePinned').checked = Boolean(item.pinned);
   }
 
@@ -422,6 +546,11 @@
         const rangeTxt = (n.start_date || n.end_date)
           ? `ระยะเวลา: ${n.start_date ? formatThaiShortDate(n.start_date) : 'ทันที'} – ${n.end_date ? formatThaiShortDate(n.end_date) : 'ไม่มีกำหนด'}`
           : 'ระยะเวลา: ไม่จำกัดวัน';
+        const mediaBadges = [
+          n.imageUrl ? '<span style="background:#ECFDF5;color:#065F46;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;"><i class="fa-regular fa-image"></i> รูปภาพ</span>' : '',
+          n.linkUrl ? '<span style="background:#EFF6FF;color:#1D4ED8;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;"><i class="fa-solid fa-link"></i> ลิงก์</span>' : '',
+          n.docUrl ? '<span style="background:#FEF3C7;color:#92400E;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;"><i class="fa-regular fa-file-pdf"></i> เอกสาร</span>' : ''
+        ].filter(Boolean).join(' ');
         return `
           <div style="border:1px solid #E2E8F0;border-radius:12px;padding:11px 13px;background:#FFFFFF;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
             <div style="min-width:0;flex:1;">
@@ -429,6 +558,7 @@
                 ${n.pinned ? '<span style="background:#FEF3C7;color:#92400E;font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;"><i class="fa-solid fa-thumbtack"></i> ปักหมุด</span>' : ''}
                 <span style="background:${cat.bg};color:${cat.fg};font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;">${escHtml(cat.th)}</span>
                 ${statusBadge}
+                ${mediaBadges}
                 <span style="font-size:11.5px;color:#64748B;">${escHtml(dtStr)}</span>
               </div>
               <div style="font-size:14px;font-weight:800;color:#0F172A;">${escHtml(n.title)}</div>
@@ -451,14 +581,49 @@
     const btn = document.getElementById('btnSubmitOcaNotice');
     if (btn) btn.disabled = true;
     try {
-      await saveNotice(global._supabase, {
-        id: document.getElementById('inpNoticeEditId')?.value || '',
+      const sb = global._supabase;
+      const editId = document.getElementById('inpNoticeEditId')?.value || '';
+      const noticeId = String(editId || Date.now()).replace(/[^0-9A-Za-z_-]/g, '');
+      let imagePath = document.getElementById('inpNoticeImagePath')?.value || '';
+      let docPath = document.getElementById('inpNoticeDocPath')?.value || '';
+      let docName = document.getElementById('inpNoticeDocName')?.value || '';
+
+      const imgFile = document.getElementById('inpNoticeImageFile')?.files?.[0];
+      if (imgFile) {
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(String(imgFile.type || '').toLowerCase())) {
+          throw new Error('รูปภาพรองรับเฉพาะ JPG, PNG หรือ WEBP');
+        }
+        if (Number(imgFile.size || 0) > 5 * 1024 * 1024) throw new Error('ขนาดรูปภาพต้องไม่เกิน 5 MB');
+        const ext = (imgFile.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
+        const upPath = `notices/img_${noticeId}_${Date.now()}.${ext}`;
+        const { error: upErr } = await sb.storage.from('payment-slips').upload(upPath, imgFile, { upsert: true });
+        if (upErr) throw upErr;
+        imagePath = 'payment-slips/' + upPath;
+      }
+
+      const docFile = document.getElementById('inpNoticeDocFile')?.files?.[0];
+      if (docFile) {
+        if (Number(docFile.size || 0) > 10 * 1024 * 1024) throw new Error('ขนาดไฟล์เอกสารต้องไม่เกิน 10 MB');
+        const ext = (docFile.name.split('.').pop() || 'pdf').replace(/[^a-zA-Z0-9]/g, '');
+        const upPath = `notices/doc_${noticeId}_${Date.now()}.${ext}`;
+        const { error: upErr } = await sb.storage.from('payment-slips').upload(upPath, docFile, { upsert: true });
+        if (upErr) throw upErr;
+        docPath = 'payment-slips/' + upPath;
+        docName = String(docFile.name || '').slice(0, 90);
+      }
+
+      await saveNotice(sb, {
+        id: noticeId,
         title: document.getElementById('inpNoticeTitle')?.value || '',
         category: document.getElementById('selNoticeCategory')?.value || 'GENERAL',
         start_date: document.getElementById('inpNoticeStart')?.value || '',
         end_date: document.getElementById('inpNoticeEnd')?.value || '',
         body: document.getElementById('inpNoticeBody')?.value || '',
-        pinned: Boolean(document.getElementById('chkNoticePinned')?.checked)
+        pinned: Boolean(document.getElementById('chkNoticePinned')?.checked),
+        link_url: document.getElementById('inpNoticeLink')?.value || '',
+        image_path: imagePath,
+        doc_path: docPath,
+        doc_name: docName
       });
       resetStaffForm();
       await refreshStaffNoticeList();
