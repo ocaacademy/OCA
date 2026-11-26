@@ -1,10 +1,12 @@
 /**
- * OCA Student Web App Controller (v359)
+ * OCA Student Web App Controller (v360)
  * - Isolated PWA scope (/OCA/student/)
- * - Left Sidebar Navigation + 3D Flippable Official Gold ID Card
- * - Multi-table DB Profile & Real Photo Resolver
- * - Unified Notification Center (Receipts + Academy Notices newest -> oldest)
- * - 100% Real-Time 3-Language i18n (th / en / zh) with MutationObserver
+ * - Password-masked 8-digit DOB (DDMMYYYY) + Eye Toggle + Brute-force Lockout (5 fails -> 60s)
+ * - 30-Min Idle Auto-Logout + Live Account Status Guard + 5MB Image/Slip Guard
+ * - Staff-Parity Course Catalog (13 Icon Categories + Smart Next-Course Recommendation + Dynamic Shipping)
+ * - Current-Course-Only Schedule (Term Timetable + Lecturer Lookup)
+ * - Thai Address Autocomplete + Hover-Preview Popover (Notices, Courses, Receipts)
+ * - 3D Flippable Official Gold ID Card + Real-Time 3-Language i18n (th / en / zh)
  */
 (function (global) {
   'use strict';
@@ -13,6 +15,12 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_LLxdgD2RTMYpl8ygAK3v9w_vRAbqpWQ';
   const SESSION_KEY = 'oca_student_session';
   const LANG_KEY = 'oca_student_lang';
+  const LOGIN_GUARD_KEY = 'oca_st_login_guard';
+  const MAX_LOGIN_FAILS = 5;
+  const LOCKOUT_MS = 60 * 1000;
+  const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+  const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+  const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 
   const _sb = (global.supabase && typeof global.supabase.createClient === 'function')
     ? global.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -26,6 +34,7 @@
   let _schedules = [];
   let _receipts = [];
   let _pendingSlips = [];
+  let _shippingFee = 50;
   let _activeCat = 'ALL';
   let _checkoutCourse = null;
   let _pendingAiPhoto = null;
@@ -34,6 +43,11 @@
   let _notices = [];
   let _isCardFlipped = false;
   let _isApplyingI18n = false;
+  let _thaiAddrIndex = null;
+  let _lecturerMap = null;
+  let _termInfo = null;
+  let _hoverHideTimer = null;
+  let _idleTimer = null;
 
   const I18N = {
     th: {
@@ -48,9 +62,10 @@
       loginTitle: 'เข้าสู่ระบบนักศึกษา',
       loginSub: 'สำหรับนักศึกษาปัจจุบัน: ต่อคอร์ส, ดูตารางเรียน, บัตรนักศึกษา',
       loginSid: 'รหัสนักศึกษา (7 หลัก)',
-      loginSecret: 'วันเดือนปีเกิด (เช่น 15/05/2540) หรือรหัส 123456',
+      loginSecret: 'รหัสผ่าน (วันเดือนปีเกิด 8 หลัก เช่น 15052540 หรือ 123456)',
       phSid: 'เช่น 6950001',
-      phSecret: 'DD/MM/พ.ศ. หรือ 123456',
+      phSecret: '15052540 หรือ 123456',
+      togglePassTitle: 'แสดง/ซ่อนรหัสผ่าน',
       legacyHint: 'นักศึกษาเก่าที่ยังไม่มีวันเกิดในระบบ: กรอก 123456 เพื่อเข้าสู่ระบบแล้วตั้งวันเกิดจริง',
       btnLogin: 'เข้าสู่ระบบนักศึกษา',
       newOrDivider: 'สำหรับผู้ที่ยังไม่มีรหัสนักศึกษา',
@@ -68,12 +83,13 @@
       fldLine: 'LINE ID',
       fldEmail: 'อีเมล',
       fldNationality: 'สัญชาติ',
+      fldAddrSearch: 'ค้นหาที่อยู่ไทยอัตโนมัติ (รหัสไปรษณีย์ / ตำบล / อำเภอ)',
+      phAddrSearch: 'พิมพ์รหัสไปรษณีย์ เช่น 10330 หรือชื่อตำบล...',
       fldAddress: 'ที่อยู่จัดส่งตำราเรียน',
       fldEmergName: 'ผู้ติดต่อฉุกเฉิน',
       fldEmergPhone: 'เบอร์ผู้ติดต่อฉุกเฉิน',
       btnRegSubmit: 'ยืนยันลงทะเบียนและไปเลือกคอร์สเรียน',
       menuBtn: 'เมนู',
-      quickEnroll: 'เลือกคอร์ส / ต่อคอร์ส',
       tabHome: 'หน้าหลัก',
       tabEnroll: 'เลือกคอร์ส & แนบสลิป',
       tabCard: 'บัตรนักศึกษา',
@@ -92,7 +108,7 @@
       flipCardFront: 'พลิกดูด้านหน้าบัตร',
       cardQrTitle: 'QR ยืนยันตัวตนรับตำราเรียน',
       cardQrSub: 'สแกนเพื่อตรวจสอบสิทธิ์เข้าเรียนและรับหนังสือ (PDPA Safe)',
-      schedTitle: 'ตารางเรียนและคอร์สที่ลงทะเบียน',
+      schedTitle: 'ตารางเรียนคอร์สปัจจุบัน',
       finTitle: 'ประวัติใบเสร็จรับเงิน & สถานะรับ/จัดส่งตำรา',
       aiTitle: 'รูปโปรไฟล์ & บัตรนักศึกษา (AI Studio)',
       aiDesc: 'ระบบจะใช้ AI (RMBG-1.4 / MODNet) ตัดพื้นหลังเป็นสีแดงเลือดหมู (#800000) มาตรฐานสถาบันให้อัตโนมัติ',
@@ -105,9 +121,9 @@
       chkMode: 'รูปแบบเรียน',
       chkDelivery: 'วิธีรับตำราเรียน',
       delivPickup: 'รับเองที่สถาบัน (ฟรี)',
-      delivShip: 'จัดส่งพัสดุตามที่อยู่ (+฿50)',
+      delivShip: 'จัดส่งพัสดุตามที่อยู่',
       chkTotal: 'ยอดชำระสุทธิ',
-      chkSlipHint: 'สแกนโอนเงินแล้วแนบสลิปด้านล่าง (ระบบจะส่งให้เจ้าหน้าที่อนุมัติ)',
+      chkSlipHint: 'สแกนโอนเงินแล้วแนบสลิปด้านล่าง (เฉพาะ JPG/PNG/WEBP ไม่เกิน 5MB)',
       btnSubmitCheckout: 'ยืนยันส่งใบสมัคร & สลิปโอนเงิน',
       notifModalTitle: 'การแจ้งเตือนและประกาศสถาบัน',
       iosGuideTitle: 'สำหรับ iPhone / iPad (iOS 16.4+):',
@@ -124,11 +140,16 @@
       pwaAndroidBody: 'แตะเมนูจุด 3 จุดมุมขวาบน แล้วเลือก "ติดตั้งแอป" (Install app)',
       termPrefix: 'ภาคเรียน',
       coursesUnit: 'คอร์ส',
-      enrollBtn: 'สมัคร / ต่อคอร์ส',
+      enrollBtn: '+ เลือกคอร์ส',
+      recommendedBadge: 'แนะนำสำหรับคุณ',
+      learnedBadge: 'เรียนแล้ว',
+      currentCourseBadge: 'กำลังเรียนในภาคเรียนนี้',
+      lecturerLbl: 'อาจารย์ผู้สอน',
+      termPeriodLbl: 'ช่วงเวลาภาคเรียน',
       noSlipPending: 'ไม่มีสลิปรอตรวจสอบ',
       slipPendingCount: 'มีสลิปรอตรวจสอบ',
       itemsUnit: 'รายการ',
-      noScheduleMsg: 'ยังไม่มีประวัติตารางเรียน กรุณาเลือกคอร์สในแท็บ "เลือกคอร์ส & แนบสลิป"',
+      noScheduleMsg: 'ยังไม่มีข้อมูลคอร์สปัจจุบัน กรุณาเลือกคอร์สในแท็บ "เลือกคอร์ส & แนบสลิป"',
       noReceiptsMsg: 'ยังไม่มีประวัติใบเสร็จรับเงิน',
       noNotifsMsg: 'ยังไม่มีการแจ้งเตือนหรือประกาศใหม่'
     },
@@ -144,9 +165,10 @@
       loginTitle: 'Student Sign In',
       loginSub: 'For current students: renew courses, view schedule & digital ID',
       loginSid: 'Student ID (7 digits)',
-      loginSecret: 'Date of Birth (DD/MM/YYYY) or default 123456',
+      loginSecret: 'Password (8-digit DOB e.g. 15052540 or 123456)',
       phSid: 'e.g. 6950001',
-      phSecret: 'DD/MM/YYYY or 123456',
+      phSecret: '15052540 or 123456',
+      togglePassTitle: 'Show/Hide Password',
       legacyHint: 'Legacy students without DOB on file: enter 123456 to sign in and set your birth date.',
       btnLogin: 'Sign In',
       newOrDivider: 'New to OCA?',
@@ -164,12 +186,13 @@
       fldLine: 'LINE ID',
       fldEmail: 'Email',
       fldNationality: 'Nationality',
+      fldAddrSearch: 'Thai Address Autocomplete (Zipcode / Subdistrict / District)',
+      phAddrSearch: 'Type zipcode e.g. 10330 or subdistrict...',
       fldAddress: 'Shipping Address (for textbooks)',
       fldEmergName: 'Emergency Contact',
       fldEmergPhone: 'Emergency Phone',
       btnRegSubmit: 'Confirm Registration & Choose Courses',
       menuBtn: 'Menu',
-      quickEnroll: 'Enroll / Renew Course',
       tabHome: 'Home',
       tabEnroll: 'Courses & Payment',
       tabCard: 'Student ID Card',
@@ -188,7 +211,7 @@
       flipCardFront: 'Flip to Front of Card',
       cardQrTitle: 'Textbook Claim Verification QR',
       cardQrSub: 'Scan at academy counter to verify enrollment & claim books (PDPA Safe)',
-      schedTitle: 'Class Schedule & Enrolled Courses',
+      schedTitle: 'Current Course Schedule',
       finTitle: 'Official Receipts & Textbook Delivery',
       aiTitle: 'Profile Photo & ID Card (AI Studio)',
       aiDesc: 'AI (RMBG-1.4 / MODNet) automatically replaces background with OCA Crimson (#800000).',
@@ -201,9 +224,9 @@
       chkMode: 'Learning Mode',
       chkDelivery: 'Textbook Delivery',
       delivPickup: 'Pick up at Academy (Free)',
-      delivShip: 'Parcel Delivery (+฿50)',
+      delivShip: 'Parcel Delivery',
       chkTotal: 'Net Payable',
-      chkSlipHint: 'Scan QR to transfer, then attach your payment slip below.',
+      chkSlipHint: 'Scan QR to transfer, then attach slip below (JPG/PNG/WEBP, max 5MB).',
       btnSubmitCheckout: 'Submit Enrollment & Payment Slip',
       notifModalTitle: 'Notifications & Academy Notices',
       iosGuideTitle: 'For iPhone / iPad (iOS 16.4+):',
@@ -220,11 +243,16 @@
       pwaAndroidBody: 'Tap the 3-dot menu at top-right and choose "Install app".',
       termPrefix: 'Term',
       coursesUnit: 'courses',
-      enrollBtn: 'Enroll / Renew',
+      enrollBtn: '+ Select Course',
+      recommendedBadge: 'Recommended',
+      learnedBadge: 'Completed',
+      currentCourseBadge: 'Current Active Course',
+      lecturerLbl: 'Lecturer',
+      termPeriodLbl: 'Term Period',
       noSlipPending: 'No pending slips',
       slipPendingCount: 'Pending slips:',
       itemsUnit: 'items',
-      noScheduleMsg: 'No schedule records yet. Please select a course in Courses & Payment.',
+      noScheduleMsg: 'No current course found. Please select a course in Courses & Payment.',
       noReceiptsMsg: 'No receipt records yet.',
       noNotifsMsg: 'No notifications or announcements yet.'
     },
@@ -240,9 +268,10 @@
       loginTitle: '学员登录',
       loginSub: '老学员专用：续费选课、查看课表、电子学生证',
       loginSid: '学号（7位数字）',
-      loginSecret: '出生日期（如 15/05/1997）或初始密码 123456',
+      loginSecret: '密码（8位出生日期 如 15052540 或 123456）',
       phSid: '例如 6950001',
-      phSecret: '日/月/年 或 123456',
+      phSecret: '15052540 或 123456',
+      togglePassTitle: '显示/隐藏密码',
       legacyHint: '尚未登记出生日期的老学员：请输入 123456 登录后完善出生日期。',
       btnLogin: '登录学员系统',
       newOrDivider: '尚未拥有OCA学号？',
@@ -260,12 +289,13 @@
       fldLine: 'LINE ID',
       fldEmail: '电子邮箱',
       fldNationality: '国籍',
+      fldAddrSearch: '泰国地址自动补全（邮编 / 街道 / 区县）',
+      phAddrSearch: '输入邮编如 10330 或区县名称...',
       fldAddress: '教材邮寄地址',
       fldEmergName: '紧急联系人',
       fldEmergPhone: '紧急联系电话',
       btnRegSubmit: '确认注册并前往选课',
       menuBtn: '菜单',
-      quickEnroll: '选课 / 续费报名',
       tabHome: '首页',
       tabEnroll: '选课与缴费',
       tabCard: '电子学生证',
@@ -284,7 +314,7 @@
       flipCardFront: '翻转查看正面',
       cardQrTitle: '教材领取核验二维码',
       cardQrSub: '现场扫码核验上课资格与领取教材（已隐去隐私证件号）',
-      schedTitle: '我的课表与已报课程',
+      schedTitle: '当前在读课程表',
       finTitle: '电子收据记录与教材物流状态',
       aiTitle: '个人头像与学生证照片 (AI Studio)',
       aiDesc: '系统使用 AI (RMBG-1.4 / MODNet) 自动抠图并替换为书院标准暗红底色 (#800000)。',
@@ -297,9 +327,9 @@
       chkMode: '上课方式',
       chkDelivery: '教材领取方式',
       delivPickup: '书院自取（免费）',
-      delivShip: '快递邮寄（+฿50）',
+      delivShip: '快递邮寄',
       chkTotal: '应付总额',
-      chkSlipHint: '请扫码转账并在下方上传转账凭证（工作人员将尽快审核）',
+      chkSlipHint: '请扫码转账并在下方上传转账凭证（仅限 JPG/PNG/WEBP，最大 5MB）',
       btnSubmitCheckout: '确认提交报名与转账凭证',
       notifModalTitle: '消息通知与书院公告',
       iosGuideTitle: 'iPhone / iPad (iOS 16.4+) 指引：',
@@ -316,11 +346,16 @@
       pwaAndroidBody: '点击右上角“⋮”菜单，选择“安装应用”。',
       termPrefix: '学期',
       coursesUnit: '门课程',
-      enrollBtn: '报名 / 续费',
+      enrollBtn: '+ 选择课程',
+      recommendedBadge: '为您推荐',
+      learnedBadge: '已修课程',
+      currentCourseBadge: '本学期在读课程',
+      lecturerLbl: '授课教师',
+      termPeriodLbl: '学期时间',
       noSlipPending: '暂无待审核凭证',
       slipPendingCount: '待审核凭证：',
       itemsUnit: '条',
-      noScheduleMsg: '暂无课表记录，请前往“选课与缴费”报名课程。',
+      noScheduleMsg: '暂无当前课程信息，请前往“选课与缴费”报名课程。',
       noReceiptsMsg: '暂无收据记录',
       noNotifsMsg: '暂无通知或公告'
     }
@@ -340,6 +375,18 @@
       .replace(/'/g, '&#39;');
   }
 
+  function formatStudentDisplayName(st) {
+    if (!st) return '-';
+    const prefix = String(st.prefix || '').trim();
+    const full = String(st.full_name || '').trim();
+    if (!full) return prefix || String(st.student_id || '-');
+    if (!prefix) return full;
+    if (full.startsWith(prefix)) return full;
+    const known = ['นาย', 'นางสาว', 'นาง', 'น.ส.', 'ด.ช.', 'ด.ญ.', 'เด็กชาย', 'เด็กหญิง', 'Mr.', 'Mrs.', 'Ms.', 'Miss'];
+    if (known.some((p) => full.toLowerCase().startsWith(p.toLowerCase()))) return full;
+    return prefix + ' ' + full;
+  }
+
   function resolveStudentPhotoUrl(raw) {
     const s = String(raw || '').trim();
     if (!s) return './oca_logo.png';
@@ -349,6 +396,17 @@
     const g2 = s.match(/drive\.google\.com\/open\?id=([^&]+)/i);
     if (g2 && g2[1]) return 'https://lh3.googleusercontent.com/d/' + g2[1];
     return s;
+  }
+
+  function validateImageFile(file) {
+    if (!file) return 'กรุณาเลือกไฟล์รูปภาพ';
+    if (file.type && !ALLOWED_MIME.includes(String(file.type).toLowerCase())) {
+      return 'รองรับเฉพาะไฟล์ภาพ JPG, PNG หรือ WEBP เท่านั้น';
+    }
+    if (Number(file.size || 0) > MAX_UPLOAD_BYTES) {
+      return 'ขนาดไฟล์ต้องไม่เกิน 5 MB';
+    }
+    return '';
   }
 
   function showToast(msg) {
@@ -364,9 +422,12 @@
     const clean = String(raw || '').trim();
     if (!clean) return '';
     let y = 0, m = 0, d = 0;
+    const m8 = clean.match(/^(\d{2})(\d{2})(\d{4})$/);
     const m1 = clean.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
     const m2 = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
-    if (m1) {
+    if (m8) {
+      d = Number(m8[1]); m = Number(m8[2]); y = Number(m8[3]);
+    } else if (m1) {
       y = Number(m1[1]); m = Number(m1[2]); d = Number(m1[3]);
     } else if (m2) {
       d = Number(m2[1]); m = Number(m2[2]); y = Number(m2[3]);
@@ -383,6 +444,15 @@
     if (!norm) return '';
     const [y, m, d] = norm.split('-').map(Number);
     return String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0') + '/' + String(y + 543);
+  }
+
+  function toggleLoginSecret() {
+    const inp = document.getElementById('inpLoginSecret');
+    const icon = document.getElementById('iconLoginSecretEye');
+    if (!inp) return;
+    const toText = inp.type === 'password';
+    inp.type = toText ? 'text' : 'password';
+    if (icon) icon.className = toText ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
   }
 
   function applyI18nToNode(root) {
@@ -451,6 +521,173 @@
     });
   }
 
+  /* HOVER-PREVIEW POPOVER ENGINE */
+  function getPopoverEl() {
+    const pop = document.getElementById('ocaStudentHoverPopover');
+    if (pop && !pop._bound) {
+      pop._bound = true;
+      pop.addEventListener('mouseenter', () => {
+        if (_hoverHideTimer) { clearTimeout(_hoverHideTimer); _hoverHideTimer = null; }
+      });
+      pop.addEventListener('mouseleave', (ev) => {
+        if (ev && ev.buttons > 0) return;
+        scheduleHideHoverPopover();
+      });
+    }
+    return pop;
+  }
+
+  function showHoverPopover(triggerEl, html) {
+    if (!triggerEl || !html) return;
+    if (_hoverHideTimer) { clearTimeout(_hoverHideTimer); _hoverHideTimer = null; }
+    const pop = getPopoverEl();
+    if (!pop) return;
+    pop.innerHTML = html;
+    pop.classList.remove('st-hidden');
+    const r = triggerEl.getBoundingClientRect();
+    const pw = Math.min(420, global.innerWidth - 24);
+    let left = r.right + 10;
+    if (left + pw > global.innerWidth - 12) left = Math.max(12, r.left - pw - 10);
+    if (global.innerWidth < 760) left = Math.max(12, (global.innerWidth - pw) / 2);
+    let top = Math.max(12, Math.min(r.top, global.innerHeight - 300));
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+  }
+
+  function scheduleHideHoverPopover() {
+    if (_hoverHideTimer) clearTimeout(_hoverHideTimer);
+    _hoverHideTimer = setTimeout(() => {
+      const pop = document.getElementById('ocaStudentHoverPopover');
+      if (pop) pop.classList.add('st-hidden');
+    }, 180);
+  }
+
+  function hoverNotice(id, el) {
+    const n = _notices.find(x => String(x.id) === String(id));
+    if (!n) return;
+    const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
+    showHoverPopover(el,
+      `<div style="font-size:11px;font-weight:800;color:#047857;margin-bottom:4px;"><i class="fa-solid fa-bullhorn"></i> ${esc(t('noticeBoardTitle'))} • ${esc(dtStr)}</div>` +
+      `<div style="font-size:14.5px;font-weight:800;color:#0F172A;margin-bottom:6px;">${esc(n.title)}</div>` +
+      `<div style="font-size:13px;color:#334155;line-height:1.6;white-space:pre-line;">${esc(n.body || '-')}</div>`
+    );
+  }
+
+  function hoverCourse(courseId, el) {
+    const c = _courses.find(x => Number(x.id) === Number(courseId));
+    if (!c) return;
+    showHoverPopover(el,
+      `<div style="font-size:12px;font-weight:800;color:#0369A1;font-family:monospace;">${esc(c.code)} • ${esc(c.level || 'OCA')}</div>` +
+      `<div style="font-size:14px;font-weight:800;color:#0F172A;margin:4px 0 6px 0;">${esc(c.name)}</div>` +
+      (c.linked_book ? `<div style="font-size:12.5px;color:#475569;"><i class="fa-solid fa-book"></i> ${esc(c.linked_book)}</div>` : '') +
+      `<div style="font-size:15px;font-weight:800;color:#047857;margin-top:6px;">฿${Number(c.price || 0).toLocaleString('en-US')}</div>`
+    );
+  }
+
+  function hoverReceipt(rcNo, el) {
+    const r = _receipts.find(x => String(x.receipt_no) === String(rcNo));
+    if (!r) return;
+    showHoverPopover(el,
+      `<div style="font-size:12px;font-weight:800;color:#047857;">#${esc(r.receipt_no)}</div>` +
+      `<div style="font-size:14px;font-weight:800;color:#0F172A;margin:3px 0;">${esc(r.item_name || r.item_code || '-')}</div>` +
+      `<div style="font-size:12.5px;color:#475569;">${esc(r.schedule_info || '-')} • ${esc(r.learning_mode || 'Onsite')}</div>` +
+      `<div style="font-size:12.5px;color:#334155;margin-top:4px;">฿${Number(r.grand_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} • ${esc(r.delivery_method || 'รับเอง')} (${esc(r.claim_status || 'PENDING')})</div>` +
+      (r.tracking_number ? `<div style="font-size:12px;font-weight:700;color:#0369A1;margin-top:3px;">Tracking: ${esc(r.tracking_number)}</div>` : '')
+    );
+  }
+
+  /* THAI ADDRESS AUTOCOMPLETE */
+  async function ensureThaiAddressIndex() {
+    if (_thaiAddrIndex) return _thaiAddrIndex;
+    try {
+      const res = await fetch('./assets/data/thai_address_compact.json');
+      if (!res.ok) return [];
+      const data = await res.json();
+      const idx = [];
+      const distByProv = data.districtsByProv || {};
+      const subByDist = data.subdistrictsByDist || {};
+      Object.entries(distByProv).forEach(([provName, dists]) => {
+        (dists || []).forEach((dist) => {
+          const subs = subByDist[String(dist.id)] || [];
+          subs.forEach((sub) => {
+            idx.push({
+              sub: sub.name,
+              dist: dist.name,
+              prov: provName,
+              zip: String(sub.zipCode || ''),
+              label: `ต.${sub.name} อ.${dist.name} จ.${provName} ${sub.zipCode || ''}`
+            });
+          });
+        });
+      });
+      _thaiAddrIndex = idx;
+      return idx;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function onAddrSearch(target, query) {
+    const boxId = target === 'reg' ? 'boxRegAddrSuggest' : 'boxProfAddrSuggest';
+    const box = document.getElementById(boxId);
+    if (!box) return;
+    const q = String(query || '').trim().toLowerCase();
+    if (q.length < 2) {
+      box.classList.add('st-hidden');
+      box.innerHTML = '';
+      return;
+    }
+    const idx = await ensureThaiAddressIndex();
+    const matches = idx.filter((x) => x.zip.startsWith(q) || x.label.toLowerCase().includes(q)).slice(0, 8);
+    if (!matches.length) {
+      box.classList.add('st-hidden');
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = matches.map((m) =>
+      `<button type="button" class="oca-addr-opt" onclick="OcaStudentPortal.pickThaiAddress('${target}','${esc(m.label)}')">${esc(m.label)}</button>`
+    ).join('');
+    box.classList.remove('st-hidden');
+  }
+
+  function pickThaiAddress(target, label) {
+    const area = document.getElementById(target === 'reg' ? 'regAddress' : 'profAddress');
+    const inp = document.getElementById(target === 'reg' ? 'inpRegAddrSearch' : 'inpProfAddrSearch');
+    const box = document.getElementById(target === 'reg' ? 'boxRegAddrSuggest' : 'boxProfAddrSuggest');
+    if (area) {
+      const cur = String(area.value || '').trim();
+      area.value = cur ? (cur + ' ' + label) : label;
+    }
+    if (inp) inp.value = label;
+    if (box) box.classList.add('st-hidden');
+  }
+
+  /* SECURITY: BRUTE-FORCE LOCKOUT + 30-MIN IDLE TIMEOUT */
+  function getLoginGuard() {
+    try { return JSON.parse(localStorage.getItem(LOGIN_GUARD_KEY) || '{"fails":0,"lockedUntil":0}'); } catch (_) { return { fails: 0, lockedUntil: 0 }; }
+  }
+
+  function setLoginGuard(g) {
+    try { localStorage.setItem(LOGIN_GUARD_KEY, JSON.stringify(g)); } catch (_) {}
+  }
+
+  function resetIdleTimer() {
+    if (_idleTimer) clearTimeout(_idleTimer);
+    if (!_student) return;
+    _idleTimer = setTimeout(() => {
+      if (_student) {
+        logout();
+        showToast('ออกจากระบบอัตโนมัติเนื่องจากไม่มีการใช้งานเกิน 30 นาที');
+      }
+    }, IDLE_TIMEOUT_MS);
+  }
+
+  function initIdleMonitor() {
+    ['click', 'keydown', 'touchstart', 'mousemove'].forEach((evt) => {
+      global.addEventListener(evt, resetIdleTimer, { passive: true });
+    });
+  }
+
   function showOnlyView(viewId) {
     ['viewStudentWelcome', 'viewStudentAuth', 'viewStudentRegister', 'viewStudentApp'].forEach(id => {
       const el = document.getElementById(id);
@@ -509,6 +746,16 @@
     const errEl = document.getElementById('lblLoginErr');
     const btn = document.getElementById('btnStudentLoginSubmit');
     if (errEl) errEl.classList.add('st-hidden');
+
+    const guard = getLoginGuard();
+    if (guard.lockedUntil && Date.now() < guard.lockedUntil) {
+      const secLeft = Math.ceil((guard.lockedUntil - Date.now()) / 1000);
+      if (errEl) {
+        errEl.textContent = `กรอกผิดเกินกำหนด กรุณารอ ${secLeft} วินาทีแล้วลองใหม่`;
+        errEl.classList.remove('st-hidden');
+      }
+      return;
+    }
     if (!sid || !secret || !_sb) return;
     if (btn) btn.disabled = true;
 
@@ -525,10 +772,14 @@
         if (qErr) throw qErr;
         const st = Array.isArray(rows) ? rows[0] : null;
         if (!st) throw new Error('ไม่พบรหัสนักศึกษาในระบบ');
+        const stStatus = String(st.status || 'ACTIVE').toUpperCase();
+        if (stStatus === 'SUSPENDED' || stStatus === 'DELETED' || stStatus === 'INACTIVE') {
+          throw new Error('บัญชีนักศึกษานี้ถูกระงับหรือปิดใช้งาน กรุณาติดต่อสถาบัน');
+        }
         const dbDob = normalizeDobIso(st.birth_date || '');
         const inDob = normalizeDobIso(secret);
         if (dbDob) {
-          if (!inDob || inDob !== dbDob) throw new Error('วันเดือนปีเกิดไม่ถูกต้อง');
+          if (!inDob || inDob !== dbDob) throw new Error('วันเดือนปีเกิดไม่ถูกต้อง (กรอก 8 หลัก เช่น 15052540)');
         } else if (secret !== '123456') {
           throw new Error('นักศึกษาที่ยังไม่มีวันเกิดในระบบ กรุณากรอกรหัสเริ่มต้น 123456');
         } else {
@@ -537,13 +788,28 @@
         studentRow = st;
       }
 
+      setLoginGuard({ fails: 0, lockedUntil: 0 });
       _student = studentRow;
       _needsDobSetup = needsSetup;
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ student: _student, needsDobSetup: _needsDobSetup }));
       await enterApp('home');
     } catch (err) {
+      const nextFails = (guard.fails || 0) + 1;
+      const nextLock = nextFails >= MAX_LOGIN_FAILS ? (Date.now() + LOCKOUT_MS) : 0;
+      setLoginGuard({ fails: nextLock ? 0 : nextFails, lockedUntil: nextLock });
+      if (nextLock && _sb) {
+        const { error: logErr } = await _sb.from('security_audit_logs').insert([{
+          event_type: 'STUDENT_LOGIN_LOCKOUT',
+          username: sid.slice(0, 30),
+          details: 'Exceeded 5 failed login attempts',
+          created_at: new Date().toISOString()
+        }]);
+        if (logErr) console.warn('[audit]', logErr.message || logErr);
+      }
       if (errEl) {
-        errEl.textContent = err.message || String(err);
+        errEl.textContent = nextLock
+          ? 'กรอกรหัสผิดครบ 5 ครั้ง ระบบล็อกชั่วคราว 60 วินาที'
+          : (err.message || String(err));
         errEl.classList.remove('st-hidden');
       }
     } finally {
@@ -560,7 +826,7 @@
 
     const dobIso = normalizeDobIso(document.getElementById('regDob')?.value || '');
     if (!dobIso) {
-      if (errEl) { errEl.textContent = 'กรุณากรอกวันเดือนปีเกิดให้ถูกต้อง (เช่น 15/05/2540)'; errEl.classList.remove('st-hidden'); }
+      if (errEl) { errEl.textContent = 'กรุณากรอกวันเดือนปีเกิดให้ถูกต้อง (เช่น 15052540 หรือ 15/05/2540)'; errEl.classList.remove('st-hidden'); }
       return;
     }
 
@@ -630,6 +896,7 @@
 
   async function enterApp(defaultTab) {
     showOnlyView('viewStudentApp');
+    resetIdleTimer();
     renderHeaderAndProfile();
     switchTab(defaultTab || 'home');
     await loadStudentAppData();
@@ -644,7 +911,7 @@
 
   function renderHeaderAndProfile() {
     if (!_student) return;
-    const fullName = [_student.prefix, _student.full_name].filter(Boolean).join(' ') || _student.student_id;
+    const fullName = formatStudentDisplayName(_student);
     const photo = resolveStudentPhotoUrl(_student.photo_url);
 
     const setImg = (id) => {
@@ -707,26 +974,59 @@
     }
   }
 
+  async function loadLecturerAndTermMeta(yearBE, term) {
+    try {
+      if (!_lecturerMap) {
+        const resL = await fetch('./assets/data/oca_class_lecturer_registry.json');
+        if (resL.ok) _lecturerMap = await resL.json();
+      }
+      if (!_termInfo) {
+        const yy = String(yearBE).slice(-2);
+        const resT = await fetch(`./assets/data/term_timetables/term_${yy}${term}.json`);
+        if (resT.ok) _termInfo = await resT.json();
+      }
+    } catch (_) {}
+  }
+
   async function loadStudentAppData() {
     if (!_sb || !_student) return;
     const sid = String(_student.student_id || '').trim();
-    const [resSt, resC, resSc, resRc, resPend, resNotif] = await Promise.all([
+    const [resSt, resC, resSc, resRc, resPend, resNotif, resShip] = await Promise.all([
       _sb.from('students').select('*').eq('student_id', sid).maybeSingle(),
       _sb.from('courses').select('*').eq('is_active', true).order('code', { ascending: true }),
       _sb.from('schedules').select('*').eq('is_active', true).order('id', { ascending: true }),
       _sb.from('receipts').select('*').eq('student_id', sid).order('created_at', { ascending: false }),
       _sb.from('fee_settings').select('key,name,amount,mode,updated_at').like('key', 'pending_slip%:' + sid),
-      _sb.from('fee_settings').select('key,name,amount,mode,updated_at').eq('key', 'student_notif:' + sid).maybeSingle()
+      _sb.from('fee_settings').select('key,name,amount,mode,updated_at').eq('key', 'student_notif:' + sid).maybeSingle(),
+      _sb.from('fee_settings').select('key,amount').in('key', ['shipping_fee', 'textbook_shipping'])
     ]);
 
+    if (!resSt.error && !resSt.data) {
+      logout();
+      showToast('ไม่พบข้อมูลบัญชีนักศึกษาในระบบ');
+      return;
+    }
     if (!resSt.error && resSt.data) {
+      const stStatus = String(resSt.data.status || 'ACTIVE').toUpperCase();
+      if (stStatus === 'SUSPENDED' || stStatus === 'DELETED' || stStatus === 'INACTIVE') {
+        logout();
+        showToast('บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อสถาบัน');
+        return;
+      }
       _student = resSt.data;
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ student: _student, needsDobSetup: _needsDobSetup }));
     }
+
     _courses = Array.isArray(resC.data) ? resC.data : [];
     _schedules = Array.isArray(resSc.data) ? resSc.data : [];
     _receipts = Array.isArray(resRc.data) ? resRc.data.filter(r => String(r.claim_status || '').toUpperCase() !== 'VOIDED') : [];
     _pendingSlips = Array.isArray(resPend.data) ? resPend.data.filter(r => r.key && r.key.startsWith('pending_slip:')) : [];
+    if (Array.isArray(resShip.data) && resShip.data[0] && Number(resShip.data[0].amount) > 0) {
+      _shippingFee = Number(resShip.data[0].amount);
+    }
+
+    const activeTerm = await resolveActiveYearTerm();
+    await loadLecturerAndTermMeta(activeTerm.yearBE, activeTerm.term);
 
     _notifs = [];
     if (resNotif && resNotif.data) _notifs.push(resNotif.data);
@@ -776,15 +1076,28 @@
     const box = document.getElementById('boxEnrollCategories');
     if (!box) return;
     const learnedCodes = new Set(_receipts.map(r => String(r.item_code || '').toUpperCase()).filter(Boolean));
+    const counts = { ALL: _courses.length, LEARNED: learnedCodes.size };
+    _courses.forEach((c) => {
+      const cat = detectCategory(c);
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
     const labels = {
-      th: { ALL: 'ทั้งหมด', LEARNED: `คอร์สที่เรียนแล้ว (${learnedCodes.size})`, BOOKS: 'ซื้อตำราเรียน', EXAM: 'สอบวัดความรู้ภาษาจีน', KIDS: 'คอร์สเด็ก', BEG: 'คอร์สขั้นต้น', INT: 'คอร์สขั้นกลาง', ADV: 'คอร์สขั้นสูง', CONVO: 'คอร์สสนทนา', HSK: 'ติวสอบวัดระดับ HSK', ART: 'ศิลป์ (วาดภาพ/เขียนอักษร)', MUSIC: 'ดนตรีจีน', OTHER: 'คอร์สทั่วไป/อื่นๆ' },
-      en: { ALL: 'All Courses', LEARNED: `Completed (${learnedCodes.size})`, BOOKS: 'Textbooks', EXAM: 'Proficiency Exam', KIDS: 'Kids', BEG: 'Beginner', INT: 'Intermediate', ADV: 'Advanced', CONVO: 'Conversation', HSK: 'HSK Prep', ART: 'Chinese Art & Calligraphy', MUSIC: 'Chinese Music', OTHER: 'Other Courses' },
-      zh: { ALL: '全部课程', LEARNED: `已学课程 (${learnedCodes.size})`, BOOKS: '购买教材', EXAM: '汉语水平测试', KIDS: '少儿汉语', BEG: '初级课程', INT: '中级课程', ADV: '高级课程', CONVO: '口语会话', HSK: 'HSK 辅导', ART: '书画艺术', MUSIC: '中国民乐', OTHER: '综合课程' }
+      th: { ALL: 'ทั้งหมด', LEARNED: 'คอร์สที่เรียนแล้ว', BOOKS: 'ซื้อตำราเรียน', EXAM: 'สอบวัดความรู้ภาษาจีน', KIDS: 'คอร์สเด็ก', BEG: 'คอร์สขั้นต้น', INT: 'คอร์สขั้นกลาง', ADV: 'คอร์สขั้นสูง', CONVO: 'คอร์สสนทนา', HSK: 'ติวสอบวัดระดับ HSK', ART: 'ศิลป์ (วาดภาพ/เขียนอักษร)', MUSIC: 'ดนตรีจีน', OTHER: 'คอร์สทั่วไป/อื่นๆ' },
+      en: { ALL: 'All Courses', LEARNED: 'Completed', BOOKS: 'Textbooks', EXAM: 'Proficiency Exam', KIDS: 'Kids', BEG: 'Beginner', INT: 'Intermediate', ADV: 'Advanced', CONVO: 'Conversation', HSK: 'HSK Prep', ART: 'Chinese Art', MUSIC: 'Chinese Music', OTHER: 'Other Courses' },
+      zh: { ALL: '全部课程', LEARNED: '已学课程', BOOKS: '购买教材', EXAM: '汉语水平测试', KIDS: '少儿汉语', BEG: '初级课程', INT: '中级课程', ADV: '高级课程', CONVO: '口语会话', HSK: 'HSK 辅导', ART: '书画艺术', MUSIC: '中国民乐', OTHER: '综合课程' }
+    };
+    const icons = {
+      ALL: 'fa-layer-group', LEARNED: 'fa-circle-check', BOOKS: 'fa-book', EXAM: 'fa-file-signature',
+      KIDS: 'fa-child-reaching', BEG: 'fa-seedling', INT: 'fa-user-graduate', ADV: 'fa-graduation-cap',
+      CONVO: 'fa-comments', HSK: 'fa-award', ART: 'fa-paintbrush', MUSIC: 'fa-music', OTHER: 'fa-shapes'
     };
     const l = labels[_currentLang] || labels.th;
     const ids = ['ALL', 'LEARNED', 'BOOKS', 'EXAM', 'KIDS', 'BEG', 'INT', 'ADV', 'CONVO', 'HSK', 'ART', 'MUSIC', 'OTHER'];
     box.innerHTML = ids.map(id =>
-      `<button type="button" class="st-cat-btn ${_activeCat === id ? 'active' : ''}" onclick="OcaStudentPortal.selectCategory('${id}')">${esc(l[id])}</button>`
+      `<button type="button" class="st-cat-btn ${_activeCat === id ? 'active' : ''}" onclick="OcaStudentPortal.selectCategory('${id}')">` +
+      `<span style="display:inline-flex;align-items:center;gap:8px;"><i class="fa-solid ${icons[id]}"></i><span>${esc(l[id])}</span></span>` +
+      `<span style="font-size:11px;font-weight:800;padding:1px 7px;border-radius:999px;background:${_activeCat === id ? 'rgba(255,255,255,0.2)' : '#F1F5F9'};color:${_activeCat === id ? '#FFFFFF' : '#475569'};">${counts[id] || 0}</span>` +
+      `</button>`
     ).join('');
   }
 
@@ -794,12 +1107,22 @@
     renderCoursesGrid();
   }
 
+  function getRecommendedCode() {
+    if (!_receipts.length || !_courses.length) return '';
+    const lastCode = String(_receipts[0].item_code || '').toUpperCase();
+    const m = lastCode.match(/^([A-Z]+)(\d+)$/);
+    if (!m) return '';
+    const nextCode = m[1] + String(Number(m[2]) + 1).padStart(m[2].length, '0');
+    return _courses.some(c => String(c.code || '').toUpperCase() === nextCode) ? nextCode : '';
+  }
+
   function renderCoursesGrid() {
     const grid = document.getElementById('boxEnrollCoursesGrid');
     const lblCount = document.getElementById('lblCourseCount');
     if (!grid) return;
     const q = (document.getElementById('inpCourseSearch')?.value || '').trim().toLowerCase();
     const learnedCodes = new Set(_receipts.map(r => String(r.item_code || '').toUpperCase()).filter(Boolean));
+    const recCode = getRecommendedCode();
 
     const filtered = _courses.filter(c => {
       if (_activeCat === 'LEARNED' && !learnedCodes.has(String(c.code || '').toUpperCase())) return false;
@@ -810,22 +1133,31 @@
 
     if (lblCount) lblCount.textContent = `${filtered.length} ${t('coursesUnit')}`;
     grid.innerHTML = filtered.map(c => {
-      const isLearned = learnedCodes.has(String(c.code || '').toUpperCase());
-      const badge = isLearned
-        ? '<span style="background:#022C22;color:#FFFFFF;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;"><i class="fa-solid fa-check"></i></span>'
-        : `<span style="background:#DCFCE7;color:#166534;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;">${esc(c.level || 'OCA')}</span>`;
+      const codeUp = String(c.code || '').toUpperCase();
+      const isLearned = learnedCodes.has(codeUp);
+      const isRec = recCode && codeUp === recCode;
+      const rightBadge = isRec
+        ? `<span style="background:#FEF3C7;color:#92400E;border:1px solid #F59E0B;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:999px;"><i class="fa-solid fa-star"></i> ${esc(t('recommendedBadge'))}</span>`
+        : (isLearned
+          ? `<span style="background:#022C22;color:#FFFFFF;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;"><i class="fa-solid fa-check"></i> ${esc(t('learnedBadge'))}</span>`
+          : '');
       return `
-        <div class="st-card" style="padding:14px;display:flex;flex-direction:column;justify-content:space-between;gap:10px;">
-          <div>
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px;">
-              <strong data-i18n-locked="true" style="font-family:monospace;font-size:14px;color:#0369A1;background:#E0F2FE;padding:2px 8px;border-radius:8px;">${esc(c.code)}</strong>
-              ${badge}
+        <div class="oca-course-card" onmouseenter="OcaStudentPortal.hoverCourse(${Number(c.id)}, this)" onmouseleave="OcaStudentPortal.scheduleHideHoverPopover()">
+          <div class="oca-course-hero">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:22px;">
+              <span style="background:#FFFFFF;color:#0369A1;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid #BAE6FD;"><i class="fa-solid fa-book-open"></i> ${esc(c.level || 'OCA')}</span>
+              ${rightBadge}
             </div>
-            <div data-i18n-locked="true" style="font-size:14px;font-weight:700;color:#0F172A;line-height:1.4;">${esc(c.name)}</div>
+            <div class="oca-course-code-box">
+              <div data-i18n-locked="true" style="font-size:20px;font-weight:800;color:#0369A1;font-family:monospace;letter-spacing:0.5px;">${esc(c.code)}</div>
+            </div>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid #F1F5F9;">
-            <strong style="font-size:16px;font-family:monospace;color:#047857;">฿${Number(c.price || 0).toLocaleString('en-US')}</strong>
-            <button type="button" class="st-btn-primary" style="padding:7px 12px;font-size:12.5px;" onclick="OcaStudentPortal.openCheckout(${Number(c.id)})">${esc(t('enrollBtn'))}</button>
+          <div style="padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:10px;flex:1;">
+            <div data-i18n-locked="true" style="font-size:13.5px;font-weight:700;color:#0F172A;line-height:1.45;">${esc(c.name)}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid #F1F5F9;">
+              <button type="button" class="st-btn-outline" style="padding:6px 11px;font-size:12px;border-color:#047857;color:#047857;" onclick="OcaStudentPortal.openCheckout(${Number(c.id)})">${esc(t('enrollBtn'))}</button>
+              <strong style="font-size:17px;font-family:monospace;color:#047857;">฿${Number(c.price || 0).toLocaleString('en-US')}</strong>
+            </div>
           </div>
         </div>`;
     }).join('');
@@ -840,19 +1172,21 @@
     if (selSched) {
       selSched.innerHTML = _schedules.map(s => `<option value="${esc(s.name + ' ' + (s.day_time || ''))}">${esc(s.name)} (${esc(s.day_time || '')})</option>`).join('');
     }
+    const selDeliv = document.getElementById('selCheckoutDelivery');
+    if (selDeliv && selDeliv.options[1]) {
+      selDeliv.options[1].textContent = `${t('delivShip')} (+฿${_shippingFee})`;
+    }
     recalcCheckout();
     document.getElementById('modalStudentCheckout')?.classList.remove('st-hidden');
   }
 
-  function closeCheckout() {
-    document.getElementById('modalStudentCheckout')?.classList.add('st-hidden');
-  }
+  function closeCheckout() { document.getElementById('modalStudentCheckout')?.classList.add('st-hidden'); }
 
   function recalcCheckout() {
     if (!_checkoutCourse) return;
     const base = Number(_checkoutCourse.price || 0);
     const deliv = document.getElementById('selCheckoutDelivery')?.value || 'รับเอง';
-    const ship = deliv === 'ส่งตำรา' ? 50 : 0;
+    const ship = deliv === 'ส่งตำรา' ? _shippingFee : 0;
     document.getElementById('lblCheckoutTotal').textContent = '฿' + (base + ship).toLocaleString('en-US', { minimumFractionDigits: 2 });
   }
 
@@ -860,15 +1194,21 @@
     if (!_sb || !_student || !_checkoutCourse) return;
     const fileInput = document.getElementById('inpCheckoutSlipFile');
     const file = fileInput && fileInput.files && fileInput.files[0];
-    if (!file) { showToast('กรุณาแนบรูปสลิปการโอนเงินก่อนส่ง'); return; }
+    const fileErr = validateImageFile(file);
+    if (fileErr) { showToast(fileErr); return; }
+
     const btn = document.getElementById('btnSubmitCheckout');
     if (btn) btn.disabled = true;
 
     try {
+      if (global.OcaSlipGuard && typeof global.OcaSlipGuard.verifySlipBeforeUpload === 'function') {
+        const gRes = await global.OcaSlipGuard.verifySlipBeforeUpload(file, _sb);
+        if (gRes && gRes.blocked) throw new Error(gRes.reason || 'ตรวจพบสลิปซ้ำหรือไม่ถูกต้อง');
+      }
       const sid = String(_student.student_id).trim();
       const base = Number(_checkoutCourse.price || 0);
       const deliv = document.getElementById('selCheckoutDelivery')?.value || 'รับเอง';
-      const total = base + (deliv === 'ส่งตำรา' ? 50 : 0);
+      const total = base + (deliv === 'ส่งตำรา' ? _shippingFee : 0);
       const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
       const path = `student_slip_${sid}_${Date.now()}.${ext}`;
       const { error: upErr } = await _sb.storage.from('payment-slips').upload(path, file, { upsert: true });
@@ -896,19 +1236,38 @@
   function renderScheduleTab() {
     const box = document.getElementById('boxStudentScheduleList');
     if (!box) return;
-    if (!_receipts.length) {
+    const curCourse = String(_student?.current_course || '').trim();
+    const curSched = String(_student?.current_schedule || '').trim();
+    const latestRc = _receipts[0] || null;
+
+    if (!curCourse && !latestRc) {
       box.innerHTML = `<div style="color:#64748B;font-size:13px;">${esc(t('noScheduleMsg'))}</div>`;
       return;
     }
-    box.innerHTML = _receipts.map(r => `
-      <div style="border:1px solid #E2E8F0;border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div>
-          <div data-i18n-locked="true" style="font-size:14px;font-weight:800;">${esc(r.item_name || r.item_code || '-')}</div>
-          <div data-i18n-locked="true" style="font-size:12.5px;color:#047857;margin-top:2px;"><i class="fa-regular fa-clock"></i> ${esc(r.schedule_info || '-')} • ${esc(r.learning_mode || 'Onsite')}</div>
+
+    const displayCourse = curCourse || (latestRc ? (latestRc.item_name || latestRc.item_code) : '-');
+    const displaySched = curSched || (latestRc ? latestRc.schedule_info : '-') || '-';
+    const displayMode = latestRc ? (latestRc.learning_mode || 'Onsite') : 'Onsite';
+
+    let lecturerName = '';
+    if (_lecturerMap && Array.isArray(_lecturerMap.courses)) {
+      const hit = _lecturerMap.courses.find(x => displayCourse.includes(x.code) || displayCourse.includes(x.name));
+      if (hit && hit.lecturer) lecturerName = hit.lecturer;
+    }
+    const termDates = (_termInfo && _termInfo.dateFrom && _termInfo.dateTo) ? `${_termInfo.dateFrom} - ${_termInfo.dateTo}` : '';
+
+    box.innerHTML = `
+      <div style="border:2px solid #047857;background:linear-gradient(135deg,#F0FDF4 0%,#FFFFFF 100%);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="background:#022C22;color:#FDE68A;font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:999px;"><i class="fa-solid fa-star"></i> ${esc(t('currentCourseBadge'))}</span>
+          ${latestRc ? `<span style="background:#DCFCE7;color:#166534;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;">#${esc(latestRc.receipt_no)}</span>` : ''}
         </div>
-        <span style="background:#DCFCE7;color:#166534;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;">#${esc(r.receipt_no || '-')}</span>
+        <div data-i18n-locked="true" style="font-size:16.5px;font-weight:800;color:#0F172A;">${esc(displayCourse)}</div>
+        <div data-i18n-locked="true" style="font-size:13.5px;color:#047857;font-weight:700;"><i class="fa-regular fa-clock"></i> ${esc(displaySched)} • ${esc(displayMode)}</div>
+        ${lecturerName ? `<div style="font-size:13px;color:#334155;"><i class="fa-solid fa-chalkboard-user"></i> <strong>${esc(t('lecturerLbl'))}:</strong> ${esc(lecturerName)}</div>` : ''}
+        ${termDates ? `<div style="font-size:12.5px;color:#475569;"><i class="fa-solid fa-calendar-check"></i> <strong>${esc(t('termPeriodLbl'))}:</strong> ${esc(termDates)}</div>` : ''}
       </div>
-    `).join('');
+    `;
   }
 
   function renderFinanceTab() {
@@ -931,7 +1290,7 @@
       return;
     }
     rcBox.innerHTML = _receipts.map(r => `
-      <div style="border:1px solid #E2E8F0;border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div onmouseenter="OcaStudentPortal.hoverReceipt('${esc(r.receipt_no)}', this)" onmouseleave="OcaStudentPortal.scheduleHideHoverPopover()" style="border:1px solid #E2E8F0;border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
         <div>
           <div data-i18n-locked="true" style="font-size:14px;font-weight:800;">#${esc(r.receipt_no)} • ${esc(r.item_name || r.item_code || '-')}</div>
           <div style="font-size:12px;color:#475569;margin-top:2px;">
@@ -948,7 +1307,8 @@
 
   async function onProfilePhotoSelected(input) {
     const file = input && input.files && input.files[0];
-    if (!file) return;
+    const fileErr = validateImageFile(file);
+    if (fileErr) { showToast(fileErr); return; }
     const statusEl = document.getElementById('lblAiPhotoStatus');
     const previewEl = document.getElementById('imgProfileAiPreview');
     const saveBtn = document.getElementById('btnSaveAiPhoto');
@@ -999,7 +1359,7 @@
     ev.preventDefault();
     if (!_sb || !_student) return;
     const dobIso = normalizeDobIso(document.getElementById('profDob')?.value || '');
-    if (!dobIso) { showToast('กรุณากรอกวันเดือนปีเกิดให้ถูกต้อง (เช่น 15/05/2540)'); return; }
+    if (!dobIso) { showToast('กรุณากรอกวันเดือนปีเกิดให้ถูกต้อง (เช่น 15052540 หรือ 15/05/2540)'); return; }
     const btn = document.getElementById('btnSaveProfile');
     if (btn) btn.disabled = true;
     try {
@@ -1211,7 +1571,7 @@
       const catLabel = cat[_currentLang] || cat.th;
       const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
       return `
-        <div class="oca-notice-item" onclick="OcaStudentPortal.openNoticeDetail('${esc(n.id)}')">
+        <div class="oca-notice-item" onmouseenter="OcaStudentPortal.hoverNotice('${esc(n.id)}', this)" onmouseleave="OcaStudentPortal.scheduleHideHoverPopover()" onclick="OcaStudentPortal.openNoticeDetail('${esc(n.id)}')">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
             ${n.pinned ? '<span style="background:#FEF3C7;color:#92400E;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;"><i class="fa-solid fa-thumbtack"></i></span>' : ''}
             ${n.isNew ? '<span style="background:#EF4444;color:#FFFFFF;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;">NEW</span>' : ''}
@@ -1253,6 +1613,7 @@
   function closeNoticeDetail() { document.getElementById('modalStudentNoticeDetail')?.classList.add('st-hidden'); }
 
   function logout() {
+    if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; }
     if (_sb && global._activeStudentNotifChannel && typeof _sb.removeChannel === 'function') {
       _sb.removeChannel(global._activeStudentNotifChannel);
       global._activeStudentNotifChannel = null;
@@ -1297,6 +1658,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     initRealtimeI18nObserver();
+    initIdleMonitor();
     setLang(_currentLang);
     loadNoticeBoard();
     if (_sb && global.OcaNoticeBoard && typeof global.OcaNoticeBoard.subscribeNotices === 'function') {
@@ -1318,12 +1680,19 @@
 
   global.OcaStudentPortal = {
     setLang,
+    toggleLoginSecret,
     enterLoginFromWelcome,
     backToWelcome,
     openRegisterView,
     backToLogin,
     toggleSidebar,
     flipIdCard,
+    onAddrSearch,
+    pickThaiAddress,
+    hoverNotice,
+    hoverCourse,
+    hoverReceipt,
+    scheduleHideHoverPopover,
     handleLogin,
     handleRegister,
     switchTab,
