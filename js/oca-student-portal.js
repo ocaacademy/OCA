@@ -1410,6 +1410,7 @@
     if (bellBtn) bellBtn.classList.toggle('st-hidden', viewId !== 'viewStudentApp');
     const mobNav = document.getElementById('stMobileBottomNav');
     if (mobNav) mobNav.classList.toggle('st-hidden', viewId !== 'viewStudentApp');
+    if (document.body) document.body.classList.toggle('oca-app-logged-in', viewId === 'viewStudentApp');
   }
 
   function enterLoginFromWelcome() { showOnlyView('viewStudentAuth'); }
@@ -3413,4 +3414,8 @@
     installPwa,
     closePwaGuide
   };
+  if (global.__ocaPendingEnterLogin) {
+    global.__ocaPendingEnterLogin = false;
+    enterLoginFromWelcome();
+  }
 })(window);
