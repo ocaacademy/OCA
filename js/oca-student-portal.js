@@ -29,20 +29,20 @@
   let _pendingAiPhoto = null;
   let _deferredPwaPrompt = null;
   let _notifs = [];
+  let _notices = [];
 
   const I18N = {
     th: {
       hdrSub: 'ระบบนักศึกษาออนไลน์ (สมัครเรียน • ตารางเรียน • บัตรนักศึกษา)',
       installPwa: 'ติดตั้งแอป',
       logout: 'ออกจากระบบ',
-      newBadge: '✨ สำหรับผู้ที่ยังไม่เคยมีรหัสนักศึกษา OCA',
-      newHeroTitle: 'ลงทะเบียนนักศึกษาใหม่',
-      newHeroDesc: 'กรอกประวัติส่วนตัวและวันเดือนปีเกิด ระบบจะออกรหัสนักศึกษาให้อัตโนมัติ แล้วพาเข้าสู่หน้าเลือกคอร์สเรียนและแนบสลิปได้ทันที',
+      noticeBoardTitle: 'บอร์ดประชาสัมพันธ์สถาบัน',
+      newOrDivider: 'สำหรับผู้ที่ยังไม่มีรหัสนักศึกษา',
       btnNewReg: 'ลงทะเบียนใหม่ (นักศึกษาใหม่)',
       loginTitle: 'เข้าสู่ระบบนักศึกษา',
-      loginSub: 'สำหรับนักศึกษาปัจจุบัน: ต่อคอร์ส, ดูตารางเรียน, บัตรนักศึกษา และแก้ไขประวัติ',
+      loginSub: 'สำหรับนักศึกษาปัจจุบัน: ต่อคอร์ส, ดูตารางเรียน, บัตรนักศึกษา',
       loginSid: 'รหัสนักศึกษา (7 หลัก)',
-      loginSecret: 'วันเดือนปีเกิด (เช่น 15/05/2540) หรือรหัสเริ่มต้น 123456',
+      loginSecret: 'วันเดือนปีเกิด (เช่น 15/05/2540) หรือรหัส 123456',
       btnLogin: 'เข้าสู่ระบบนักศึกษา',
       quickEnroll: 'เลือกคอร์ส / ต่อคอร์ส',
       tabHome: 'หน้าหลัก',
@@ -56,12 +56,11 @@
       hdrSub: 'Student Self-Service Portal (Enroll • Schedule • Digital ID)',
       installPwa: 'Install App',
       logout: 'Sign Out',
-      newBadge: '✨ For First-Time Applicants Without an OCA Student ID',
-      newHeroTitle: 'New Student Registration',
-      newHeroDesc: 'Fill in your profile & date of birth to receive your Student ID immediately and proceed straight to course enrollment.',
+      noticeBoardTitle: 'OCA Notice Board',
+      newOrDivider: 'New to OCA?',
       btnNewReg: 'Register as New Student',
       loginTitle: 'Student Sign In',
-      loginSub: 'For current students: renew courses, view schedule, digital ID & profile',
+      loginSub: 'For current students: renew courses, view schedule & digital ID',
       loginSid: 'Student ID (7 digits)',
       loginSecret: 'Date of Birth (DD/MM/YYYY) or default 123456',
       btnLogin: 'Sign In',
@@ -77,12 +76,11 @@
       hdrSub: '东方文化书院学员在线门户（在线报名 • 课表 • 电子学生证）',
       installPwa: '安装应用',
       logout: '退出登录',
-      newBadge: '✨ 适用于尚未拥有OCA学号的新学员',
-      newHeroTitle: '新学员在线注册',
-      newHeroDesc: '填写个人资料与出生日期即可自动生成学号，并立即进入选课与上传转账凭证页面。',
+      noticeBoardTitle: '书院公告栏',
+      newOrDivider: '尚未拥有OCA学号？',
       btnNewReg: '新学员注册',
       loginTitle: '学员登录',
-      loginSub: '老学员专用：续费选课、查看课表、电子学生证及修改个人资料',
+      loginSub: '老学员专用：续费选课、查看课表、电子学生证',
       loginSid: '学号（7位数字）',
       loginSecret: '出生日期（如 15/05/1997）或初始密码 123456',
       btnLogin: '登录学员系统',
@@ -146,7 +144,7 @@
     document.querySelectorAll('.st-lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === _currentLang));
     const mapIds = {
       txtHdrSub: 'hdrSub', lblInstallPwa: 'installPwa', lblLogout: 'logout',
-      lblNewBadge: 'newBadge', lblNewHeroTitle: 'newHeroTitle', lblNewHeroDesc: 'newHeroDesc',
+      lblNoticeBoardTitle: 'noticeBoardTitle', lblNewOrDivider: 'newOrDivider',
       lblBtnNewReg: 'btnNewReg', lblLoginTitle: 'loginTitle', lblLoginSub: 'loginSub',
       lblLoginSid: 'loginSid', lblLoginSecret: 'loginSecret', lblBtnLogin: 'btnLogin',
       lblQuickEnroll: 'quickEnroll'
@@ -159,17 +157,28 @@
       const k = el.getAttribute('data-i18n');
       if (dict[k]) el.textContent = dict[k];
     });
+    renderNoticeCards();
   }
 
   function showOnlyView(viewId) {
-    ['viewStudentAuth', 'viewStudentRegister', 'viewStudentApp'].forEach(id => {
+    ['viewStudentWelcome', 'viewStudentAuth', 'viewStudentRegister', 'viewStudentApp'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.classList.toggle('st-hidden', id !== viewId);
     });
+    const hdr = document.getElementById('stMainHeader');
+    if (hdr) hdr.classList.toggle('st-hidden', viewId === 'viewStudentWelcome' || viewId === 'viewStudentAuth');
     const logoutBtn = document.getElementById('btnStudentLogout');
     if (logoutBtn) logoutBtn.classList.toggle('st-hidden', viewId !== 'viewStudentApp');
     const bellBtn = document.getElementById('btnStudentNotifBell');
     if (bellBtn) bellBtn.classList.toggle('st-hidden', viewId !== 'viewStudentApp');
+  }
+
+  function enterLoginFromWelcome() {
+    showOnlyView('viewStudentAuth');
+  }
+
+  function backToWelcome() {
+    showOnlyView('viewStudentWelcome');
   }
 
   function openRegisterView() {
@@ -323,7 +332,7 @@
   function renderHeaderAndProfile() {
     const sid = _student.student_id || '-';
     const fullName = ((_student.prefix || '') + ' ' + (_student.full_name || '')).trim();
-    const photo = _student.photo_url || './student-icon-192.png';
+    const photo = _student.photo_url || './oca_logo.png';
     document.getElementById('lblAppStudentName').textContent = fullName;
     document.getElementById('lblAppStudentId').textContent = sid;
     document.getElementById('lblAppStatus').textContent = _student.status || 'พร้อมเรียน';
@@ -824,11 +833,101 @@
     showOnlyView('viewStudentAuth');
   }
 
+  function renderNoticeCards() {
+    const loginBox = document.getElementById('listStudentNotices');
+    const homeBox = document.getElementById('boxHomeNotices');
+    const cats = (global.OcaNoticeBoard && global.OcaNoticeBoard.CATEGORIES) || {};
+    const fallbackNotice = {
+      id: 'default',
+      title: _currentLang === 'en' ? 'Welcome to OCA Student Portal' : (_currentLang === 'zh' ? '欢迎使用东方文化书院学员在线系统' : 'ยินดีต้อนรับสู่ระบบนักศึกษา OCA'),
+      body: _currentLang === 'en'
+        ? 'Enroll in courses, upload payment slips, view schedules, and access your digital student ID card anytime.'
+        : (_currentLang === 'zh' ? '在线选课报名、上传转账凭证、查看课表与电子学生证，随时随地便捷使用。' : 'สามารถสมัครคอร์สเรียน แนบสลิปโอนเงิน ดูตารางเรียน บัตรนักศึกษา และรับใบเสร็จได้ตลอด 24 ชม.'),
+      category: 'GENERAL',
+      pinned: true,
+      isNew: false,
+      createdMs: Date.now()
+    };
+    const items = _notices.length > 0 ? _notices : [fallbackNotice];
+
+    if (loginBox) {
+      loginBox.innerHTML = items.map((n) => {
+        const cat = cats[n.category] || { th: 'ประกาศ', en: 'Notice', zh: '公告', bg: '#E0F2FE', fg: '#0369A1' };
+        const catLabel = cat[_currentLang] || cat.th;
+        const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) : '';
+        return `
+          <div class="oca-notice-item" onclick="OcaStudentPortal.openNoticeDetail('${esc(n.id)}')">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+              ${n.pinned ? '<span style="background:#FEF3C7;color:#92400E;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;">📌 ปักหมุด</span>' : ''}
+              ${n.isNew ? '<span style="background:#EF4444;color:#FFFFFF;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;">NEW</span>' : ''}
+              <span style="background:${cat.bg};color:${cat.fg};font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;">${esc(catLabel)}</span>
+              <span style="font-size:11px;color:#A7F3D0;margin-left:auto;">${esc(dtStr)}</span>
+            </div>
+            <div style="font-size:13.5px;font-weight:700;color:#FFFFFF;line-height:1.4;">${esc(n.title)}</div>
+            ${n.body ? `<div style="font-size:12px;color:#D1FAE5;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${esc(n.body)}</div>` : ''}
+          </div>`;
+      }).join('');
+    }
+
+    if (homeBox) {
+      homeBox.innerHTML = items.slice(0, 6).map((n) => {
+        const cat = cats[n.category] || { th: 'ประกาศ', en: 'Notice', zh: '公告', bg: '#E0F2FE', fg: '#0369A1' };
+        const catLabel = cat[_currentLang] || cat.th;
+        const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+        return `
+          <div onclick="OcaStudentPortal.openNoticeDetail('${esc(n.id)}')" style="border:1px solid #E2E8F0;border-radius:12px;padding:11px 13px;background:#F8FAFC;cursor:pointer;">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+              ${n.pinned ? '<span style="background:#FEF3C7;color:#92400E;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;">📌 ปักหมุด</span>' : ''}
+              ${n.isNew ? '<span style="background:#DC2626;color:#FFFFFF;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;">ใหม่</span>' : ''}
+              <span style="background:${cat.bg};color:${cat.fg};font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;">${esc(catLabel)}</span>
+              <span style="font-size:11px;color:#64748B;margin-left:auto;">${esc(dtStr)}</span>
+            </div>
+            <div style="font-size:14px;font-weight:700;color:#0F172A;">${esc(n.title)}</div>
+            ${n.body ? `<div style="font-size:12.5px;color:#475569;margin-top:3px;">${esc(n.body)}</div>` : ''}
+          </div>`;
+      }).join('');
+    }
+  }
+
+  async function loadNoticeBoard() {
+    try {
+      const term = await resolveActiveYearTerm();
+      const termEl = document.getElementById('lblLoginActiveTerm');
+      if (termEl) termEl.textContent = `ภาคเรียน ${term.term}/${term.yearBE}`;
+      if (_sb && global.OcaNoticeBoard && typeof global.OcaNoticeBoard.fetchNotices === 'function') {
+        _notices = await global.OcaNoticeBoard.fetchNotices(_sb, { includeExpired: false });
+      }
+    } catch (err) {
+      console.warn('[loadNoticeBoard]', err);
+    }
+    renderNoticeCards();
+  }
+
+  function openNoticeDetail(id) {
+    const n = _notices.find(x => String(x.id) === String(id));
+    if (!n) return;
+    document.getElementById('lblNoticeModalTitle').textContent = n.title || 'ประกาศจากสถาบัน';
+    const dtStr = n.createdMs ? new Date(n.createdMs).toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
+    document.getElementById('boxNoticeModalMeta').textContent = dtStr ? ('เผยแพร่เมื่อ: ' + dtStr) : '';
+    document.getElementById('boxNoticeModalBody').textContent = n.body || '-';
+    document.getElementById('modalStudentNoticeDetail')?.classList.remove('st-hidden');
+  }
+
+  function closeNoticeDetail() {
+    document.getElementById('modalStudentNoticeDetail')?.classList.add('st-hidden');
+  }
+
   function installPwa() {
     if (_deferredPwaPrompt) {
       _deferredPwaPrompt.prompt();
       _deferredPwaPrompt = null;
+    } else {
+      document.getElementById('modalStudentPwaGuide')?.classList.remove('st-hidden');
     }
+  }
+
+  function closePwaGuide() {
+    document.getElementById('modalStudentPwaGuide')?.classList.add('st-hidden');
   }
 
   global.addEventListener('beforeinstallprompt', (e) => {
@@ -846,18 +945,25 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     setLang(_currentLang);
+    loadNoticeBoard();
+    if (_sb && global.OcaNoticeBoard && typeof global.OcaNoticeBoard.subscribeNotices === 'function') {
+      global.OcaNoticeBoard.subscribeNotices(_sb, loadNoticeBoard);
+    }
     try {
       const saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
       if (saved && saved.student && saved.student.student_id) {
         _student = saved.student;
         _needsDobSetup = Boolean(saved.needsDobSetup);
-        enterApp('home');
+        const tabParam = new URLSearchParams(global.location.search || '').get('tab') || 'home';
+        enterApp(tabParam);
       }
     } catch (_) {}
   });
 
   global.OcaStudentPortal = {
     setLang,
+    enterLoginFromWelcome,
+    backToWelcome,
     openRegisterView,
     backToLogin,
     handleLogin,
@@ -878,7 +984,10 @@
     markAllNotifsRead,
     openReceiptDetail,
     closeReceiptDetail,
+    openNoticeDetail,
+    closeNoticeDetail,
     logout,
-    installPwa
+    installPwa,
+    closePwaGuide
   };
 })(window);
